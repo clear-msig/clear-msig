@@ -680,6 +680,7 @@ export default function AgentConnectionPage() {
             <label className="inline-flex min-h-9 items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-strong">
               <input
                 type="checkbox"
+                aria-label="Trade automatically within budget"
                 checked={kit?.autoImportSessionSignals ?? false}
                 onChange={(event) => toggleAutoReview(event.target.checked)}
                 className="h-3.5 w-3.5 accent-accent"
@@ -741,6 +742,7 @@ export default function AgentConnectionPage() {
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-soft">Idea details</span>
             <textarea
+              aria-label="Trade idea details"
               value={signalJson}
               onChange={(event) => {
                 setSignalJson(event.target.value);

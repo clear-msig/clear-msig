@@ -775,6 +775,7 @@ function NewWalletContent() {
               </div>
             </div>
             <textarea
+              aria-label="Signers to import"
               value={importText}
               onChange={(event) => setImportText(event.target.value)}
               rows={5}
@@ -815,6 +816,7 @@ function NewWalletContent() {
             </span>
             <input
               id="new-wallet-name"
+              aria-label="Wallet name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={currentShape.defaultName}

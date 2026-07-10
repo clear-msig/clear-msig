@@ -173,7 +173,7 @@ export default function ProEscrowPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 pb-28 pt-5 sm:px-6 lg:px-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 pb-28 pt-5 sm:px-6 lg:px-8">
       <header className="flex items-center justify-between gap-3">
         <Link
           href={`/app/wallet/${encoded}`}
@@ -330,7 +330,7 @@ export default function ProEscrowPage() {
           </Button>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -959,6 +959,7 @@ function EscrowInput({
       </span>
       <span className="flex min-h-tap items-center rounded-soft border border-border-soft bg-canvas px-3 transition focus-within:border-accent/50">
         <input
+          aria-label={label}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           inputMode={inputMode}
@@ -994,6 +995,7 @@ function MiniInput({
         {label}
       </span>
       <input
+        aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         inputMode={inputMode}

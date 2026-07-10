@@ -308,6 +308,7 @@ function PinInput({
       </span>
       <input
         type="password"
+        aria-label={label}
         inputMode="numeric"
         autoComplete="off"
         value={value}

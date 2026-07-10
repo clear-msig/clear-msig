@@ -127,6 +127,7 @@ export function InfoTip({
     <>
       <span
         ref={wrapperRef}
+        role="presentation"
         className={"relative inline-flex items-center " + (className ?? "")}
         // Hover behaviour only matters on desktop; on mobile the
         // touch-tap is the primary interaction and these handlers

@@ -383,9 +383,9 @@ function ComposeForm({
   return (
     <div className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <div className="flex flex-col gap-2">
-        <label className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Chain
-        </label>
+        </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {CHAIN_CATALOG.filter((c) => c.kind !== 4).map((chain) => {
             const binding = bindings.find((b) => b.chain_kind === chain.kind);
@@ -430,6 +430,7 @@ function ComposeForm({
           </span>
           <input
             id="usd-amount"
+            aria-label="Amount in USD"
             type="text"
             inputMode="decimal"
             placeholder="0.00"

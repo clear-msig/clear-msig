@@ -17,7 +17,7 @@
 // The legacy wizard (CreateWalletCard, WalletPanel) and WorkflowTips
 // are intentionally NOT rendered here - they're being retired.
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
@@ -77,6 +77,8 @@ import { formatBalance } from "@/lib/retail/format";
 import { formatChainBalance } from "@/lib/balances";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 import { UsdHint } from "@/components/retail/UsdHint";
 import {
   useWalletPortfolio,
@@ -1010,18 +1012,22 @@ function MobileWalletSwitchModal({
 }) {
   const [pinTick, setPinTick] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
 
   useEffect(() => setMounted(true), []);
   useEffect(() => subscribePinnedWallets(() => setPinTick((n) => n + 1)), []);
+  useBodyScrollLock(open);
+  useFocusTrap(dialogRef, open && mounted);
 
   useEffect(() => {
     if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
-  }, [open]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
 
   const ordered = useMemo(() => {
     void pinTick;
@@ -1034,20 +1040,22 @@ function MobileWalletSwitchModal({
     <AnimatePresence>
       {open ? (
         <motion.div
+          ref={dialogRef}
           className="fixed inset-0 z-[500] bg-canvas md:flex md:items-center md:justify-center md:bg-black/55 md:p-6 md:backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
-          aria-label="Switch wallet"
-          initial={{ opacity: 0 }}
+          aria-labelledby="wallet-switch-title"
+          tabIndex={-1}
+          initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.16 }}
         >
           <motion.div
             className="flex h-full flex-col bg-canvas md:h-auto md:max-h-[min(760px,calc(100vh-3rem))] md:w-full md:max-w-xl md:overflow-hidden md:rounded-card md:border md:border-border-soft md:bg-surface-raised md:shadow-card-rest"
-            initial={{ x: "100%" }}
+            initial={reduce ? false : { x: "100%" }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            exit={reduce ? { opacity: 0 } : { x: "100%" }}
             transition={{ type: "spring", stiffness: 360, damping: 34 }}
           >
             <header className="relative flex h-16 shrink-0 items-center justify-between border-b border-border-soft bg-canvas px-4">
@@ -1059,7 +1067,12 @@ function MobileWalletSwitchModal({
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </button>
-              <h2 className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight text-text-strong">
+              <h2
+                id="wallet-switch-title"
+                tabIndex={-1}
+                data-dialog-initial-focus
+                className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold text-text-strong"
+              >
                 Switch
               </h2>
               <span className="h-10 w-10" aria-hidden="true" />
@@ -1753,6 +1766,7 @@ function WatchedWalletsSection({
           >
             <input
               type="text"
+              aria-label="Wallet name to watch"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="treasury#A1B2C3"

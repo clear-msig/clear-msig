@@ -178,6 +178,7 @@ export default function AgentPolicyPage() {
                 >
                   <input
                     type="checkbox"
+                    aria-label={venue.label}
                     checked={policy.allowedVenues.includes(venue.value)}
                     onChange={(event) =>
                       setPolicy({
@@ -294,6 +295,7 @@ function Toggle({
       <span>{label}</span>
       <input
         type="checkbox"
+        aria-label={label}
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
         className="h-4 w-4 accent-accent"

@@ -221,6 +221,7 @@ export function LandingNav({
 
           <div
             ref={productRef}
+            role="presentation"
             className="relative"
             onMouseEnter={() => setProductOpen(true)}
             onMouseLeave={() => setProductOpen(false)}

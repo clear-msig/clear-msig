@@ -27,6 +27,7 @@ import {
   useSidebar,
 } from "@/components/providers/SidebarProvider";
 import { ActionNeededProvider } from "@/lib/hooks/useActionNeeded";
+import { RouteAccessibility } from "@/components/layout/RouteAccessibility";
 
 const DashboardHeader = dynamic(
   () =>
@@ -84,12 +85,19 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const isWalletHub = pathname === "/app/wallet";
   const notificationsReady = useDeferredRuntime();
   return (
-    <main
+    <div
       className={clsx(
         "app-experience relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden",
         isWalletHub && "wallet-dot-canvas",
       )}
     >
+      <a
+        href="#main-content"
+        className="fixed left-3 top-3 z-[600] -translate-y-24 rounded-soft bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-card-raised transition-transform focus:translate-y-0"
+      >
+        Skip to content
+      </a>
+      <RouteAccessibility pathname={pathname} />
       <MobileHeaderBackdrop />
       <HeaderBar />
       {notificationsReady ? <ActionNotificationsRuntime /> : null}
@@ -124,7 +132,9 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             pt on the scroll container would push every sticky child
             down by that amount because sticky offsets are measured
             from the padding-box edge of the scrollport. */}
-        <div
+        <main
+          id="main-content"
+          tabIndex={-1}
           className="app-content-stage relative z-10 flex-1 px-4 sm:px-5 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12"
           style={{ scrollbarGutter: "stable" }}
         >
@@ -133,11 +143,11 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             <PreAlphaBanner />
             <section className="relative z-20 min-w-0">{children}</section>
           </div>
-        </div>
+        </main>
       </div>
 
       <BottomNav />
-    </main>
+    </div>
   );
 }
 

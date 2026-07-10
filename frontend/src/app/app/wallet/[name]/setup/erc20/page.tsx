@@ -254,7 +254,7 @@ export default function SetupErc20Page() {
       };
 
   return (
-    <main className="relative flex min-h-screen flex-col bg-canvas">
+    <div className="relative flex min-h-screen flex-col bg-canvas">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -370,6 +370,6 @@ export default function SetupErc20Page() {
           </div>
         </motion.section>
       </div>
-    </main>
+    </div>
   );
 }

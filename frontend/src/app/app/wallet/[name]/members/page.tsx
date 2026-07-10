@@ -452,6 +452,7 @@ function MemberRow({
           <div className="mt-2 flex items-center gap-2">
             <input
               type="text"
+              aria-label="Member nickname"
               autoFocus
               value={nicknameDraft}
               onChange={(e) => setNicknameDraft(e.target.value.slice(0, 40))}

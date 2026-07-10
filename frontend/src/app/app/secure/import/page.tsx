@@ -667,6 +667,7 @@ function ComposeStage(props: ComposeStageProps) {
               the secret onto the user's screen. */}
           <input
             id="secret-key"
+            aria-label="Secret key"
             ref={props.inputRef}
             type="password"
             onChange={props.onChange}
@@ -746,6 +747,7 @@ function ComposeStage(props: ComposeStageProps) {
             <div className="flex items-center gap-2">
               <input
                 id="amount-sol"
+                aria-label="Amount in SOL"
                 type="text"
                 inputMode="decimal"
                 value={props.amountSol}

@@ -234,6 +234,7 @@ export default function BudgetPage() {
           <span className="font-display text-2xl text-text-strong">$</span>
           <input
             type="text"
+            aria-label="Wallet-wide weekly spending limit in USD"
             inputMode="decimal"
             value={walletDraft}
             onChange={(e) => {
@@ -317,6 +318,7 @@ export default function BudgetPage() {
           </span>
           <input
             type="text"
+            aria-label="Daily send count limit"
             inputMode="numeric"
             value={velocityDraft}
             onChange={(e) =>
@@ -420,6 +422,7 @@ function ChainCapRow({
         </span>
         <input
           type="text"
+          aria-label={`${meta.name} weekly spending limit in USD`}
           inputMode="decimal"
           value={draft.amount}
           onChange={(e) =>
@@ -592,6 +595,7 @@ function UsageBar({
           (thin ? "h-1" : "h-2")
         }
         role="progressbar"
+        aria-label={caption ?? "Spending limit used"}
         aria-valuenow={Math.round(pct * 100)}
         aria-valuemin={0}
         aria-valuemax={100}

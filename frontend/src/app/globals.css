@@ -213,7 +213,7 @@ body {
 /* ── accessibility ─────────────────────────────────────────────────── */
 
 *:focus-visible {
-  outline: 2px solid #16a34a;
+  outline: 2px solid var(--clear-accent);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -230,16 +230,14 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Text-entry fields opt out of the global green focus ring. They
-   already render their own focus indicator via the wrapping
-   label's `focus-within:border-glass-strong` border-color change,
-   and the bright accent outline reads as harsh on a fielded input
-   that already sits inside a bordered frame. Buttons and links
-   keep the brand-coloured ring above. */
+/* Form fields keep an explicit focus indicator. Several fields are
+   standalone rather than wrapped, so removing their outline made
+   keyboard focus invisible on those screens. */
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: none;
+  outline: 2px solid var(--clear-accent);
+  outline-offset: 2px;
 }
 
 /* Reduced motion: disable non-essential decorative animations. Critical

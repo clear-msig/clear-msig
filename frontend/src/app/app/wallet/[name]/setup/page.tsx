@@ -244,7 +244,7 @@ export default function SetupSpendingPage() {
       };
 
   return (
-    <main className="relative flex min-h-screen flex-col bg-canvas">
+    <div className="relative flex min-h-screen flex-col bg-canvas">
       <StickyTopBar offset="header">
         <Breadcrumb
           segments={[
@@ -355,6 +355,6 @@ export default function SetupSpendingPage() {
           )}
         </motion.section>
       </div>
-    </main>
+    </div>
   );
 }

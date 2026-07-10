@@ -717,6 +717,7 @@ function EmailNotificationsSettingRow() {
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
             type="email"
+            aria-label="Notification email address"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="you@example.com"
@@ -973,6 +974,7 @@ function WebhooksSettingRow() {
         <div className="mt-3 flex flex-col gap-2">
           <input
             type="url"
+            aria-label="Webhook URL"
             value={draftUrl}
             onChange={(e) => setDraftUrl(e.target.value)}
             placeholder="https://hooks.slack.com/services/..."
@@ -986,6 +988,7 @@ function WebhooksSettingRow() {
           />
           <input
             type="text"
+            aria-label="Webhook signing secret"
             value={draftSecret}
             onChange={(e) => setDraftSecret(e.target.value)}
             placeholder="Optional: shared secret for HMAC-SHA256 signature"
@@ -1522,6 +1525,7 @@ function SolanaRpcSettingRow() {
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input
           type="url"
+          aria-label="Solana RPC URL"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="https://your-rpc.example.com"
@@ -1797,6 +1801,7 @@ function EvmRpcSettingRow() {
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input
           type="url"
+          aria-label="EVM RPC URL"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="https://your-evm-rpc.example.com"

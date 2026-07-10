@@ -185,6 +185,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
         <Field label="Name">
           <input
             type="text"
+            aria-label="Rule name"
             value={ruleName}
             onChange={(e) => setRuleName(e.target.value.slice(0, 80))}
             placeholder="e.g. Cold-wallet allowlist"
@@ -195,6 +196,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
         <Field label="Description (optional)">
           <input
             type="text"
+            aria-label="Rule description"
             value={description}
             onChange={(e) => setDescription(e.target.value.slice(0, 200))}
             placeholder="What this rule is for"
@@ -206,6 +208,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
           <Field label="Priority">
             <input
               type="number"
+              aria-label="Rule priority"
               min={0}
               max={1000}
               value={priority}
@@ -330,6 +333,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
         {action === "require-extra-approvers" && (
           <Field label="Extra approver pubkeys (one per line)">
             <textarea
+              aria-label="Extra approver addresses"
               rows={3}
               value={extraApproversText}
               onChange={(e) => setExtraApproversText(e.target.value)}
@@ -349,6 +353,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
           <Field label="Extra cooldown (seconds)">
             <input
               type="number"
+              aria-label="Extra cooldown in seconds"
               min={0}
               value={extraCooldownSeconds}
               onChange={(e) =>
@@ -485,6 +490,7 @@ function AssetEditor({
           Token contract (optional)
           <input
             type="text"
+            aria-label="Token contract"
             value={condition.tokenContract ?? ""}
             onChange={(e) =>
               onChange({ ...condition, tokenContract: e.target.value })
@@ -528,6 +534,7 @@ function RecipientEditor({
       <label className="flex flex-col gap-1 text-xs text-text-soft">
         Addresses (one per line)
         <textarea
+          aria-label="Recipient addresses"
           rows={4}
           value={text}
           onChange={(e) =>
@@ -563,6 +570,7 @@ function AmountEditor({
         Min
         <input
           type="text"
+          aria-label="Minimum amount"
           inputMode="decimal"
           value={condition.minDisplay ?? ""}
           onChange={(e) =>
@@ -576,6 +584,7 @@ function AmountEditor({
         Max
         <input
           type="text"
+          aria-label="Maximum amount"
           inputMode="decimal"
           value={condition.maxDisplay ?? ""}
           onChange={(e) =>
@@ -589,6 +598,7 @@ function AmountEditor({
         Ticker
         <input
           type="text"
+          aria-label="Amount asset ticker"
           value={condition.ticker ?? ""}
           onChange={(e) =>
             onChange({ ...condition, ticker: e.target.value || null })
@@ -622,6 +632,7 @@ function TimeWindowEditor({
           Start hour
           <input
             type="number"
+            aria-label="Start hour"
             min={0}
             max={23}
             value={condition.startHour}
@@ -638,6 +649,7 @@ function TimeWindowEditor({
           End hour
           <input
             type="number"
+            aria-label="End hour"
             min={0}
             max={23}
             value={condition.endHour}
@@ -708,6 +720,7 @@ function VelocityEditor({
         Cap
         <input
           type="text"
+          aria-label="Velocity cap"
           inputMode="decimal"
           value={condition.capDisplay}
           onChange={(e) =>
@@ -720,6 +733,7 @@ function VelocityEditor({
         Ticker
         <input
           type="text"
+          aria-label="Velocity asset ticker"
           value={condition.ticker}
           onChange={(e) => onChange({ ...condition, ticker: e.target.value })}
           className={inputClass}

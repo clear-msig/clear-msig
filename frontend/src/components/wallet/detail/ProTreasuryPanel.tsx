@@ -472,6 +472,7 @@ function ProScheduleCard({
       </div>
       <div className="mt-3 grid gap-2">
         <input
+          aria-label="Schedule name"
           value={draft.name}
           onChange={(event) =>
             onDraftChange({ ...draft, name: event.target.value })
@@ -480,6 +481,7 @@ function ProScheduleCard({
           className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
         />
         <input
+          aria-label="Schedule recipient"
           value={draft.address ?? ""}
           onChange={(event) =>
             onDraftChange({ ...draft, address: event.target.value })
@@ -499,6 +501,7 @@ function ProScheduleCard({
         </datalist>
         <div className="grid grid-cols-[1fr_88px] gap-2">
           <input
+            aria-label="Schedule amount"
             value={draft.amount}
             onChange={(event) =>
               onDraftChange({ ...draft, amount: event.target.value })
@@ -519,6 +522,7 @@ function ProScheduleCard({
         </div>
         <div className="grid grid-cols-2 gap-2">
           <select
+            aria-label="Schedule category"
             value={draft.category}
             onChange={(event) =>
               onDraftChange({
@@ -532,6 +536,7 @@ function ProScheduleCard({
             <option value="payroll">Payroll</option>
           </select>
           <select
+            aria-label="Schedule cadence"
             value={draft.cadence}
             onChange={(event) =>
               onDraftChange({
@@ -547,6 +552,7 @@ function ProScheduleCard({
         </div>
         <input
           type="date"
+          aria-label="Next payment date"
           value={draft.nextRun}
           onChange={(event) =>
             onDraftChange({ ...draft, nextRun: event.target.value })
@@ -554,6 +560,7 @@ function ProScheduleCard({
           className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
         />
         <input
+          aria-label="Schedule note"
           value={draft.note ?? ""}
           onChange={(event) =>
             onDraftChange({ ...draft, note: event.target.value })
@@ -812,6 +819,7 @@ function BudgetStripe({ name }: { name: string }) {
       <div
         className="mt-2 h-1.5 overflow-hidden rounded-full bg-border-soft"
         role="progressbar"
+        aria-label="Wallet spending limit used"
         aria-valuenow={Math.round(pct * 100)}
         aria-valuemin={0}
         aria-valuemax={100}
@@ -844,6 +852,7 @@ function BudgetStripe({ name }: { name: string }) {
                 <div
                   className="mt-1 h-1 overflow-hidden rounded-full bg-border-soft"
                   role="progressbar"
+                  aria-label={`${c.ticker} spending limit used`}
                   aria-valuenow={Math.round(chainPct * 100)}
                   aria-valuemin={0}
                   aria-valuemax={100}

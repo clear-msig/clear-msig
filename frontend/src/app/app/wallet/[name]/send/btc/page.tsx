@@ -131,9 +131,9 @@ type BtcSetupPendingReason = "approval" | "sync";
 
 export default function BitcoinSendPageWrapper() {
   return (
-    <main className="relative flex min-h-screen flex-col bg-canvas">
+    <div className="relative flex min-h-screen flex-col bg-canvas">
       <BitcoinSendPage />
-    </main>
+    </div>
   );
 }
 

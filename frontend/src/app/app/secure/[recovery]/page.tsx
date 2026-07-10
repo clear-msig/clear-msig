@@ -408,6 +408,7 @@ function SecureRecoveryPage() {
                   Import backup
                   <input
                     type="file"
+                    aria-label="Import vault backup"
                     accept="application/json"
                     className="hidden"
                     onChange={handleImportBackup}

@@ -194,6 +194,7 @@ export default function AgentStrategyPage() {
                   <span className="flex items-center gap-2 text-xs font-semibold text-text-strong">
                     <input
                       type="radio"
+                      aria-label={option.label}
                       checked={mode === option.value}
                       onChange={() => setMode(option.value)}
                       className="h-4 w-4 accent-accent"

@@ -196,6 +196,7 @@ function Toolbar({
         />
         <input
           type="search"
+          aria-label="Search people"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search people…"
@@ -279,6 +280,7 @@ function AddContactForm({
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_2fr]">
         <Field label="Name">
           <input
+            aria-label="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Sarah"
@@ -304,6 +306,7 @@ function AddContactForm({
           }
         >
           <input
+            aria-label="Solana wallet address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="Solana wallet address"

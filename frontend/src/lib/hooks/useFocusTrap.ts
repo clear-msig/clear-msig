@@ -44,7 +44,10 @@ export function useFocusTrap(
     // Move focus into the container on activation. Prefers the first
     // focusable; falls back to the container itself (which needs
     // tabIndex={-1} from the caller for that to work).
-    const initial = focusables()[0];
+    const preferred = container.querySelector<HTMLElement>(
+      "[data-dialog-initial-focus]",
+    );
+    const initial = preferred ?? focusables()[0];
     if (initial) {
       initial.focus();
     } else if (typeof container.focus === "function") {

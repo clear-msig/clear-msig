@@ -582,6 +582,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input
             type="text"
+            aria-label="Approver address"
             value={pasteAddress}
             onChange={(e) => setPasteAddress(e.target.value)}
             placeholder="Solana address"

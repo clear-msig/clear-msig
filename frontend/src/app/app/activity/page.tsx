@@ -410,6 +410,7 @@ function FilterBar({
         />
         <input
           type="search"
+          aria-label="Search activity"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search by wallet, address, or type…"

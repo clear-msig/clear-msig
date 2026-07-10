@@ -603,7 +603,9 @@ function RecipientRow({
       </div>
       <datalist id={datalistId}>
         {contacts.map((c) => (
-          <option key={c.address} value={c.name} />
+          <option key={c.address} value={c.name} label={c.name}>
+            {c.name}
+          </option>
         ))}
       </datalist>
       {/* Status hints - colour-coded so a long batch reads at a

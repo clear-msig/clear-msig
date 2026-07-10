@@ -3903,6 +3903,7 @@ function ExecutionCard({
               </label>
               <input
                 id={`pnl-${execution.id}`}
+                aria-label="Profit or loss in USD"
                 value={pnlUsd}
                 onChange={(event) => setPnlUsd(event.target.value)}
                 inputMode="decimal"

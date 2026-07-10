@@ -824,6 +824,7 @@ export default function AgentDetailPage() {
               <label className="grid gap-1.5">
                 <span className="text-xs font-medium text-text-soft">Name</span>
                 <input
+                  aria-label="Trader name"
                   value={agentNameDraft}
                   onChange={(event) => setAgentNameDraft(event.target.value)}
                   className={PROFILE_INPUT_CLASS}
@@ -832,6 +833,7 @@ export default function AgentDetailPage() {
               <label className="grid gap-1.5">
                 <span className="text-xs font-medium text-text-soft">Description</span>
                 <textarea
+                  aria-label="Trader description"
                   value={agentDescriptionDraft}
                   onChange={(event) => setAgentDescriptionDraft(event.target.value)}
                   rows={3}
@@ -842,6 +844,7 @@ export default function AgentDetailPage() {
                 <label className="grid gap-1.5">
                   <span className="text-xs font-medium text-text-soft">Connection URL</span>
                   <input
+                    aria-label="Trader connection URL"
                     value={agentEndpointDraft}
                     onChange={(event) => setAgentEndpointDraft(event.target.value)}
                     className={PROFILE_INPUT_CLASS}
@@ -850,6 +853,7 @@ export default function AgentDetailPage() {
                 <label className="grid gap-1.5">
                   <span className="text-xs font-medium text-text-soft">Public identity</span>
                   <input
+                    aria-label="Trader public identity"
                     value={agentIdentityDraft}
                     onChange={(event) => setAgentIdentityDraft(event.target.value)}
                     className={PROFILE_INPUT_CLASS}
@@ -1934,6 +1938,7 @@ function ExecutionRow({
         {open ? (
           <div className="flex flex-wrap items-center gap-2">
             <input
+              aria-label="Profit or loss in USD"
               value={pnlUsd}
               onChange={(event) => setPnlUsd(event.target.value)}
               inputMode="decimal"

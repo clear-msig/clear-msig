@@ -2050,6 +2050,7 @@ function OpenTradeRow({
         </div>
         <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:w-auto">
           <input
+            aria-label="Profit or loss in USD"
             value={pnlUsd}
             onChange={(event) => setPnlUsd(event.target.value)}
             inputMode="decimal"

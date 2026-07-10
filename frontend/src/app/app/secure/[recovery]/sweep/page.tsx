@@ -948,6 +948,7 @@ function ComposeStage(props: ComposeStageProps) {
           </label>
           <input
             id="sweep-destination"
+            aria-label="Destination address"
             type="text"
             value={props.destination}
             onChange={(e) => props.setDestination(e.target.value)}
@@ -1007,6 +1008,7 @@ function ComposeStage(props: ComposeStageProps) {
           <div className="flex items-center gap-2">
             <input
               id="sweep-amount"
+              aria-label={`Amount in ${props.assetSymbol}`}
               type="text"
               inputMode="decimal"
               value={props.amountInput}

@@ -407,6 +407,7 @@ export default function NewAgentSessionPage() {
                 >
                   <input
                     type="checkbox"
+                    aria-label={venue.label}
                     checked={allowedVenues.includes(venue.value)}
                     onChange={(event) =>
                       setAllowedVenues((current) =>
