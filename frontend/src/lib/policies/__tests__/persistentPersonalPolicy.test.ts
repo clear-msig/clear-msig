@@ -3,6 +3,7 @@ import { buildPersistentPersonalPolicyTargets } from "@/lib/policies/persistentW
 import { saveAllowlist } from "@/lib/retail/policy";
 import { sha256, toHex } from "@/lib/msig/hash";
 import { savePolicy } from "@/lib/policies/storage";
+import { saveAllowance } from "@/lib/retail/allowances";
 
 function installStorage() {
   const store = new Map<string, string>();
@@ -75,6 +76,23 @@ describe("persistent Personal wallet policy", () => {
 
     expect(btc.policyBytesHex.slice(38, 40)).toBe("05");
     expect(btc.policyBytesHex.length).toBeGreaterThan(38);
+    expect(eth.policyBytesHex).toBe("");
+  });
+
+  it("commits member limits only to the SOL member ledger extension", async () => {
+    saveAllowance({
+      walletName: "Pro",
+      friendAddress: "11111111111111111111111111111111",
+      amountSol: 1.25,
+      period: "weekly",
+    });
+
+    const targets = await buildPersistentPersonalPolicyTargets("Pro");
+    const sol = targets.find((target) => target.chainKind === 0)!;
+    const eth = targets.find((target) => target.chainKind === 1)!;
+
+    expect(sol.policyBytesHex.slice(38, 40)).toBe("04");
+    expect(sol.policyBytesHex).toContain("807c814a00000000");
     expect(eth.policyBytesHex).toBe("");
   });
 });

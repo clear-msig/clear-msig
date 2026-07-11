@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { useConnection } from "@/lib/wallet";
+import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { Check, Copy, Download, RefreshCw } from "lucide-react";
@@ -59,6 +59,7 @@ export default function ReceivePage() {
 
   const reduce = useReducedMotion();
   const { connection } = useConnection();
+  const wallet = useWallet();
   const toast = useToast();
   const qrRef = useRef<SVGSVGElement | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -66,7 +67,12 @@ export default function ReceivePage() {
   // Solana side: derive the vault PDA locally from the wallet name.
   const walletQuery = useQuery({
     queryKey: ["wallet", name],
-    queryFn: () => fetchWalletByName(connection, name),
+    queryFn: async () => {
+      const direct = wallet.publicKey
+        ? await fetchWalletByName(connection, name, wallet.publicKey)
+        : null;
+      return direct ?? fetchWalletByName(connection, name);
+    },
     enabled: name.length > 0,
     staleTime: 30_000,
   });
@@ -259,7 +265,21 @@ export default function ReceivePage() {
       )}
 
       {/* Address card. */}
-      {selected ? (
+      {walletQuery.isError ? (
+        <section className="rounded-card border border-danger/30 bg-surface-raised p-4 shadow-card-rest">
+          <p className="text-sm font-medium text-text-strong">
+            Couldn&apos;t load the deposit address.
+          </p>
+          <button
+            type="button"
+            onClick={() => void walletQuery.refetch()}
+            className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-soft border border-border-soft px-3 py-2 text-xs font-medium text-text-strong hover:border-accent hover:text-accent"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            Try again
+          </button>
+        </section>
+      ) : selected ? (
         selected.address ? (
           <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
             <div className="flex items-center gap-2">

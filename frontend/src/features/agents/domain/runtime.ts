@@ -14,7 +14,7 @@ export { acknowledgeAgentComplianceDisclosures, buildAgentComplianceReadiness, h
 export { buildAgentTradeDecisionJournal } from "@/lib/agents/decisionJournal";
 export { canOpenLocalAgentExecution } from "@/lib/agents/executionAdapters";
 export { closeAgentExecutionRecord } from "@/lib/agents/executionClose";
-export { buildAgentFundingPlan } from "@/lib/agents/funding";
+export { buildAgentFundingPlan, buildAgentVaultAllocationHref } from "@/lib/agents/funding";
 export type { AgentFundingRecommendation } from "@/lib/agents/funding";
 export { buildAgentTradeProposalFromSignal, parseAgentSignalJson, sampleAgentSignalPayload } from "@/lib/agents/intake";
 export { buildTradingLaunchState } from "@/lib/agents/launchReadiness";

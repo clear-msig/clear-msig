@@ -11,6 +11,14 @@ const manageSource = readFileSync(
   resolve(process.cwd(), "src/components/wallet/detail/ManagePanel.tsx"),
   "utf8",
 );
+const proSource = readFileSync(
+  resolve(process.cwd(), "src/components/wallet/detail/ProTreasuryPanel.tsx"),
+  "utf8",
+);
+const rulesSource = readFileSync(
+  resolve(process.cwd(), "src/app/app/wallet/[name]/rules/page.tsx"),
+  "utf8",
+);
 
 describe("wallet detail architecture", () => {
   it("keeps the route as a coordinator", () => {
@@ -40,5 +48,18 @@ describe("wallet detail architecture", () => {
     expect(manageSource).toContain('href={`/app/wallet/${encoded}/budget`}');
     expect(manageSource).not.toContain("A shared wallet normal people can trust");
     expect(manageSource).not.toContain("function PersonalSafetyLink");
+  });
+
+  it("keeps Agent Vault separate from Pro and makes command selection stable", () => {
+    expect(proSource).not.toContain('label: "Automation"');
+    expect(proSource).not.toContain('title="Agent vaults"');
+    expect(proSource).not.toContain('activePanel === "automation"');
+    expect(proSource).toContain("onClick={() => setActivePanel(key)}");
+  });
+
+  it("does not let the opening click dismiss the timelock dialog", () => {
+    expect(rulesSource).toContain(
+      "onPointerDown={() => !update.isPending && onClose()}",
+    );
   });
 });

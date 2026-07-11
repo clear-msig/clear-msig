@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Banknote,
   Bell,
-  Bot,
   Coins,
   Download,
   FileCheck2,
@@ -18,7 +17,6 @@ import {
   Send,
   Settings as SettingsIcon,
   ShieldCheck,
-  TrendingDown,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -82,7 +80,6 @@ function ProOperationsPanel({
     | "payments"
     | "recurring"
     | "protection"
-    | "automation"
     | "audit"
     | "admin";
   const motionProps = reduce
@@ -125,12 +122,6 @@ function ProOperationsPanel({
       label: "Protection",
       value: limitsReady ? "Set" : "Set up",
       icon: ShieldCheck,
-    },
-    {
-      key: "automation",
-      label: "Automation",
-      value: "Agents",
-      icon: Bot,
     },
     {
       key: "admin",
@@ -217,14 +208,14 @@ function ProOperationsPanel({
             </Link>
           ) : null}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-3">
           {commandTiles.map(({ key, label, value, icon: Icon }) => {
             const selected = activePanel === key;
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setActivePanel(selected ? null : key)}
+                onClick={() => setActivePanel(key)}
                 className={
                   "flex min-h-[76px] items-center gap-3 rounded-card border px-3 py-3 text-left transition-[border-color,background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
                   (selected
@@ -318,31 +309,6 @@ function ProOperationsPanel({
             href={`/app/wallet/${encoded}/policy#risk`}
             icon={Activity}
             title="Risk checks"
-          />
-        </ActionGroup>
-      ) : null}
-
-      {activePanel === "automation" ? (
-        <ActionGroup label="Automation">
-          <ActionRow
-            href={`/app/wallet/${encoded}/agents`}
-            icon={Bot}
-            title="Agent vaults"
-          />
-          <ActionRow
-            href={`/app/wallet/${encoded}/agents/funding`}
-            icon={TrendingDown}
-            title="Trading budget"
-          />
-          <ActionRow
-            href={`/app/wallet/${encoded}/swap`}
-            icon={Repeat2}
-            title="Swap crypto"
-          />
-          <ActionRow
-            href={`/app/wallet/${encoded}/receive`}
-            icon={Download}
-            title="Receive funds"
           />
         </ActionGroup>
       ) : null}

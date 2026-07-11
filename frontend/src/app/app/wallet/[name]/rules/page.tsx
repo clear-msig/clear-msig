@@ -428,7 +428,7 @@ function TimelockEditModal({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.18 }}
         className="fixed inset-0 z-[200] bg-text-strong/40 backdrop-blur-sm"
-        onClick={() => !update.isPending && onClose()}
+        onPointerDown={() => !update.isPending && onClose()}
         aria-hidden="true"
       />
       <motion.div

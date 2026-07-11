@@ -12,7 +12,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, Wallet as WalletIcon } from "lucide-react";
+import { Check, Loader2, Wallet as WalletIcon } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import {
@@ -34,6 +34,15 @@ import { BackToWallets } from "@/components/retail/BackToWallets";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { NativeSelect, TextInput } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
+import { usePersistPersonalWalletPolicy } from "@/lib/hooks/usePersistWalletPolicy";
+import { formatPolicySyncResult } from "@/features/policies/domain/personalPolicy";
+import { fromHex } from "@/lib/msig";
+import { decodeMemberAllowanceCaps } from "@/lib/policies/onchain";
+import {
+  currentWalletPolicyCommitment,
+  EMPTY_POLICY_COMMITMENT,
+  resolvePersistentSendPolicy,
+} from "@/lib/policies/persistentWalletPolicy";
 
 export default function AllowancesPage() {
   const params = useParams<{ name: string }>();
@@ -51,6 +60,9 @@ export default function AllowancesPage() {
   const me = wallet.publicKey?.toBase58() ?? "";
   const contacts = useContacts();
   const toast = useToast();
+  const persistWalletPolicy = usePersistPersonalWalletPolicy();
+  const [pendingMember, setPendingMember] = useState<string | null>(null);
+  const [syncState, setSyncState] = useState<Record<string, "active" | "waiting">>({});
   const productSurface = resolveWalletProductSurface(name);
   const isPro = productSurface === "pro";
 
@@ -70,6 +82,27 @@ export default function AllowancesPage() {
     enabled: !!walletQuery.data,
     staleTime: 30_000,
   });
+  const activeAllowancesQuery = useQuery({
+    queryKey: ["active-member-allowances", walletQuery.data?.pda.toBase58() ?? null],
+    queryFn: async () => {
+      if (!walletQuery.data) return [];
+      const commitment = await currentWalletPolicyCommitment(
+        connection,
+        walletQuery.data.pda,
+        0,
+      );
+      if (commitment === EMPTY_POLICY_COMMITMENT) return [];
+      const policy = await resolvePersistentSendPolicy(
+        connection,
+        walletQuery.data.pda,
+        name,
+        0,
+      );
+      return policy ? decodeMemberAllowanceCaps(fromHex(policy.hex)) : [];
+    },
+    enabled: Boolean(walletQuery.data),
+    staleTime: 30_000,
+  });
 
   const members = useMemo(() => {
     if (!intentsQuery.data) return [];
@@ -87,14 +120,28 @@ export default function AllowancesPage() {
     }));
   }, [intentsQuery.data, me, contacts.contacts]);
 
-  // Local form state mirror - one entry per member, hydrated from
-  // localStorage on mount and after any save.
+  // The active on-chain policy is authoritative. localStorage remains an
+  // authoring cache so subsequent policy updates can be compiled locally.
   const [drafts, setDrafts] = useState<Record<string, AllowanceDraft>>({});
   useEffect(() => {
     if (!name) return;
+    const activeByMember = activeAllowancesQuery.isSuccess
+      ? new Map(activeAllowancesQuery.data.map((cap) => [cap.member, cap]))
+      : null;
     const next: Record<string, AllowanceDraft> = {};
     for (const m of members) {
-      const stored = getAllowance(name, m.address);
+      const active = activeByMember?.get(m.address);
+      if (activeByMember) removeAllowance(name, m.address);
+      const stored = active
+        ? saveAllowance({
+            walletName: name,
+            friendAddress: m.address,
+            amountSol: Number(active.capRaw) / 1_000_000_000,
+            period: active.windowSeconds >= 30 * 24 * 60 * 60 ? "monthly" : "weekly",
+          })
+        : activeByMember
+          ? null
+          : getAllowance(name, m.address);
       next[m.address] = stored
         ? {
             amountSol: stored.amountSol.toString(),
@@ -104,13 +151,18 @@ export default function AllowancesPage() {
         : { amountSol: "", period: "none", stored: null };
     }
     setDrafts(next);
-  }, [name, members.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (activeByMember) {
+      setSyncState(
+        Object.fromEntries([...activeByMember.keys()].map((address) => [address, "active"])),
+      );
+    }
+  }, [activeAllowancesQuery.data, activeAllowancesQuery.isSuccess, members, name]);
 
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
 
-  const handleSave = (address: string) => {
+  const handleSave = async (address: string) => {
     const draft = drafts[address];
     if (!draft) return;
     const amt = Number(draft.amountSol);
@@ -124,26 +176,69 @@ export default function AllowancesPage() {
         return;
       }
     }
+    const previous = getAllowance(name, address);
     const saved = saveAllowance({
       walletName: name,
       friendAddress: address,
       amountSol: draft.period === "none" ? 0 : amt,
       period: draft.period,
     });
-    setDrafts((d) => ({
-      ...d,
-      [address]: { ...d[address], stored: saved },
-    }));
-    toast.success(`Limit saved for ${isPro ? "this team member" : "this person"}`);
+    setPendingMember(address);
+    try {
+      const result = await persistWalletPolicy(name);
+      setDrafts((current) => ({
+        ...current,
+        [address]: { ...current[address], stored: saved },
+      }));
+      setSyncState((current) => ({
+        ...current,
+        [address]: result.waiting > 0 ? "waiting" : "active",
+      }));
+      if (result.updated > 0) void activeAllowancesQuery.refetch();
+      toast.success(
+        result.waiting > 0
+          ? "Member limit proposed"
+          : `Limit active for ${isPro ? "this team member" : "this person"}`,
+        { details: formatPolicySyncResult(result) },
+      );
+    } catch (error) {
+      if (previous) saveAllowance(previous);
+      else removeAllowance(name, address);
+      toast.error("Member limit was not saved", {
+        details: error instanceof Error ? error.message : "On-chain protection update failed.",
+      });
+    } finally {
+      setPendingMember(null);
+    }
   };
 
-  const handleClear = (address: string) => {
+  const handleClear = async (address: string) => {
+    const previous = getAllowance(name, address);
     removeAllowance(name, address);
-    setDrafts((d) => ({
-      ...d,
-      [address]: { amountSol: "", period: "none", stored: null },
-    }));
-    toast.success("Limit cleared");
+    setPendingMember(address);
+    try {
+      const result = await persistWalletPolicy(name);
+      setDrafts((current) => ({
+        ...current,
+        [address]: { amountSol: "", period: "none", stored: null },
+      }));
+      setSyncState((current) => {
+        const next = { ...current };
+        delete next[address];
+        return next;
+      });
+      if (result.updated > 0) void activeAllowancesQuery.refetch();
+      toast.success(result.waiting > 0 ? "Limit removal proposed" : "Limit removed on chain", {
+        details: formatPolicySyncResult(result),
+      });
+    } catch (error) {
+      if (previous) saveAllowance(previous);
+      toast.error("Member limit was not removed", {
+        details: error instanceof Error ? error.message : "On-chain protection update failed.",
+      });
+    } finally {
+      setPendingMember(null);
+    }
   };
 
   return (
@@ -182,8 +277,8 @@ export default function AllowancesPage() {
         </h1>
         <p className="mx-auto mt-2 max-w-md text-sm text-text-soft">
           {isPro
-            ? `Set team spending limits. Requests inside the limit are easier to review; anything above it follows ${toDisplayName(name)}'s approval rule.`
-            : `Pick a per-period limit for each person. Requests inside the limit are easier to approve; anything above it follows ${toDisplayName(name)}'s approval rule.`}
+            ? "Set program-enforced SOL limits for each team member. Sends above a member's remaining allowance are rejected on chain."
+            : "Set program-enforced SOL limits for each person. Sends above a person's remaining allowance are rejected on chain."}
         </p>
         <p className="mt-3 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] text-text-soft">
           View-only members are not listed.
@@ -215,8 +310,18 @@ export default function AllowancesPage() {
                 </div>
                 {draft.stored && (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
-                    <Check className="h-3 w-3" strokeWidth={3} />
-                    Limit set
+                    {pendingMember === m.address ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    )}
+                    {pendingMember === m.address
+                      ? "Saving on chain"
+                      : syncState[m.address] === "waiting"
+                        ? "Awaiting approvals"
+                        : syncState[m.address] === "active"
+                          ? "Limit active"
+                          : "Saved locally"}
                   </span>
                 )}
               </div>
@@ -279,15 +384,16 @@ export default function AllowancesPage() {
                   {draft.stored && (
                     <button
                       type="button"
-                      onClick={() => handleClear(m.address)}
+                      onClick={() => void handleClear(m.address)}
+                      disabled={pendingMember === m.address}
                       className="text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-danger"
                     >
                       Clear
                     </button>
                   )}
                   <BadgePill
-                    onClick={() => handleSave(m.address)}
-                    disabled={!dirty}
+                    onClick={() => void handleSave(m.address)}
+                    disabled={!dirty || pendingMember === m.address}
                   >
                     Save limit
                   </BadgePill>
