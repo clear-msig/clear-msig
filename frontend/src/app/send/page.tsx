@@ -23,7 +23,7 @@ function LegacySendRedirect() {
   useEffect(() => {
     const wallet = search?.get("wallet")?.trim();
     if (!wallet) {
-      router.replace("/app/wallet");
+      router.replace("/app");
       return;
     }
     const params = new URLSearchParams(search?.toString() ?? "");

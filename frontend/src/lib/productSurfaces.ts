@@ -43,11 +43,6 @@ export function productSetupHref(id: ProductSurfaceId): string {
   return `/app/wallet/new?surface=${id}&purpose=${purpose}`;
 }
 
-export function productWorkspaceHref(id: ProductSurfaceId): string {
-  if (id === "secure") return "/app/secure?surface=secure";
-  return `/app/wallet?surface=${id}`;
-}
-
 export function productConnectHref(id: ProductSurfaceId): string {
   return `/connect?surface=${id}`;
 }

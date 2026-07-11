@@ -152,7 +152,7 @@ export default function AllowancesPage() {
       <StickyTopBar offset="header">
         <Breadcrumb
           segments={[
-            { label: "Wallets", href: "/app/wallet" },
+            { label: "Wallets", href: "/app" },
             { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
             {
               label: isPro ? "Team" : "Members",

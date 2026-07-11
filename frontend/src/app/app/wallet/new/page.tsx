@@ -883,10 +883,10 @@ function NewWalletContent() {
       </section>
       )}
 
-      {/* Quiet exit - back to the wallet hub. Sits below the form so
+      {/* Quiet exit - back to the app entry. Sits below the form so
           the page CTA is always the obvious next step. */}
       <Link
-        href="/app/wallet"
+        href="/app"
         className="self-center text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
       >
         Cancel and go back
@@ -915,10 +915,10 @@ function postCreateHref(
 ): string {
   const encoded = encodeURIComponent(walletSlug);
   if (purpose === "agent" || surface === "agent") {
-    return `/app/wallet/${encoded}/agents?surface=agent`;
+    return `/app/wallet/${encoded}/agents`;
   }
-  if (isProductSurfaceId(surface)) {
-    return `/app/wallet/${encoded}?surface=${surface}`;
+  if (purpose === "secure" || surface === "secure") {
+    return `/app/wallet/${encoded}?surface=secure`;
   }
   return `/app/wallet/${encoded}`;
 }

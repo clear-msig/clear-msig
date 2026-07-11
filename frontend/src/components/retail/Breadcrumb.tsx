@@ -11,7 +11,7 @@
 // Usage:
 //   <Breadcrumb
 //     segments={[
-//       { label: "Wallets", href: "/app/wallet" },
+//       { label: "Wallets", href: "/app" },
 //       { label: walletName, href: `/app/wallet/${encoded}` },
 //       { label: "Members" }, // current page - no href
 //     ]}

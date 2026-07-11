@@ -14,9 +14,9 @@
 // (Dynamic auth, Ledger WebHID, post-connect bridge state) is unchanged
 // from the prior retail version.
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
@@ -27,7 +27,10 @@ import {
   Usb,
 } from "lucide-react";
 import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
-import { useWalletGate } from "@/lib/hooks/useWalletGate";
+import {
+  useWalletGate,
+  type ProductWalletSelection,
+} from "@/lib/hooks/useWalletGate";
 import { useWallet } from "@/lib/wallet";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useLedgerPresence } from "@/lib/hooks/useLedgerPresence";
@@ -41,7 +44,14 @@ import {
   productSurfaceById,
   type ProductSurface,
 } from "@/lib/productSurfaces";
-import { rememberProductSurfaceChoice } from "@/lib/productSession";
+import {
+  clearPendingProductSurface,
+  rememberProductSurfaceChoice,
+  saveSelectedProductSurface,
+  saveSelectedProductWalletHref,
+} from "@/lib/productSession";
+import { PRODUCT_SURFACE_ICON } from "@/lib/productIcons";
+import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function ConnectPageWrapper() {
   return (
@@ -54,9 +64,9 @@ export default function ConnectPageWrapper() {
 }
 
 function ConnectPage() {
-  // The gate handles the post-connect redirect (?next or /app/wallet).
+  // The gate handles the post-connect redirect (?next or /app).
   // We just render the connect UI; the gate fires once `connected` flips.
-  useWalletGate();
+  const gate = useWalletGate();
   const search = useSearchParams();
   const wallet = useWallet();
   const reduce = useReducedMotion();
@@ -76,7 +86,21 @@ function ConnectPage() {
   // 5-10s and assumes the click did nothing. Swap to a confident
   // success state.
   if (wallet.connected) {
-    return <SignedInWaiting reduce={!!reduce} />;
+    if (gate.productSelection) {
+      return (
+        <ProductWalletSelectionScreen
+          selection={gate.productSelection}
+          address={wallet.publicKey?.toBase58() ?? null}
+          reduce={!!reduce}
+        />
+      );
+    }
+    return (
+      <SignedInWaiting
+        reduce={!!reduce}
+        destination={connectDestinationFromNext(search.get("next"))}
+      />
+    );
   }
 
   const fadeIn = (delay = 0, y = 12) =>
@@ -270,6 +294,21 @@ function productSurfaceFromNext(next: string | null): ProductSurface | null {
   }
 }
 
+function connectDestinationFromNext(
+  next: string | null,
+): "wallet" | "secure" | "app" | null {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
+  try {
+    const url = new URL(next, "https://clearsig.local");
+    if (url.pathname.startsWith("/app/wallet/")) return "wallet";
+    if (url.pathname.startsWith("/app/secure")) return "secure";
+    if (url.pathname.startsWith("/app")) return "app";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Brand-aligned Dynamic CTA ─────────────────────────────────────
 //
 // Dynamic's default CTA is a small white outline button that ignored
@@ -295,12 +334,39 @@ function ConnectCta() {
 //
 // Dynamic auth completed, wallet.connected is true, but the wallet
 // gate is still fetching memberships before deciding whether to send
-// the user to /app/wallet (returning) or /welcome (first-timer). That
+// the user to /app (returning) or /welcome (first-timer). That
 // fetch can take 5-10s on devnet. Render a dedicated "we got you"
 // state so the user knows the click worked.
 
-function SignedInWaiting({ reduce }: { reduce: boolean }) {
+function SignedInWaiting({
+  reduce,
+  destination,
+}: {
+  reduce: boolean;
+  destination: "wallet" | "secure" | "app" | null;
+}) {
   const MotionCheck = motion(Check);
+  const copy =
+    destination === "wallet"
+      ? {
+          body: "Opening the wallet you selected.",
+          label: "Opening wallet",
+        }
+      : destination === "secure"
+        ? {
+            body: "Opening your recovery workspace.",
+            label: "Opening secure",
+          }
+        : destination === "app"
+          ? {
+              body: "Opening your ClearSig workspace.",
+              label: "Opening app",
+            }
+          : {
+              body: "Loading your shared wallets. This usually takes a few seconds on devnet.",
+              label: "Loading wallets",
+            };
+
   return (
     // Flat landing-shell with NO nav. Wallets are loading - the user
     // can't act on anything else, so the chrome would just be noise
@@ -348,8 +414,7 @@ function SignedInWaiting({ reduce }: { reduce: boolean }) {
               You&rsquo;re <span className="italic-skew">in</span>.
             </h1>
             <p className="mt-3 text-base leading-relaxed text-white/60">
-              Loading your shared wallets. This usually takes a few
-              seconds on devnet.
+              {copy.body}
             </p>
             <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-border-soft bg-glass-soft px-4 py-2 backdrop-blur-md">
               <Loader2
@@ -357,10 +422,111 @@ function SignedInWaiting({ reduce }: { reduce: boolean }) {
                 aria-hidden="true"
               />
               <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/70">
-                Loading wallets
+                {copy.label}
               </span>
             </div>
           </motion.div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function ProductWalletSelectionScreen({
+  selection,
+  address,
+  reduce,
+}: {
+  selection: ProductWalletSelection;
+  address: string | null;
+  reduce: boolean;
+}) {
+  const router = useRouter();
+  const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
+  const surface = productSurfaceById(selection.surface);
+  const Icon = PRODUCT_SURFACE_ICON[selection.surface];
+
+  const handleSelect = (walletName: string, href: string) => {
+    if (selectedWallet) return;
+    setSelectedWallet(walletName);
+    saveSelectedProductSurface(selection.surface, address);
+    saveSelectedProductWalletHref(selection.surface, href, address);
+    clearPendingProductSurface();
+    router.replace(href);
+  };
+
+  return (
+    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <LandingAtmospherics />
+      </div>
+      <main className="relative mx-auto w-full max-w-[1600px]">
+        <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
+          <motion.section
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] as const }}
+            className="w-full max-w-xl rounded-[2rem] border border-border-soft bg-[#101111]/90 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-7"
+          >
+            <div className="flex items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#ccff00] text-black shadow-[0_0_28px_rgba(204,255,0,0.28)]">
+                <Icon className="h-6 w-6" strokeWidth={2.25} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+                  {surface.shortName} wallets
+                </p>
+                <h1 className="landing-section-heading mt-2 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">
+                  Choose one to continue.
+                </h1>
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">
+                  You have more than one {surface.shortName.toLowerCase()} wallet.
+                  Pick the workspace you want to open.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-7 flex flex-col gap-3">
+              {selection.wallets.map((wallet) => {
+                const loading = selectedWallet === wallet.walletName;
+                return (
+                  <button
+                    key={wallet.walletName}
+                    type="button"
+                    onClick={() => handleSelect(wallet.walletName, wallet.href)}
+                    disabled={selectedWallet !== null}
+                    className="group flex min-h-[4.5rem] w-full items-center justify-between gap-4 rounded-2xl bg-white/[0.055] px-4 py-3 text-left transition-[background-color,transform,opacity] duration-200 hover:-translate-y-0.5 hover:bg-white/[0.085] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/70 disabled:cursor-wait disabled:opacity-70"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/40 text-[#ccff00]">
+                        <Icon className="h-5 w-5" strokeWidth={2.1} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-base font-semibold text-white">
+                          {toDisplayName(wallet.walletName)}
+                        </span>
+                        <span className="mt-1 block font-mono-tech text-[10px] uppercase tracking-[0.22em] text-white/45">
+                          {surface.shortName}
+                        </span>
+                      </span>
+                    </span>
+                    {loading ? (
+                      <Loader2
+                        className="h-4 w-4 shrink-0 animate-spin text-[#ccff00]"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ArrowRight
+                        className="h-4 w-4 shrink-0 text-white/55 transition-transform group-hover:translate-x-0.5 group-hover:text-[#ccff00]"
+                        strokeWidth={2.4}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.section>
         </div>
       </main>
     </div>
