@@ -21,7 +21,6 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
-  Check,
   Loader2,
   Wallet as WalletIcon,
   Zap,
@@ -43,6 +42,7 @@ import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { CHAIN_CATALOG, type ChainMeta } from "@/lib/retail/chains";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { deriveNativeWeeklyCaps } from "@/lib/policies/budgetLimits";
+import { usePersistPersonalWalletPolicy } from "@/lib/hooks/usePersistWalletPolicy";
 
 const QUICK_WALLET_AMOUNTS: ReadonlyArray<{ label: string; usd: number }> = [
   { label: "$500", usd: 500 },
@@ -87,6 +87,7 @@ export default function BudgetPage() {
   const reduce = useReducedMotion();
   const toast = useToast();
   const usage = useWalletBudgetUsage(name);
+  const persistPersonalPolicy = usePersistPersonalWalletPolicy();
 
   const [walletDraft, setWalletDraft] = useState<string>("");
   const [walletNoLimit, setWalletNoLimit] = useState(false);
@@ -94,6 +95,7 @@ export default function BudgetPage() {
     () => initialChainDrafts(),
   );
   const [velocityDraft, setVelocityDraft] = useState<string>("");
+  const [saving, setSaving] = useState(false);
 
   // Hydrate drafts from saved policy on mount + when storage changes.
   useEffect(() => {
@@ -122,7 +124,8 @@ export default function BudgetPage() {
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
     // Wallet-wide cap. noLimit collapses to null (no overall cap).
     let weeklyUsd: number | null;
     if (walletNoLimit) {
@@ -174,17 +177,42 @@ export default function BudgetPage() {
       velocityPerDay = v;
     }
 
-    saveBudget({
-      walletName: name,
-      weeklyUsd,
-      perChainUsd,
-      onchainWeeklyNative: deriveNativeWeeklyCaps(weeklyUsd, perChainUsd),
-      velocityPerDay,
-    });
-    toast.success(`${toDisplayName(name)}'s limits saved`, {
-      details: summarisePolicy(weeklyUsd, perChainUsd, velocityPerDay),
-    });
-    router.push(`/app/wallet/${encodeURIComponent(name)}`);
+    setSaving(true);
+    try {
+      saveBudget({
+        walletName: name,
+        weeklyUsd,
+        perChainUsd,
+        onchainWeeklyNative: deriveNativeWeeklyCaps(weeklyUsd, perChainUsd),
+        velocityPerDay,
+      });
+      const result = await persistPersonalPolicy(name);
+      const detail = [
+        summarisePolicy(weeklyUsd, perChainUsd, velocityPerDay),
+        result.updated > 0
+          ? `${result.updated} on-chain ${result.updated === 1 ? "rule" : "rules"} updated`
+          : "On-chain rules already matched",
+        result.waiting > 0
+          ? `${result.waiting} ${result.waiting === 1 ? "update is" : "updates are"} waiting for another approval`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      toast.success(`${toDisplayName(name)}'s limits saved`, {
+        details: detail,
+      });
+      router.push(`/app/wallet/${encodeURIComponent(name)}`);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "The browser could not persist these limits on chain.";
+      toast.error("Limits saved locally, but not on chain", {
+        details: message,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const display = toDisplayName(name);
@@ -351,9 +379,13 @@ export default function BudgetPage() {
         </div>
       </PolicyCard>
 
-      <Button size="lg" fullWidth onClick={handleSave}>
-        Save limits
-        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      <Button size="lg" fullWidth onClick={handleSave} disabled={saving}>
+        {saving ? "Saving on chain..." : "Save limits"}
+        {saving ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        )}
       </Button>
 
       <p className="text-center text-xs text-text-soft">

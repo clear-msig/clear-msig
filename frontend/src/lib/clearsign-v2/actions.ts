@@ -70,6 +70,7 @@ export interface ThresholdPayload {
 export interface ProtectionPayload {
   summary: string;
   policyCommitment?: string;
+  chainKind?: number;
 }
 
 export interface MilestonePayload extends RecipientAmount {
@@ -348,6 +349,9 @@ function normalizePayload(
         policyCommitment: normalizeOptional(
           (payload as ProtectionPayload).policyCommitment,
         ),
+        chainKind: normalizeOptionalNumber(
+          (payload as ProtectionPayload).chainKind,
+        ),
       };
     case "release_milestone": {
       const row = payload as MilestonePayload;
@@ -459,6 +463,7 @@ function canonicalPayloadBytes(
       const row = normalizePayload(kind, payload) as ProtectionPayload;
       if (row.policyCommitment) {
         out.pushBytes("wallet_policy");
+        out.pushU8(normalizeChainKind(row.chainKind));
         out.pushRaw(fromHex(normalizeHash(row.policyCommitment)));
       } else {
         out.pushBytes(JSON.stringify({ summary: row.summary }));
@@ -526,6 +531,18 @@ function normalizeHash(value: string): string {
 
 function normalizeNumber(value: number): number {
   return Number.isFinite(value) ? Number(value) : 0;
+}
+
+function normalizeOptionalNumber(value: number | undefined): number | undefined {
+  return value === undefined ? undefined : normalizeNumber(value);
+}
+
+function normalizeChainKind(value: number | undefined): number {
+  const chainKind = normalizeNumber(value ?? -1);
+  if (!Number.isInteger(chainKind) || chainKind < 0 || chainKind > 255) {
+    throw new Error("Protection chainKind must be a byte.");
+  }
+  return chainKind;
 }
 
 function textCommitment(value: string): Uint8Array {

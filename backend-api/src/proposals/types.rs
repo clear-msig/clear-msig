@@ -104,6 +104,7 @@ pub(super) struct ExecuteTypedSolSendRequest {
 #[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedWalletPolicyUpdateRequest {
     pub(super) policy_bytes_hex: String,
+    pub(super) chain_kind: u8,
 }
 
 #[derive(Deserialize)]

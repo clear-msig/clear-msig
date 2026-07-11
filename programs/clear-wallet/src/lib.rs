@@ -368,12 +368,14 @@ pub mod clear_wallet {
         ctx: Ctx<ExecuteTypedWalletPolicyUpdate>,
         current_policy_commitment: [u8; 32],
         envelope_hash: [u8; 32],
+        chain_kind: u8,
         new_policy_bytes: Vec<u8, 2048>,
     ) -> Result<(), ProgramError> {
         ctx.accounts.execute_typed_wallet_policy_update(
             ExecuteTypedWalletPolicyUpdateArgs {
                 current_policy_commitment,
                 envelope_hash,
+                chain_kind,
                 new_policy_bytes: new_policy_bytes.as_ref(),
             },
             &ctx.bumps,

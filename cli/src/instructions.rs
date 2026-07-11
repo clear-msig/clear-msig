@@ -826,6 +826,7 @@ pub fn execute_typed_wallet_policy_update(
     proposal: Pubkey,
     current_policy_commitment: [u8; 32],
     envelope_hash: [u8; 32],
+    chain_kind: u8,
     new_policy_bytes: &[u8],
 ) -> Instruction {
     let accounts = vec![
@@ -840,6 +841,7 @@ pub fn execute_typed_wallet_policy_update(
     let mut data = vec![26u8];
     wincode::serialize_into(&mut data, &current_policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
     wincode::serialize_into(
         &mut data,
         &quasar_lang::client::DynBytes::<u32>::new(new_policy_bytes.to_vec()),
@@ -1484,6 +1486,7 @@ mod tests {
             key(5),
             [6; 32],
             [7; 32],
+            2,
             &[0xca, 0xfe],
         );
 

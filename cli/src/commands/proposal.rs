@@ -89,6 +89,9 @@ pub enum ProposalAction {
         /// New typed policy bytes as hex. Must match the approved SetProtection payload.
         #[arg(long)]
         policy_bytes_hex: String,
+        /// Chain kind whose active policy should be replaced (0 SOL, 1 EVM, 2 BTC, 3 ZEC, 4 ERC-20, 5 HyperEVM).
+        #[arg(long, default_value_t = 0)]
+        chain_kind: u8,
     },
     /// Execute an approved typed escrow milestone release.
     TypedEscrowRelease {
@@ -766,12 +769,10 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             wallet: wallet_name,
             proposal: proposal_addr_str,
             policy_bytes_hex,
+            chain_kind,
         } => {
             let policy_bytes =
                 parse_hex_local(&policy_bytes_hex).with_context(|| "invalid policy-bytes-hex")?;
-            if policy_bytes.is_empty() {
-                return Err(anyhow!("policy-bytes-hex must not be empty"));
-            }
             let client = rpc::client(config);
             let (wallet_pubkey, proposal_pubkey, proposal_account) =
                 resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
@@ -792,6 +793,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 proposal_pubkey,
                 proposal_account.policy_commitment,
                 proposal_account.envelope_hash,
+                chain_kind,
                 &policy_bytes,
             );
             let sig = rpc::send_instruction(&client, config, ix)?;

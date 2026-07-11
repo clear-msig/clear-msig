@@ -127,6 +127,7 @@ impl<'info> ExecuteTypedSolSend<'info> {
         enforce_wallet_policy_account(
             self.wallet.address(),
             self.wallet_policy,
+            0,
             args.policy_commitment,
             self.proposal.policy_bytes().as_ref(),
         )?;
@@ -206,6 +207,7 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
         enforce_wallet_policy_account(
             self.wallet.address(),
             self.wallet_policy,
+            0,
             args.policy_commitment,
             self.proposal.policy_bytes().as_ref(),
         )?;

@@ -282,6 +282,7 @@ export const backendApi = {
     proposalAddress: string,
     input: {
       policyBytesHex: string;
+      chainKind: number;
     },
   ) =>
     withRetry(() =>

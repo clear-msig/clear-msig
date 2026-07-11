@@ -830,12 +830,14 @@ fn build_execute_typed_wallet_policy_update_ix(
     proposal: Pubkey,
     current_policy_commitment: [u8; 32],
     envelope_hash: [u8; 32],
+    chain_kind: u8,
     new_policy_bytes: &[u8],
 ) -> Instruction {
     let (wallet_policy, _) = find_wallet_policy_address(&wallet, &crate::ID);
     let mut data = vec![26u8];
     wincode::serialize_into(&mut data, &current_policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
     wincode::serialize_into(&mut data, &DynBytes::<u32>::new(new_policy_bytes.to_vec())).unwrap();
 
     Instruction {
@@ -1208,6 +1210,7 @@ fn propose_typed_wallet_policy_update_on_wallet(
     proposal_index: u64,
     proposer: &ed25519_dalek::SigningKey,
     current_policy_commitment: [u8; 32],
+    chain_kind: u8,
     new_policy_bytes: &[u8],
 ) -> (Pubkey, [u8; 32]) {
     let proposal = get_typed_proposal_address(intent, proposal_index);
@@ -1229,7 +1232,7 @@ fn propose_typed_wallet_policy_update_on_wallet(
     );
     let expiry = typed_test_expiry();
     let new_policy_commitment = hash_typed_policy(new_policy_bytes);
-    let payload_hash = hash_wallet_policy_update_payload(&new_policy_commitment);
+    let payload_hash = hash_wallet_policy_update_payload(chain_kind, &new_policy_commitment);
     let envelope_hash = hash_envelope(&ClearSignEnvelope {
         kind: ClearSignActionKind::SetProtection,
         wallet_name: wallet_name.as_bytes(),
@@ -3619,6 +3622,7 @@ fn test_wallet_policy_rejects_proposal_that_omits_active_policy() {
         0,
         &proposer,
         no_previous_policy,
+        0,
         &policy_bytes,
     );
     let update = build_execute_typed_wallet_policy_update_ix(
@@ -3628,6 +3632,7 @@ fn test_wallet_policy_rejects_proposal_that_omits_active_policy() {
         policy_proposal,
         no_previous_policy,
         policy_envelope_hash,
+        0,
         &policy_bytes,
     );
     let result = svm.process_instruction(

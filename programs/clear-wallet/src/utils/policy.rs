@@ -33,6 +33,7 @@ pub fn hash_typed_policy(policy_bytes: &[u8]) -> [u8; 32] {
 pub fn enforce_wallet_policy_account(
     wallet: &Address,
     wallet_policy: &UncheckedAccount,
+    chain_kind: u8,
     proposal_policy_commitment: [u8; 32],
     proposal_policy_bytes: &[u8],
 ) -> Result<(), ProgramError> {
@@ -52,13 +53,17 @@ pub fn enforce_wallet_policy_account(
     let data = unsafe { view.borrow_unchecked() };
     let policy = WalletPolicy::read(data)?;
     require_keys_eq!(policy.wallet, *wallet, WalletError::WalletPolicyMismatch);
+    let active_commitment = policy.commitment_for_chain(chain_kind)?;
+    if active_commitment == [0u8; 32] {
+        return Ok(());
+    }
     require!(
-        policy.policy_commitment == proposal_policy_commitment,
+        active_commitment == proposal_policy_commitment,
         WalletError::WalletPolicyMismatch
     );
     require!(
         !proposal_policy_bytes.is_empty()
-            && hash_typed_policy(proposal_policy_bytes) == policy.policy_commitment,
+            && hash_typed_policy(proposal_policy_bytes) == active_commitment,
         WalletError::WalletPolicyMismatch
     );
     Ok(())

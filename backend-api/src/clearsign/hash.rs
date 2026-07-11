@@ -146,10 +146,19 @@ pub(super) fn hash_payload(
             );
         }
         ClearSignActionKind::SetProtection => {
-            if let Some(policy_commitment) =
-                payload.get("policyCommitment").and_then(Value::as_str)
+            if let Some(policy_commitment) = payload.get("policyCommitment").and_then(Value::as_str)
             {
+                let chain_kind = payload
+                    .get("chainKind")
+                    .and_then(Value::as_u64)
+                    .ok_or_else(|| ApiError::BadRequest("payload.chainKind is required".into()))?;
+                if chain_kind > u8::MAX as u64 {
+                    return Err(ApiError::BadRequest(
+                        "payload.chainKind is out of range".into(),
+                    ));
+                }
                 update_bytes(&mut hasher, b"wallet_policy");
+                hasher.update([chain_kind as u8]);
                 hasher.update(hash_bytes_from_hex(
                     policy_commitment,
                     "payload.policyCommitment",

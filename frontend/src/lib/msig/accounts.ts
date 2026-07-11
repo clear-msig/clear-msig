@@ -14,6 +14,7 @@
 //     in Rust). u64 / u32 go through `DataView` for exact semantics.
 
 import bs58 from "bs58";
+import { toHex } from "@/lib/msig/hash";
 import {
   AccountSourceType,
   ConstraintType,
@@ -36,6 +37,8 @@ export const DISC_PROPOSAL = 3;
 export const DISC_IKA_CONFIG = 4;
 export const DISC_DWALLET_OWNERSHIP = 5;
 export const DISC_TYPED_PROPOSAL = 6;
+export const DISC_WALLET_POLICY = 8;
+export const WALLET_POLICY_CHAIN_SLOTS = 6;
 
 // ── WalletAccount ────────────────────────────────────────────────────
 
@@ -170,6 +173,29 @@ export function parseIntent(data: Uint8Array): IntentAccount {
     bytePool,
     template,
   };
+}
+
+// ── WalletPolicyAccount ──────────────────────────────────────────────
+
+export interface WalletPolicyAccount {
+  wallet: string;
+  policyCommitments: string[];
+  version: bigint;
+  updatedAt: bigint;
+  bump: number;
+}
+
+export function parseWalletPolicy(data: Uint8Array): WalletPolicyAccount {
+  const r = new Reader(data, "WalletPolicy", DISC_WALLET_POLICY);
+  const wallet = r.address();
+  const policyCommitments: string[] = [];
+  for (let i = 0; i < WALLET_POLICY_CHAIN_SLOTS; i += 1) {
+    policyCommitments.push(toHex(r.bytes(32)));
+  }
+  const version = r.u64();
+  const updatedAt = r.i64();
+  const bump = r.u8();
+  return { wallet, policyCommitments, version, updatedAt, bump };
 }
 
 function checkedSlice(
@@ -504,6 +530,12 @@ class Reader {
     const s = bs58.encode(this.data.subarray(this.off, this.off + 32));
     this.off += 32;
     return s;
+  }
+  bytes(len: number): Uint8Array {
+    this.ensureAvailable(len);
+    const out = this.data.slice(this.off, this.off + len);
+    this.off += len;
+    return out;
   }
   utf8(len: number): string {
     this.ensureAvailable(len);

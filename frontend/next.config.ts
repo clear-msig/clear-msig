@@ -79,6 +79,9 @@ const nextConfig = {
     optimizePackageImports: [
       "lucide-react",
       "framer-motion",
+      "@dynamic-labs/sdk-react-core",
+      "@dynamic-labs/embedded-wallet-solana",
+      "@dynamic-labs/solana",
     ],
   },
   // Strip console.log in prod but keep .error/.warn - production

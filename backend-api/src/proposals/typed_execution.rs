@@ -81,20 +81,15 @@ pub(super) fn execute_typed_wallet_policy_update_args(
     body: ExecuteTypedWalletPolicyUpdateRequest,
 ) -> Result<Vec<String>, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
-    ensure_hex(&body.policy_bytes_hex, "policyBytesHex")?;
-    if body
-        .policy_bytes_hex
-        .trim()
-        .trim_start_matches("0x")
-        .is_empty()
-    {
-        return Err(ApiError::BadRequest(
-            "policyBytesHex must not be empty".into(),
-        ));
-    }
+    ensure_optional_hex(&body.policy_bytes_hex, "policyBytesHex")?;
 
     let mut args = base_proposal_args("typed-wallet-policy-update", name, proposal);
-    args.extend(["--policy-bytes-hex".into(), body.policy_bytes_hex]);
+    args.extend([
+        "--policy-bytes-hex".into(),
+        body.policy_bytes_hex,
+        "--chain-kind".into(),
+        body.chain_kind.to_string(),
+    ]);
     Ok(args)
 }
 
@@ -246,6 +241,15 @@ fn ensure_wallet_proposal(name: &str, proposal: &str) -> Result<(), ApiError> {
     ensure_wallet_name(name, "name")?;
     ensure_base58(proposal, "proposal", 32, 88)?;
     Ok(())
+}
+
+fn ensure_optional_hex(value: &str, field: &str) -> Result<(), ApiError> {
+    let trimmed = value.trim();
+    let hex = trimmed.strip_prefix("0x").unwrap_or(trimmed);
+    if hex.is_empty() {
+        return Ok(());
+    }
+    ensure_hex(value, field)
 }
 
 fn base_proposal_args(command: &str, name: String, proposal: String) -> Vec<String> {

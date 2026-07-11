@@ -43,6 +43,7 @@ pub struct ExecuteTypedWalletPolicyUpdate<'info> {
 pub struct ExecuteTypedWalletPolicyUpdateArgs<'a> {
     pub current_policy_commitment: [u8; 32],
     pub envelope_hash: [u8; 32],
+    pub chain_kind: u8,
     pub new_policy_bytes: &'a [u8],
 }
 
@@ -52,12 +53,13 @@ impl<'info> ExecuteTypedWalletPolicyUpdate<'info> {
         args: ExecuteTypedWalletPolicyUpdateArgs<'_>,
         _bumps: &ExecuteTypedWalletPolicyUpdateBumps,
     ) -> Result<(), ProgramError> {
-        require!(
-            !args.new_policy_bytes.is_empty(),
-            WalletError::InvalidPolicy
-        );
-        let new_policy_commitment = hash_typed_policy(args.new_policy_bytes);
-        let payload_hash = hash_wallet_policy_update_payload(&new_policy_commitment);
+        let new_policy_commitment = if args.new_policy_bytes.is_empty() {
+            [0u8; 32]
+        } else {
+            hash_typed_policy(args.new_policy_bytes)
+        };
+        let payload_hash =
+            hash_wallet_policy_update_payload(args.chain_kind, &new_policy_commitment);
         verify_typed_execution_ready(
             &self.intent,
             &self.proposal,
@@ -95,7 +97,7 @@ impl<'info> ExecuteTypedWalletPolicyUpdate<'info> {
                 WalletError::WalletPolicyMismatch
             );
             require!(
-                current.policy_commitment == args.current_policy_commitment,
+                current.commitment_for_chain(args.chain_kind)? == args.current_policy_commitment,
                 WalletError::WalletPolicyMismatch
             );
         }
@@ -128,13 +130,17 @@ impl<'info> ExecuteTypedWalletPolicyUpdate<'info> {
                 .invoke_signed(seeds)?;
         }
 
-        let next = WalletPolicy {
+        let mut next = current.unwrap_or(WalletPolicy {
             wallet: *self.wallet.address(),
-            policy_commitment: new_policy_commitment,
-            version: next_version,
-            updated_at: clock.unix_timestamp.get(),
+            policy_commitments: [[0u8; 32]; crate::state::wallet_policy::WALLET_POLICY_CHAIN_SLOTS],
+            version: 0,
+            updated_at: 0,
             bump: policy_bump,
-        };
+        });
+        next.version = next_version;
+        next.updated_at = clock.unix_timestamp.get();
+        next.bump = policy_bump;
+        next.set_commitment_for_chain(args.chain_kind, new_policy_commitment)?;
         let view =
             unsafe { &mut *(self.wallet_policy as *mut UncheckedAccount as *mut AccountView) };
         next.write(view.data_mut_ptr());

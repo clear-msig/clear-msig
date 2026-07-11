@@ -168,6 +168,7 @@ impl<'info> IkaSignTypedChainSend<'info> {
         enforce_wallet_policy_account(
             self.wallet.address(),
             self.wallet_policy,
+            args.chain_kind,
             args.policy_commitment,
             self.proposal.policy_bytes().as_ref(),
         )?;
