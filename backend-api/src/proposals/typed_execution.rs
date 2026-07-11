@@ -99,26 +99,42 @@ pub(super) fn execute_typed_intent_governance_args(
     body: ExecuteTypedIntentGovernanceRequest,
 ) -> Result<Vec<String>, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
-    if !matches!(body.action_kind, 3 | 4 | 5) {
-        return Err(ApiError::BadRequest(
-            "actionKind must be 3 (add_member), 4 (remove_member), or 5 (change_threshold)".into(),
-        ));
-    }
     let mut args = base_proposal_args("typed-intent-governance", name, proposal);
-    args.extend([
-        "--action-kind".into(),
-        body.action_kind.to_string(),
-        "--target-index".into(),
-        body.target_index.to_string(),
-    ]);
+    if let Some(action_kind) = body.action_kind {
+        if !matches!(action_kind, 3 | 4 | 5) {
+            return Err(ApiError::BadRequest(
+                "actionKind must be 3 (add_member), 4 (remove_member), or 5 (change_threshold)"
+                    .into(),
+            ));
+        }
+        args.extend(["--action-kind".into(), action_kind.to_string()]);
+    }
+    if let Some(target_index) = body.target_index {
+        args.extend(["--target-index".into(), target_index.to_string()]);
+    }
     if let Some(hex) = body.new_intent_body_hex {
         ensure_optional_hex(&hex, "newIntentBodyHex")?;
+        if body.target_index.is_none() {
+            return Err(ApiError::BadRequest(
+                "targetIndex is required with newIntentBodyHex".into(),
+            ));
+        }
         args.extend(["--new-intent-body-hex".into(), hex]);
+        return Ok(args);
+    }
+    if body.file.is_none() {
+        // With no explicit rebuild input, the CLI resumes from the execution
+        // payload committed in the on-chain typed proposal.
         return Ok(args);
     }
     let file = body
         .file
         .ok_or_else(|| ApiError::BadRequest("newIntentBodyHex or file is required".into()))?;
+    if body.target_index.is_none() {
+        return Err(ApiError::BadRequest(
+            "targetIndex is required when building from file".into(),
+        ));
+    }
     let proposers = body.proposers.ok_or_else(|| {
         ApiError::BadRequest("proposers is required when building from file".into())
     })?;
@@ -508,8 +524,8 @@ mod tests {
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedIntentGovernanceRequest {
-                action_kind: 5,
-                target_index: 3,
+                action_kind: Some(5),
+                target_index: Some(3),
                 new_intent_body_hex: Some("020304".into()),
                 file: None,
                 proposers: None,
@@ -546,8 +562,8 @@ mod tests {
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedIntentGovernanceRequest {
-                action_kind: 9,
-                target_index: 3,
+                action_kind: Some(9),
+                target_index: Some(3),
                 new_intent_body_hex: Some("020304".into()),
                 file: None,
                 proposers: None,
@@ -560,6 +576,38 @@ mod tests {
         assert_eq!(
             error,
             "actionKind must be 3 (add_member), 4 (remove_member), or 5 (change_threshold)"
+        );
+    }
+
+    #[test]
+    fn typed_intent_governance_can_resume_from_committed_proposal_payload() {
+        let args = execute_typed_intent_governance_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedIntentGovernanceRequest {
+                action_kind: None,
+                target_index: None,
+                new_intent_body_hex: None,
+                file: None,
+                proposers: None,
+                approvers: None,
+                threshold: None,
+                cancellation_threshold: None,
+                timelock: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            args,
+            vec![
+                "proposal",
+                "typed-intent-governance",
+                "--wallet",
+                "team",
+                "--proposal",
+                VALID_PUBKEY,
+            ]
         );
     }
 

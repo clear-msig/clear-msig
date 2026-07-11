@@ -111,8 +111,8 @@ pub(super) struct ExecuteTypedWalletPolicyUpdateRequest {
 #[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedIntentGovernanceRequest {
     /// ClearSign action kind: 3=add_member, 4=remove_member, 5=change_threshold.
-    pub(super) action_kind: u8,
-    pub(super) target_index: u8,
+    pub(super) action_kind: Option<u8>,
+    pub(super) target_index: Option<u8>,
     /// Preferred: pre-built intent body (no discriminator) as hex.
     pub(super) new_intent_body_hex: Option<String>,
     pub(super) file: Option<String>,

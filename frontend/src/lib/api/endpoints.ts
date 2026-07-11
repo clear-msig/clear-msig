@@ -307,7 +307,7 @@ export const backendApi = {
       threshold?: number;
       cancellationThreshold?: number;
       timelock?: number;
-    },
+    } | Record<string, never> = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(

@@ -82,6 +82,14 @@ impl<'info> ExecuteTypedIntentGovernance<'info> {
             ),
             ProgramError::InvalidInstructionData
         );
+        require!(
+            governance_payload_matches(
+                self.proposal.policy_bytes().as_ref(),
+                args.target_intent_index,
+                args.new_intent_body,
+            ),
+            WalletError::InvalidPolicy
+        );
 
         let snap = parse_governance_snapshot(args.new_intent_body, args.target_intent_index)?;
         require_keys_eq!(
@@ -198,6 +206,12 @@ impl<'info> ExecuteTypedIntentGovernance<'info> {
     }
 }
 
+fn governance_payload_matches(committed: &[u8], target_index: u8, body: &[u8]) -> bool {
+    committed.len() == body.len() + 1
+        && committed.first() == Some(&target_index)
+        && committed.get(1..) == Some(body)
+}
+
 fn parse_governance_snapshot(
     body: &[u8],
     expected_index: u8,
@@ -268,4 +282,24 @@ fn read_address_vec(
         next += 32;
     }
     Ok((out, count, next))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::governance_payload_matches;
+
+    #[test]
+    fn committed_governance_payload_binds_target_and_full_body() {
+        let body = [2u8, 0, 9, 8, 7];
+        let mut committed = vec![3u8];
+        committed.extend_from_slice(&body);
+
+        assert!(governance_payload_matches(&committed, 3, &body));
+        assert!(!governance_payload_matches(&committed, 4, &body));
+
+        let mut changed_body = body;
+        changed_body[4] = 6;
+        assert!(!governance_payload_matches(&committed, 3, &changed_body));
+        assert!(!governance_payload_matches(&[], 3, &body));
+    }
 }

@@ -17,6 +17,10 @@ import {
   type ThresholdPayload,
 } from "@/lib/clearsign-v2";
 import type { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import {
+  encodeTypedGovernancePayload,
+  typedGovernanceCommitmentHex,
+} from "@/lib/hooks/typedGovernancePayload";
 
 type SignTyped = ReturnType<typeof useSignWithWallet>["signTypedDescriptor"];
 
@@ -59,8 +63,33 @@ export async function completeTypedGovernance(
   input: TypedGovernanceInput,
 ): Promise<TypedGovernanceResult> {
   const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-  const policyCommitment =
-    "0000000000000000000000000000000000000000000000000000000000000000";
+
+  // Build and commit the exact replacement body before anyone signs. Keeping
+  // it in the typed proposal makes delayed multi-approver execution resumable
+  // without trusting browser-local state or a backend database.
+  const bodyDry = await backendApi.prepare.updateIntent(input.walletName, {
+    index: input.targetIntentIndex,
+    file: input.templateFile,
+    proposers: input.proposers,
+    approvers: input.approvers,
+    threshold: input.approvalThreshold,
+    cancellation_threshold: input.cancellationThreshold,
+    timelock: input.timelockSeconds,
+    policy_ciphertexts: [],
+  });
+  const paramsHex = String(
+    (bodyDry as { params_data_hex?: string }).params_data_hex ?? "",
+  ).replace(/^0x/i, "");
+  if (paramsHex.length < 4) {
+    throw new Error("Could not build intent body for governance update.");
+  }
+  // params_data = [target_index byte][intent body]
+  const newIntentBodyHex = paramsHex.slice(2);
+  const committedPayload = encodeTypedGovernancePayload(
+    input.targetIntentIndex,
+    newIntentBodyHex,
+  );
+  const policyCommitment = typedGovernanceCommitmentHex(committedPayload.bytes);
 
   let envelope: ClearSignEnvelope<MemberPayload | ThresholdPayload>;
   if (input.kind === "change_threshold") {
@@ -114,7 +143,7 @@ export async function completeTypedGovernance(
     envelope_hash: summary.envelopeHash,
     action_id: envelope.actionId,
     nonce: envelope.nonce,
-    policyBytesHex: "",
+    policyBytesHex: committedPayload.hex,
     signable_text: summary.signableText,
     expiry: formatUnixSigningExpiry(envelope.expiresAt),
     actor_pubkey: input.proposerPk.toBase58(),
@@ -132,7 +161,7 @@ export async function completeTypedGovernance(
     envelope_hash: dry.envelope_hash_hex,
     action_id: dry.action_id,
     nonce: dry.nonce,
-    policyBytesHex: "",
+    policyBytesHex: committedPayload.hex,
   });
   const proposal = submitted.proposal;
   if (typeof proposal !== "string" || proposal.length === 0) {
@@ -165,27 +194,6 @@ export async function completeTypedGovernance(
   if (!ready) {
     return { kind: "awaiting_approvals", proposal };
   }
-
-  // Prefer a pre-built body from the same intent builder the legacy path uses
-  // so chain_kind / template / accounts stay intact.
-  const bodyDry = await backendApi.prepare.updateIntent(input.walletName, {
-    index: input.targetIntentIndex,
-    file: input.templateFile,
-    proposers: input.proposers,
-    approvers: input.approvers,
-    threshold: input.approvalThreshold,
-    cancellation_threshold: input.cancellationThreshold,
-    timelock: input.timelockSeconds,
-    policy_ciphertexts: [],
-  });
-  const paramsHex = String(
-    (bodyDry as { params_data_hex?: string }).params_data_hex ?? "",
-  ).replace(/^0x/i, "");
-  if (paramsHex.length < 4) {
-    throw new Error("Could not build intent body for governance update.");
-  }
-  // params_data = [target_index byte][intent body]
-  const newIntentBodyHex = paramsHex.slice(2);
 
   await backendApi.executeTypedIntentGovernance(input.walletName, proposal, {
     actionKind: summary.actionKindCode,
