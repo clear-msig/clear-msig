@@ -114,16 +114,30 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "agent-trade-approval",
     label: "Agent trade approval",
-    status: "typed_approval_only",
-    signedPath: "typed approval model exists; product execution is still off-chain/local",
-    notes: "Readable typed action kind exists. Needs product flow wired to typed proposal before live trade execution.",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> agent session PDA notional debit",
+    notes: "Program gates trade finalizer on an active AgentSession (expiry, venue/market, leverage, remaining notional).",
+  },
+  {
+    id: "agent-session-grant",
+    label: "Agent bounded session grant / revoke",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> execute_typed_agent_session_grant",
+    notes: "Creates or revokes program-owned AgentSession PDA bound by ClearSign AgentSessionGrant payload.",
+  },
+  {
+    id: "member-allowances",
+    label: "Per-member spend allowances",
+    status: "typed_onchain",
+    signedPath: "CSP1 EXT_MEMBER_ALLOWANCE + MemberAllowanceLedger window",
+    notes: "SOL friend allowances encode into typed policy bytes (tag 4). The program tracks each matching proposer in an independent MemberAllowanceLedger row.",
   },
   {
     id: "agent-settings",
-    label: "Agent settings / strategy / sessions",
+    label: "Agent settings / strategy / UI sessions",
     status: "local_policy_only",
-    signedPath: "local encrypted policy state",
-    notes: "Not yet a program-verified typed action surface.",
+    signedPath: "local encrypted policy state + optional session grant",
+    notes: "Strategy editors remain local; on-chain session grants are the authoritative bound for trade finalization.",
   },
 ];
 

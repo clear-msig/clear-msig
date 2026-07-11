@@ -36,7 +36,7 @@ import {
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useContacts } from "@/lib/hooks/useContacts";
-import { isValidSolanaAddress, shortAddress } from "@/lib/retail/contacts";
+import { shortAddress } from "@/lib/retail/contacts";
 import {
   DAY_LABELS,
   getAllowlist,
@@ -53,10 +53,14 @@ import {
   templateFileForChainKind,
 } from "@/lib/hooks/useUpdateTimelock";
 import { useUpdateApprovalThreshold } from "@/lib/hooks/useUpdateApprovalThreshold";
+import { usePersistPersonalWalletPolicy } from "@/lib/hooks/usePersistWalletPolicy";
 import {
-  usePersistPersonalWalletPolicy,
-  type PersistWalletPolicyResult,
-} from "@/lib/hooks/usePersistWalletPolicy";
+  ALLOWLIST_CHAINS,
+  allowlistChain,
+  formatPolicySyncResult,
+  isValidAllowlistAddress,
+  normalizeAllowlistAddress,
+} from "@/features/policies/domain/personalPolicy";
 
 export default function PolicyPage() {
   const params = useParams<{ name: string }>();
@@ -453,6 +457,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
   const [hydrated, setHydrated] = useState(false);
   const [draft, setDraft] = useState<Allowlist>({
     walletName,
+    chainKind: 0,
     mode: "off",
     addresses: [],
     updatedAt: 0,
@@ -471,10 +476,15 @@ function AllowlistCard({ walletName }: { walletName: string }) {
     setDraft(next);
     saveAllowlist({
       walletName: next.walletName,
+      chainKind: next.chainKind,
       mode: next.mode,
       addresses: next.addresses,
     });
     setDirty(true);
+  };
+
+  const selectChain = (chainKind: number) => {
+    setDraft(getAllowlist(walletName, chainKind));
   };
 
   const syncOnChain = async () => {
@@ -505,11 +515,12 @@ function AllowlistCard({ walletName }: { walletName: string }) {
   const addAddress = (address: string) => {
     const trimmed = address.trim();
     if (!trimmed) return;
-    if (!isValidSolanaAddress(trimmed)) {
-      toast.error("That doesn't look like a valid Solana address");
+    if (!isValidAllowlistAddress(draft.chainKind, trimmed)) {
+      toast.error(`That doesn't look like a valid ${allowlistChain(draft.chainKind).label} address`);
       return;
     }
-    if (draft.addresses.includes(trimmed)) {
+    const normalized = normalizeAllowlistAddress(draft.chainKind, trimmed);
+    if (draft.addresses.includes(normalized)) {
       toast.info("Already on the allowlist");
       return;
     }
@@ -519,7 +530,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
       });
       return;
     }
-    const next = { ...draft, addresses: [...draft.addresses, trimmed] };
+    const next = { ...draft, addresses: [...draft.addresses, normalized] };
     persistLocal(next);
     setPasteAddress("");
     toast.success("Added to allowlist", {
@@ -535,9 +546,10 @@ function AllowlistCard({ walletName }: { walletName: string }) {
     persistLocal(next);
   };
 
-  const contactsNotOnList = contacts.contacts.filter(
-    (c) => !draft.addresses.includes(c.address),
-  );
+  const contactsNotOnList = draft.chainKind === 0
+    ? contacts.contacts.filter((c) => !draft.addresses.includes(c.address))
+    : [];
+  const selectedChain = allowlistChain(draft.chainKind);
 
   return (
     <section id="recipients" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -550,11 +562,26 @@ function AllowlistCard({ walletName }: { walletName: string }) {
             Allowlist
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-text-soft">
-            When on, typed SOL sends commit this list and the program rejects
-            every recipient outside it during execution.
+            When on, typed {selectedChain.ticker} sends commit this list and the
+            program rejects every recipient outside it during execution.
           </p>
         </div>
       </header>
+
+      <label className="mt-5 block text-xs font-medium uppercase tracking-[0.16em] text-text-soft">
+        Network
+        <select
+          value={draft.chainKind}
+          onChange={(event) => selectChain(Number(event.target.value))}
+          className="mt-2 block w-full rounded-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none focus:ring-2 focus:ring-accent"
+        >
+          {ALLOWLIST_CHAINS.map((chain) => (
+            <option key={chain.chainKind} value={chain.chainKind}>
+              {chain.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="mt-5 inline-flex rounded-full bg-canvas p-1 text-xs font-medium">
         <ToggleButton active={draft.mode === "off"} onClick={() => setMode("off")}>
@@ -635,7 +662,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
             aria-label="Approver address"
             value={pasteAddress}
             onChange={(e) => setPasteAddress(e.target.value)}
-            placeholder="Solana address"
+            placeholder={`${selectedChain.label} address`}
             className={
               "min-w-0 flex-1 rounded-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
               "transition-[border-color,box-shadow] duration-base ease-out-soft " +
@@ -900,19 +927,6 @@ function formatHourOption(h: number): string {
   if (h === 12) return "12 pm (noon)";
   if (h < 12) return `${h} am`;
   return `${h - 12} pm`;
-}
-
-function formatPolicySyncResult(result: PersistWalletPolicyResult): string {
-  return [
-    result.updated > 0
-      ? `${result.updated} on-chain ${result.updated === 1 ? "rule" : "rules"} updated`
-      : "On-chain rules already matched",
-    result.waiting > 0
-      ? `${result.waiting} ${result.waiting === 1 ? "update is" : "updates are"} waiting for another approval`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 // Shared bits

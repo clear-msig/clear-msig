@@ -15,6 +15,7 @@ use crate::{
         dwallet_ownership::{DwalletOwnership, DWALLET_OWNERSHIP_SEED},
         ika_config::IkaConfig,
         intent::Intent,
+        member_allowance::MemberAllowanceLedger,
         policy_spend::PolicySpendState,
         proposal::ProposalStatus,
         typed_proposal::TypedProposal,
@@ -42,6 +43,13 @@ pub struct IkaSignTypedChainSend<'info> {
         bump,
     )]
     pub policy_spend: &'info mut Account<PolicySpendState>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = MemberAllowanceLedger::seeds(wallet, intent),
+        bump,
+    )]
+    pub member_allowance: &'info mut Account<MemberAllowanceLedger>,
     #[account(
         mut,
         has_one = wallet,
@@ -181,6 +189,8 @@ impl<'info> IkaSignTypedChainSend<'info> {
             &self.proposal,
             &mut self.policy_spend,
             bumps.policy_spend,
+            &mut self.member_allowance,
+            bumps.member_allowance,
         )?;
 
         approve_ika_message(

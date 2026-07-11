@@ -363,6 +363,7 @@ export const backendApi = {
     proposalAddress: string,
     input: {
       amountRaw: string;
+      agentIdHash: string;
       venueHash: string;
       marketHash: string;
       sideHash: string;
@@ -376,6 +377,29 @@ export const backendApi = {
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-trade-approval`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedAgentSessionGrant: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      sessionIdHash: string;
+      agentIdHash: string;
+      venueHash: string;
+      marketHash: string;
+      maxNotionalRaw: string;
+      maxLeverageX100: number;
+      expiresAt: number;
+      status: 1 | 2;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-session-grant`,
         "POST",
         input,
         { timeoutMs: 55_000 },

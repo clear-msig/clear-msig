@@ -3,10 +3,11 @@ use crate::{
 };
 
 use super::types::{
-    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
-    ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
-    ExecuteTypedIntentGovernanceRequest, ExecuteTypedSolBatchSendRequest,
-    ExecuteTypedSolSendRequest, ExecuteTypedWalletPolicyUpdateRequest,
+    ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
+    ExecuteTypedChainSendRequest, ExecuteTypedEscrowReleaseRequest,
+    ExecuteTypedEscrowReturnRequest, ExecuteTypedIntentGovernanceRequest,
+    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
+    ExecuteTypedWalletPolicyUpdateRequest,
 };
 
 pub(super) fn execute_typed_escrow_release_args(
@@ -274,6 +275,7 @@ pub(super) fn execute_typed_agent_trade_approval_args(
         ));
     }
     let venue_hash = validated_hash(body.venue_hash, "venueHash")?;
+    let agent_id_hash = validated_hash(body.agent_id_hash, "agentIdHash")?;
     let market_hash = validated_hash(body.market_hash, "marketHash")?;
     let side_hash = validated_hash(body.side_hash, "sideHash")?;
     let asset_id_hash = validated_hash(body.asset_id_hash, "assetIdHash")?;
@@ -285,6 +287,8 @@ pub(super) fn execute_typed_agent_trade_approval_args(
     args.extend([
         "--amount-raw".into(),
         amount_raw.to_string(),
+        "--agent-id-hash".into(),
+        agent_id_hash,
         "--venue-hash".into(),
         venue_hash,
         "--market-hash".into(),
@@ -301,6 +305,47 @@ pub(super) fn execute_typed_agent_trade_approval_args(
         route_hash,
         "--risk-check-hash".into(),
         risk_check_hash,
+    ]);
+    Ok(args)
+}
+
+pub(super) fn execute_typed_agent_session_grant_args(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedAgentSessionGrantRequest,
+) -> Result<Vec<String>, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    if body.status != 1 && body.status != 2 {
+        return Err(ApiError::BadRequest("status must be 1 or 2".into()));
+    }
+    let max_notional = body
+        .max_notional_raw
+        .trim()
+        .parse::<u128>()
+        .map_err(|_| ApiError::BadRequest("maxNotionalRaw must be an integer".into()))?;
+    if body.status == 1 && (max_notional == 0 || body.max_leverage_x100 == 0) {
+        return Err(ApiError::BadRequest(
+            "active sessions require positive maxNotionalRaw and maxLeverageX100".into(),
+        ));
+    }
+    let mut args = base_proposal_args("typed-agent-session-grant", name, proposal);
+    args.extend([
+        "--session-id-hash".into(),
+        validated_hash(body.session_id_hash, "sessionIdHash")?,
+        "--agent-id-hash".into(),
+        validated_hash(body.agent_id_hash, "agentIdHash")?,
+        "--venue-hash".into(),
+        validated_hash(body.venue_hash, "venueHash")?,
+        "--market-hash".into(),
+        validated_hash(body.market_hash, "marketHash")?,
+        "--max-notional-raw".into(),
+        max_notional.to_string(),
+        "--max-leverage-x100".into(),
+        body.max_leverage_x100.to_string(),
+        "--expires-at".into(),
+        body.expires_at.to_string(),
+        "--status".into(),
+        body.status.to_string(),
     ]);
     Ok(args)
 }
@@ -789,6 +834,7 @@ mod tests {
             VALID_PUBKEY.into(),
             ExecuteTypedAgentTradeApprovalRequest {
                 amount_raw: "250000000".into(),
+                agent_id_hash: VALID_HASH.into(),
                 venue_hash: VALID_HASH.into(),
                 market_hash: VALID_HASH.into(),
                 side_hash: VALID_HASH.into(),
@@ -812,6 +858,8 @@ mod tests {
                 VALID_PUBKEY,
                 "--amount-raw",
                 "250000000",
+                "--agent-id-hash",
+                VALID_HASH,
                 "--venue-hash",
                 VALID_HASH,
                 "--market-hash",
@@ -830,6 +878,56 @@ mod tests {
                 VALID_HASH,
             ]
         );
+    }
+
+    #[test]
+    fn typed_agent_session_grant_and_revoke_args_match_cli_shape() {
+        let grant = execute_typed_agent_session_grant_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedAgentSessionGrantRequest {
+                session_id_hash: VALID_HASH.into(),
+                agent_id_hash: VALID_HASH.into(),
+                venue_hash: VALID_HASH.into(),
+                market_hash: VALID_HASH.into(),
+                max_notional_raw: "250000000".into(),
+                max_leverage_x100: 250,
+                expires_at: 1_800_000_000,
+                status: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            grant[0..5],
+            [
+                "proposal",
+                "typed-agent-session-grant",
+                "--wallet",
+                "team",
+                "--proposal"
+            ]
+        );
+        assert!(grant.windows(2).any(|row| row == ["--status", "1"]));
+
+        let revoke = execute_typed_agent_session_grant_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedAgentSessionGrantRequest {
+                session_id_hash: VALID_HASH.into(),
+                agent_id_hash: VALID_HASH.into(),
+                venue_hash: VALID_HASH.into(),
+                market_hash: VALID_HASH.into(),
+                max_notional_raw: "0".into(),
+                max_leverage_x100: 0,
+                expires_at: 0,
+                status: 2,
+            },
+        )
+        .unwrap();
+        assert!(revoke
+            .windows(2)
+            .any(|row| row == ["--max-notional-raw", "0"]));
+        assert!(revoke.windows(2).any(|row| row == ["--status", "2"]));
     }
 
     #[test]
@@ -861,6 +959,7 @@ mod tests {
             VALID_PUBKEY.into(),
             ExecuteTypedAgentTradeApprovalRequest {
                 amount_raw: "0".into(),
+                agent_id_hash: VALID_HASH.into(),
                 venue_hash: VALID_HASH.into(),
                 market_hash: VALID_HASH.into(),
                 side_hash: VALID_HASH.into(),

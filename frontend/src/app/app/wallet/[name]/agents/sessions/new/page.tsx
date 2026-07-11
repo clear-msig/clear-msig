@@ -16,6 +16,7 @@ import { useSignWithWallet } from "@/features/agents/infrastructure/walletSignin
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { FormField, NativeSelect, TextInput } from "@/components/retail/FormField";
+import { useAgentTypedSessionGrant } from "@/lib/agents/useAgentTypedSessionGrant";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
   { value: "mock_perps", label: "Built-in practice" },
@@ -40,6 +41,7 @@ export default function NewAgentSessionPage() {
   }, [params?.name]);
   const display = toDisplayName(name);
   const encoded = encodeURIComponent(name);
+  const grantTypedSession = useAgentTypedSessionGrant(name);
   const requestedAgentId = search.get("agent")?.trim() ?? "";
   const requestedTier = agentAllocationTierById(search.get("allocationTier"));
   const requestedVenue = venueFromSearch(search.get("venue"));
@@ -180,10 +182,17 @@ export default function NewAgentSessionPage() {
           });
         }
       }
-      const saved = saveAgentSession(pending.grant);
+      const onchainGrant = await grantTypedSession(pending.grant, {
+        venue: pending.redirectVenue,
+        market: pending.grant.allowedMarkets?.[0] ?? "BTC-PERP",
+        status: "active",
+      });
+      const saved = saveAgentSession(onchainGrant);
       setSessions(listAgentSessions(name));
       const synced = await syncAgentSession(saved);
-      if (synced.ok) {
+      if (onchainGrant.onchain?.status !== "executed") {
+        toast.info("Practice budget is waiting for on-chain approval");
+      } else if (synced.ok) {
         toast.success("Practice budget is ready");
       } else {
         toast.info("Practice budget saved on this device for now", {
@@ -202,7 +211,16 @@ export default function NewAgentSessionPage() {
     } finally {
       setSaving(false);
     }
-  }, [approvalRequest, canSign, encoded, name, router, signLocalClearText, toast]);
+  }, [
+    approvalRequest,
+    canSign,
+    encoded,
+    grantTypedSession,
+    name,
+    router,
+    signLocalClearText,
+    toast,
+  ]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

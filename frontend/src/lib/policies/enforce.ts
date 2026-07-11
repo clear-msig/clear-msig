@@ -26,8 +26,18 @@ import {
   type PolicyChainTicker,
 } from "@/lib/retail/spendingBudget";
 import { getAllowlist, getTimeWindow } from "@/lib/retail/policy";
+import { listAllowances } from "@/lib/retail/allowances";
 
 const decoder = new TextDecoder();
+
+export interface MemberAllowanceCap {
+  /** Solana base58 of the member (proposer) this cap applies to. */
+  member: string;
+  /** Cap in display units of the send asset (SOL/ETH/…). */
+  capDisplay: string;
+  /** Rolling window in seconds (weekly ≈ 604800, monthly ≈ 2592000). */
+  windowSeconds: number;
+}
 
 export interface PolicyEnforcementPlan {
   evaluation: RuleEvaluation | null;
@@ -51,6 +61,8 @@ export interface PolicyEnforcementPlan {
     maxSendCount: number;
     countWindowSeconds: number;
   };
+  /** Per-member spend caps enforced on-chain via CSP1 extension tag 4. */
+  memberAllowances?: MemberAllowanceCap[];
 }
 
 export function assertPolicyNotDenied(
@@ -69,6 +81,7 @@ export async function resolvePolicyEnforcement(
 ): Promise<PolicyEnforcementPlan> {
   const onchainLimits = resolveOnchainLimits(walletName, candidate.ticker);
   const recipientGuard = resolveRecipientGuard(walletName, candidate.chainKind);
+  const memberAllowances = resolveMemberAllowances(walletName, candidate.ticker);
   const rules = listPolicies(walletName);
   const allowedTimeWindow =
     resolveSavedAllowedTimeWindow(walletName, candidate) ??
@@ -84,6 +97,7 @@ export async function resolvePolicyEnforcement(
       recipientGuard,
       allowedTimeWindow,
       onchainLimits,
+      memberAllowances,
     };
   }
 
@@ -98,6 +112,7 @@ export async function resolvePolicyEnforcement(
       recipientGuard,
       allowedTimeWindow,
       onchainLimits,
+      memberAllowances,
     };
   }
 
@@ -125,15 +140,30 @@ export async function resolvePolicyEnforcement(
     recipientGuard,
     allowedTimeWindow,
     onchainLimits,
+    memberAllowances,
   };
+}
+
+function resolveMemberAllowances(
+  walletName: string,
+  ticker: string,
+): MemberAllowanceCap[] {
+  if (ticker !== "SOL") return [];
+  return listAllowances(walletName)
+    .filter((row) => row.period !== "none")
+    .map((row) => ({
+      member: row.friendAddress,
+      capDisplay: String(Math.max(0, row.amountSol || 0)),
+      windowSeconds:
+        row.period === "monthly" ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60,
+    }));
 }
 
 function resolveRecipientGuard(
   walletName: string,
   chainKind: number,
 ): PolicyEnforcementPlan["recipientGuard"] {
-  if (chainKind !== 0) return null;
-  const allowlist = getAllowlist(walletName);
+  const allowlist = getAllowlist(walletName, chainKind);
   return allowlist.mode === "on"
     ? { mode: "allowlist", addresses: allowlist.addresses }
     : null;

@@ -7,12 +7,14 @@ import { buildAgentTradeClearSignV2 } from "@/lib/agents/clearsign";
 import type { AgentTradePayload, ClearSignEnvelope } from "@/lib/clearsign-v2";
 import { clearSignActionKindCode, prepareClearSignAction } from "@/lib/clearsign-v2";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { waitForProposalApproval } from "@/lib/chain/proposals";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents, type IntentWithPda } from "@/lib/chain/intents";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
-import { IntentType, ProposalStatus } from "@/lib/msig";
+import { IntentType } from "@/lib/msig";
 import { useConnection, useWallet } from "@/lib/wallet";
 import type { AgentTradeProposal } from "@/lib/agents/types";
+import { listAgentSessions } from "@/lib/agents/storage";
 
 export interface AgentTypedClearSignApprovalResult {
   proposal: AgentTradeProposal;
@@ -53,8 +55,20 @@ export function useAgentTypedClearSignApproval(walletName: string) {
         );
       }
 
+      const activeSession = listAgentSessions(walletName).find(
+        (session) =>
+          session.status === "active" &&
+          session.onchain?.status === "executed" &&
+          session.expiresAt > Date.now() &&
+          (!proposal.policyHash || session.policyHash === proposal.policyHash) &&
+          (session.id === proposal.sessionId || session.agentId === proposal.agentId),
+      );
+      if (!activeSession) {
+        throw new Error("This trade has no active on-chain agent session.");
+      }
       const binding = buildAgentTradeClearSignV2(proposal, {
         walletId: walletData.pda.toBase58(),
+        sessionId: activeSession.id,
       });
       const envelope: ClearSignEnvelope<AgentTradePayload> = {
         version: 2,
@@ -133,10 +147,10 @@ export function useAgentTypedClearSignApproval(walletName: string) {
         });
       }
 
-      const shouldTryExecute =
-        decision.status === ProposalStatus.Approved ||
-        selected.account.approvalThreshold <= 1 ||
-        Boolean(approver && !decision.needsApproveSignature);
+      const shouldTryExecute = await waitForProposalApproval(
+        connection,
+        proposalAddress,
+      );
       let txid: string | undefined;
       if (shouldTryExecute) {
         try {

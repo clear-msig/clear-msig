@@ -29,6 +29,8 @@ export type AllowlistMode = "off" | "on";
 
 export interface Allowlist {
   walletName: string;
+  /** Clear Wallet chain kind. Existing v1 rows migrate to SOL (0). */
+  chainKind: number;
   mode: AllowlistMode;
   /// Allowed recipient addresses (base58). Honoured when `mode === "on"`.
   /// Empty array + `mode = "on"` blocks every send (failsafe).
@@ -44,7 +46,10 @@ function loadAllowlists(): Allowlist[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isAllowlist);
+    return parsed.filter(isAllowlist).map((row) => ({
+      ...row,
+      chainKind: normalizeChainKind(row.chainKind),
+    }));
   } catch {
     return [];
   }
@@ -59,11 +64,14 @@ function persistAllowlists(rows: Allowlist[]): void {
   }
 }
 
-export function getAllowlist(walletName: string): Allowlist {
-  const found = loadAllowlists().find((r) => r.walletName === walletName);
+export function getAllowlist(walletName: string, chainKind = 0): Allowlist {
+  const found = loadAllowlists().find(
+    (r) => r.walletName === walletName && r.chainKind === chainKind,
+  );
   return (
     found ?? {
       walletName,
+      chainKind,
       mode: "off",
       addresses: [],
       updatedAt: 0,
@@ -71,10 +79,16 @@ export function getAllowlist(walletName: string): Allowlist {
   );
 }
 
-export function saveAllowlist(input: Omit<Allowlist, "updatedAt">): Allowlist {
-  const all = loadAllowlists().filter((r) => r.walletName !== input.walletName);
+export function saveAllowlist(
+  input: Omit<Allowlist, "updatedAt" | "chainKind"> & { chainKind?: number },
+): Allowlist {
+  const chainKind = normalizeChainKind(input.chainKind);
+  const all = loadAllowlists().filter(
+    (r) => !(r.walletName === input.walletName && r.chainKind === chainKind),
+  );
   const record: Allowlist = {
     ...input,
+    chainKind,
     addresses: dedupe(input.addresses).slice(0, 16),
     updatedAt: Date.now(),
   };
@@ -180,10 +194,18 @@ function isAllowlist(r: unknown): r is Allowlist {
   const o = r as Record<string, unknown>;
   return (
     typeof o.walletName === "string" &&
+    (o.chainKind === undefined ||
+      (typeof o.chainKind === "number" && Number.isInteger(o.chainKind))) &&
     (o.mode === "off" || o.mode === "on") &&
     Array.isArray(o.addresses) &&
     typeof o.updatedAt === "number"
   );
+}
+
+function normalizeChainKind(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : 0;
 }
 
 function isTimeWindow(r: unknown): r is TimeWindow {

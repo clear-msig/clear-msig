@@ -22,6 +22,8 @@ describe("ClearSign surface coverage", () => {
       "wallet-policy",
       "members-policy",
       "agent-trade-approval",
+      "agent-session-grant",
+      "member-allowances",
       "agent-settings",
     ]);
   });

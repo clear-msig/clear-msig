@@ -42,13 +42,16 @@ export function SessionRow({
   const bindingStatus = policy
     ? agentSessionPolicyBindingStatus(session, policy)
     : "missing";
-  const active = timeActive && bindingStatus === "current";
+  const onchainReady = session.onchain?.status === "executed";
+  const active = timeActive && bindingStatus === "current" && onchainReady;
   const stale = timeActive && bindingStatus !== "current";
   const status = active
     ? "Active"
     : stale
       ? "Needs renewal"
-      : session.status === "active" && session.expiresAt <= Date.now()
+      : session.onchain && !onchainReady
+        ? "Waiting for approvals"
+        : session.status === "active" && session.expiresAt <= Date.now()
         ? "Expired"
         : capitalize(session.status);
   return (

@@ -6,8 +6,9 @@ use crate::{
     error::WalletError,
     instructions::typed_proposal::{mark_typed_executed, verify_typed_execution_ready},
     state::{
-        ika_config::IkaConfig, intent::Intent, policy_spend::PolicySpendState,
-        proposal::ProposalStatus, typed_proposal::TypedProposal, wallet::ClearWallet,
+        ika_config::IkaConfig, intent::Intent, member_allowance::MemberAllowanceLedger,
+        policy_spend::PolicySpendState, proposal::ProposalStatus, typed_proposal::TypedProposal,
+        wallet::ClearWallet,
     },
     utils::clearsign::{hash_send_payload, ClearSignActionKind, ClearSignAmount},
     utils::policy::{enforce_typed_remote_send_policy, enforce_wallet_policy_account},
@@ -28,6 +29,13 @@ pub struct ExecuteTypedChainSend<'info> {
         bump,
     )]
     pub policy_spend: &'info mut Account<PolicySpendState>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = MemberAllowanceLedger::seeds(wallet, intent),
+        bump,
+    )]
+    pub member_allowance: &'info mut Account<MemberAllowanceLedger>,
     #[account(
         mut,
         has_one = wallet,
@@ -142,6 +150,8 @@ impl<'info> ExecuteTypedChainSend<'info> {
             &self.proposal,
             &mut self.policy_spend,
             bumps.policy_spend,
+            &mut self.member_allowance,
+            bumps.member_allowance,
         )?;
 
         mark_typed_executed(&mut self.intent, &mut self.proposal);

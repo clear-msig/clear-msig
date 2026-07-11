@@ -105,6 +105,27 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
                 "Stop loss not required".into()
             },
         ]),
+        ClearSignActionKind::AgentSessionGrant => Ok(vec![
+            format!(
+                "{} agent session for {}",
+                if payload_text(&envelope.payload, "status")? == "revoked" {
+                    "Revoke"
+                } else {
+                    "Grant"
+                },
+                payload_text(&envelope.payload, "agentId")?
+            ),
+            format!(
+                "{} on {} up to ${}",
+                payload_text(&envelope.payload, "market")?.to_uppercase(),
+                payload_text(&envelope.payload, "venue")?,
+                payload_text(&envelope.payload, "maxNotionalUsd")?
+            ),
+            format!(
+                "Max leverage {}",
+                payload_text(&envelope.payload, "maxLeverage")?
+            ),
+        ]),
         ClearSignActionKind::AddMember => Ok(vec![format!(
             "Add {} as {} to {}",
             payload_text(&envelope.payload, "member")?,

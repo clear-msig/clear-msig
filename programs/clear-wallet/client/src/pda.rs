@@ -28,6 +28,28 @@ pub fn find_policy_spend_address(
     )
 }
 
+pub fn find_member_allowance_address(
+    wallet: &Address,
+    intent: &Address,
+    program_id: &Address,
+) -> (Address, u8) {
+    Address::find_program_address(
+        &[b"member_allowance", wallet.as_ref(), intent.as_ref()],
+        program_id,
+    )
+}
+
+pub fn find_agent_session_address(
+    wallet: &Address,
+    session_id_hash: &[u8; 32],
+    program_id: &Address,
+) -> (Address, u8) {
+    Address::find_program_address(
+        &[b"agent_session", wallet.as_ref(), session_id_hash.as_ref()],
+        program_id,
+    )
+}
+
 pub fn find_wallet_policy_address(wallet: &Address, program_id: &Address) -> (Address, u8) {
     Address::find_program_address(&[b"wallet_policy", wallet.as_ref()], program_id)
 }

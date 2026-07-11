@@ -68,4 +68,10 @@ pub enum WalletError {
     PolicyOutsideAllowedHours,
     /// The typed proposal did not use the wallet's active on-chain policy.
     WalletPolicyMismatch,
+    /// A program-enforced per-member allowance cap was exceeded.
+    PolicyMemberAllowanceExceeded,
+    /// Agent session is missing, revoked, or expired.
+    AgentSessionInactive,
+    /// Agent trade exceeds the remaining session notional or leverage bound.
+    AgentSessionLimitExceeded,
 }

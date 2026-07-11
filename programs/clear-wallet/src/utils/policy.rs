@@ -4,6 +4,10 @@ use crate::{
     error::WalletError,
     state::{
         intent::Intent,
+        member_allowance::{
+            MemberAllowanceLedger, MemberAllowanceLedgerInner, MAX_MEMBER_ALLOWANCES,
+            MEMBER_ALLOWANCE_ROW_LEN,
+        },
         policy_spend::{PolicySpendState, PolicySpendStateInner},
         typed_proposal::TypedProposal,
         wallet_policy::{WalletPolicy, WALLET_POLICY_LEN},
@@ -21,10 +25,12 @@ const MAX_POLICY_KEYS: usize = 16;
 const EXT_VELOCITY_SOL: u8 = 1;
 const EXT_SEND_COUNT: u8 = 2;
 const EXT_ALLOWED_TIME: u8 = 3;
+const EXT_MEMBER_ALLOWANCE: u8 = 4;
 const EXT_HEADER_LEN: usize = 1 + 2;
 const EXT_VELOCITY_SOL_LEN: usize = 8 + 4;
 const EXT_SEND_COUNT_LEN: usize = 4 + 4;
 const EXT_ALLOWED_TIME_LEN: usize = 1 + 1 + 1 + 2;
+const EXT_MEMBER_ALLOWANCE_ENTRY_LEN: usize = 32 + 8 + 4;
 
 pub fn hash_typed_policy(policy_bytes: &[u8]) -> [u8; 32] {
     hash_policy_commitment(&[POLICY_DOMAIN, policy_bytes])
@@ -78,8 +84,18 @@ pub fn enforce_typed_sol_send_policy(
     proposal: &TypedProposal<'_>,
     policy_spend: &mut PolicySpendState,
     policy_spend_bump: u8,
+    member_allowance: &mut MemberAllowanceLedger,
+    member_allowance_bump: u8,
 ) -> Result<(), ProgramError> {
+    initialize_member_allowance(
+        intent,
+        committed_policy_hash,
+        member_allowance,
+        member_allowance_bump,
+    )?;
     if policy_bytes.is_empty() {
+        member_allowance.retain_members(&[]);
+        member_allowance.policy_commitment = committed_policy_hash;
         initialize_policy_spend(
             intent,
             committed_policy_hash,
@@ -94,6 +110,16 @@ pub fn enforce_typed_sol_send_policy(
     );
 
     let policy = TypedSolPolicy::parse(policy_bytes)?;
+    let mut active_members = [[0u8; 32]; MAX_MEMBER_ALLOWANCES];
+    for (index, member) in active_members
+        .iter_mut()
+        .enumerate()
+        .take(policy.member_cap_count)
+    {
+        *member = policy.member_caps[index].member;
+    }
+    member_allowance.retain_members(&active_members[..policy.member_cap_count]);
+    member_allowance.policy_commitment = committed_policy_hash;
     policy.enforce_recipient(recipient)?;
     policy.enforce_amount(amount_lamports)?;
     policy.enforce_cooldown(intent, proposal)?;
@@ -112,6 +138,7 @@ pub fn enforce_typed_sol_send_policy(
         policy_spend,
         policy_spend_bump,
     )?;
+    policy.enforce_member_allowance(amount_lamports, proposal, member_allowance)?;
     Ok(())
 }
 
@@ -124,6 +151,8 @@ pub fn enforce_typed_remote_send_policy(
     proposal: &TypedProposal<'_>,
     policy_spend: &mut PolicySpendState,
     policy_spend_bump: u8,
+    member_allowance: &mut MemberAllowanceLedger,
+    member_allowance_bump: u8,
 ) -> Result<(), ProgramError> {
     // The v1 policy wire stores numeric caps as u64, while ERC-20 amounts are
     // u128. Saturation preserves recipient/time/send-count enforcement and
@@ -139,7 +168,16 @@ pub fn enforce_typed_remote_send_policy(
         proposal,
         policy_spend,
         policy_spend_bump,
+        member_allowance,
+        member_allowance_bump,
     )
+}
+
+#[derive(Clone, Copy, Default)]
+struct MemberAllowanceCap {
+    member: [u8; 32],
+    cap_raw: u64,
+    window_seconds: u32,
 }
 
 struct TypedSolPolicy<'a> {
@@ -153,6 +191,8 @@ struct TypedSolPolicy<'a> {
     allowed_time: Option<AllowedTimeWindow>,
     recipients: &'a [[u8; 32]],
     required_approvers: &'a [[u8; 32]],
+    member_caps: [MemberAllowanceCap; MAX_MEMBER_ALLOWANCES],
+    member_cap_count: usize,
 }
 
 impl<'a> TypedSolPolicy<'a> {
@@ -210,6 +250,8 @@ impl<'a> TypedSolPolicy<'a> {
             allowed_time: extensions.allowed_time,
             recipients,
             required_approvers,
+            member_caps: extensions.member_caps,
+            member_cap_count: extensions.member_cap_count,
         })
     }
 
@@ -373,6 +415,92 @@ impl<'a> TypedSolPolicy<'a> {
         policy_spend.send_count = projected.into();
         Ok(())
     }
+
+    fn enforce_member_allowance(
+        &self,
+        amount_raw: u64,
+        proposal: &TypedProposal<'_>,
+        member_allowance: &mut MemberAllowanceLedger,
+    ) -> Result<(), ProgramError> {
+        if self.member_cap_count == 0 {
+            return Ok(());
+        }
+        let proposer_bytes: [u8; 32] = proposal
+            .proposer
+            .as_ref()
+            .try_into()
+            .map_err(|_| WalletError::InvalidPolicy)?;
+        let mut cap: Option<MemberAllowanceCap> = None;
+        for i in 0..self.member_cap_count {
+            if self.member_caps[i].member == proposer_bytes {
+                cap = Some(self.member_caps[i]);
+                break;
+            }
+        }
+        let Some(cap) = cap else {
+            return Ok(());
+        };
+        if cap.cap_raw == 0 {
+            return Err(WalletError::PolicyMemberAllowanceExceeded.into());
+        }
+        // Per-send hard cap always applies.
+        require!(
+            amount_raw <= cap.cap_raw,
+            WalletError::PolicyMemberAllowanceExceeded
+        );
+        if cap.window_seconds == 0 {
+            return Ok(());
+        }
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp.get();
+        let row = member_allowance.find_or_insert_member(&cap.member)?;
+        let window_start = member_allowance.window_start(row);
+        let spent = member_allowance.spent_raw(row);
+        let window_uninitialized = window_start == 0 && spent == 0;
+        let window_elapsed = window_uninitialized
+            || now
+                .checked_sub(window_start)
+                .map(|elapsed| elapsed >= cap.window_seconds as i64)
+                .unwrap_or(true);
+        if window_elapsed {
+            member_allowance.set_window_start(row, now);
+            member_allowance.set_spent_raw(row, 0);
+        }
+        let projected = member_allowance
+            .spent_raw(row)
+            .checked_add(amount_raw)
+            .ok_or(WalletError::PolicyMemberAllowanceExceeded)?;
+        require!(
+            projected <= cap.cap_raw,
+            WalletError::PolicyMemberAllowanceExceeded
+        );
+        member_allowance.set_spent_raw(row, projected);
+        Ok(())
+    }
+}
+
+fn initialize_member_allowance(
+    intent: &Intent<'_>,
+    policy_commitment: [u8; 32],
+    member_allowance: &mut MemberAllowanceLedger,
+    member_allowance_bump: u8,
+) -> Result<(), ProgramError> {
+    let intent_address = intent_pda(intent);
+    if member_allowance.wallet == Address::default() {
+        member_allowance.set_inner(MemberAllowanceLedgerInner {
+            wallet: intent.wallet,
+            intent: intent_address,
+            policy_commitment,
+            entry_count: 0,
+            rows: [0u8; MAX_MEMBER_ALLOWANCES * MEMBER_ALLOWANCE_ROW_LEN],
+            bump: member_allowance_bump,
+        });
+    }
+    require!(
+        member_allowance.wallet == intent.wallet && member_allowance.intent == intent_address,
+        WalletError::InvalidPolicy
+    );
+    Ok(())
 }
 
 fn initialize_policy_spend(
@@ -425,6 +553,8 @@ struct PolicyExtensions {
     max_send_count: u32,
     count_window_seconds: u32,
     allowed_time: Option<AllowedTimeWindow>,
+    member_caps: [MemberAllowanceCap; MAX_MEMBER_ALLOWANCES],
+    member_cap_count: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -526,6 +656,35 @@ fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions, ProgramError> {
                     days_mask,
                     utc_offset_minutes,
                 });
+            }
+            EXT_MEMBER_ALLOWANCE => {
+                require!(
+                    len > 0 && len % EXT_MEMBER_ALLOWANCE_ENTRY_LEN == 0,
+                    WalletError::InvalidPolicy
+                );
+                let count = len / EXT_MEMBER_ALLOWANCE_ENTRY_LEN;
+                require!(count <= MAX_MEMBER_ALLOWANCES, WalletError::InvalidPolicy);
+                for i in 0..count {
+                    let base = i * EXT_MEMBER_ALLOWANCE_ENTRY_LEN;
+                    let mut member = [0u8; 32];
+                    member.copy_from_slice(&payload[base..base + 32]);
+                    let cap_raw = u64::from_le_bytes(
+                        payload[base + 32..base + 40]
+                            .try_into()
+                            .map_err(|_| WalletError::InvalidPolicy)?,
+                    );
+                    let window_seconds = u32::from_le_bytes(
+                        payload[base + 40..base + 44]
+                            .try_into()
+                            .map_err(|_| WalletError::InvalidPolicy)?,
+                    );
+                    extensions.member_caps[i] = MemberAllowanceCap {
+                        member,
+                        cap_raw,
+                        window_seconds,
+                    };
+                }
+                extensions.member_cap_count = count;
             }
             _ => return Err(WalletError::InvalidPolicy.into()),
         }

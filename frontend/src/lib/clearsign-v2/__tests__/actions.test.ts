@@ -5,6 +5,7 @@ import {
   clearSignPayloadHash,
   clearSignVoteMessage,
   summarizeClearSignAction,
+  type AgentSessionGrantPayload,
   type AgentTradePayload,
   type ClearSignEnvelope,
   type EscrowReturnPayload,
@@ -186,6 +187,37 @@ describe("ClearSign v2 actions", () => {
     expect(clearSignActionKindCode("send")).toBe(1);
     expect(clearSignActionKindCode("return_escrow_funds")).toBe(8);
     expect(clearSignActionKindCode("swap_intent")).toBe(11);
+    expect(clearSignActionKindCode("agent_session_grant")).toBe(12);
+  });
+
+  it("binds agent session status and limits into the payload hash", () => {
+    const envelope: ClearSignEnvelope<AgentSessionGrantPayload> = {
+      ...base,
+      kind: "agent_session_grant",
+      payload: {
+        sessionId: "session-1",
+        agentId: "agent-1",
+        venue: "hyperliquid_testnet",
+        market: "BTC-PERP",
+        maxNotionalUsd: "250",
+        maxLeverage: "2.5x",
+        expiresAt: 1_782_988_800,
+        status: "active",
+      },
+    };
+
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: { ...envelope.payload, status: "revoked" },
+      }),
+    );
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: { ...envelope.payload, maxNotionalUsd: "251" },
+      }),
+    );
   });
 
   it("binds agent trade approval v2 fields into the payload hash", () => {
@@ -193,6 +225,7 @@ describe("ClearSign v2 actions", () => {
       ...base,
       kind: "agent_trade_approval",
       payload: {
+        agentId: "agent-1",
         venue: "Hyperliquid Testnet",
         market: "btc-perp",
         side: "long",
@@ -244,7 +277,7 @@ describe("ClearSign v2 actions", () => {
     };
 
     expect(() => clearSignPayloadHash(envelope)).toThrow(
-      /requires venue, assetId, sessionId, route, and riskCheckHash/,
+      /requires agentId, venue, assetId, sessionId, route, and riskCheckHash/,
     );
   });
 

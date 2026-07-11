@@ -4,8 +4,8 @@ use crate::{
     error::WalletError,
     instructions::typed_proposal::{mark_typed_executed, verify_typed_execution_ready},
     state::{
-        intent::Intent, policy_spend::PolicySpendState, proposal::ProposalStatus,
-        typed_proposal::TypedProposal, wallet::ClearWallet,
+        intent::Intent, member_allowance::MemberAllowanceLedger, policy_spend::PolicySpendState,
+        proposal::ProposalStatus, typed_proposal::TypedProposal, wallet::ClearWallet,
     },
     utils::clearsign::{
         hash_batch_send_sol_payload_iter, hash_send_payload, ClearSignActionKind, ClearSignAmount,
@@ -30,6 +30,13 @@ pub struct ExecuteTypedSolSend<'info> {
         bump,
     )]
     pub policy_spend: &'info mut Account<PolicySpendState>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = MemberAllowanceLedger::seeds(wallet, intent),
+        bump,
+    )]
+    pub member_allowance: &'info mut Account<MemberAllowanceLedger>,
     #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
@@ -76,6 +83,13 @@ pub struct ExecuteTypedSolBatchSend<'info> {
         bump,
     )]
     pub policy_spend: &'info mut Account<PolicySpendState>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = MemberAllowanceLedger::seeds(wallet, intent),
+        bump,
+    )]
+    pub member_allowance: &'info mut Account<MemberAllowanceLedger>,
     #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
@@ -144,6 +158,8 @@ impl<'info> ExecuteTypedSolSend<'info> {
             &self.proposal,
             &mut self.policy_spend,
             bumps.policy_spend,
+            &mut self.member_allowance,
+            bumps.member_allowance,
         )?;
         let vault_seeds = self.vault_seeds(bumps);
         transfer_lamports(
@@ -222,6 +238,8 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
                 &self.proposal,
                 &mut self.policy_spend,
                 bumps.policy_spend,
+                &mut self.member_allowance,
+                bumps.member_allowance,
             )?;
         }
 

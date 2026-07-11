@@ -13,7 +13,8 @@ export type ClearSignActionKind =
   | "return_escrow_funds"
   | "agent_trade_approval"
   | "recovery_action"
-  | "swap_intent";
+  | "swap_intent"
+  | "agent_session_grant";
 
 export interface ClearSignEnvelope<TPayload extends ClearSignPayload> {
   version: 2;
@@ -36,6 +37,7 @@ export type ClearSignPayload =
   | MilestonePayload
   | EscrowReturnPayload
   | AgentTradePayload
+  | AgentSessionGrantPayload
   | RecoveryPayload
   | SwapPayload;
 
@@ -101,6 +103,7 @@ export interface EscrowReturnPayload {
 }
 
 export interface AgentTradePayload {
+  agentId?: string;
   venue?: string;
   market: string;
   side: "long" | "short";
@@ -111,6 +114,17 @@ export interface AgentTradePayload {
   sessionId?: string;
   route?: string;
   riskCheckHash?: string;
+}
+
+export interface AgentSessionGrantPayload {
+  sessionId: string;
+  agentId: string;
+  venue: string;
+  market: string;
+  maxNotionalUsd: string;
+  maxLeverage: string;
+  expiresAt: number;
+  status: "active" | "revoked";
 }
 
 export interface RecoveryPayload {
@@ -244,6 +258,8 @@ export function clearSignActionKindCode(kind: ClearSignActionKind): number {
       return 10;
     case "swap_intent":
       return 11;
+    case "agent_session_grant":
+      return 12;
   }
 }
 
@@ -309,6 +325,14 @@ function actionLines(envelope: ClearSignEnvelope<ClearSignPayload>): string[] {
         `Approve ${payload.market} ${payload.side} up to $${payload.maxNotionalUsd}`,
         `Max leverage ${payload.maxLeverage}`,
         payload.stopLossRequired ? "Stop loss required" : "Stop loss not required",
+      ];
+    }
+    case "agent_session_grant": {
+      const payload = envelope.payload as AgentSessionGrantPayload;
+      return [
+        `${payload.status === "revoked" ? "Revoke" : "Grant"} agent session for ${payload.agentId}`,
+        `${payload.market} on ${payload.venue} up to $${payload.maxNotionalUsd}`,
+        `Max leverage ${payload.maxLeverage}`,
       ];
     }
     case "recovery_action": {
@@ -388,6 +412,7 @@ function normalizePayload(
     case "agent_trade_approval": {
       const row = payload as AgentTradePayload;
       return {
+        agentId: normalizeText(row.agentId ?? ""),
         venue: normalizeText(row.venue ?? ""),
         market: normalizeText(row.market).toUpperCase(),
         side: row.side,
@@ -398,6 +423,19 @@ function normalizePayload(
         sessionId: normalizeText(row.sessionId ?? ""),
         route: normalizeText(row.route ?? ""),
         riskCheckHash: normalizeText(row.riskCheckHash ?? ""),
+      };
+    }
+    case "agent_session_grant": {
+      const row = payload as AgentSessionGrantPayload;
+      return {
+        sessionId: normalizeText(row.sessionId),
+        agentId: normalizeText(row.agentId),
+        venue: normalizeText(row.venue),
+        market: normalizeText(row.market).toUpperCase(),
+        maxNotionalUsd: normalizeDecimal(row.maxNotionalUsd),
+        maxLeverage: normalizeText(row.maxLeverage).toLowerCase(),
+        expiresAt: Math.trunc(row.expiresAt),
+        status: row.status,
       };
     }
     case "recovery_action":
@@ -453,6 +491,7 @@ function canonicalPayloadBytes(
     case "agent_trade_approval": {
       const row = normalizePayload(kind, payload) as AgentTradePayload;
       if (isAgentTradeApprovalV2(row)) {
+        out.pushBytes(textCommitment(row.agentId));
         out.pushBytes(textCommitment(row.venue));
         out.pushBytes(textCommitment(row.market));
         out.pushBytes(textCommitment(row.side));
@@ -471,6 +510,19 @@ function canonicalPayloadBytes(
         });
         out.pushU32(leverageToX100(row.maxLeverage));
       }
+      break;
+    }
+    case "agent_session_grant": {
+      const row = normalizePayload(kind, payload) as AgentSessionGrantPayload;
+      out.pushBytes("agent_session");
+      out.pushRaw(textCommitment(row.sessionId));
+      out.pushRaw(textCommitment(row.agentId));
+      out.pushRaw(textCommitment(row.venue));
+      out.pushRaw(textCommitment(row.market.toUpperCase()));
+      out.pushU128(decimalToRawAmount(row.maxNotionalUsd, "USD"));
+      out.pushU32(leverageToX100(row.maxLeverage));
+      out.pushI64(BigInt(Math.trunc(row.expiresAt)));
+      out.pushU8(row.status === "active" ? 1 : 2);
       break;
     }
     case "set_protection": {
@@ -571,6 +623,7 @@ function normalizeMoney(row: MoneyAmount): MoneyAmount {
 }
 
 type AgentTradePayloadV2 = AgentTradePayload & {
+  agentId: string;
   venue: string;
   assetId: string;
   sessionId: string;
@@ -579,12 +632,19 @@ type AgentTradePayloadV2 = AgentTradePayload & {
 };
 
 function isAgentTradeApprovalV2(row: AgentTradePayload): row is AgentTradePayloadV2 {
-  const fields = [row.venue, row.assetId, row.sessionId, row.route, row.riskCheckHash];
+  const fields = [
+    row.agentId,
+    row.venue,
+    row.assetId,
+    row.sessionId,
+    row.route,
+    row.riskCheckHash,
+  ];
   const hasAny = fields.some((value) => normalizeText(value ?? "") !== "");
   const hasAll = fields.every((value) => normalizeText(value ?? "") !== "");
   if (hasAny && !hasAll) {
     throw new Error(
-      "Agent trade approval v2 requires venue, assetId, sessionId, route, and riskCheckHash.",
+      "Agent trade approval v2 requires agentId, venue, assetId, sessionId, route, and riskCheckHash.",
     );
   }
   return hasAll;

@@ -11,12 +11,16 @@ import {
   type PolicyChainTicker,
 } from "@/lib/retail/spendingBudget";
 import { getAllowlist, getTimeWindow } from "@/lib/retail/policy";
+import { listAllowances } from "@/lib/retail/allowances";
 import {
   encodeTypedRemoteSendPolicy,
   encodeTypedSolPolicy,
   type EncodedSolPolicy,
 } from "@/lib/policies/onchain";
-import type { PolicyEnforcementPlan } from "@/lib/policies/enforce";
+import type {
+  MemberAllowanceCap,
+  PolicyEnforcementPlan,
+} from "@/lib/policies/enforce";
 
 export const EMPTY_POLICY_COMMITMENT =
   "0000000000000000000000000000000000000000000000000000000000000000";
@@ -85,7 +89,8 @@ function personalPlanForTarget(
   const budget = getBudget(walletName);
   const nativeCap = budget?.onchainWeeklyNative?.[target.ticker] ?? null;
   const timeWindow = getTimeWindow(walletName);
-  const allowlist = target.chainKind === 0 ? getAllowlist(walletName) : null;
+  const allowlist = getAllowlist(walletName, target.chainKind);
+  const memberAllowances = loadMemberAllowancesForChain(walletName, target);
   return {
     evaluation: null,
     rule: null,
@@ -93,9 +98,10 @@ function personalPlanForTarget(
     extraApprovers: [],
     extraCooldownSeconds: 0,
     recipientGuard:
-      allowlist?.mode === "on"
+      allowlist.mode === "on"
         ? { mode: "allowlist", addresses: allowlist.addresses }
         : null,
+    memberAllowances,
     allowedTimeWindow: timeWindow.enabled
       ? {
           startHour: timeWindow.startHour,
@@ -127,6 +133,27 @@ function encodeForTarget(
     assetTicker: target.ticker,
     decimals: target.decimals,
   });
+}
+
+function loadMemberAllowancesForChain(
+  walletName: string,
+  target: PolicyTarget,
+): MemberAllowanceCap[] {
+  // Friend allowances are SOL-denominated in the product UI today. Do not
+  // reinterpret a SOL limit as BTC, ZEC, ETH, or HYPE units.
+  if (target.ticker !== "SOL") return [];
+  return listAllowances(walletName)
+    .filter((row) => row.period !== "none")
+    .map((row) => {
+      const windowSeconds =
+        row.period === "monthly" ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+      const amount = Number.isFinite(row.amountSol) ? Math.max(0, row.amountSol) : 0;
+      return {
+        member: row.friendAddress,
+        capDisplay: String(amount),
+        windowSeconds,
+      };
+    });
 }
 
 function policySummary(

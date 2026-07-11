@@ -16,6 +16,12 @@ pub use policy_spend::*;
 pub mod wallet_policy;
 pub use wallet_policy::*;
 
+pub mod member_allowance;
+pub use member_allowance::*;
+
+pub mod agent_session;
+pub use agent_session::*;
+
 pub mod ika_config;
 pub use ika_config::*;
 

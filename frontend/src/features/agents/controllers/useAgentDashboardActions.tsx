@@ -5,8 +5,9 @@ import type { AgentAutomaticExitDecision } from "@/features/agents/domain/runtim
 import { type AgentExecutionRecord, type AgentProfile, type AgentScoutReport, type AgentSessionGrant, type AgentTradeProposal, type AgentVaultPolicy, buildAgentScoutProposal, canOpenLocalAgentExecution, closeAgentExecutionRecord, isAgentSessionCurrent } from "@/features/agents/domain/runtime";
 import { type AgentKillSwitchHandoff, syncAgentEmergencyPause, syncAgentExecution, syncAgentProfile, syncAgentProposal, syncAgentProposalApproval, syncAgentProposalRejection, syncAgentSession, syncAgentSessionStatus } from "@/features/agents/infrastructure/stateClient";
 import { type AgentVenueReadiness, submitAgentVenueExecution } from "@/features/agents/infrastructure/executionClient";
-import { agentRiskSnapshot, approveAgentProposal, closeMockAgentExecution, closeOpenMockAgentExecutions, newAgentProposalId, openAgentPaperTrade, recheckAgentProposal, rejectAgentProposal, renewAgentSession, saveAgentProposal, saveAgentProposalAndExecuteIfAllowed, setAgentVaultEmergencyPause, updateAgentSessionStatus, updateAgentStatus } from "@/features/agents/infrastructure/agentStore";
+import { agentRiskSnapshot, approveAgentProposal, closeMockAgentExecution, closeOpenMockAgentExecutions, newAgentProposalId, openAgentPaperTrade, recheckAgentProposal, rejectAgentProposal, renewAgentSession, saveAgentProposal, saveAgentProposalAndExecuteIfAllowed, saveAgentSession, setAgentVaultEmergencyPause, updateAgentSessionStatus, updateAgentStatus } from "@/features/agents/infrastructure/agentStore";
 import { useAgentTypedClearSignApproval } from "@/features/agents/infrastructure/typedApprovalClient";
+import { useAgentTypedSessionGrant } from "@/lib/agents/useAgentTypedSessionGrant";
 import type { Dispatch, SetStateAction, TransitionStartFunction } from "react";
 
 interface DashboardActionContext {
@@ -50,6 +51,7 @@ export function useAgentDashboardActions({
   startAction,
   toast,
 }: DashboardActionContext) {
+  const updateTypedSession = useAgentTypedSessionGrant(name);
   const prepareScoutIdea = (report: AgentScoutReport) => {
     startAction(async () => {
       if (!policy) {
@@ -509,13 +511,27 @@ export function useAgentDashboardActions({
     });
   };
   const revokeSession = (id: string) => {
-    startAction(() => {
-      const updated = updateAgentSessionStatus(name, id, "revoked");
-      if (!updated) {
+    startAction(async () => {
+      const current = sessions.find((session) => session.id === id);
+      if (!current) {
         toast.error("Budget not found");
         return;
       }
-      void syncAgentSessionStatus(name, id, "revoked").then((synced) => {
+      let updated = current;
+      if (
+        current.onchain?.status === "executed" ||
+        current.onchain?.operation === "revoked"
+      ) {
+        updated = await updateTypedSession(current, {
+          venue: current.allowedVenues?.[0] ?? "mock_perps",
+          market: current.allowedMarkets?.[0] ?? "BTC-PERP",
+          status: "revoked",
+        });
+        saveAgentSession(updated);
+      } else {
+        updated = updateAgentSessionStatus(name, id, "revoked") ?? current;
+      }
+      void syncAgentSessionStatus(name, id, updated.status).then((synced) => {
         if (synced.ok) {
           toast.success("Budget ended");
           void refreshBackendState();
@@ -528,15 +544,30 @@ export function useAgentDashboardActions({
     });
   };
   const renewSession = (id: string) => {
-    startAction(() => {
-      const renewed = renewAgentSession(name, id);
+    startAction(async () => {
+      const current = sessions.find((session) => session.id === id);
+      const renewed =
+        current?.onchain?.operation === "active" &&
+        current.onchain.status !== "executed"
+          ? current
+          : renewAgentSession(name, id);
       if (!renewed) {
         toast.error("Turn the trader back on before renewing this budget");
         return;
       }
-      void syncAgentSession(renewed).then((synced) => {
+      const granted = await updateTypedSession(renewed, {
+        venue: renewed.allowedVenues?.[0] ?? "mock_perps",
+        market: renewed.allowedMarkets?.[0] ?? "BTC-PERP",
+        status: "active",
+      });
+      saveAgentSession(granted);
+      void syncAgentSession(granted).then((synced) => {
         if (synced.ok) {
-          toast.success("Budget renewed");
+          toast.success(
+            granted.onchain?.status === "executed"
+              ? "Budget renewed"
+              : "Budget is waiting for approval",
+          );
           void refreshBackendState();
         } else {
           toast.info("Budget renewed on this device for now", {

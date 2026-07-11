@@ -86,6 +86,7 @@ pub(super) fn hash_payload(
             )?;
             let leverage = leverage_to_x100(&payload_text(payload, "maxLeverage")?)?;
             let v2_fields = [
+                optional_payload_text(payload, "agentId")?,
                 optional_payload_text(payload, "venue")?,
                 optional_payload_text(payload, "assetId")?,
                 optional_payload_text(payload, "sessionId")?,
@@ -96,19 +97,21 @@ pub(super) fn hash_payload(
             let has_all_v2 = v2_fields.iter().all(Option::is_some);
             if has_any_v2 && !has_all_v2 {
                 return Err(ApiError::BadRequest(
-                    "agent_trade_approval v2 requires venue, assetId, sessionId, route, and riskCheckHash"
+                    "agent_trade_approval v2 requires agentId, venue, assetId, sessionId, route, and riskCheckHash"
                         .into(),
                 ));
             }
             if has_all_v2 {
-                let venue = v2_fields[0].as_deref().unwrap_or_default();
-                let asset_id = v2_fields[1].as_deref().unwrap_or_default();
-                let session_id = v2_fields[2].as_deref().unwrap_or_default();
-                let route = v2_fields[3].as_deref().unwrap_or_default();
+                let agent_id = v2_fields[0].as_deref().unwrap_or_default();
+                let venue = v2_fields[1].as_deref().unwrap_or_default();
+                let asset_id = v2_fields[2].as_deref().unwrap_or_default();
+                let session_id = v2_fields[3].as_deref().unwrap_or_default();
+                let route = v2_fields[4].as_deref().unwrap_or_default();
                 let risk_check_hash = hash_bytes_from_hex(
-                    v2_fields[4].as_deref().unwrap_or_default(),
+                    v2_fields[5].as_deref().unwrap_or_default(),
                     "payload.riskCheckHash",
                 )?;
+                update_bytes(&mut hasher, &text_commitment(agent_id));
                 update_bytes(&mut hasher, &text_commitment(venue));
                 update_bytes(&mut hasher, &text_commitment(&market));
                 update_bytes(&mut hasher, &text_commitment(&side));
@@ -124,6 +127,42 @@ pub(super) fn hash_payload(
                 update_amount(&mut hasher, &amount);
                 update_u32(&mut hasher, leverage);
             }
+        }
+        ClearSignActionKind::AgentSessionGrant => {
+            let session_id = payload_text(payload, "sessionId")?;
+            let agent_id = payload_text(payload, "agentId")?;
+            let venue = payload_text(payload, "venue")?;
+            let market = payload_text(payload, "market")?.to_uppercase();
+            let amount = Money::new(
+                payload_text(payload, "maxNotionalUsd")?,
+                "USD".into(),
+                AssetEncoding::Text,
+            )?;
+            let leverage = leverage_to_x100(&payload_text(payload, "maxLeverage")?)?;
+            let expires_at = payload
+                .get("expiresAt")
+                .and_then(Value::as_i64)
+                .ok_or_else(|| {
+                    ApiError::BadRequest("payload.expiresAt must be an integer".into())
+                })?;
+            let status = match payload_text(payload, "status")?.as_str() {
+                "active" => 1u8,
+                "revoked" => 2u8,
+                _ => {
+                    return Err(ApiError::BadRequest(
+                        "payload.status must be active or revoked".into(),
+                    ))
+                }
+            };
+            update_bytes(&mut hasher, b"agent_session");
+            hasher.update(text_commitment(&session_id));
+            hasher.update(text_commitment(&agent_id));
+            hasher.update(text_commitment(&venue));
+            hasher.update(text_commitment(&market));
+            hasher.update(amount.raw_amount.to_le_bytes());
+            update_u32(&mut hasher, leverage);
+            hasher.update(expires_at.to_le_bytes());
+            hasher.update([status]);
         }
         ClearSignActionKind::AddMember
         | ClearSignActionKind::RemoveMember
@@ -422,6 +461,7 @@ mod tests {
     #[test]
     fn agent_trade_approval_v2_binds_route_and_risk_artifact() {
         let payload = serde_json::json!({
+            "agentId": "agent-1",
             "venue": "Hyperliquid Testnet",
             "market": "btc-perp",
             "side": "long",
@@ -434,6 +474,7 @@ mod tests {
             "riskCheckHash": "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4"
         });
         let route_changed = serde_json::json!({
+            "agentId": "agent-1",
             "venue": "Hyperliquid Testnet",
             "market": "btc-perp",
             "side": "long",
@@ -446,6 +487,7 @@ mod tests {
             "riskCheckHash": "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4"
         });
         let risk_changed = serde_json::json!({
+            "agentId": "agent-1",
             "venue": "Hyperliquid Testnet",
             "market": "btc-perp",
             "side": "long",
@@ -484,7 +526,7 @@ mod tests {
             .expect_err("partial v2 payload should fail");
         assert!(error
             .to_string()
-            .contains("agent_trade_approval v2 requires venue"));
+            .contains("agent_trade_approval v2 requires agentId"));
     }
 
     #[test]

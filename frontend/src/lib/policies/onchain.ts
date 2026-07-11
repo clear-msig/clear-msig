@@ -7,6 +7,8 @@ const MAGIC = [0x43, 0x53, 0x50, 0x31]; // CSP1
 const EXT_VELOCITY_SOL = 1;
 const EXT_SEND_COUNT = 2;
 const EXT_ALLOWED_TIME = 3;
+const EXT_MEMBER_ALLOWANCE = 4;
+const MEMBER_ALLOWANCE_ENTRY_LEN = 32 + 8 + 4;
 
 export interface EncodedSolPolicy {
   bytes: Uint8Array;
@@ -17,17 +19,18 @@ export interface EncodedSolPolicy {
 export function encodeTypedSolPolicy(
   plan: PolicyEnforcementPlan,
 ): EncodedSolPolicy | null {
-  if (plan.evaluation?.action === "deny") {
-    return null;
-  }
+  // Deny is encoded as an empty allowlist (mode=1, no recipients) so a
+  // WalletPolicy commitment can force on-chain rejection even if the UI is bypassed.
+  const isDeny = plan.evaluation?.action === "deny";
 
-  let mode =
-    plan.recipientGuard?.mode === "allowlist"
+  let mode = isDeny
+    ? 1
+    : plan.recipientGuard?.mode === "allowlist"
       ? 1
       : plan.recipientGuard?.mode === "blocklist"
         ? 2
         : 0;
-  let recipients: string[] = plan.recipientGuard?.addresses ?? [];
+  let recipients: string[] = isDeny ? [] : plan.recipientGuard?.addresses ?? [];
   let maxAmountLamports = 0n;
   let velocityCapLamports = plan.onchainLimits.velocityCapDisplay
     ? parseSolLamports(plan.onchainLimits.velocityCapDisplay)
@@ -40,50 +43,55 @@ export function encodeTypedSolPolicy(
     ? plan.onchainLimits.countWindowSeconds
     : 0;
 
-  for (const condition of plan.conditions) {
-    if (condition.kind === "recipient") {
-      ({ mode, recipients } = mergeRecipientPolicy(
-        mode,
-        recipients,
-        condition.mode === "allowlist" ? 1 : 2,
-        condition.addresses ?? [],
-      ));
-    } else if (condition.kind === "amount") {
-      const ticker = condition.ticker?.trim().toUpperCase();
-      if (!ticker || ticker === "SOL") {
-        maxAmountLamports = condition.maxDisplay
-          ? parseSolLamports(condition.maxDisplay)
-          : 0n;
-      }
-    } else if (condition.kind === "velocity") {
-      const ticker = condition.ticker?.trim().toUpperCase();
-      if (!ticker || ticker === "SOL") {
-        const conditionCap = condition.capDisplay
-          ? parseSolLamports(condition.capDisplay)
-          : 0n;
-        velocityCapLamports = stricterCap(velocityCapLamports, conditionCap);
-        if (conditionCap > 0n) {
-          velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+  if (!isDeny) {
+    for (const condition of plan.conditions) {
+      if (condition.kind === "recipient") {
+        ({ mode, recipients } = mergeRecipientPolicy(
+          mode,
+          recipients,
+          condition.mode === "allowlist" ? 1 : 2,
+          condition.addresses ?? [],
+        ));
+      } else if (condition.kind === "amount") {
+        const ticker = condition.ticker?.trim().toUpperCase();
+        if (!ticker || ticker === "SOL") {
+          maxAmountLamports = condition.maxDisplay
+            ? parseSolLamports(condition.maxDisplay)
+            : 0n;
+        }
+      } else if (condition.kind === "velocity") {
+        const ticker = condition.ticker?.trim().toUpperCase();
+        if (!ticker || ticker === "SOL") {
+          const conditionCap = condition.capDisplay
+            ? parseSolLamports(condition.capDisplay)
+            : 0n;
+          velocityCapLamports = stricterCap(velocityCapLamports, conditionCap);
+          if (conditionCap > 0n) {
+            velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+          }
         }
       }
     }
   }
 
-  const requiredApprovers =
-    plan.rule?.action === "require-extra-approvers" ? plan.extraApprovers : [];
-  const extraCooldownSeconds =
-    plan.rule?.action === "require-cooldown" ? plan.extraCooldownSeconds : 0;
+  // Encode extra-approver / cooldown whenever the plan carries them, not only
+  // when the matched rule action name matches (supports persisted personal policy).
+  const requiredApprovers = plan.extraApprovers;
+  const extraCooldownSeconds = plan.extraCooldownSeconds;
   recipients = dedupe(recipients);
   assertPolicyKeyCounts(recipients.length, requiredApprovers.length);
+  const memberAllowances = plan.memberAllowances ?? [];
 
   if (
+    !isDeny &&
     mode === 0 &&
     maxAmountLamports === 0n &&
     velocityCapLamports === 0n &&
     requiredApprovers.length === 0 &&
     extraCooldownSeconds === 0 &&
     maxSendCount === 0 &&
-    !plan.allowedTimeWindow
+    !plan.allowedTimeWindow &&
+    memberAllowances.length === 0
   ) {
     return null;
   }
@@ -110,6 +118,7 @@ export function encodeTypedSolPolicy(
     writer.pushU32(countWindowSeconds);
   }
   writeAllowedTimeExtension(writer, plan.allowedTimeWindow);
+  writeMemberAllowanceExtension(writer, memberAllowances, 9, "SOL");
 
   const bytes = writer.bytes();
   return {
@@ -127,24 +136,22 @@ export function encodeTypedRemoteSendPolicy(
     normalizeRecipient?: (value: string) => string;
   },
 ): EncodedSolPolicy | null {
-  if (plan.evaluation?.action === "deny") {
-    return null;
-  }
-
+  const isDeny = plan.evaluation?.action === "deny";
   const ticker = options.assetTicker.trim().toUpperCase();
   const decimals = options.decimals ?? 18;
   const normalizeRecipient =
     options.normalizeRecipient ?? ((value: string) => value.trim());
 
-  let mode =
-    plan.recipientGuard?.mode === "allowlist"
+  let mode = isDeny
+    ? 1
+    : plan.recipientGuard?.mode === "allowlist"
       ? 1
       : plan.recipientGuard?.mode === "blocklist"
         ? 2
         : 0;
-  let recipientTexts: string[] = (plan.recipientGuard?.addresses ?? []).map(
-    normalizeRecipient,
-  );
+  let recipientTexts: string[] = isDeny
+    ? []
+    : (plan.recipientGuard?.addresses ?? []).map(normalizeRecipient);
   let maxAmountRaw = 0n;
   let velocityCapRaw = plan.onchainLimits.velocityCapDisplay
     ? parseUnits(plan.onchainLimits.velocityCapDisplay, decimals, ticker)
@@ -157,50 +164,53 @@ export function encodeTypedRemoteSendPolicy(
     ? plan.onchainLimits.countWindowSeconds
     : 0;
 
-  for (const condition of plan.conditions) {
-    if (condition.kind === "recipient") {
-      ({ mode, recipients: recipientTexts } = mergeRecipientPolicy(
-        mode,
-        recipientTexts,
-        condition.mode === "allowlist" ? 1 : 2,
-        (condition.addresses ?? []).map(normalizeRecipient),
-      ));
-    } else if (condition.kind === "amount") {
-      const conditionTicker = condition.ticker?.trim().toUpperCase();
-      if (!conditionTicker || conditionTicker === ticker) {
-        maxAmountRaw = condition.maxDisplay
-          ? parseUnits(condition.maxDisplay, decimals, ticker)
-          : 0n;
-      }
-    } else if (condition.kind === "velocity") {
-      const conditionTicker = condition.ticker?.trim().toUpperCase();
-      if (!conditionTicker || conditionTicker === ticker) {
-        const conditionCap = condition.capDisplay
-          ? parseUnits(condition.capDisplay, decimals, ticker)
-          : 0n;
-        velocityCapRaw = stricterCap(velocityCapRaw, conditionCap);
-        if (conditionCap > 0n) {
-          velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+  if (!isDeny) {
+    for (const condition of plan.conditions) {
+      if (condition.kind === "recipient") {
+        ({ mode, recipients: recipientTexts } = mergeRecipientPolicy(
+          mode,
+          recipientTexts,
+          condition.mode === "allowlist" ? 1 : 2,
+          (condition.addresses ?? []).map(normalizeRecipient),
+        ));
+      } else if (condition.kind === "amount") {
+        const conditionTicker = condition.ticker?.trim().toUpperCase();
+        if (!conditionTicker || conditionTicker === ticker) {
+          maxAmountRaw = condition.maxDisplay
+            ? parseUnits(condition.maxDisplay, decimals, ticker)
+            : 0n;
+        }
+      } else if (condition.kind === "velocity") {
+        const conditionTicker = condition.ticker?.trim().toUpperCase();
+        if (!conditionTicker || conditionTicker === ticker) {
+          const conditionCap = condition.capDisplay
+            ? parseUnits(condition.capDisplay, decimals, ticker)
+            : 0n;
+          velocityCapRaw = stricterCap(velocityCapRaw, conditionCap);
+          if (conditionCap > 0n) {
+            velocityWindowSeconds = condition.windowDays * 24 * 60 * 60;
+          }
         }
       }
     }
   }
 
-  const requiredApprovers =
-    plan.rule?.action === "require-extra-approvers" ? plan.extraApprovers : [];
-  const extraCooldownSeconds =
-    plan.rule?.action === "require-cooldown" ? plan.extraCooldownSeconds : 0;
+  const requiredApprovers = plan.extraApprovers;
+  const extraCooldownSeconds = plan.extraCooldownSeconds;
   recipientTexts = dedupe(recipientTexts);
   assertPolicyKeyCounts(recipientTexts.length, requiredApprovers.length);
+  const memberAllowances = plan.memberAllowances ?? [];
 
   if (
+    !isDeny &&
     mode === 0 &&
     maxAmountRaw === 0n &&
     velocityCapRaw === 0n &&
     requiredApprovers.length === 0 &&
     extraCooldownSeconds === 0 &&
     maxSendCount === 0 &&
-    !plan.allowedTimeWindow
+    !plan.allowedTimeWindow &&
+    memberAllowances.length === 0
   ) {
     return null;
   }
@@ -228,6 +238,7 @@ export function encodeTypedRemoteSendPolicy(
     writer.pushU32(countWindowSeconds);
   }
   writeAllowedTimeExtension(writer, plan.allowedTimeWindow);
+  writeMemberAllowanceExtension(writer, memberAllowances, decimals, ticker);
 
   const bytes = writer.bytes();
   return {
@@ -349,6 +360,31 @@ function writeAllowedTimeExtension(
   writer.pushU8(window.endHour);
   writer.pushU8(daysMask);
   writer.pushI16(window.utcOffsetMinutes);
+}
+
+function writeMemberAllowanceExtension(
+  writer: ByteWriter,
+  caps: NonNullable<PolicyEnforcementPlan["memberAllowances"]>,
+  decimals: number,
+  ticker: string,
+) {
+  if (!caps || caps.length === 0) return;
+  if (caps.length > 8) {
+    throw new Error("Program-enforced member allowances support up to 8 members.");
+  }
+  const payload = new ByteWriter();
+  for (const cap of caps) {
+    payload.pushPubkey(cap.member);
+    payload.pushU64(parseUnits(cap.capDisplay, decimals, ticker));
+    payload.pushU32(Math.max(0, Math.floor(cap.windowSeconds)));
+  }
+  const bytes = payload.bytes();
+  if (bytes.length !== caps.length * MEMBER_ALLOWANCE_ENTRY_LEN) {
+    throw new Error("Member allowance extension encoding length mismatch.");
+  }
+  writer.pushU8(EXT_MEMBER_ALLOWANCE);
+  writer.pushU16(bytes.length);
+  writer.pushRaw(bytes);
 }
 
 class ByteWriter {

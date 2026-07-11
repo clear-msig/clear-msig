@@ -12,6 +12,7 @@ export {
   clearSignVoteMessage,
   summarizeClearSignAction,
   type AgentTradePayload,
+  type AgentSessionGrantPayload,
   type BatchSendPayload,
   type ClearSignActionKind,
   type ClearSignEnvelope,

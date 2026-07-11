@@ -165,6 +165,36 @@ describe("policy enforcement guardrails", () => {
     );
   });
 
+  it("encodes deny, required-approver, and cooldown actions for remote execution", () => {
+    const approver = "11111111111111111111111111111111";
+    const deny = encodeTypedRemoteSendPolicy(plan("deny"), {
+      assetTicker: "BTC",
+      decimals: 8,
+    });
+    const protectedPlan: PolicyEnforcementPlan = {
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [approver],
+      extraCooldownSeconds: 3_600,
+      onchainLimits: NO_LIMITS,
+    };
+    const protectedPolicy = encodeTypedRemoteSendPolicy(protectedPlan, {
+      assetTicker: "ZEC",
+      decimals: 8,
+    });
+
+    expect(deny).not.toBeNull();
+    expect(deny!.bytes[4]).toBe(1);
+    expect(deny!.bytes[17]).toBe(0);
+    expect(protectedPolicy).not.toBeNull();
+    expect(readU32Le(protectedPolicy!.bytes, 13)).toBe(3_600);
+    expect(protectedPolicy!.bytes[18]).toBe(1);
+    expect(Array.from(protectedPolicy!.bytes.slice(19, 51))).toEqual(
+      new Array(32).fill(0),
+    );
+  });
+
   it("encodes saved amount and send-count limits without an advanced rule", () => {
     const encoded = encodeTypedSolPolicy({
       evaluation: null,
@@ -236,6 +266,28 @@ describe("policy enforcement guardrails", () => {
       0xc4,
       0xff,
     ]);
+  });
+
+  it("encodes per-member allowance caps into isolated program ledger rows", () => {
+    const member = "11111111111111111111111111111111";
+    const encoded = encodeTypedSolPolicy({
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [],
+      extraCooldownSeconds: 0,
+      memberAllowances: [
+        { member, capDisplay: "1.25", windowSeconds: 7 * 86_400 },
+      ],
+      onchainLimits: NO_LIMITS,
+    });
+
+    expect(encoded).not.toBeNull();
+    expect(encoded!.bytes[19]).toBe(4);
+    expect(encoded!.bytes[20]).toBe(44);
+    expect(encoded!.bytes[21]).toBe(0);
+    expect(readU64Le(encoded!.bytes, 54)).toBe(1_250_000_000n);
+    expect(readU32Le(encoded!.bytes, 62)).toBe(7 * 86_400);
   });
 });
 

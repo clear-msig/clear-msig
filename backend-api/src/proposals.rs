@@ -16,13 +16,15 @@ mod types;
 mod validation;
 
 use typed_execution::{
-    execute_typed_agent_trade_approval_args, execute_typed_chain_send_args,
-    execute_typed_escrow_release_args, execute_typed_escrow_return_args,
-    execute_typed_intent_governance_args, execute_typed_sol_batch_send_args,
-    execute_typed_sol_send_args, execute_typed_wallet_policy_update_args,
+    execute_typed_agent_session_grant_args, execute_typed_agent_trade_approval_args,
+    execute_typed_chain_send_args, execute_typed_escrow_release_args,
+    execute_typed_escrow_return_args, execute_typed_intent_governance_args,
+    execute_typed_sol_batch_send_args, execute_typed_sol_send_args,
+    execute_typed_wallet_policy_update_args,
 };
 use types::{
-    ExecuteProposalRequest, ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
+    ExecuteProposalRequest, ExecuteTypedAgentSessionGrantRequest,
+    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
     ExecuteTypedIntentGovernanceRequest, ExecuteTypedSolBatchSendRequest,
     ExecuteTypedSolSendRequest, ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
@@ -96,6 +98,10 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-agent-trade-approval",
             post(execute_typed_agent_trade_approval),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-agent-session-grant",
+            post(execute_typed_agent_session_grant),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/execute/stream",
@@ -639,6 +645,19 @@ async fn execute_typed_agent_trade_approval(
         .check(&format!("execute:agent-trade:{name}"))
         .await?;
     let args = execute_typed_agent_trade_approval_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_agent_session_grant(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedAgentSessionGrantRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:agent-session:{name}"))
+        .await?;
+    let args = execute_typed_agent_session_grant_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { evaluatePolicy } from "@/lib/retail/policyEvaluation";
-import { saveAllowlist } from "@/lib/retail/policy";
+import { getAllowlist, saveAllowlist } from "@/lib/retail/policy";
 
 function installStorage() {
   const store = new Map<string, string>();
@@ -56,5 +56,20 @@ describe("retail policy evaluation", () => {
 
     expect(result.ok).toBe(true);
     expect(result.violations).toEqual([]);
+  });
+
+  it("keeps recipient allowlists isolated by chain", () => {
+    saveAllowlist({
+      walletName: "Family",
+      chainKind: 1,
+      mode: "on",
+      addresses: ["0x1111111111111111111111111111111111111111"],
+    });
+
+    expect(getAllowlist("Family", 0).mode).toBe("off");
+    expect(getAllowlist("Family", 1).addresses).toEqual([
+      "0x1111111111111111111111111111111111111111",
+    ]);
+    expect(getAllowlist("Family", 2).addresses).toEqual([]);
   });
 });

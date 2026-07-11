@@ -154,6 +154,7 @@ pub(super) struct ExecuteTypedSolBatchSendRow {
 #[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedAgentTradeApprovalRequest {
     pub(super) amount_raw: String,
+    pub(super) agent_id_hash: String,
     pub(super) venue_hash: String,
     pub(super) market_hash: String,
     pub(super) side_hash: String,
@@ -162,4 +163,17 @@ pub(super) struct ExecuteTypedAgentTradeApprovalRequest {
     pub(super) session_id_hash: String,
     pub(super) route_hash: String,
     pub(super) risk_check_hash: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedAgentSessionGrantRequest {
+    pub(super) session_id_hash: String,
+    pub(super) agent_id_hash: String,
+    pub(super) venue_hash: String,
+    pub(super) market_hash: String,
+    pub(super) max_notional_raw: String,
+    pub(super) max_leverage_x100: u32,
+    pub(super) expires_at: i64,
+    pub(super) status: u8,
 }

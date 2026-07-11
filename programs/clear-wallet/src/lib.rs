@@ -280,6 +280,7 @@ pub mod clear_wallet {
         policy_commitment: [u8; 32],
         envelope_hash: [u8; 32],
         amount_raw_le: [u8; 16],
+        agent_id_hash: [u8; 32],
         venue_hash: [u8; 32],
         market_hash: [u8; 32],
         side_hash: [u8; 32],
@@ -294,6 +295,7 @@ pub mod clear_wallet {
                 policy_commitment,
                 envelope_hash,
                 amount_raw_le,
+                agent_id_hash,
                 venue_hash,
                 market_hash,
                 side_hash,
@@ -302,6 +304,36 @@ pub mod clear_wallet {
                 session_id_hash,
                 route_hash,
                 risk_check_hash,
+            })
+    }
+
+    /// Grant or revoke a bounded agent trading session (ClearSign AgentSessionGrant).
+    #[instruction(discriminator = 28)]
+    pub fn execute_typed_agent_session_grant(
+        ctx: Ctx<ExecuteTypedAgentSessionGrant>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        session_id_hash: [u8; 32],
+        agent_id_hash: [u8; 32],
+        venue_hash: [u8; 32],
+        market_hash: [u8; 32],
+        max_notional_raw_le: [u8; 16],
+        max_leverage_x100: u32,
+        expires_at: i64,
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_agent_session_grant(ExecuteTypedAgentSessionGrantArgs {
+                policy_commitment,
+                envelope_hash,
+                session_id_hash,
+                agent_id_hash,
+                venue_hash,
+                market_hash,
+                max_notional_raw_le,
+                max_leverage_x100,
+                expires_at,
+                status,
             })
     }
 

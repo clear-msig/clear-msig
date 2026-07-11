@@ -10,10 +10,11 @@ import { type AgentAuditEvent, type AgentExecutionRecord, type AgentLeaderboardE
 import { type AgentInboxSummary, loadAgentInboxSummary } from "@/features/agents/infrastructure/inboxClient";
 import { syncAgentEmergencyPause, syncAgentExecution, syncAgentProfile, syncAgentProposalApproval, syncAgentProposalRejection, syncAgentSession, syncAgentSessionStatus } from "@/features/agents/infrastructure/stateClient";
 import { submitAgentVenueExecution } from "@/features/agents/infrastructure/executionClient";
-import { agentLeaderboard, agentRiskSnapshot, approveAgentProposal, closeMockAgentExecution, closeOpenMockAgentExecutions, findAgent, getAgentVaultPolicy, listAgentEvents, listAgentExecutions, listAgentProposals, listAgentScorecards, listAgentSessions, moderateAgentPublishingProfile, openAgentPaperTrade, publishAgentProfile, recheckAgentProposal, rejectAgentProposal, renewAgentSession, saveAgent, setAgentVaultEmergencyPause, subscribeAgents, unpublishAgentProfile, updateAgentSessionStatus, updateAgentStatus } from "@/features/agents/infrastructure/agentStore";
+import { agentLeaderboard, agentRiskSnapshot, approveAgentProposal, closeMockAgentExecution, closeOpenMockAgentExecutions, findAgent, getAgentVaultPolicy, listAgentEvents, listAgentExecutions, listAgentProposals, listAgentScorecards, listAgentSessions, moderateAgentPublishingProfile, openAgentPaperTrade, publishAgentProfile, recheckAgentProposal, rejectAgentProposal, renewAgentSession, saveAgent, saveAgentSession, setAgentVaultEmergencyPause, subscribeAgents, unpublishAgentProfile, updateAgentSessionStatus, updateAgentStatus } from "@/features/agents/infrastructure/agentStore";
 import { loadAgentMarketDataSnapshots } from "@/features/agents/infrastructure/marketDataClient";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { cleanOptional, decodeParam, moderationLabel, publishedProfileText } from "@/features/agents/ui/detail/presentation";
+import { useAgentTypedSessionGrant } from "@/lib/agents/useAgentTypedSessionGrant";
 
 export function useAgentDetailController() {
   const params = useParams<{ name: string; agent: string }>();
@@ -24,6 +25,7 @@ export function useAgentDetailController() {
   const agentId = useMemo(() => decodeParam(params?.agent), [params?.agent]);
   const encodedWallet = encodeURIComponent(name);
   const display = toDisplayName(name);
+  const updateTypedSession = useAgentTypedSessionGrant(name);
   const [agent, setAgent] = useState<AgentProfile | null>(null);
   const [leaderboard, setLeaderboard] = useState<AgentLeaderboardEntry | undefined>();
   const [scorecard, setScorecard] = useState<AgentScorecard | undefined>();
@@ -194,13 +196,27 @@ export function useAgentDetailController() {
     });
   };
   const revokeSession = (id: string) => {
-    startAction(() => {
-      const updated = updateAgentSessionStatus(name, id, "revoked");
-      if (!updated) {
+    startAction(async () => {
+      const current = sessions.find((session) => session.id === id);
+      if (!current) {
         toast.error("Trading session not found");
         return;
       }
-      void syncAgentSessionStatus(name, id, "revoked").then((synced) => {
+      let updated = current;
+      if (
+        current.onchain?.status === "executed" ||
+        current.onchain?.operation === "revoked"
+      ) {
+        updated = await updateTypedSession(current, {
+          venue: current.allowedVenues?.[0] ?? "mock_perps",
+          market: current.allowedMarkets?.[0] ?? "BTC-PERP",
+          status: "revoked",
+        });
+        saveAgentSession(updated);
+      } else {
+        updated = updateAgentSessionStatus(name, id, "revoked") ?? current;
+      }
+      void syncAgentSessionStatus(name, id, updated.status).then((synced) => {
         if (synced.ok) {
           toast.success("Trading session revoked");
         } else {
@@ -212,15 +228,30 @@ export function useAgentDetailController() {
     });
   };
   const renewSession = (id: string) => {
-    startAction(() => {
-      const renewed = renewAgentSession(name, id);
+    startAction(async () => {
+      const current = sessions.find((session) => session.id === id);
+      const renewed =
+        current?.onchain?.operation === "active" &&
+        current.onchain.status !== "executed"
+          ? current
+          : renewAgentSession(name, id);
       if (!renewed) {
         toast.error("Reactivate the agent before renewing this session");
         return;
       }
-      void syncAgentSession(renewed).then((synced) => {
+      const granted = await updateTypedSession(renewed, {
+        venue: renewed.allowedVenues?.[0] ?? "mock_perps",
+        market: renewed.allowedMarkets?.[0] ?? "BTC-PERP",
+        status: "active",
+      });
+      saveAgentSession(granted);
+      void syncAgentSession(granted).then((synced) => {
         if (synced.ok) {
-          toast.success("Trading session renewed");
+          toast.success(
+            granted.onchain?.status === "executed"
+              ? "Trading session renewed"
+              : "Session is waiting for approval",
+          );
         } else {
           toast.info("Session renewed locally; backend sync is pending", {
             details: synced.message,

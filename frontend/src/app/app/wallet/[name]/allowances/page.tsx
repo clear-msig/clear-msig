@@ -1,11 +1,10 @@
 "use client";
 
-// Per-friend allowances - "Sarah can spend up to $200/week from
-// Roommates." Stored locally for now; the UI hint on /send and the
-// member-row badge read these to surface "within limit" / "needs
-// extra approval" cues. On-chain enforcement comes when the program
-// adds an `allowance_per_approver` field to the intent (Months 3-4
-// roadmap item).
+// Per-friend allowances - "Sarah can spend up to N SOL/week from this
+// wallet." Authored in localStorage, then encoded into CSP1 policy
+// bytes (EXT_MEMBER_ALLOWANCE) and enforced on typed sends via the
+// MemberAllowanceLedger PDA when the SOL personal policy is persisted
+// or a send includes the active policy plan.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
