@@ -29,6 +29,9 @@ pub use typed_chain_sign::*;
 pub mod typed_send;
 pub use typed_send::*;
 
+pub mod wallet_policy;
+pub use wallet_policy::*;
+
 // execute kept for meta-intents (AddIntent, RemoveIntent, UpdateIntent)
 // which modify on-chain state. Custom intents go through ika_sign.
 pub mod execute;

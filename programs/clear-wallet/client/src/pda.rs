@@ -28,6 +28,10 @@ pub fn find_policy_spend_address(
     )
 }
 
+pub fn find_wallet_policy_address(wallet: &Address, program_id: &Address) -> (Address, u8) {
+    Address::find_program_address(&[b"wallet_policy", wallet.as_ref()], program_id)
+}
+
 pub fn find_intent_address(wallet: &Address, index: u8, program_id: &Address) -> (Address, u8) {
     Address::find_program_address(&[b"intent", wallet.as_ref(), &[index]], program_id)
 }

@@ -69,6 +69,7 @@ export interface ThresholdPayload {
 
 export interface ProtectionPayload {
   summary: string;
+  policyCommitment?: string;
 }
 
 export interface MilestonePayload extends RecipientAmount {
@@ -342,7 +343,12 @@ function normalizePayload(
         ),
       };
     case "set_protection":
-      return { summary: normalizeText((payload as ProtectionPayload).summary) };
+      return {
+        summary: normalizeText((payload as ProtectionPayload).summary),
+        policyCommitment: normalizeOptional(
+          (payload as ProtectionPayload).policyCommitment,
+        ),
+      };
     case "release_milestone": {
       const row = payload as MilestonePayload;
       return {
@@ -446,6 +452,16 @@ function canonicalPayloadBytes(
           amount: row.maxNotionalUsd,
         });
         out.pushU32(leverageToX100(row.maxLeverage));
+      }
+      break;
+    }
+    case "set_protection": {
+      const row = normalizePayload(kind, payload) as ProtectionPayload;
+      if (row.policyCommitment) {
+        out.pushBytes("wallet_policy");
+        out.pushRaw(fromHex(normalizeHash(row.policyCommitment)));
+      } else {
+        out.pushBytes(JSON.stringify({ summary: row.summary }));
       }
       break;
     }

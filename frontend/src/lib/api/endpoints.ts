@@ -277,6 +277,22 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedWalletPolicyUpdate: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      policyBytesHex: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-wallet-policy-update`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   executeTypedChainSend: (
     walletName: string,
     proposalAddress: string,

@@ -19,11 +19,13 @@ use typed_execution::{
     execute_typed_agent_trade_approval_args, execute_typed_chain_send_args,
     execute_typed_escrow_release_args, execute_typed_escrow_return_args,
     execute_typed_sol_batch_send_args, execute_typed_sol_send_args,
+    execute_typed_wallet_policy_update_args,
 };
 use types::{
     ExecuteProposalRequest, ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
-    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest, PrepareApproveCancelRequest,
+    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
+    ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
     PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest, SignedApproveCancelRequest,
     SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
 };
@@ -74,6 +76,10 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-sol-send",
             post(execute_typed_sol_send),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-wallet-policy-update",
+            post(execute_typed_wallet_policy_update),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-chain-send",
@@ -544,6 +550,15 @@ async fn execute_typed_sol_send(
     Json(body): Json<ExecuteTypedSolSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let args = execute_typed_sol_send_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_wallet_policy_update(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedWalletPolicyUpdateRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let args = execute_typed_wallet_policy_update_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 

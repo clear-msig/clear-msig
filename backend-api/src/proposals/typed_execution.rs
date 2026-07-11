@@ -6,6 +6,7 @@ use super::types::{
     ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
     ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
+    ExecuteTypedWalletPolicyUpdateRequest,
 };
 
 pub(super) fn execute_typed_escrow_release_args(
@@ -71,6 +72,29 @@ pub(super) fn execute_typed_sol_send_args(
         "--amount-lamports".into(),
         body.amount_lamports.to_string(),
     ]);
+    Ok(args)
+}
+
+pub(super) fn execute_typed_wallet_policy_update_args(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedWalletPolicyUpdateRequest,
+) -> Result<Vec<String>, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_hex(&body.policy_bytes_hex, "policyBytesHex")?;
+    if body
+        .policy_bytes_hex
+        .trim()
+        .trim_start_matches("0x")
+        .is_empty()
+    {
+        return Err(ApiError::BadRequest(
+            "policyBytesHex must not be empty".into(),
+        ));
+    }
+
+    let mut args = base_proposal_args("typed-wallet-policy-update", name, proposal);
+    args.extend(["--policy-bytes-hex".into(), body.policy_bytes_hex]);
     Ok(args)
 }
 

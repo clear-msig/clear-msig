@@ -23,7 +23,6 @@ import { needsWalletRuntime } from "@/features/wallet-runtime/domain/routePolicy
 import { ConfigGapBanner, WalletRuntimeLoading } from "@/features/wallet-runtime/ui/RuntimeStates";
 import { validateConfig } from "@/lib/config";
 import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
-import { LivePricesProvider } from "@/lib/retail/priceFeed";
 
 type Props = {
   children: React.ReactNode;
@@ -34,6 +33,14 @@ const LazyDynamicProviderTree = dynamic(
   {
     ssr: false,
     loading: () => <WalletRuntimeLoading />,
+  },
+);
+
+const LazyLivePricesProvider = dynamic(
+  () => import("@/lib/retail/priceFeed").then((mod) => mod.LivePricesProvider),
+  {
+    ssr: false,
+    loading: () => null,
   },
 );
 
@@ -113,7 +120,7 @@ export function AppProviders({ children }: Props) {
     <QueryClientProvider client={queryClient}>
       {/* Mount prices only on product surfaces. Public/marketing pages
           no longer pay for wallet or price-feed runtime on first load. */}
-      <LivePricesProvider />
+      <LazyLivePricesProvider />
       <LazyDynamicProviderTree environmentId={environmentId ?? ""}>
         <ToastProvider>{children}</ToastProvider>
       </LazyDynamicProviderTree>

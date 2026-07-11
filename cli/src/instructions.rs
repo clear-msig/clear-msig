@@ -543,6 +543,7 @@ pub fn execute_typed_cross_chain_escrow_return(
 pub fn execute_typed_chain_send(
     payer: Pubkey,
     wallet: Pubkey,
+    wallet_policy: Pubkey,
     policy_spend: Pubkey,
     intent: Pubkey,
     proposal: Pubkey,
@@ -559,6 +560,7 @@ pub fn execute_typed_chain_send(
     let accounts = vec![
         AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(wallet_policy, false),
         AccountMeta::new(policy_spend, false),
         AccountMeta::new(intent, false),
         AccountMeta::new(proposal, false),
@@ -589,6 +591,7 @@ pub fn execute_typed_chain_send(
 pub fn ika_sign_typed_chain_send(
     payer: Pubkey,
     wallet: Pubkey,
+    wallet_policy: Pubkey,
     policy_spend: Pubkey,
     intent: Pubkey,
     proposal: Pubkey,
@@ -614,6 +617,7 @@ pub fn ika_sign_typed_chain_send(
     let accounts = vec![
         AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(wallet_policy, false),
         AccountMeta::new(policy_spend, false),
         AccountMeta::new(intent, false),
         AccountMeta::new(proposal, false),
@@ -812,11 +816,49 @@ pub fn execute_typed_escrow_return(
     }
 }
 
+/// Build execute_typed_wallet_policy_update instruction (ClearSign v2 discriminator 26).
+#[allow(dead_code)]
+pub fn execute_typed_wallet_policy_update(
+    payer: Pubkey,
+    wallet: Pubkey,
+    wallet_policy: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    current_policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    new_policy_bytes: &[u8],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(wallet_policy, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+
+    let mut data = vec![26u8];
+    wincode::serialize_into(&mut data, &current_policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(
+        &mut data,
+        &quasar_lang::client::DynBytes::<u32>::new(new_policy_bytes.to_vec()),
+    )
+    .unwrap();
+
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build execute_typed_sol_send instruction (ClearSign v2 discriminator 14).
 #[allow(dead_code)]
 pub fn execute_typed_sol_send(
     payer: Pubkey,
     wallet: Pubkey,
+    wallet_policy: Pubkey,
     policy_spend: Pubkey,
     vault: Pubkey,
     intent: Pubkey,
@@ -829,6 +871,7 @@ pub fn execute_typed_sol_send(
     let accounts = vec![
         AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(wallet_policy, false),
         AccountMeta::new(policy_spend, false),
         AccountMeta::new(vault, false),
         AccountMeta::new(intent, false),
@@ -853,6 +896,7 @@ pub fn execute_typed_sol_send(
 pub fn execute_typed_sol_batch_send(
     payer: Pubkey,
     wallet: Pubkey,
+    wallet_policy: Pubkey,
     policy_spend: Pubkey,
     vault: Pubkey,
     intent: Pubkey,
@@ -865,6 +909,7 @@ pub fn execute_typed_sol_batch_send(
     let mut accounts = vec![
         AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(wallet_policy, false),
         AccountMeta::new(policy_spend, false),
         AccountMeta::new(vault, false),
         AccountMeta::new(intent, false),
@@ -1336,13 +1381,14 @@ mod tests {
             key(10),
             key(11),
             key(12),
-            [13; 32],
+            key(13),
             [14; 32],
+            [15; 32],
             1,
             1_000_000u128.to_le_bytes(),
-            [15; 32],
             [16; 32],
             [17; 32],
+            [18; 32],
             18,
             19,
             [20; 96],
@@ -1354,23 +1400,24 @@ mod tests {
             ix.data.len(),
             1 + 32 + 32 + 1 + 16 + 32 + 32 + 32 + 1 + 1 + 96 + 3
         );
-        assert_eq!(ix.accounts.len(), 14);
+        assert_eq!(ix.accounts.len(), 15);
         assert!(ix.accounts[0].is_signer);
         assert!(ix.accounts[0].is_writable);
         assert!(!ix.accounts[1].is_writable);
         assert!(ix.accounts[2].is_writable);
         assert!(ix.accounts[3].is_writable);
         assert!(ix.accounts[4].is_writable);
-        assert!(!ix.accounts[5].is_writable);
+        assert!(ix.accounts[5].is_writable);
         assert!(!ix.accounts[6].is_writable);
-        assert!(ix.accounts[7].is_writable);
+        assert!(!ix.accounts[7].is_writable);
         assert!(ix.accounts[8].is_writable);
-        assert!(!ix.accounts[9].is_writable);
+        assert!(ix.accounts[9].is_writable);
         assert!(!ix.accounts[10].is_writable);
         assert!(!ix.accounts[11].is_writable);
-        assert_eq!(ix.accounts[11].pubkey, program_id());
         assert!(!ix.accounts[12].is_writable);
+        assert_eq!(ix.accounts[12].pubkey, program_id());
         assert!(!ix.accounts[13].is_writable);
+        assert!(!ix.accounts[14].is_writable);
         assert_eq!(ix.data[ix.data.len() - 3..], [0xaa, 0xbb, 0xcc]);
     }
 
@@ -1384,6 +1431,7 @@ mod tests {
             key(5),
             key(6),
             key(7),
+            key(8),
             [8; 32],
             [9; 32],
             1_000_000,
@@ -1395,6 +1443,7 @@ mod tests {
             key(4),
             key(5),
             key(6),
+            key(7),
             [7; 32],
             [8; 32],
             &1_000_000u64.to_le_bytes(),
@@ -1403,8 +1452,8 @@ mod tests {
 
         assert_eq!(send.data[0], 14);
         assert_eq!(batch.data[0], 15);
-        assert_eq!(send.accounts.len(), 8);
-        assert_eq!(batch.accounts.len(), 8);
+        assert_eq!(send.accounts.len(), 9);
+        assert_eq!(batch.accounts.len(), 9);
         assert!(batch.accounts[0].is_signer);
         assert!(batch.accounts[0].is_writable);
         assert!(!batch.accounts[1].is_writable);
@@ -1417,11 +1466,36 @@ mod tests {
         assert!(send.accounts[4].is_writable);
         assert!(send.accounts[5].is_writable);
         assert!(send.accounts[6].is_writable);
-        assert!(!send.accounts[7].is_writable);
+        assert!(send.accounts[7].is_writable);
+        assert!(!send.accounts[8].is_writable);
         assert!(batch.accounts[3].is_writable);
-        assert!(!batch.accounts[6].is_writable);
-        assert!(batch.accounts[7].is_writable);
+        assert!(!batch.accounts[7].is_writable);
+        assert!(batch.accounts[8].is_writable);
         assert!(batch.accounts[5].is_writable);
+    }
+
+    #[test]
+    fn typed_wallet_policy_update_uses_expected_accounts_and_discriminator() {
+        let ix = execute_typed_wallet_policy_update(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            [6; 32],
+            [7; 32],
+            &[0xca, 0xfe],
+        );
+
+        assert_eq!(ix.data[0], 26);
+        assert_eq!(ix.accounts.len(), 6);
+        assert!(ix.accounts[0].is_signer);
+        assert!(ix.accounts[0].is_writable);
+        assert!(!ix.accounts[1].is_writable);
+        assert!(ix.accounts[2].is_writable);
+        assert!(ix.accounts[3].is_writable);
+        assert!(ix.accounts[4].is_writable);
+        assert!(!ix.accounts[5].is_writable);
     }
 
     #[test]

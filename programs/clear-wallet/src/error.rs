@@ -66,4 +66,6 @@ pub enum WalletError {
     PolicyVelocityExceeded,
     /// The program clock is outside the signed policy's allowed hours.
     PolicyOutsideAllowedHours,
+    /// The typed proposal did not use the wallet's active on-chain policy.
+    WalletPolicyMismatch,
 }

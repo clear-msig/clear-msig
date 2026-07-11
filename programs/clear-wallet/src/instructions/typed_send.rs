@@ -10,7 +10,7 @@ use crate::{
     utils::clearsign::{
         hash_batch_send_sol_payload_iter, hash_send_payload, ClearSignActionKind, ClearSignAmount,
     },
-    utils::policy::enforce_typed_sol_send_policy,
+    utils::policy::{enforce_typed_sol_send_policy, enforce_wallet_policy_account},
 };
 
 const SOL_ASSET: &[u8] = b"SOL";
@@ -20,6 +20,9 @@ pub struct ExecuteTypedSolSend<'info> {
     #[account(mut)]
     pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[account(mut)]
+    pub wallet_policy: &'info mut UncheckedAccount,
     #[account(
         init_if_needed,
         payer = payer,
@@ -63,6 +66,9 @@ pub struct ExecuteTypedSolBatchSend<'info> {
     #[account(mut)]
     pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[account(mut)]
+    pub wallet_policy: &'info mut UncheckedAccount,
     #[account(
         init_if_needed,
         payer = payer,
@@ -117,6 +123,12 @@ impl<'info> ExecuteTypedSolSend<'info> {
             args.policy_commitment,
             payload_hash,
             args.envelope_hash,
+        )?;
+        enforce_wallet_policy_account(
+            self.wallet.address(),
+            self.wallet_policy,
+            args.policy_commitment,
+            self.proposal.policy_bytes().as_ref(),
         )?;
         let recipient_bytes = self.recipient.address().as_ref();
         let recipient_key: &[u8; 32] = recipient_bytes
@@ -190,6 +202,12 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
             args.policy_commitment,
             payload_hash,
             args.envelope_hash,
+        )?;
+        enforce_wallet_policy_account(
+            self.wallet.address(),
+            self.wallet_policy,
+            args.policy_commitment,
+            self.proposal.policy_bytes().as_ref(),
         )?;
 
         for index in 0..recipient_count {

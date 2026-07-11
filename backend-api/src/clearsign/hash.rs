@@ -146,11 +146,21 @@ pub(super) fn hash_payload(
             );
         }
         ClearSignActionKind::SetProtection => {
-            let summary = payload_text(payload, "summary")?;
-            update_bytes(
-                &mut hasher,
-                format!("{{\"summary\":{}}}", json_string(&summary)?).as_bytes(),
-            );
+            if let Some(policy_commitment) =
+                payload.get("policyCommitment").and_then(Value::as_str)
+            {
+                update_bytes(&mut hasher, b"wallet_policy");
+                hasher.update(hash_bytes_from_hex(
+                    policy_commitment,
+                    "payload.policyCommitment",
+                )?);
+            } else {
+                let summary = payload_text(payload, "summary")?;
+                update_bytes(
+                    &mut hasher,
+                    format!("{{\"summary\":{}}}", json_string(&summary)?).as_bytes(),
+                );
+            }
         }
         ClearSignActionKind::RecoveryAction => {
             let recovery_action = payload_text(payload, "recoveryAction")?;

@@ -80,6 +80,16 @@ pub enum ProposalAction {
         #[arg(long)]
         proposal: String,
     },
+    /// Execute an approved typed wallet policy update.
+    TypedWalletPolicyUpdate {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        /// New typed policy bytes as hex. Must match the approved SetProtection payload.
+        #[arg(long)]
+        policy_bytes_hex: String,
+    },
     /// Execute an approved typed escrow milestone release.
     TypedEscrowRelease {
         #[arg(long)]
@@ -748,6 +758,47 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "txid": sig.to_string(),
                 "proposal": proposal_pubkey.to_string(),
                 "path": "typed",
+                "status": "executed",
+            }));
+        }
+
+        ProposalAction::TypedWalletPolicyUpdate {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            policy_bytes_hex,
+        } => {
+            let policy_bytes =
+                parse_hex_local(&policy_bytes_hex).with_context(|| "invalid policy-bytes-hex")?;
+            if policy_bytes.is_empty() {
+                return Err(anyhow!("policy-bytes-hex must not be empty"));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::SetProtection,
+                "typed wallet policy update",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let ix = crate::instructions::execute_typed_wallet_policy_update(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
+                wallet_pubkey,
+                wallet_policy_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                &policy_bytes,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_wallet_policy_update",
                 "status": "executed",
             }));
         }
@@ -1432,6 +1483,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let ix = crate::instructions::execute_typed_sol_send(
                 solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
+                wallet_policy_pubkey(wallet_pubkey),
                 policy_spend_pubkey(wallet_pubkey, intent_pubkey),
                 vault_pubkey(wallet_pubkey),
                 intent_pubkey,
@@ -1507,6 +1559,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let ix = crate::instructions::execute_typed_chain_send(
                 solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
+                wallet_policy_pubkey(wallet_pubkey),
                 policy_spend_pubkey(wallet_pubkey, intent_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
@@ -1659,6 +1712,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let ix = crate::instructions::execute_typed_sol_batch_send(
                 solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
+                wallet_policy_pubkey(wallet_pubkey),
                 policy_spend_pubkey(wallet_pubkey, intent_pubkey),
                 vault_pubkey(wallet_pubkey),
                 intent_pubkey,
@@ -2092,6 +2146,7 @@ fn execute_via_ika(
         } => crate::instructions::ika_sign_typed_chain_send(
             payer_pubkey,
             wallet_pubkey,
+            wallet_policy_pubkey(wallet_pubkey),
             policy_spend_pubkey(wallet_pubkey, intent_pubkey),
             intent_pubkey,
             proposal_pubkey,
@@ -2723,6 +2778,14 @@ fn policy_spend_pubkey(wallet_pubkey: Pubkey, intent_pubkey: Pubkey) -> Pubkey {
         &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
     );
     Pubkey::new_from_array(policy_spend.to_bytes())
+}
+
+fn wallet_policy_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
+    let (wallet_policy, _) = clear_wallet_client::pda::find_wallet_policy_address(
+        &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
+    );
+    Pubkey::new_from_array(wallet_policy.to_bytes())
 }
 
 fn typed_approve_or_cancel(

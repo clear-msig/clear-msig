@@ -6,6 +6,7 @@ use crate::{
         intent::Intent,
         policy_spend::{PolicySpendState, PolicySpendStateInner},
         typed_proposal::TypedProposal,
+        wallet_policy::{WalletPolicy, WALLET_POLICY_LEN},
     },
     utils::clearsign::hash_policy_commitment,
 };
@@ -27,6 +28,40 @@ const EXT_ALLOWED_TIME_LEN: usize = 1 + 1 + 1 + 2;
 
 pub fn hash_typed_policy(policy_bytes: &[u8]) -> [u8; 32] {
     hash_policy_commitment(&[POLICY_DOMAIN, policy_bytes])
+}
+
+pub fn enforce_wallet_policy_account(
+    wallet: &Address,
+    wallet_policy: &UncheckedAccount,
+    proposal_policy_commitment: [u8; 32],
+    proposal_policy_bytes: &[u8],
+) -> Result<(), ProgramError> {
+    let (expected, _) =
+        Address::find_program_address(&[b"wallet_policy", wallet.as_ref()], &crate::ID);
+    require_keys_eq!(
+        *wallet_policy.address(),
+        expected,
+        ProgramError::InvalidSeeds
+    );
+
+    let view = wallet_policy.to_account_view();
+    if view.data_len() < WALLET_POLICY_LEN {
+        return Ok(());
+    }
+    require!(view.owned_by(&crate::ID), ProgramError::IncorrectProgramId);
+    let data = unsafe { view.borrow_unchecked() };
+    let policy = WalletPolicy::read(data)?;
+    require_keys_eq!(policy.wallet, *wallet, WalletError::WalletPolicyMismatch);
+    require!(
+        policy.policy_commitment == proposal_policy_commitment,
+        WalletError::WalletPolicyMismatch
+    );
+    require!(
+        !proposal_policy_bytes.is_empty()
+            && hash_typed_policy(proposal_policy_bytes) == policy.policy_commitment,
+        WalletError::WalletPolicyMismatch
+    );
+    Ok(())
 }
 
 pub fn enforce_typed_sol_send_policy(

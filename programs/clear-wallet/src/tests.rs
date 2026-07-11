@@ -10,9 +10,9 @@ use {
         hash_envelope, hash_policy_commitment, hash_private_escrow_release_payload,
         hash_private_escrow_return_payload, hash_release_milestone_payload,
         hash_release_token_milestone_payload, hash_return_escrow_sol_payload_iter,
-        hash_return_token_escrow_payload_iter, hash_send_payload, write_vote_message,
-        ClearSignActionKind, ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind,
-        MAX_CLEARSIGN_TEXT_BYTES,
+        hash_return_token_escrow_payload_iter, hash_send_payload,
+        hash_wallet_policy_update_payload, write_vote_message, ClearSignActionKind,
+        ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind, MAX_CLEARSIGN_TEXT_BYTES,
     },
     crate::utils::policy::hash_typed_policy,
     alloc::vec,
@@ -22,7 +22,7 @@ use {
         pda::{
             compute_name_hash, find_intent_address, find_policy_spend_address,
             find_proposal_address, find_typed_proposal_address, find_vault_address,
-            find_wallet_address,
+            find_wallet_address, find_wallet_policy_address,
         },
     },
     ed25519_dalek::Signer as DalekSigner,
@@ -608,6 +608,7 @@ fn build_execute_typed_chain_send_ix(
         accounts: vec![
             AccountMeta::new(payer, true),
             AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(find_wallet_policy_address(&wallet, &crate::ID).0, false),
             AccountMeta::new(
                 find_policy_spend_address(&wallet, &intent, &crate::ID).0,
                 false,
@@ -784,6 +785,7 @@ fn build_execute_typed_sol_send_ix(
 ) -> Instruction {
     let (vault, _) = find_vault_address(&wallet, &crate::ID);
     let (policy_spend, _) = find_policy_spend_address(&wallet, &intent, &crate::ID);
+    let (wallet_policy, _) = find_wallet_policy_address(&wallet, &crate::ID);
     let mut data = vec![14u8];
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
@@ -794,6 +796,7 @@ fn build_execute_typed_sol_send_ix(
         accounts: vec![
             AccountMeta::new(payer, true),
             AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(wallet_policy, false),
             AccountMeta::new(policy_spend, false),
             AccountMeta::new(vault, false),
             AccountMeta::new(intent, false),
@@ -815,6 +818,40 @@ fn empty_policy_spend_account(
     empty_account(policy_spend)
 }
 
+fn empty_wallet_policy_account(wallet: Pubkey) -> Account {
+    let (wallet_policy, _) = find_wallet_policy_address(&wallet, &crate::ID);
+    empty_account(wallet_policy)
+}
+
+fn build_execute_typed_wallet_policy_update_ix(
+    payer: Pubkey,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    current_policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    new_policy_bytes: &[u8],
+) -> Instruction {
+    let (wallet_policy, _) = find_wallet_policy_address(&wallet, &crate::ID);
+    let mut data = vec![26u8];
+    wincode::serialize_into(&mut data, &current_policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &DynBytes::<u32>::new(new_policy_bytes.to_vec())).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(wallet_policy, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+        ],
+        data,
+    }
+}
+
 fn build_execute_typed_sol_batch_send_ix(
     payer: Pubkey,
     wallet: Pubkey,
@@ -827,6 +864,7 @@ fn build_execute_typed_sol_batch_send_ix(
 ) -> Instruction {
     let (vault, _) = find_vault_address(&wallet, &crate::ID);
     let (policy_spend, _) = find_policy_spend_address(&wallet, &intent, &crate::ID);
+    let (wallet_policy, _) = find_wallet_policy_address(&wallet, &crate::ID);
     let mut data = vec![15u8];
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
@@ -835,6 +873,7 @@ fn build_execute_typed_sol_batch_send_ix(
     let mut accounts = vec![
         AccountMeta::new(payer, true),
         AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(wallet_policy, false),
         AccountMeta::new(policy_spend, false),
         AccountMeta::new(vault, false),
         AccountMeta::new(intent, false),
@@ -1158,6 +1197,83 @@ fn propose_typed_sol_send_on_wallet(
     );
 
     (proposal, policy_commitment, envelope_hash)
+}
+
+fn propose_typed_wallet_policy_update_on_wallet(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    current_policy_commitment: [u8; 32],
+    new_policy_bytes: &[u8],
+) -> (Pubkey, [u8; 32]) {
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let action_id = sha256_hash(
+        &[
+            wallet_name.as_bytes(),
+            b":policy-update:",
+            &proposal_index.to_le_bytes(),
+        ]
+        .concat(),
+    );
+    let nonce = sha256_hash(
+        &[
+            wallet_name.as_bytes(),
+            b":policy-update-nonce:",
+            &proposal_index.to_le_bytes(),
+        ]
+        .concat(),
+    );
+    let expiry = typed_test_expiry();
+    let new_policy_commitment = hash_typed_policy(new_policy_bytes);
+    let payload_hash = hash_wallet_policy_update_payload(&new_policy_commitment);
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::SetProtection,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment: current_policy_commitment,
+        payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
+    });
+
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::SetProtection.code(),
+        policy_commitment: current_policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(proposer),
+        signature: sign_typed_vote(
+            proposer,
+            ClearSignVoteKind::Propose,
+            wallet_name,
+            proposal_index,
+            envelope_hash,
+        ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
+        policy_bytes: Vec::new(),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_ok(),
+        "typed wallet policy update proposal failed: {:?}",
+        result.raw_result
+    );
+
+    (proposal, envelope_hash)
 }
 
 fn propose_typed_sol_batch_with_policy(
@@ -2062,6 +2178,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
             &wrong_execute,
             &[
                 funded_account(payer),
+                empty_wallet_policy_account(wallet),
                 empty_policy_spend_account(wallet, remote_intent, policy_commitment),
                 empty_account(dwallet)
             ]
@@ -2087,6 +2204,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, remote_intent, policy_commitment),
             empty_account(dwallet),
         ],
@@ -2174,6 +2292,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         &blocked_execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, remote_intent, blocked_policy_commitment),
             empty_account(dwallet),
         ],
@@ -3152,6 +3271,7 @@ fn test_execute_typed_sol_send_moves_sol() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
@@ -3214,6 +3334,7 @@ fn test_execute_typed_sol_send_rejects_policy_amount_cap() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
@@ -3258,6 +3379,7 @@ fn test_execute_typed_sol_send_rejects_policy_blocklist() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
@@ -3303,6 +3425,7 @@ fn test_execute_typed_sol_send_rejects_recipient_outside_allowlist() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
@@ -3352,6 +3475,7 @@ fn test_execute_typed_sol_send_rejects_outside_allowed_hours() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
@@ -3400,6 +3524,7 @@ fn test_execute_typed_sol_send_requires_policy_extra_approver() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
@@ -3447,6 +3572,7 @@ fn test_execute_typed_sol_send_accepts_committed_policy() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient),
         ],
@@ -3455,6 +3581,107 @@ fn test_execute_typed_sol_send_accepts_committed_policy() {
         result.is_ok(),
         "committed policy should allow execute: {:?}",
         result.raw_result
+    );
+}
+
+#[test]
+fn test_wallet_policy_rejects_proposal_that_omits_active_policy() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = ed25519_dalek::SigningKey::from_bytes(&[42u8; 32]);
+    let allowed_recipient = Pubkey::new_unique();
+    let blocked_recipient = Pubkey::new_unique();
+    let policy_bytes = typed_sol_policy_bytes(1, 0, 0, &[allowed_recipient], &[]);
+    let active_policy_commitment = hash_typed_policy(&policy_bytes);
+    let wallet_name = "persistent-policy";
+
+    let (create, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&create, &accounts).is_ok());
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let no_previous_policy = hash_policy_commitment(&[b"wallet-policy:none"]);
+    let (policy_proposal, policy_envelope_hash) = propose_typed_wallet_policy_update_on_wallet(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        0,
+        &proposer,
+        no_previous_policy,
+        &policy_bytes,
+    );
+    let update = build_execute_typed_wallet_policy_update_ix(
+        payer,
+        wallet,
+        intent,
+        policy_proposal,
+        no_previous_policy,
+        policy_envelope_hash,
+        &policy_bytes,
+    );
+    let result = svm.process_instruction(
+        &update,
+        &[funded_account(payer), empty_wallet_policy_account(wallet)],
+    );
+    assert!(
+        result.is_ok(),
+        "wallet policy update should execute: {:?}",
+        result.raw_result
+    );
+
+    let (send_proposal, stale_policy_commitment, send_envelope_hash) =
+        propose_typed_sol_send_on_wallet(
+            &mut svm,
+            payer,
+            wallet_name,
+            wallet,
+            intent,
+            1,
+            &proposer,
+            blocked_recipient,
+            1_000_000,
+            &[],
+        );
+    assert_ne!(stale_policy_commitment, active_policy_commitment);
+    let vault = fund_vault(&mut svm, payer, wallet, 2_000_000);
+    let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    let execute = build_execute_typed_sol_send_ix(
+        payer,
+        wallet,
+        intent,
+        send_proposal,
+        blocked_recipient,
+        stale_policy_commitment,
+        send_envelope_hash,
+        1_000_000,
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_policy_spend_account(wallet, intent, stale_policy_commitment),
+            empty_account(blocked_recipient),
+        ],
+    );
+    assert!(
+        result.is_err(),
+        "active wallet policy should reject a typed send that omits policy bytes"
+    );
+    assert_eq!(
+        svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0),
+        vault_pre,
+        "rejected policy bypass must not move lamports"
     );
 }
 
@@ -3498,6 +3725,7 @@ fn test_execute_typed_sol_send_enforces_velocity_window() {
         &execute_a,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient_a),
         ],
@@ -3581,6 +3809,7 @@ fn test_execute_typed_sol_send_enforces_count_window() {
         &execute_a,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient_a),
         ],
@@ -3656,6 +3885,7 @@ fn test_policy_change_does_not_reset_spend_window() {
         &execute_a,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, commitment_a),
             empty_account(recipient_a),
         ],
@@ -3804,6 +4034,7 @@ fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(recipient_a),
             empty_account(recipient_b),
@@ -3882,6 +4113,7 @@ fn test_execute_typed_sol_batch_send_rejects_recipient_outside_allowlist() {
         &execute,
         &[
             funded_account(payer),
+            empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_account(allowed_recipient),
             empty_account(blocked_recipient),

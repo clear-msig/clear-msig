@@ -246,6 +246,13 @@ pub fn hash_send_payload(recipient: &[u8], amount: &ClearSignAmount<'_>) -> [u8;
     finish_hash(hasher)
 }
 
+pub fn hash_wallet_policy_update_payload(new_policy_commitment: &[u8; 32]) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::SetProtection);
+    update_bytes(&mut hasher, b"wallet_policy");
+    hasher.update(new_policy_commitment);
+    finish_hash(hasher)
+}
+
 pub fn hash_batch_send_payload(recipients: &[ClearSignRecipientAmount<'_>]) -> [u8; 32] {
     let mut hasher = payload_hasher(ClearSignActionKind::BatchSend);
     update_u32(&mut hasher, recipients.len() as u32);

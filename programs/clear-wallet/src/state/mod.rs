@@ -13,6 +13,9 @@ pub use typed_proposal::*;
 pub mod policy_spend;
 pub use policy_spend::*;
 
+pub mod wallet_policy;
+pub use wallet_policy::*;
+
 pub mod ika_config;
 pub use ika_config::*;
 
