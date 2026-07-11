@@ -27,7 +27,8 @@
 
 import { Commitment, Connection, type ConnectionConfig } from "@solana/web3.js";
 
-const PUBLIC_DEVNET_RPC = "https://api.devnet.solana.com";
+const DEFAULT_DEVNET_RPC =
+  "https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH";
 
 const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
 const ALCHEMY_DEVNET_RPC = alchemyApiKey
@@ -74,13 +75,13 @@ function readOverrideFromStorage(): string | null {
 export const solanaClusterDefaultRpc =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
   ALCHEMY_DEVNET_RPC ??
-  PUBLIC_DEVNET_RPC;
+  DEFAULT_DEVNET_RPC;
 
 export const solanaClusterDefaultRpcOrigin = (() => {
   try {
     return new URL(solanaClusterDefaultRpc).origin;
   } catch {
-    return PUBLIC_DEVNET_RPC;
+    return DEFAULT_DEVNET_RPC;
   }
 })();
 
@@ -92,10 +93,10 @@ export const solanaClusterDefaultRpcOrigin = (() => {
 export const solanaClusterRpc =
   readOverrideFromStorage() ?? solanaClusterDefaultRpc;
 
-/// Fallback RPC. The public devnet endpoint is always reachable, no
-/// API key, no quota. Used when the primary errors out at the network
-/// layer (DNS, TCP, TLS).
-export const solanaClusterFallbackRpc = PUBLIC_DEVNET_RPC;
+/// Fallback RPC. Keep this on the same Alchemy devnet endpoint as the
+/// default deploy/runtime path so reads and deploy smoke checks do not
+/// silently drift back to public Solana RPC.
+export const solanaClusterFallbackRpc = DEFAULT_DEVNET_RPC;
 
 /// Build a Connection that transparently fails over to
 /// `solanaClusterFallbackRpc` on network errors. Use this everywhere

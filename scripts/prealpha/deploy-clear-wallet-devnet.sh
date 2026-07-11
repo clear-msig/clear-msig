@@ -3,15 +3,16 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEPLOY_KEYPAIR="${DEPLOY_KEYPAIR:-$ROOT_DIR/target/deploy/clear_wallet-keypair.json}"
-PAYER_KEYPAIR="${PAYER_KEYPAIR:-$ROOT_DIR/backend-api/keys/payer.json}"
+PAYER_KEYPAIR="${PAYER_KEYPAIR:-$DEPLOY_KEYPAIR}"
 UPGRADE_AUTHORITY="${UPGRADE_AUTHORITY:-$PAYER_KEYPAIR}"
 DEFAULT_UPGRADE_AUTHORITY="$PAYER_KEYPAIR"
 PROGRAM_SO="${PROGRAM_SO:-$ROOT_DIR/target/deploy/clear_wallet.so}"
 DEFAULT_PROGRAM_ID="53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v"
 PROGRAM_ID="${PROGRAM_ID:-$DEFAULT_PROGRAM_ID}"
 INITIAL_DEPLOY="${INITIAL_DEPLOY:-0}"
-DEVNET_URL="${DEVNET_URL:-https://api.devnet.solana.com}"
-DEPLOY_TRANSPORT="${DEPLOY_TRANSPORT:---use-quic}"
+DEFAULT_DEVNET_URL="https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH"
+DEVNET_URL="${DEVNET_URL:-$DEFAULT_DEVNET_URL}"
+DEPLOY_TRANSPORT="${DEPLOY_TRANSPORT:---use-rpc}"
 TEMP_KEYPAIRS=()
 
 cleanup_temp_keypairs() {
@@ -76,7 +77,8 @@ fi
 
 if [[ ! -f "$PAYER_KEYPAIR" ]]; then
   echo "Missing $PAYER_KEYPAIR"
-  echo "Set PAYER_KEYPAIR=/path/to/funded-upgrade-authority.json or restore backend-api/keys/payer.json."
+  echo "Set PAYER_KEYPAIR=/path/to/current-upgrade-authority.json."
+  echo "Current devnet authority should match: GpTfW9LiJb8pM2xmi7oENuUiV1e4LurPu9rzcPfhaJCM"
   exit 1
 fi
 
@@ -93,6 +95,7 @@ echo "Program binary: $PROGRAM_SO"
 echo "Program SHA256: $(shasum -a 256 "$PROGRAM_SO" | awk '{print $1}')"
 echo "Payer: $(solana address -k "$PAYER_KEYPAIR")"
 echo "Upgrade authority: $(solana address -k "$UPGRADE_AUTHORITY")"
+echo "Devnet RPC: $DEVNET_URL"
 echo "Deploy transport: $DEPLOY_TRANSPORT"
 echo
 echo "Current deployed program:"

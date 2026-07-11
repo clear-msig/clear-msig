@@ -64,7 +64,7 @@ fi
 
 set_env_var "CLEAR_MSIG_KEYPAIR" "$KEYPAIR_PATH" "$ENV_FILE"
 set_env_var "CLEAR_MSIG_SIGNER" "$SIGNER_PATH" "$ENV_FILE"
-set_env_var "CLEAR_MSIG_URL" "${CLEAR_MSIG_URL:-https://api.devnet.solana.com}" "$ENV_FILE"
+set_env_var "CLEAR_MSIG_URL" "${CLEAR_MSIG_URL:-https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH}" "$ENV_FILE"
 set_env_var "BACKEND_API_BIND" "${BACKEND_API_BIND:-127.0.0.1:8080}" "$ENV_FILE"
 
 echo "Backend env ready: $ENV_FILE"

@@ -56,6 +56,7 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `CLEAR_MSIG_DEFAULT_GRPC_URL` (optional default `--grpc-url` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (optional default `--rpc-url` for execute)
 - `CLEAR_MSIG_PRO_STORE_PATH` (optional Pro schedules/audit JSON store; defaults to `/data/pro-store.json` on Render when `/data` exists)
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (production Redis REST store for notifications, agent state, and shared rate-limit paths)
 
 ## Core endpoints
 
@@ -98,6 +99,10 @@ CLI output; detailed diagnostics remain in protected structured logs.
 ## Deployment model
 
 - Deploy `clear-wallet` on Solana.
+- Use the current deploy source of truth in `docs/deploy-current.md`.
+- Backend production runs on Render from `render.yaml`.
+- Frontend production runs on Vercel from `frontend/vercel.json`.
+- Production Redis is Upstash Redis REST.
 - Run `clear-msig-backend-api` as your backend service.
 - Ensure `clear-msig` binary is available on the same host/container.
 - Frontend talks only to this service.

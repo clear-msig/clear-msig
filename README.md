@@ -98,7 +98,7 @@ cargo build -p clear-msig-cli       # CLI → target/debug/clear-msig
 ### Configure
 
 ```bash
-clear-msig config set --url https://api.devnet.solana.com
+clear-msig config set --url https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
 clear-msig config set --payer  ~/.config/solana/id.json
 clear-msig config set --signer ~/.config/solana/id.json
 clear-msig config set --expiry-seconds 600
@@ -145,7 +145,7 @@ clear-msig proposal approve --wallet "treasury" --proposal <P> --signer signer3.
 
 clear-msig proposal execute --wallet "treasury" --proposal <P> \
   --dwallet-program <DWALLET_PROGRAM_ID> \
-  --rpc-url https://api.devnet.solana.com --broadcast
+  --rpc-url https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH --broadcast
 ```
 
 ## Intent JSON
@@ -215,4 +215,5 @@ The full attack-surface walkthrough lives in [SECURITY.md](SECURITY.md). Read it
 - [Agent trading vault spec](docs/agent-trading-vault.md)
 - [Agent trading vault MVP plan](docs/agent-trading-vault-mvp-plan.md)
 - [Encrypt pre-alpha integration notes](docs/encrypt-prealpha-testing.md)
-- [Render migration notes](docs/render-migration.md)
+- [Current deploy runbook](docs/deploy-current.md)
+- [Render and Vercel deploy notes](docs/render-migration.md)

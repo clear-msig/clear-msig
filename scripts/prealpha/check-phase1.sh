@@ -6,7 +6,7 @@ BACKEND_ENV="$ROOT_DIR/backend-api/.env.pre-alpha"
 FRONTEND_ENV="$ROOT_DIR/frontend/.env.local"
 
 EXPECTED_GRPC="https://pre-alpha-dev-1.ika.ika-network.net:443"
-EXPECTED_SOLANA_RPC="https://api.devnet.solana.com"
+EXPECTED_SOLANA_RPC="https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH"
 EXPECTED_DWALLET_PROGRAM="87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY"
 
 if [[ ! -f "$BACKEND_ENV" ]]; then
