@@ -114,12 +114,24 @@ function isLikelyBitcoinTestnetAddress(addr: string): boolean {
 
 export type BitcoinNetwork = "mainnet" | "testnet" | "signet" | "regtest";
 
+const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY ?? null;
 const BITCOIN_MAINNET_RPC_URL =
-  process.env.NEXT_PUBLIC_BITCOIN_MAINNET_RPC_URL ?? null;
+  process.env.NEXT_PUBLIC_BITCOIN_MAINNET_RPC_URL ??
+  alchemyBitcoinRpcUrl("mainnet", ALCHEMY_API_KEY);
 const BITCOIN_TESTNET_RPC_URL =
-  process.env.NEXT_PUBLIC_BITCOIN_TESTNET_RPC_URL ?? null;
+  process.env.NEXT_PUBLIC_BITCOIN_TESTNET_RPC_URL ??
+  alchemyBitcoinRpcUrl("testnet", ALCHEMY_API_KEY);
 const BITCOIN_SIGNET_RPC_URL =
-  process.env.NEXT_PUBLIC_BITCOIN_SIGNET_RPC_URL ?? null;
+  process.env.NEXT_PUBLIC_BITCOIN_SIGNET_RPC_URL ??
+  alchemyBitcoinRpcUrl("signet", ALCHEMY_API_KEY);
+
+export function alchemyBitcoinRpcUrl(
+  network: BitcoinNetwork,
+  apiKey: string | null,
+): string | null {
+  if (!apiKey || network === "regtest") return null;
+  return `https://bitcoin-${network}.g.alchemy.com/v2/${apiKey}`;
+}
 
 /// Default network for v1. **testnet3**.
 ///

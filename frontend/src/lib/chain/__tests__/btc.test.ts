@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
+  alchemyBitcoinRpcUrl,
   decodeSegwitAddress,
   esploraBaseUrl,
   fetchBitcoinAddressSnapshot,
@@ -18,6 +19,17 @@ describe("Bitcoin provider boundaries", () => {
       "https://mempool.space/testnet/api",
     );
     expect(esploraBaseUrl("signet")).toBe("https://mempool.space/signet/api");
+  });
+
+  it("derives Bitcoin JSON-RPC endpoints from the shared Alchemy key", () => {
+    expect(alchemyBitcoinRpcUrl("testnet", "shared-key")).toBe(
+      "https://bitcoin-testnet.g.alchemy.com/v2/shared-key",
+    );
+    expect(alchemyBitcoinRpcUrl("signet", "shared-key")).toBe(
+      "https://bitcoin-signet.g.alchemy.com/v2/shared-key",
+    );
+    expect(alchemyBitcoinRpcUrl("regtest", "shared-key")).toBeNull();
+    expect(alchemyBitcoinRpcUrl("testnet", null)).toBeNull();
   });
 });
 
