@@ -109,6 +109,22 @@ pub(super) struct ExecuteTypedWalletPolicyUpdateRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedIntentGovernanceRequest {
+    /// ClearSign action kind: 3=add_member, 4=remove_member, 5=change_threshold.
+    pub(super) action_kind: u8,
+    pub(super) target_index: u8,
+    /// Preferred: pre-built intent body (no discriminator) as hex.
+    pub(super) new_intent_body_hex: Option<String>,
+    pub(super) file: Option<String>,
+    pub(super) proposers: Option<Vec<String>>,
+    pub(super) approvers: Option<Vec<String>>,
+    pub(super) threshold: Option<u8>,
+    pub(super) cancellation_threshold: Option<u8>,
+    pub(super) timelock: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedChainSendRequest {
     pub(super) chain_kind: u8,
     pub(super) amount_raw: String,

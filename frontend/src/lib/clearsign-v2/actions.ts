@@ -61,10 +61,24 @@ export interface BatchSendPayload {
 export interface MemberPayload {
   member: string;
   role: string;
+  /** Target Custom intent index being rewritten. */
+  targetIntentIndex: number;
+  /** Final proposer set after the change (base58). */
+  proposers: string[];
+  /** Final approver set after the change (base58). */
+  approvers: string[];
+  approvalThreshold: number;
+  cancellationThreshold: number;
+  timelockSeconds: number;
 }
 
 export interface ThresholdPayload {
   approvalsRequired: number;
+  targetIntentIndex: number;
+  proposers: string[];
+  approvers: string[];
+  cancellationThreshold: number;
+  timelockSeconds: number;
 }
 
 export interface ProtectionPayload {
@@ -470,11 +484,74 @@ function canonicalPayloadBytes(
       }
       break;
     }
+    case "add_member":
+    case "remove_member": {
+      const row = normalizePayload(kind, payload) as MemberPayload;
+      pushIntentGovernance(out, {
+        targetIntentIndex: row.targetIntentIndex,
+        approvalThreshold: row.approvalThreshold,
+        cancellationThreshold: row.cancellationThreshold,
+        timelockSeconds: row.timelockSeconds,
+        proposers: row.proposers,
+        approvers: row.approvers,
+      });
+      break;
+    }
+    case "change_threshold": {
+      const row = normalizePayload(kind, payload) as ThresholdPayload;
+      pushIntentGovernance(out, {
+        targetIntentIndex: row.targetIntentIndex,
+        approvalThreshold: row.approvalsRequired,
+        cancellationThreshold: row.cancellationThreshold,
+        timelockSeconds: row.timelockSeconds,
+        proposers: row.proposers,
+        approvers: row.approvers,
+      });
+      break;
+    }
     default:
       out.pushBytes(JSON.stringify(normalizePayload(kind, payload)));
       break;
   }
   return out.bytes();
+}
+
+function pushIntentGovernance(
+  out: ByteWriter,
+  input: {
+    targetIntentIndex: number;
+    approvalThreshold: number;
+    cancellationThreshold: number;
+    timelockSeconds: number;
+    proposers: string[];
+    approvers: string[];
+  },
+): void {
+  out.pushBytes("intent_governance");
+  out.pushU8(input.targetIntentIndex & 0xff);
+  out.pushU8(input.approvalThreshold & 0xff);
+  out.pushU8(input.cancellationThreshold & 0xff);
+  out.pushU32(input.timelockSeconds >>> 0);
+  const proposers = input.proposers.map(decodeSolanaPubkey);
+  const approvers = input.approvers.map(decodeSolanaPubkey);
+  out.pushU32(proposers.length);
+  proposers.forEach((pk) => out.pushRaw(pk));
+  out.pushU32(approvers.length);
+  approvers.forEach((pk) => out.pushRaw(pk));
+}
+
+function decodeSolanaPubkey(value: string): Uint8Array {
+  const text = normalizeText(value);
+  let bytes: Uint8Array;
+  try {
+    bytes = bs58.decode(text);
+  } catch {
+    throw new Error(`Invalid Solana pubkey in governance payload: ${text}`);
+  }
+  if (bytes.length !== 32) {
+    throw new Error(`Governance pubkey must decode to 32 bytes: ${text}`);
+  }
+  return bytes;
 }
 
 function normalizeRecipientAmount(row: RecipientAmount): RecipientAmount {

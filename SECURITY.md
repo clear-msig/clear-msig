@@ -221,14 +221,16 @@ What's solid today:
 - Validated `?next=` against open-redirect
 - **Ledger clear signing on the device.** The Solana app on the user's Ledger renders the offchain message body as text on the device screen via `signOffchainMessage`; the host is bypassed for the consent step.
 - **Client-side sign-payload rebuild + verify** for software wallet users (defends the same surface from the host side).
+- **`signLocalClearText`** for agent/local owner approvals — rejects opaque hex blobs; money/governance paths stay on `signDescriptor` / `signTypedDescriptor`
 - localStorage destination shown in sign preview
 - HMAC-signed contacts; tampered entries dropped on load
 - Same-origin guard + per-IP rate limit on every Next API route
+- **Rate limits on all typed execute routes** (including Ika chain-send) keyed by wallet name
 - Upstash-backed notification and agent state in production, plus shared rate limiting
-- One-click passkey enrollment for embedded-wallet users on /security
+- One-click passkey enrollment for embedded-wallet users on /security; soft passkey nudge after wallet create
 - SMTP body sanitization + tight invite limits
 - Replay protection via signed nonce in messages
-- ClearSign v2 typed proposal hashes/signatures for escrow approval records
+- ClearSign v2 typed proposal hashes/signatures for escrow, sends, wallet policy, and **intent governance** (members/threshold/timelock)
 - TSS-MPC keys via Dynamic (single-host compromise resistant)
 - Pre-alpha caveat on every "encrypted" / "private" chip
 - 0 critical npm vulns; high-severity remainders are transitive + non-reachable

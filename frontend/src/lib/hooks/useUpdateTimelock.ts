@@ -1,51 +1,30 @@
 "use client";
 
-// Update an existing intent's timelock_seconds. Mirrors
-// useUpdateMemberRole - propose UpdateIntent → approve → execute,
-// with a stale-proposal sweep so the program's
-// IntentHasActiveProposals check doesn't reject.
-//
-// Only the timelock field changes. proposers / approvers /
-// thresholds round-trip unchanged so this can't accidentally
-// loosen the wallet's approval policy. The CLI still re-validates
-// every field on chain via UpdateIntent so a malicious frontend
-// can't swap the others out from under the user.
+// Update an existing intent's timelock_seconds via ClearSign v2 typed
+// governance (change_threshold action with only timelock changed).
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { backendApi } from "@/lib/api/endpoints";
-import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
-import { completeGovernedProposal } from "@/lib/hooks/completeGovernedProposal";
+import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
 import {
   IntentType,
   ProposalStatus,
   type IntentAccount,
 } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
-import { u32LeBytes } from "@/lib/encoding/integers";
 
 interface UpdateArgs {
   walletName: string;
-  /// Index of the intent to update - see IntentAccount.intentIndex.
   intentIndex: number;
-  /// New timelock value in seconds. 0 = ship immediately on
-  /// approval; > 0 = additional wait before execute.
   newTimelockSeconds: number;
-  /// Path to the intent template file. Same shape the CLI used
-  /// when the intent was created (looked up from the on-chain
-  /// chainKind by the caller - see useUpdateTimelock callers in
-  /// the rules page for the mapping).
   templateFile: string;
 }
 
 /// Maps on-chain chainKind to the canonical template file path.
-/// UpdateIntent re-runs the encoder for the same template, so
-/// passing the wrong file would change params/accounts and break
-/// the wallet's existing intent. Keep this in sync with the setup
-/// pages.
 export function templateFileForChainKind(chainKind: number): string {
   switch (chainKind) {
     case 0:
@@ -67,7 +46,7 @@ export function templateFileForChainKind(chainKind: number): string {
 
 export function useUpdateTimelock() {
   const { connection } = useConnection();
-  const { signDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet();
   const wallet = useWallet();
   const queryClient = useQueryClient();
 
@@ -106,24 +85,19 @@ export function useUpdateTimelock() {
       const governanceIntent = intents.find(
         (it) => it.account !== null && it.account.intentIndex === 2,
       )?.account as IntentAccount | undefined;
-      const signerPk = governanceIntent
-        ? wallet.pickSigner(governanceIntent.approvers)
-        : wallet.pickSigner(intent.approvers);
+      const voteIntent = governanceIntent ?? intent;
+      const signerPk = wallet.pickSigner(voteIntent.approvers);
       if (!signerPk) {
         throw new Error(
           "None of your connected wallets can approve rule changes for this wallet.",
         );
       }
-      const me = signerPk.toBase58();
-      if (governanceIntent && !governanceIntent.proposers.includes(me)) {
+      if (!voteIntent.proposers.includes(signerPk.toBase58())) {
         throw new Error(
           "Your connected wallet can approve this wallet, but it cannot propose rule changes.",
         );
       }
 
-      // Drain stuck Approved proposals on this intent so the
-      // program's IntentHasActiveProposals check doesn't reject
-      // the propose step.
       const proposals = await listProposalsForWallet(
         connection,
         walletData.pda,
@@ -145,76 +119,28 @@ export function useUpdateTimelock() {
         }
       }
 
-      // Re-encrypt the policy fields. The proposer/approver/threshold
-      // values stay the same; only the timelock byte changes. We
-      // round-trip everything through encryptPolicyBatch so the
-      // ciphertext IDs come out fresh - Encrypt's spec says repeat
-      // calls produce distinct identifiers, and the CLI keys the
-      // policy_ciphertexts array off them.
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        {
-          plaintext: enc.encode(JSON.stringify(intent.proposers)),
-          fheType: "ebytes",
-        },
-        {
-          plaintext: enc.encode(JSON.stringify(intent.approvers)),
-          fheType: "ebytes",
-        },
-        {
-          plaintext: new Uint8Array([intent.approvalThreshold]),
-          fheType: "euint8",
-        },
-        {
-          plaintext: u32LeBytes(newTimelockSeconds),
-          fheType: "euint32",
-        },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
-
-      const dry = await backendApi.prepare.updateIntent(walletName, {
-        index: intent.intentIndex,
-        file: templateFile,
-        proposers: intent.proposers,
-        approvers: intent.approvers,
-        threshold: intent.approvalThreshold,
-        cancellation_threshold: intent.cancellationThreshold,
-        timelock: newTimelockSeconds,
-        policy_ciphertexts,
-      });
-
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      const submitted = await backendApi.submit.updateIntent(walletName, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        index: intent.intentIndex,
-        file: templateFile,
-      });
-
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error(
-          "Backend didn't return a proposal address from the propose step",
-        );
-      }
-
-      const completion = await completeGovernedProposal({
+      const result = await completeTypedGovernance({
         connection,
         walletName,
-        proposal,
-        approvers: governanceIntent?.approvers ?? intent.approvers,
-        approverPubkey: me,
-        approvalThreshold:
-          governanceIntent?.approvalThreshold ?? intent.approvalThreshold,
-        signerPk,
-        signDescriptor,
+        walletId: walletData.pda.toBase58(),
+        voteIntentIndex: voteIntent.intentIndex,
+        voteApprovers: voteIntent.approvers,
+        voteApprovalThreshold: voteIntent.approvalThreshold,
+        targetIntentIndex: intent.intentIndex,
+        proposers: intent.proposers,
+        approvers: intent.approvers,
+        approvalThreshold: intent.approvalThreshold,
+        cancellationThreshold: intent.cancellationThreshold,
+        timelockSeconds: newTimelockSeconds,
+        templateFile,
+        kind: "change_threshold",
+        proposerPk: signerPk,
+        signTypedDescriptor,
+        pickApprover: (approvers) => wallet.pickSigner(approvers),
       });
-      return completion === "executed"
-        ? ({ kind: "updated", proposal } as const)
-        : ({ kind: "awaiting_approvals", proposal } as const);
+      return result.kind === "executed"
+        ? ({ kind: "updated", proposal: result.proposal } as const)
+        : ({ kind: "awaiting_approvals", proposal: result.proposal } as const);
     },
     onSuccess: (_result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });

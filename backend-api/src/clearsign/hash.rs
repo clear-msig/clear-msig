@@ -125,25 +125,12 @@ pub(super) fn hash_payload(
                 update_u32(&mut hasher, leverage);
             }
         }
-        ClearSignActionKind::AddMember | ClearSignActionKind::RemoveMember => {
-            let member = payload_text(payload, "member")?;
-            let role = payload_text(payload, "role")?;
-            update_bytes(
-                &mut hasher,
-                format!(
-                    "{{\"member\":{},\"role\":{}}}",
-                    json_string(&member)?,
-                    json_string(&role)?
-                )
-                .as_bytes(),
-            );
-        }
-        ClearSignActionKind::ChangeThreshold => {
-            let approvals_required = payload_u32(payload, "approvalsRequired")?;
-            update_bytes(
-                &mut hasher,
-                format!("{{\"approvalsRequired\":{approvals_required}}}").as_bytes(),
-            );
+        ClearSignActionKind::AddMember
+        | ClearSignActionKind::RemoveMember
+        | ClearSignActionKind::ChangeThreshold => {
+            // Bind final intent governance state so the signed ClearSign
+            // text cannot diverge from the typed executor rewrite.
+            hash_intent_governance_fields(&mut hasher, payload)?;
         }
         ClearSignActionKind::SetProtection => {
             if let Some(policy_commitment) = payload.get("policyCommitment").and_then(Value::as_str)
@@ -298,6 +285,94 @@ pub(super) fn update_bytes(hasher: &mut Sha256, value: &[u8]) {
 
 pub(super) fn update_u32(hasher: &mut Sha256, value: u32) {
     hasher.update(value.to_le_bytes());
+}
+
+fn hash_intent_governance_fields(hasher: &mut Sha256, payload: &Value) -> Result<(), ApiError> {
+    update_bytes(hasher, b"intent_governance");
+    let target_index = payload_u32(payload, "targetIntentIndex")?;
+    if target_index > u8::MAX as u32 {
+        return Err(ApiError::BadRequest(
+            "payload.targetIntentIndex is out of range".into(),
+        ));
+    }
+    let approval = payload
+        .get("approvalThreshold")
+        .and_then(Value::as_u64)
+        .or_else(|| payload.get("approvalsRequired").and_then(Value::as_u64))
+        .ok_or_else(|| {
+            ApiError::BadRequest(
+                "payload.approvalThreshold (or approvalsRequired) is required".into(),
+            )
+        })?;
+    if approval == 0 || approval > u8::MAX as u64 {
+        return Err(ApiError::BadRequest(
+            "payload.approvalThreshold is out of range".into(),
+        ));
+    }
+    let cancellation = payload
+        .get("cancellationThreshold")
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    if cancellation == 0 || cancellation > u8::MAX as u64 {
+        return Err(ApiError::BadRequest(
+            "payload.cancellationThreshold is out of range".into(),
+        ));
+    }
+    let timelock = payload
+        .get("timelockSeconds")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    if timelock > u32::MAX as u64 {
+        return Err(ApiError::BadRequest(
+            "payload.timelockSeconds is out of range".into(),
+        ));
+    }
+    hasher.update([target_index as u8]);
+    hasher.update([approval as u8]);
+    hasher.update([cancellation as u8]);
+    hasher.update((timelock as u32).to_le_bytes());
+
+    let proposers = payload_pubkey_list(payload, "proposers")?;
+    let approvers = payload_pubkey_list(payload, "approvers")?;
+    update_u32(hasher, proposers.len() as u32);
+    for pk in &proposers {
+        hasher.update(pk);
+    }
+    update_u32(hasher, approvers.len() as u32);
+    for pk in &approvers {
+        hasher.update(pk);
+    }
+    Ok(())
+}
+
+fn payload_pubkey_list(payload: &Value, field: &str) -> Result<Vec<[u8; 32]>, ApiError> {
+    let rows = payload
+        .get(field)
+        .and_then(Value::as_array)
+        .ok_or_else(|| ApiError::BadRequest(format!("payload.{field} must be an array")))?;
+    if rows.is_empty() || rows.len() > 16 {
+        return Err(ApiError::BadRequest(format!(
+            "payload.{field} must contain 1..=16 base58 pubkeys"
+        )));
+    }
+    let mut out = Vec::with_capacity(rows.len());
+    for (idx, row) in rows.iter().enumerate() {
+        let text = row.as_str().ok_or_else(|| {
+            ApiError::BadRequest(format!("payload.{field}[{idx}] must be a string"))
+        })?;
+        let bytes = bs58::decode(text)
+            .into_vec()
+            .map_err(|_| ApiError::BadRequest(format!("payload.{field}[{idx}] must be base58")))?;
+        if bytes.len() != 32 {
+            return Err(ApiError::BadRequest(format!(
+                "payload.{field}[{idx}] must decode to 32 bytes"
+            )));
+        }
+        let mut pk = [0u8; 32];
+        pk.copy_from_slice(&bytes);
+        out.push(pk);
+    }
+    Ok(out)
 }
 
 fn finish_hash(hasher: Sha256) -> [u8; 32] {

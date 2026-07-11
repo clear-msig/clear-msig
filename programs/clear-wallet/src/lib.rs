@@ -382,6 +382,27 @@ pub mod clear_wallet {
         )
     }
 
+    /// Typed ClearSign executor for membership / threshold / timelock changes.
+    /// Rewrites the target intent body after verifying the governance payload hash.
+    #[instruction(discriminator = 27)]
+    pub fn execute_typed_intent_governance(
+        ctx: Ctx<ExecuteTypedIntentGovernance>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        action_kind: u8,
+        target_intent_index: u8,
+        new_intent_body: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_intent_governance(ExecuteTypedIntentGovernanceArgs {
+                policy_commitment,
+                envelope_hash,
+                action_kind,
+                target_intent_index,
+                new_intent_body,
+            })
+    }
+
     #[instruction(discriminator = 6)]
     pub fn bind_dwallet(
         ctx: Ctx<BindDwallet>,

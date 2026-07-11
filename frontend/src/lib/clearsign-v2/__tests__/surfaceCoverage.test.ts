@@ -19,6 +19,7 @@ describe("ClearSign surface coverage", () => {
       "hyperliquid-send",
       "erc20-send",
       "zec-send",
+      "wallet-policy",
       "members-policy",
       "agent-trade-approval",
       "agent-settings",
@@ -31,12 +32,15 @@ describe("ClearSign surface coverage", () => {
       "eth-send",
       "hyperliquid-send",
       "zec-send",
+      "erc20-send",
     ]) {
       expect(clearSignSurfaceById(id)?.status).toBe("typed_onchain");
     }
-    expect(clearSignSurfaceById("erc20-send")?.status).toBe(
-      "legacy_custom_pending_typed_executor",
-    );
+  });
+
+  it("marks membership and wallet policy as typed on-chain", () => {
+    expect(clearSignSurfaceById("wallet-policy")?.status).toBe("typed_onchain");
+    expect(clearSignSurfaceById("members-policy")?.status).toBe("typed_onchain");
   });
 
   it("keeps shipped SOL and escrow executors marked as typed on-chain", () => {

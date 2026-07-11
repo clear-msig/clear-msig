@@ -21,21 +21,25 @@ On-chain today:
   PDA per wallet. The state is bound to the active policy commitment, resets
   when the policy commitment changes, and rejects sends that would exceed the
   committed lamport cap inside the configured time window.
+- Typed remote sends (EVM / BTC / ZEC / ERC-20 / Hyperliquid) enforce the same
+  remote policy bytes + WalletPolicy commitment when present.
+- Typed intent governance binds final proposers / approvers / thresholds /
+  timelock for membership and rule changes.
+- Typed wallet policy updates persist per-chain policy commitments on a
+  WalletPolicy PDA.
 - Intent policy ciphertext references are stored with intents for future FHE
   evaluation.
 
 Client-side today:
 
-- Velocity and time-window rules outside typed SOL send.
-- Non-SOL recipient allow/block rules.
-- Non-SOL amount limits.
-- Non-SOL extra approver policy rules.
-- Non-SOL additional cooldown rules beyond the on-chain intent timelock.
+- Deny / UX policy evaluation before propose on send pages.
+- Extra approver signature orchestration loops before execute.
+- Cooldown waits before broadcast on some pages.
+- Agent risk limits, sessions, and automatic trading controls.
 
-The client-side rules protect the normal app path, but they are not a final
-security boundary. A signer who bypasses the frontend and submits through the
-CLI/backend can still avoid richer policy checks on surfaces that do not yet
-have typed policy executors/FHE policy handlers.
+The client-side rules protect the normal app path. Typed send and governance
+paths re-check commitments on-chain when policy bytes are present. Empty policy
++ unset WalletPolicy still means no rich caps. FHE evaluation is not live.
 
 ## App-Level Guardrails
 

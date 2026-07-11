@@ -29,7 +29,7 @@ export default function NewAgentSessionPage() {
   const search = useSearchParams();
   const toast = useToast();
   const encrypt = encryptStatus();
-  const { canSign, signBytes } = useSignWithWallet();
+  const { canSign, signLocalClearText } = useSignWithWallet();
   const name = useMemo(() => {
     const raw = params?.name ?? "";
     try {
@@ -157,7 +157,7 @@ export default function NewAgentSessionPage() {
       if (canSign) {
         const createdAt = Date.now();
         const message = ownerApprovalSignableText(approvalRequest, createdAt);
-        const signed = await signBytes(new TextEncoder().encode(message));
+        const signed = await signLocalClearText(message);
         const signedApproval = await createBrowserOwnerApproval({
           ...approvalRequest,
           now: createdAt,
@@ -202,7 +202,7 @@ export default function NewAgentSessionPage() {
     } finally {
       setSaving(false);
     }
-  }, [approvalRequest, canSign, encoded, name, router, signBytes, toast]);
+  }, [approvalRequest, canSign, encoded, name, router, signLocalClearText, toast]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

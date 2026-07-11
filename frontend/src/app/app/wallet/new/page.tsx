@@ -455,6 +455,12 @@ function NewWalletContent() {
             ? "The vault is ready. Choose a trader and set safety checks."
             : "Your wallet is ready. Open it to send your first request.",
       });
+      // Soft security nudge: email/Dynamic wallets are recover-by-email until
+      // a passkey is enrolled. Non-blocking — create already succeeded.
+      toast.info("Add a passkey when you can", {
+        details:
+          "Email sign-in alone is weaker than a passkey. Open Security to enroll one for this device.",
+      });
       router.push(
         postCreateHref(walletSlug, surface, purpose),
       );

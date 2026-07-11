@@ -5,8 +5,8 @@ use crate::{
 use super::types::{
     ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
-    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
-    ExecuteTypedWalletPolicyUpdateRequest,
+    ExecuteTypedIntentGovernanceRequest, ExecuteTypedSolBatchSendRequest,
+    ExecuteTypedSolSendRequest, ExecuteTypedWalletPolicyUpdateRequest,
 };
 
 pub(super) fn execute_typed_escrow_release_args(
@@ -89,6 +89,58 @@ pub(super) fn execute_typed_wallet_policy_update_args(
         body.policy_bytes_hex,
         "--chain-kind".into(),
         body.chain_kind.to_string(),
+    ]);
+    Ok(args)
+}
+
+pub(super) fn execute_typed_intent_governance_args(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedIntentGovernanceRequest,
+) -> Result<Vec<String>, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    if !matches!(body.action_kind, 3 | 4 | 5) {
+        return Err(ApiError::BadRequest(
+            "actionKind must be 3 (add_member), 4 (remove_member), or 5 (change_threshold)".into(),
+        ));
+    }
+    let mut args = base_proposal_args("typed-intent-governance", name, proposal);
+    args.extend([
+        "--action-kind".into(),
+        body.action_kind.to_string(),
+        "--target-index".into(),
+        body.target_index.to_string(),
+    ]);
+    if let Some(hex) = body.new_intent_body_hex {
+        ensure_optional_hex(&hex, "newIntentBodyHex")?;
+        args.extend(["--new-intent-body-hex".into(), hex]);
+        return Ok(args);
+    }
+    let file = body
+        .file
+        .ok_or_else(|| ApiError::BadRequest("newIntentBodyHex or file is required".into()))?;
+    let proposers = body.proposers.ok_or_else(|| {
+        ApiError::BadRequest("proposers is required when building from file".into())
+    })?;
+    let approvers = body.approvers.ok_or_else(|| {
+        ApiError::BadRequest("approvers is required when building from file".into())
+    })?;
+    let threshold = body.threshold.ok_or_else(|| {
+        ApiError::BadRequest("threshold is required when building from file".into())
+    })?;
+    args.extend([
+        "--file".into(),
+        file,
+        "--proposers".into(),
+        proposers.join(","),
+        "--approvers".into(),
+        approvers.join(","),
+        "--threshold".into(),
+        threshold.to_string(),
+        "--cancellation-threshold".into(),
+        body.cancellation_threshold.unwrap_or(1).to_string(),
+        "--timelock".into(),
+        body.timelock.unwrap_or(0).to_string(),
     ]);
     Ok(args)
 }
@@ -329,7 +381,8 @@ mod tests {
     use super::*;
     use crate::proposals::types::{
         ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
-        ExecuteTypedEscrowReturnRow, ExecuteTypedSolBatchSendRow,
+        ExecuteTypedEscrowReturnRow, ExecuteTypedIntentGovernanceRequest,
+        ExecuteTypedSolBatchSendRow,
     };
 
     const VALID_PUBKEY: &str = "11111111111111111111111111111111";
@@ -446,6 +499,67 @@ mod tests {
                 "--asset-id-hash",
                 VALID_HASH,
             ]
+        );
+    }
+
+    #[test]
+    fn typed_intent_governance_args_match_cli_shape() {
+        let args = execute_typed_intent_governance_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedIntentGovernanceRequest {
+                action_kind: 5,
+                target_index: 3,
+                new_intent_body_hex: Some("020304".into()),
+                file: None,
+                proposers: None,
+                approvers: None,
+                threshold: None,
+                cancellation_threshold: None,
+                timelock: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            args,
+            vec![
+                "proposal",
+                "typed-intent-governance",
+                "--wallet",
+                "team",
+                "--proposal",
+                VALID_PUBKEY,
+                "--action-kind",
+                "5",
+                "--target-index",
+                "3",
+                "--new-intent-body-hex",
+                "020304",
+            ]
+        );
+    }
+
+    #[test]
+    fn typed_intent_governance_rejects_unknown_action_kind() {
+        let error = bad_request_message(execute_typed_intent_governance_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedIntentGovernanceRequest {
+                action_kind: 9,
+                target_index: 3,
+                new_intent_body_hex: Some("020304".into()),
+                file: None,
+                proposers: None,
+                approvers: None,
+                threshold: None,
+                cancellation_threshold: None,
+                timelock: None,
+            },
+        ));
+        assert_eq!(
+            error,
+            "actionKind must be 3 (add_member), 4 (remove_member), or 5 (change_threshold)"
         );
     }
 

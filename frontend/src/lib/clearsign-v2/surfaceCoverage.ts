@@ -86,9 +86,9 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "erc20-send",
     label: "ERC-20 send",
-    status: "legacy_custom_pending_typed_executor",
-    signedPath: "legacy Custom proposal -> Ika broadcast",
-    notes: "Needs typed token-send payload and executor.",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
+    notes: "Same typed remote path as ETH; program verifies token contract, recipient, amount, and chain binding before Ika signing.",
   },
   {
     id: "zec-send",
@@ -98,11 +98,18 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
     notes: "The send UI uses typed proposal creation and approval; the program verifies the transparent recipient, asset, amount, chain binding, and tx template before Ika signing.",
   },
   {
+    id: "wallet-policy",
+    label: "Wallet policy (limits / protection)",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> execute_typed_wallet_policy_update",
+    notes: "SetProtection binds the WalletPolicy PDA commitment per chain.",
+  },
+  {
     id: "members-policy",
-    label: "Members, threshold, timelock, setup rules",
-    status: "legacy_custom_pending_typed_executor",
-    signedPath: "legacy intent update proposal",
-    notes: "ClearSign v2 has readable member/policy kinds, but state-changing typed executors are not wired yet.",
+    label: "Members, threshold, timelock",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> execute_typed_intent_governance",
+    notes: "Add/remove member and threshold/timelock rewrites bind the final proposers/approvers/thresholds on-chain.",
   },
   {
     id: "agent-trade-approval",

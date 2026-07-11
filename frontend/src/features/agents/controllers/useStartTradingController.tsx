@@ -19,7 +19,7 @@ export function useStartTradingController() {
   const params = useParams<{ name: string }>();
   const search = useSearchParams();
   const toast = useToast();
-  const { canSign, signBytes } = useSignWithWallet();
+  const { canSign, signLocalClearText } = useSignWithWallet();
   const [pending, startTransition] = useTransition();
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
   const display = toDisplayName(name);
@@ -281,11 +281,9 @@ export function useStartTradingController() {
       const createdAt = Date.now();
       const signed =
         (approvalMode ?? (canSign ? "wallet" : "browser")) === "wallet"
-          ? await signBytes(
-            new TextEncoder().encode(
+          ? await signLocalClearText(
               ownerApprovalSignableText(approvalRequest, createdAt),
-            ),
-          )
+            )
           : null;
       const approval = await createBrowserOwnerApproval({
         ...approvalRequest,
@@ -312,7 +310,7 @@ export function useStartTradingController() {
     } finally {
       setApprovalBusy(false);
     }
-  }, [approvalMode, approvalRequest, canSign, signBytes, toast]);
+  }, [approvalMode, approvalRequest, canSign, signLocalClearText, toast]);
   const acceptDisclosures = () => {
     acknowledgeAgentComplianceDisclosures({
       walletName: name,
@@ -378,8 +376,8 @@ export function useStartTradingController() {
         let approval: AgentOwnerApproval | null;
         toast.info("Approve automatic trading in your wallet");
         const createdAt = Date.now();
-        const signed = await signBytes(
-          new TextEncoder().encode(ownerApprovalSignableText(input, createdAt)),
+        const signed = await signLocalClearText(
+          ownerApprovalSignableText(input, createdAt),
         );
         approval = await createBrowserOwnerApproval({
           ...input,

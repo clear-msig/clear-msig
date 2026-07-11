@@ -4,6 +4,9 @@ ClearSign is only considered complete for a user action when the readable text,
 the signed bytes, the on-chain typed proposal, and the executor inputs all bind
 to the same payload.
 
+The executable source of truth is
+`frontend/src/lib/clearsign-v2/surfaceCoverage.ts`.
+
 ## Typed on-chain today
 
 - SOL send
@@ -13,21 +16,21 @@ to the same payload.
 - BTC / EVM / Ika escrow release / return
 - Encrypted/private escrow release / return
 - Typed proposal approve / cancel
+- BTC / ETH / Hyperliquid / Zcash / ERC-20 direct send (typed chain-send + Ika)
+- Wallet policy persistence (`set_protection` → WalletPolicy PDA)
+- Members, threshold, and timelock (`execute_typed_intent_governance`)
 
-## Legacy path, not yet SOL-level typed
+## Typed approval only / local
 
-- BTC direct send
-- ETH direct send
-- ERC-20 direct send
-- Hyperliquid direct send
-- Zcash direct send
-- Member, threshold, timelock, setup-rule changes
-- Agent settings / strategy / sessions
+- Agent trade approval finalizer exists on-chain; venue execution is still
+  off-chain / practice
+- Agent settings / strategy / sessions remain local policy only
 
-These legacy paths may still show human-readable signing text, but they are not
-yet the ClearSign v2 typed envelope plus typed executor standard. Do not market
-them as SOL-level ClearSign until their typed action kind, payload hash, program
-executor, backend route, frontend flow, and live E2E all exist.
+## Still blocked on external networks
 
-The executable source of truth is
-`frontend/src/lib/clearsign-v2/surfaceCoverage.ts`.
+- FHE-encrypted policy arithmetic (Encrypt mainnet + program `#[encrypt_fn]`)
+- Production distributed MPC for dWallets (Ika mainnet)
+
+Do not market agent automatic trading or encrypted policies as SOL-level
+ClearSign until their program executors and product flows match the typed
+standard end-to-end.

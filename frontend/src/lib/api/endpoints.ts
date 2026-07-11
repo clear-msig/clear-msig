@@ -294,6 +294,30 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedIntentGovernance: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      actionKind: number;
+      targetIndex: number;
+      newIntentBodyHex?: string;
+      file?: string;
+      proposers?: string[];
+      approvers?: string[];
+      threshold?: number;
+      cancellationThreshold?: number;
+      timelock?: number;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-intent-governance`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   executeTypedChainSend: (
     walletName: string,
     proposalAddress: string,
