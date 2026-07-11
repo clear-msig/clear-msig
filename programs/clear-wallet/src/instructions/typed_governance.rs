@@ -291,8 +291,7 @@ mod tests {
     #[test]
     fn committed_governance_payload_binds_target_and_full_body() {
         let body = [2u8, 0, 9, 8, 7];
-        let mut committed = vec![3u8];
-        committed.extend_from_slice(&body);
+        let committed = [3u8, 2, 0, 9, 8, 7];
 
         assert!(governance_payload_matches(&committed, 3, &body));
         assert!(!governance_payload_matches(&committed, 4, &body));
