@@ -111,7 +111,7 @@ import {
   BTC_SEND_FEE_RESERVE_SATS,
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
-  esploraBaseUrl,
+  bitcoinBroadcastUrl,
   bitcoinExplorerLabel,
   fetchBitcoinAddressSnapshot,
   formatSats,
@@ -663,7 +663,7 @@ function BitcoinSendPage() {
         // EVM destination RPC. We pass the network-specific Bitcoin
         // endpoint explicitly so the CLI's Bitcoin broadcast adapter
         // can choose Alchemy JSON-RPC or Esplora as appropriate.
-        rpcUrl: esploraBaseUrl(btcNetwork),
+        rpcUrl: bitcoinBroadcastUrl(btcNetwork),
       });
       const broadcast = (executed as { broadcast?: BroadcastResultLike })
         ?.broadcast;

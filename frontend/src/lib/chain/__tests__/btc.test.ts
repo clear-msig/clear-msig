@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   decodeSegwitAddress,
+  esploraBaseUrl,
   fetchBitcoinAddressSnapshot,
   formatSats,
   networkForHrp,
@@ -9,6 +10,16 @@ import {
   selectBitcoinSendUtxo,
   validateBtcDestination,
 } from "@/lib/chain/btc";
+
+describe("Bitcoin provider boundaries", () => {
+  it("never treats an Alchemy JSON-RPC endpoint as an Esplora indexer", () => {
+    expect(esploraBaseUrl("mainnet")).toBe("https://mempool.space/api");
+    expect(esploraBaseUrl("testnet")).toBe(
+      "https://mempool.space/testnet/api",
+    );
+    expect(esploraBaseUrl("signet")).toBe("https://mempool.space/signet/api");
+  });
+});
 
 describe("selectBitcoinSendUtxo", () => {
   const utxo = (value: number, suffix: string) => ({
