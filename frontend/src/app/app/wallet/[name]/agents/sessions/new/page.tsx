@@ -7,34 +7,16 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight, Clock, Lock, Play, Save } from "lucide-react";
 import { OwnerApprovalDialog } from "@/components/agents/OwnerApprovalDialog";
 import { useToast } from "@/components/ui/Toast";
-import {
-  boundAgentSessionToPolicy,
-  createBrowserOwnerApproval,
-  decryptAgentVaultPolicy,
-  agentAllocationLimits,
-  agentAllocationTierById,
-  agentSessionSetupIssue,
-  getAgentVaultPolicy,
-  isAgentSessionCurrent,
-  listAgents,
-  listAgentSessions,
-  newAgentSessionId,
-  ownerApprovalSignableText,
-  saveAgentOwnerApproval,
-  saveAgentSession,
-  syncAgentOwnerApproval,
-  syncAgentSession,
-  type AgentOwnerApprovalInput,
-  type AgentProfile,
-  type AgentSessionGrant,
-  type AgentVaultPolicy,
-  type TradingVenue,
-} from "@/lib/agents/client";
+import { agentAllocationLimits, agentAllocationTierById, type AgentOwnerApprovalInput, type AgentProfile, type AgentSessionGrant, agentSessionSetupIssue, type AgentVaultPolicy, boundAgentSessionToPolicy, createBrowserOwnerApproval, isAgentSessionCurrent, ownerApprovalSignableText, type TradingVenue } from "@/features/agents/domain/runtime";
+import { syncAgentOwnerApproval, syncAgentSession } from "@/features/agents/infrastructure/stateClient";
+import { getAgentVaultPolicy, listAgents, listAgentSessions, newAgentSessionId, saveAgentOwnerApproval, saveAgentSession } from "@/features/agents/infrastructure/agentStore";
+import { decryptAgentVaultPolicy } from "@/features/agents/infrastructure/vaultCrypto";
 import { encryptStatus } from "@/lib/encrypt/client";
-import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import { useSignWithWallet } from "@/features/agents/infrastructure/walletSigningClient";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { FormField, NativeSelect, TextInput } from "@/components/retail/FormField";
+import { useAgentTypedSessionGrant } from "@/lib/agents/useAgentTypedSessionGrant";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
   { value: "mock_perps", label: "Built-in practice" },
@@ -48,7 +30,7 @@ export default function NewAgentSessionPage() {
   const search = useSearchParams();
   const toast = useToast();
   const encrypt = encryptStatus();
-  const { canSign, signBytes } = useSignWithWallet();
+  const { canSign, signLocalClearText } = useSignWithWallet();
   const name = useMemo(() => {
     const raw = params?.name ?? "";
     try {
@@ -59,6 +41,7 @@ export default function NewAgentSessionPage() {
   }, [params?.name]);
   const display = toDisplayName(name);
   const encoded = encodeURIComponent(name);
+  const grantTypedSession = useAgentTypedSessionGrant(name);
   const requestedAgentId = search.get("agent")?.trim() ?? "";
   const requestedTier = agentAllocationTierById(search.get("allocationTier"));
   const requestedVenue = venueFromSearch(search.get("venue"));
@@ -86,10 +69,10 @@ export default function NewAgentSessionPage() {
   const activeAllowance =
     selectedAgent && policy
       ? sessions.find(
-          (session) =>
-            session.agentId === selectedAgent.id &&
-            isAgentSessionCurrent(session, policy),
-        )
+        (session) =>
+          session.agentId === selectedAgent.id &&
+          isAgentSessionCurrent(session, policy),
+      )
       : null;
   const activeAllowanceVenue =
     activeAllowance?.allowedVenues?.[0] ??
@@ -117,10 +100,10 @@ export default function NewAgentSessionPage() {
         requestedVenue
           ? [requestedVenue]
           : allocation?.allowedVenues.length
-          ? allocation.allowedVenues
-          : decrypted.allowedVenues.length
-            ? decrypted.allowedVenues
-            : ["mock_perps"],
+            ? allocation.allowedVenues
+            : decrypted.allowedVenues.length
+              ? decrypted.allowedVenues
+              : ["mock_perps"],
       );
       setAllowedMarkets(
         allocation?.allowedMarkets.length
@@ -131,13 +114,13 @@ export default function NewAgentSessionPage() {
       );
       setMaxNotionalUsd(
         requestedAmount ??
-          allocation?.maxNotionalUsd ??
-          decrypted.maxNotionalUsd ??
-          "250",
+        allocation?.maxNotionalUsd ??
+        decrypted.maxNotionalUsd ??
+        "250",
       );
       setMaxLeverage(
         requestedLeverage ??
-          String(allocation?.maxLeverage ?? decrypted.maxLeverage ?? 1),
+        String(allocation?.maxLeverage ?? decrypted.maxLeverage ?? 1),
       );
       setMaxOpenPositions(
         String(
@@ -176,7 +159,7 @@ export default function NewAgentSessionPage() {
       if (canSign) {
         const createdAt = Date.now();
         const message = ownerApprovalSignableText(approvalRequest, createdAt);
-        const signed = await signBytes(new TextEncoder().encode(message));
+        const signed = await signLocalClearText(message);
         const signedApproval = await createBrowserOwnerApproval({
           ...approvalRequest,
           now: createdAt,
@@ -199,10 +182,17 @@ export default function NewAgentSessionPage() {
           });
         }
       }
-      const saved = saveAgentSession(pending.grant);
+      const onchainGrant = await grantTypedSession(pending.grant, {
+        venue: pending.redirectVenue,
+        market: pending.grant.allowedMarkets?.[0] ?? "BTC-PERP",
+        status: "active",
+      });
+      const saved = saveAgentSession(onchainGrant);
       setSessions(listAgentSessions(name));
       const synced = await syncAgentSession(saved);
-      if (synced.ok) {
+      if (onchainGrant.onchain?.status !== "executed") {
+        toast.info("Practice budget is waiting for on-chain approval");
+      } else if (synced.ok) {
         toast.success("Practice budget is ready");
       } else {
         toast.info("Practice budget saved on this device for now", {
@@ -221,7 +211,16 @@ export default function NewAgentSessionPage() {
     } finally {
       setSaving(false);
     }
-  }, [approvalRequest, canSign, encoded, name, router, signBytes, toast]);
+  }, [
+    approvalRequest,
+    canSign,
+    encoded,
+    grantTypedSession,
+    name,
+    router,
+    signLocalClearText,
+    toast,
+  ]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -407,6 +406,7 @@ export default function NewAgentSessionPage() {
                 >
                   <input
                     type="checkbox"
+                    aria-label={venue.label}
                     checked={allowedVenues.includes(venue.value)}
                     onChange={(event) =>
                       setAllowedVenues((current) =>

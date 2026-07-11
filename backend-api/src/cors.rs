@@ -3,11 +3,17 @@ use std::env;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{error, info};
 
+use crate::runtime::is_production_runtime;
+
 pub(crate) fn build_cors_layer() -> CorsLayer {
     let raw = env::var("CLEAR_MSIG_ALLOWED_ORIGIN").ok();
     let trimmed = raw.as_deref().map(str::trim).unwrap_or("");
 
     if trimmed.is_empty() {
+        if is_production_runtime() {
+            error!("CORS: no production allow-list; browser origins are denied");
+            return CorsLayer::new();
+        }
         info!("CORS: permissive (dev mode - set CLEAR_MSIG_ALLOWED_ORIGIN in production)");
         return CorsLayer::permissive();
     }
@@ -26,6 +32,10 @@ pub(crate) fn build_cors_layer() -> CorsLayer {
         .collect();
 
     if origins.is_empty() {
+        if is_production_runtime() {
+            error!("CORS: production allow-list is invalid; browser origins are denied");
+            return CorsLayer::new();
+        }
         info!("CORS: permissive (no parsable origins in CLEAR_MSIG_ALLOWED_ORIGIN)");
         return CorsLayer::permissive();
     }

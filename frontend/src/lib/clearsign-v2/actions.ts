@@ -13,7 +13,8 @@ export type ClearSignActionKind =
   | "return_escrow_funds"
   | "agent_trade_approval"
   | "recovery_action"
-  | "swap_intent";
+  | "swap_intent"
+  | "agent_session_grant";
 
 export interface ClearSignEnvelope<TPayload extends ClearSignPayload> {
   version: 2;
@@ -36,6 +37,7 @@ export type ClearSignPayload =
   | MilestonePayload
   | EscrowReturnPayload
   | AgentTradePayload
+  | AgentSessionGrantPayload
   | RecoveryPayload
   | SwapPayload;
 
@@ -61,14 +63,30 @@ export interface BatchSendPayload {
 export interface MemberPayload {
   member: string;
   role: string;
+  /** Target Custom intent index being rewritten. */
+  targetIntentIndex: number;
+  /** Final proposer set after the change (base58). */
+  proposers: string[];
+  /** Final approver set after the change (base58). */
+  approvers: string[];
+  approvalThreshold: number;
+  cancellationThreshold: number;
+  timelockSeconds: number;
 }
 
 export interface ThresholdPayload {
   approvalsRequired: number;
+  targetIntentIndex: number;
+  proposers: string[];
+  approvers: string[];
+  cancellationThreshold: number;
+  timelockSeconds: number;
 }
 
 export interface ProtectionPayload {
   summary: string;
+  policyCommitment?: string;
+  chainKind?: number;
 }
 
 export interface MilestonePayload extends RecipientAmount {
@@ -85,6 +103,7 @@ export interface EscrowReturnPayload {
 }
 
 export interface AgentTradePayload {
+  agentId?: string;
   venue?: string;
   market: string;
   side: "long" | "short";
@@ -95,6 +114,17 @@ export interface AgentTradePayload {
   sessionId?: string;
   route?: string;
   riskCheckHash?: string;
+}
+
+export interface AgentSessionGrantPayload {
+  sessionId: string;
+  agentId: string;
+  venue: string;
+  market: string;
+  maxNotionalUsd: string;
+  maxLeverage: string;
+  expiresAt: number;
+  status: "active" | "revoked";
 }
 
 export interface RecoveryPayload {
@@ -228,6 +258,8 @@ export function clearSignActionKindCode(kind: ClearSignActionKind): number {
       return 10;
     case "swap_intent":
       return 11;
+    case "agent_session_grant":
+      return 12;
   }
 }
 
@@ -295,6 +327,14 @@ function actionLines(envelope: ClearSignEnvelope<ClearSignPayload>): string[] {
         payload.stopLossRequired ? "Stop loss required" : "Stop loss not required",
       ];
     }
+    case "agent_session_grant": {
+      const payload = envelope.payload as AgentSessionGrantPayload;
+      return [
+        `${payload.status === "revoked" ? "Revoke" : "Grant"} agent session for ${payload.agentId}`,
+        `${payload.market} on ${payload.venue} up to $${payload.maxNotionalUsd}`,
+        `Max leverage ${payload.maxLeverage}`,
+      ];
+    }
     case "recovery_action": {
       const payload = envelope.payload as RecoveryPayload;
       return [`Approve recovery for ${wallet}`, payload.recoveryAction];
@@ -342,7 +382,15 @@ function normalizePayload(
         ),
       };
     case "set_protection":
-      return { summary: normalizeText((payload as ProtectionPayload).summary) };
+      return {
+        summary: normalizeText((payload as ProtectionPayload).summary),
+        policyCommitment: normalizeOptional(
+          (payload as ProtectionPayload).policyCommitment,
+        ),
+        chainKind: normalizeOptionalNumber(
+          (payload as ProtectionPayload).chainKind,
+        ),
+      };
     case "release_milestone": {
       const row = payload as MilestonePayload;
       return {
@@ -364,6 +412,7 @@ function normalizePayload(
     case "agent_trade_approval": {
       const row = payload as AgentTradePayload;
       return {
+        agentId: normalizeText(row.agentId ?? ""),
         venue: normalizeText(row.venue ?? ""),
         market: normalizeText(row.market).toUpperCase(),
         side: row.side,
@@ -374,6 +423,19 @@ function normalizePayload(
         sessionId: normalizeText(row.sessionId ?? ""),
         route: normalizeText(row.route ?? ""),
         riskCheckHash: normalizeText(row.riskCheckHash ?? ""),
+      };
+    }
+    case "agent_session_grant": {
+      const row = payload as AgentSessionGrantPayload;
+      return {
+        sessionId: normalizeText(row.sessionId),
+        agentId: normalizeText(row.agentId),
+        venue: normalizeText(row.venue),
+        market: normalizeText(row.market).toUpperCase(),
+        maxNotionalUsd: normalizeDecimal(row.maxNotionalUsd),
+        maxLeverage: normalizeText(row.maxLeverage).toLowerCase(),
+        expiresAt: Math.trunc(row.expiresAt),
+        status: row.status,
       };
     }
     case "recovery_action":
@@ -429,6 +491,7 @@ function canonicalPayloadBytes(
     case "agent_trade_approval": {
       const row = normalizePayload(kind, payload) as AgentTradePayload;
       if (isAgentTradeApprovalV2(row)) {
+        out.pushBytes(textCommitment(row.agentId));
         out.pushBytes(textCommitment(row.venue));
         out.pushBytes(textCommitment(row.market));
         out.pushBytes(textCommitment(row.side));
@@ -449,11 +512,98 @@ function canonicalPayloadBytes(
       }
       break;
     }
+    case "agent_session_grant": {
+      const row = normalizePayload(kind, payload) as AgentSessionGrantPayload;
+      out.pushBytes("agent_session");
+      out.pushRaw(textCommitment(row.sessionId));
+      out.pushRaw(textCommitment(row.agentId));
+      out.pushRaw(textCommitment(row.venue));
+      out.pushRaw(textCommitment(row.market.toUpperCase()));
+      out.pushU128(decimalToRawAmount(row.maxNotionalUsd, "USD"));
+      out.pushU32(leverageToX100(row.maxLeverage));
+      out.pushI64(BigInt(Math.trunc(row.expiresAt)));
+      out.pushU8(row.status === "active" ? 1 : 2);
+      break;
+    }
+    case "set_protection": {
+      const row = normalizePayload(kind, payload) as ProtectionPayload;
+      if (row.policyCommitment) {
+        out.pushBytes("wallet_policy");
+        out.pushU8(normalizeChainKind(row.chainKind));
+        out.pushRaw(fromHex(normalizeHash(row.policyCommitment)));
+      } else {
+        out.pushBytes(JSON.stringify({ summary: row.summary }));
+      }
+      break;
+    }
+    case "add_member":
+    case "remove_member": {
+      const row = normalizePayload(kind, payload) as MemberPayload;
+      pushIntentGovernance(out, {
+        targetIntentIndex: row.targetIntentIndex,
+        approvalThreshold: row.approvalThreshold,
+        cancellationThreshold: row.cancellationThreshold,
+        timelockSeconds: row.timelockSeconds,
+        proposers: row.proposers,
+        approvers: row.approvers,
+      });
+      break;
+    }
+    case "change_threshold": {
+      const row = normalizePayload(kind, payload) as ThresholdPayload;
+      pushIntentGovernance(out, {
+        targetIntentIndex: row.targetIntentIndex,
+        approvalThreshold: row.approvalsRequired,
+        cancellationThreshold: row.cancellationThreshold,
+        timelockSeconds: row.timelockSeconds,
+        proposers: row.proposers,
+        approvers: row.approvers,
+      });
+      break;
+    }
     default:
       out.pushBytes(JSON.stringify(normalizePayload(kind, payload)));
       break;
   }
   return out.bytes();
+}
+
+function pushIntentGovernance(
+  out: ByteWriter,
+  input: {
+    targetIntentIndex: number;
+    approvalThreshold: number;
+    cancellationThreshold: number;
+    timelockSeconds: number;
+    proposers: string[];
+    approvers: string[];
+  },
+): void {
+  out.pushBytes("intent_governance");
+  out.pushU8(input.targetIntentIndex & 0xff);
+  out.pushU8(input.approvalThreshold & 0xff);
+  out.pushU8(input.cancellationThreshold & 0xff);
+  out.pushU32(input.timelockSeconds >>> 0);
+  const proposers = input.proposers.map(decodeSolanaPubkey);
+  const approvers = input.approvers.map(decodeSolanaPubkey);
+  out.pushU32(proposers.length);
+  proposers.forEach((pk) => out.pushRaw(pk));
+  out.pushU32(approvers.length);
+  approvers.forEach((pk) => out.pushRaw(pk));
+}
+
+function decodeSolanaPubkey(value: string): Uint8Array {
+  const text = normalizeText(value);
+  let bytes: Uint8Array;
+  try {
+    bytes = bs58.decode(text);
+  } catch {
+    throw new Error(`Invalid Solana pubkey in governance payload: ${text}`);
+  }
+  if (bytes.length !== 32) {
+    throw new Error(`Governance pubkey must decode to 32 bytes: ${text}`);
+  }
+  return bytes;
 }
 
 function normalizeRecipientAmount(row: RecipientAmount): RecipientAmount {
@@ -473,6 +623,7 @@ function normalizeMoney(row: MoneyAmount): MoneyAmount {
 }
 
 type AgentTradePayloadV2 = AgentTradePayload & {
+  agentId: string;
   venue: string;
   assetId: string;
   sessionId: string;
@@ -481,12 +632,19 @@ type AgentTradePayloadV2 = AgentTradePayload & {
 };
 
 function isAgentTradeApprovalV2(row: AgentTradePayload): row is AgentTradePayloadV2 {
-  const fields = [row.venue, row.assetId, row.sessionId, row.route, row.riskCheckHash];
+  const fields = [
+    row.agentId,
+    row.venue,
+    row.assetId,
+    row.sessionId,
+    row.route,
+    row.riskCheckHash,
+  ];
   const hasAny = fields.some((value) => normalizeText(value ?? "") !== "");
   const hasAll = fields.every((value) => normalizeText(value ?? "") !== "");
   if (hasAny && !hasAll) {
     throw new Error(
-      "Agent trade approval v2 requires venue, assetId, sessionId, route, and riskCheckHash.",
+      "Agent trade approval v2 requires agentId, venue, assetId, sessionId, route, and riskCheckHash.",
     );
   }
   return hasAll;
@@ -510,6 +668,18 @@ function normalizeHash(value: string): string {
 
 function normalizeNumber(value: number): number {
   return Number.isFinite(value) ? Number(value) : 0;
+}
+
+function normalizeOptionalNumber(value: number | undefined): number | undefined {
+  return value === undefined ? undefined : normalizeNumber(value);
+}
+
+function normalizeChainKind(value: number | undefined): number {
+  const chainKind = normalizeNumber(value ?? -1);
+  if (!Number.isInteger(chainKind) || chainKind < 0 || chainKind > 255) {
+    throw new Error("Protection chainKind must be a byte.");
+  }
+  return chainKind;
 }
 
 function textCommitment(value: string): Uint8Array {

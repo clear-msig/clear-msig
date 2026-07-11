@@ -2,14 +2,11 @@
 
 // /app/wallet/[name]/policy. Spending policy editor v1.
 //
-// Hosts the three NEW client-side guardrails (allowlist, time window,
-// per-friend caps via /allowances) and links to the existing per-
-// wallet weekly cap (/budget). The /send pre-flight check folds all
-// of these into a single yes/no via lib/retail/policyEvaluation.
-//
-// Same pre-alpha disclosure as /budget: enforcement is client-side
-// until the on-chain program ships FHE-aware policy slots. The
-// Encryption-ready chip is intentional honesty, not marketing.
+// Hosts the wallet guardrails: recipient allowlist, allowed-hours
+// window, per-friend caps via /allowances, and the per-wallet weekly
+// cap (/budget). Personal-wallet allowlist and hours can be synced
+// into the on-chain wallet-policy PDA so typed sends are rejected by
+// the program when they omit or violate the active policy.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -27,6 +24,7 @@ import {
   Check,
   Gauge,
   ListChecks,
+  Loader2,
   ShieldCheck,
   Slash,
   Trash2,
@@ -38,7 +36,7 @@ import {
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useContacts } from "@/lib/hooks/useContacts";
-import { isValidSolanaAddress, shortAddress } from "@/lib/retail/contacts";
+import { shortAddress } from "@/lib/retail/contacts";
 import {
   DAY_LABELS,
   getAllowlist,
@@ -55,6 +53,14 @@ import {
   templateFileForChainKind,
 } from "@/lib/hooks/useUpdateTimelock";
 import { useUpdateApprovalThreshold } from "@/lib/hooks/useUpdateApprovalThreshold";
+import { usePersistPersonalWalletPolicy } from "@/lib/hooks/usePersistWalletPolicy";
+import {
+  ALLOWLIST_CHAINS,
+  allowlistChain,
+  formatPolicySyncResult,
+  isValidAllowlistAddress,
+  normalizeAllowlistAddress,
+} from "@/features/policies/domain/personalPolicy";
 
 export default function PolicyPage() {
   const params = useParams<{ name: string }>();
@@ -365,13 +371,17 @@ function ThresholdCard({
 
   const apply = async () => {
     try {
-      await update.mutateAsync({
+      const result = await update.mutateAsync({
         walletName,
         intentIndex: intent.intentIndex,
         newThreshold: draft,
         templateFile: templateFileForChainKind(intent.chainKind),
       });
-      toast.success(`Approval quorum set to ${draft} of ${memberCount}`);
+      toast.success(
+        result.kind === "awaiting_approvals"
+          ? "Quorum change proposed and waiting for the remaining approvals"
+          : `Approval quorum set to ${draft} of ${memberCount}`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't change quorum");
     }
@@ -443,50 +453,89 @@ function ThresholdCard({
 function AllowlistCard({ walletName }: { walletName: string }) {
   const toast = useToast();
   const contacts = useContacts();
+  const persistPersonalPolicy = usePersistPersonalWalletPolicy();
   const [hydrated, setHydrated] = useState(false);
   const [draft, setDraft] = useState<Allowlist>({
     walletName,
+    chainKind: 0,
     mode: "off",
     addresses: [],
     updatedAt: 0,
   });
   const [pasteAddress, setPasteAddress] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     setDraft(getAllowlist(walletName));
     setHydrated(true);
+    setDirty(false);
   }, [walletName]);
 
-  const setMode = (mode: "off" | "on") => {
-    const next = { ...draft, mode };
+  const persistLocal = (next: Allowlist) => {
     setDraft(next);
     saveAllowlist({
       walletName: next.walletName,
+      chainKind: next.chainKind,
       mode: next.mode,
       addresses: next.addresses,
     });
+    setDirty(true);
+  };
+
+  const selectChain = (chainKind: number) => {
+    setDraft(getAllowlist(walletName, chainKind));
+  };
+
+  const syncOnChain = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const result = await persistPersonalPolicy(walletName);
+      setDirty(false);
+      toast.success("Recipient policy saved on chain", {
+        details: formatPolicySyncResult(result),
+      });
+    } catch (err) {
+      toast.error("Recipient policy saved locally, but not on chain", {
+        details:
+          err instanceof Error
+            ? err.message
+            : "The browser could not persist the allowlist on chain.",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const setMode = (mode: "off" | "on") => {
+    persistLocal({ ...draft, mode });
   };
 
   const addAddress = (address: string) => {
     const trimmed = address.trim();
     if (!trimmed) return;
-    if (!isValidSolanaAddress(trimmed)) {
-      toast.error("That doesn't look like a valid Solana address");
+    if (!isValidAllowlistAddress(draft.chainKind, trimmed)) {
+      toast.error(`That doesn't look like a valid ${allowlistChain(draft.chainKind).label} address`);
       return;
     }
-    if (draft.addresses.includes(trimmed)) {
+    const normalized = normalizeAllowlistAddress(draft.chainKind, trimmed);
+    if (draft.addresses.includes(normalized)) {
       toast.info("Already on the allowlist");
       return;
     }
-    const next = { ...draft, addresses: [...draft.addresses, trimmed] };
-    setDraft(next);
-    saveAllowlist({
-      walletName: next.walletName,
-      mode: next.mode,
-      addresses: next.addresses,
-    });
+    if (draft.addresses.length >= 16) {
+      toast.error("Allowlist is full", {
+        details: "Program-enforced recipient lists support up to 16 addresses.",
+      });
+      return;
+    }
+    const next = { ...draft, addresses: [...draft.addresses, normalized] };
+    persistLocal(next);
     setPasteAddress("");
-    toast.success("Added to allowlist");
+    toast.success("Added to allowlist", {
+      details: "Save on chain before relying on this recipient rule.",
+    });
   };
 
   const removeAddress = (address: string) => {
@@ -494,17 +543,13 @@ function AllowlistCard({ walletName }: { walletName: string }) {
       ...draft,
       addresses: draft.addresses.filter((a) => a !== address),
     };
-    setDraft(next);
-    saveAllowlist({
-      walletName: next.walletName,
-      mode: next.mode,
-      addresses: next.addresses,
-    });
+    persistLocal(next);
   };
 
-  const contactsNotOnList = contacts.contacts.filter(
-    (c) => !draft.addresses.includes(c.address),
-  );
+  const contactsNotOnList = draft.chainKind === 0
+    ? contacts.contacts.filter((c) => !draft.addresses.includes(c.address))
+    : [];
+  const selectedChain = allowlistChain(draft.chainKind);
 
   return (
     <section id="recipients" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
@@ -517,12 +562,26 @@ function AllowlistCard({ walletName }: { walletName: string }) {
             Allowlist
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-text-soft">
-            When on, the app warns and blocks local sends to addresses outside
-            this list before signing. On-chain enforcement arrives with the
-            encrypted policy path.
+            When on, typed {selectedChain.ticker} sends commit this list and the
+            program rejects every recipient outside it during execution.
           </p>
         </div>
       </header>
+
+      <label className="mt-5 block text-xs font-medium uppercase tracking-[0.16em] text-text-soft">
+        Network
+        <select
+          value={draft.chainKind}
+          onChange={(event) => selectChain(Number(event.target.value))}
+          className="mt-2 block w-full rounded-soft bg-canvas px-3 py-2 text-sm text-text-strong outline-none focus:ring-2 focus:ring-accent"
+        >
+          {ALLOWLIST_CHAINS.map((chain) => (
+            <option key={chain.chainKind} value={chain.chainKind}>
+              {chain.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="mt-5 inline-flex rounded-full bg-canvas p-1 text-xs font-medium">
         <ToggleButton active={draft.mode === "off"} onClick={() => setMode("off")}>
@@ -531,6 +590,28 @@ function AllowlistCard({ walletName }: { walletName: string }) {
         <ToggleButton active={draft.mode === "on"} onClick={() => setMode("on")}>
           On
         </ToggleButton>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button
+          variant={dirty ? "primary" : "secondary"}
+          size="sm"
+          onClick={syncOnChain}
+          disabled={!hydrated || syncing}
+        >
+          {syncing ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Saving on chain...
+            </>
+          ) : dirty ? (
+            "Save on chain"
+          ) : (
+            "On-chain sync"
+          )}
+        </Button>
+        <span className="text-xs text-text-soft">
+          {dirty ? "Local changes need approval." : "Ready to sync when needed."}
+        </span>
       </div>
 
       {hydrated && draft.mode === "on" && draft.addresses.length === 0 ? (
@@ -578,9 +659,10 @@ function AllowlistCard({ walletName }: { walletName: string }) {
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input
             type="text"
+            aria-label="Approver address"
             value={pasteAddress}
             onChange={(e) => setPasteAddress(e.target.value)}
-            placeholder="Solana address"
+            placeholder={`${selectedChain.label} address`}
             className={
               "min-w-0 flex-1 rounded-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong outline-none " +
               "transition-[border-color,box-shadow] duration-base ease-out-soft " +
@@ -648,6 +730,8 @@ function AllowlistCard({ walletName }: { walletName: string }) {
 // Time window card
 
 function TimeWindowCard({ walletName }: { walletName: string }) {
+  const toast = useToast();
+  const persistPersonalPolicy = usePersistPersonalWalletPolicy();
   const [hydrated, setHydrated] = useState(false);
   const [draft, setDraft] = useState<TimeWindow>({
     walletName,
@@ -657,10 +741,13 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
     updatedAt: 0,
   });
+  const [dirty, setDirty] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     setDraft(getTimeWindow(walletName));
     setHydrated(true);
+    setDirty(false);
   }, [walletName]);
 
   const persist = (next: TimeWindow) => {
@@ -672,6 +759,28 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
       endHour: next.endHour,
       daysOfWeek: next.daysOfWeek,
     });
+    setDirty(true);
+  };
+
+  const syncOnChain = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const result = await persistPersonalPolicy(walletName);
+      setDirty(false);
+      toast.success("Allowed-hours policy saved on chain", {
+        details: formatPolicySyncResult(result),
+      });
+    } catch (err) {
+      toast.error("Allowed hours saved locally, but not on chain", {
+        details:
+          err instanceof Error
+            ? err.message
+            : "The browser could not persist the allowed-hours rule on chain.",
+      });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const setEnabled = (enabled: boolean) => persist({ ...draft, enabled });
@@ -696,8 +805,8 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
             Allowed hours
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-text-soft">
-            Block sends outside business hours. Useful when you don&apos;t
-            want a midnight popup to ever land in your wallet.
+            The signed timezone and selected hours are checked against the
+            program clock before a typed send can execute.
           </p>
         </div>
       </header>
@@ -709,6 +818,28 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
         <ToggleButton active={draft.enabled} onClick={() => setEnabled(true)}>
           On
         </ToggleButton>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button
+          variant={dirty ? "primary" : "secondary"}
+          size="sm"
+          onClick={syncOnChain}
+          disabled={!hydrated || syncing}
+        >
+          {syncing ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Saving on chain...
+            </>
+          ) : dirty ? (
+            "Save on chain"
+          ) : (
+            "On-chain sync"
+          )}
+        </Button>
+        <span className="text-xs text-text-soft">
+          {dirty ? "Local changes need approval." : "Ready to sync when needed."}
+        </span>
       </div>
 
       {hydrated && draft.enabled ? (

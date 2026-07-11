@@ -148,6 +148,12 @@ export function useProposalWorkflow(walletName: string, selectedProposal: string
     mutationFn: async (input: ExecuteProposalInput) => {
       const proposal = await fetchProposal(connection, new PublicKey(selectedProposal));
       if (proposal?.typed) {
+        if ([3, 4, 5].includes(proposal.actionKind)) {
+          return backendApi.executeTypedIntentGovernance(
+            walletName,
+            selectedProposal,
+          );
+        }
         return backendApi.executeTypedProposal(walletName, selectedProposal);
       }
       return backendApi.executeProposal(walletName, selectedProposal, input);

@@ -44,43 +44,6 @@ const FEATURE_ICONS: LucideIcon[] = [
   Check,
 ];
 
-const PRIMARY_PRODUCT_IDS: ProductSurfaceId[] = [
-  "personal",
-  "pro",
-  "agent",
-  "secure",
-];
-
-export function ProductChooserPage() {
-  const primarySurfaces = PRIMARY_PRODUCT_IDS.map(productSurfaceById);
-
-  return (
-    <ProductShell cta={null}>
-      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-6xl flex-col justify-center px-5 pb-16 pt-10 sm:px-8 lg:px-10">
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
-            Choose what you need
-          </p>
-          <h1 className="landing-section-heading mt-5 text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
-            What are you here to do?
-          </h1>
-        </div>
-
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {primarySurfaces.map((surface) => (
-            <ProductIconLink key={surface.id} surface={surface} />
-          ))}
-        </div>
-
-        <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-relaxed text-white/48">
-          Everything else lives inside these flows. ClearSig stays simple first,
-          then reveals advanced controls only when they matter.
-        </p>
-      </section>
-    </ProductShell>
-  );
-}
-
 export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
   const surface = productSurfaceById(id);
   const Icon = ICONS[surface.id];
@@ -175,7 +138,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
 
 function ProductShell({
   children,
-  cta = { href: "/choose", label: "Choose product" },
+  cta = { href: "/app/wallet/new", label: "Create wallet" },
 }: {
   children: React.ReactNode;
   cta?: { href: string; label: string } | null;
@@ -195,42 +158,6 @@ function ProductShell({
         <span>Simple wallets. Readable receipts.</span>
       </footer>
     </main>
-  );
-}
-
-function ProductIconLink({ surface }: {
-  surface: ProductSurface;
-}) {
-  const Icon = ICONS[surface.id];
-  return (
-    <Link
-      href={surface.ctaHref}
-      onClick={() => rememberProductSurfaceChoice(surface.id)}
-      className={clsx(
-        "product-choice-card group flex min-h-[21rem] flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-white/[0.035] p-3 text-left shadow-[0_24px_90px_rgba(0,0,0,0.22)]",
-        "transition-[transform,border-color,background-color] duration-200 hover:-translate-y-1 hover:border-[#ccff00]/35 hover:bg-white/[0.055]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/60 focus-visible:ring-offset-4 focus-visible:ring-offset-[#0c0c0c]",
-      )}
-    >
-      <ProductPreview surfaceId={surface.id} />
-      <div className="mt-4 flex items-start gap-3 px-1">
-        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-white/[0.12] bg-white/[0.045] text-white transition-colors group-hover:border-[#ccff00]/45 group-hover:bg-[#ccff00]/10 group-hover:text-[#ccff00]">
-          <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={1.85} />
-        </span>
-        <span className="min-w-0">
-          <h2 className="text-lg font-semibold text-white">
-            {surface.shortName}
-          </h2>
-          <p className="mt-1 text-xs leading-snug text-white/50">
-            {surface.eyebrow}
-          </p>
-        </span>
-      </div>
-      <span className="mt-auto inline-flex items-center gap-1.5 px-1 pt-5 text-xs font-semibold text-[#ccff00]">
-        Choose
-        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-      </span>
-    </Link>
   );
 }
 

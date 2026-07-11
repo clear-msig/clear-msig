@@ -20,6 +20,7 @@ pub enum ClearSignActionKind {
     AgentTradeApproval = 9,
     RecoveryAction = 10,
     SwapIntent = 11,
+    AgentSessionGrant = 12,
 }
 
 impl ClearSignActionKind {
@@ -36,6 +37,7 @@ impl ClearSignActionKind {
             9 => Some(Self::AgentTradeApproval),
             10 => Some(Self::RecoveryAction),
             11 => Some(Self::SwapIntent),
+            12 => Some(Self::AgentSessionGrant),
             _ => None,
         }
     }
@@ -57,6 +59,7 @@ impl ClearSignActionKind {
             Self::AgentTradeApproval => "Approve agent trade",
             Self::RecoveryAction => "Approve recovery",
             Self::SwapIntent => "Approve swap",
+            Self::AgentSessionGrant => "Grant agent session",
         }
     }
 }
@@ -243,6 +246,46 @@ pub fn hash_policy_commitment(parts: &[&[u8]]) -> [u8; 32] {
 pub fn hash_send_payload(recipient: &[u8], amount: &ClearSignAmount<'_>) -> [u8; 32] {
     let mut hasher = payload_hasher(ClearSignActionKind::Send);
     update_recipient_amount(&mut hasher, recipient, amount);
+    finish_hash(hasher)
+}
+
+pub fn hash_wallet_policy_update_payload(
+    chain_kind: u8,
+    new_policy_commitment: &[u8; 32],
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::SetProtection);
+    update_bytes(&mut hasher, b"wallet_policy");
+    hasher.update([chain_kind]);
+    hasher.update(new_policy_commitment);
+    finish_hash(hasher)
+}
+
+/// Bind the final governance state of a target intent.
+/// Used for AddMember / RemoveMember / ChangeThreshold typed executors so
+/// the signed ClearSign text and the on-chain rewrite cannot diverge.
+pub fn hash_intent_governance_payload(
+    action_kind: ClearSignActionKind,
+    target_intent_index: u8,
+    approval_threshold: u8,
+    cancellation_threshold: u8,
+    timelock_seconds: u32,
+    proposers: &[[u8; 32]],
+    approvers: &[[u8; 32]],
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(action_kind);
+    update_bytes(&mut hasher, b"intent_governance");
+    hasher.update([target_intent_index]);
+    hasher.update([approval_threshold]);
+    hasher.update([cancellation_threshold]);
+    hasher.update(timelock_seconds.to_le_bytes());
+    update_u32(&mut hasher, proposers.len() as u32);
+    for pk in proposers {
+        hasher.update(pk);
+    }
+    update_u32(&mut hasher, approvers.len() as u32);
+    for pk in approvers {
+        hasher.update(pk);
+    }
     finish_hash(hasher)
 }
 
@@ -465,8 +508,33 @@ pub fn hash_agent_trade_payload(
     finish_hash(hasher)
 }
 
+/// Bound agent session grant: session id, agent, venue/market, notional, leverage, expiry.
+pub fn hash_agent_session_grant_payload(
+    session_id_hash: &[u8; 32],
+    agent_id_hash: &[u8; 32],
+    venue_hash: &[u8; 32],
+    market_hash: &[u8; 32],
+    max_notional_raw: u128,
+    max_leverage_x100: u32,
+    expires_at: i64,
+    status: u8,
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::AgentSessionGrant);
+    update_bytes(&mut hasher, b"agent_session");
+    hasher.update(session_id_hash);
+    hasher.update(agent_id_hash);
+    hasher.update(venue_hash);
+    hasher.update(market_hash);
+    hasher.update(max_notional_raw.to_le_bytes());
+    update_u32(&mut hasher, max_leverage_x100);
+    update_i64(&mut hasher, expires_at);
+    hasher.update([status]);
+    finish_hash(hasher)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn hash_agent_trade_approval_payload(
+    agent_id_hash: &[u8],
     venue_hash: &[u8],
     market_hash: &[u8],
     side_hash: &[u8],
@@ -477,6 +545,7 @@ pub fn hash_agent_trade_approval_payload(
     risk_check_hash: &[u8],
 ) -> [u8; 32] {
     let mut hasher = payload_hasher(ClearSignActionKind::AgentTradeApproval);
+    update_bytes(&mut hasher, agent_id_hash);
     update_bytes(&mut hasher, venue_hash);
     update_bytes(&mut hasher, market_hash);
     update_bytes(&mut hasher, side_hash);
@@ -610,6 +679,51 @@ mod tests {
             Some(ClearSignActionKind::AgentTradeApproval)
         );
         assert_eq!(ClearSignActionKind::from_code(99), None);
+    }
+
+    #[test]
+    fn intent_governance_payload_binds_final_membership() {
+        let alice = [1u8; 32];
+        let bob = [2u8; 32];
+        let h1 = hash_intent_governance_payload(
+            ClearSignActionKind::AddMember,
+            3,
+            2,
+            1,
+            0,
+            &[alice, bob],
+            &[alice, bob],
+        );
+        let h2 = hash_intent_governance_payload(
+            ClearSignActionKind::AddMember,
+            3,
+            2,
+            1,
+            0,
+            &[alice, bob],
+            &[alice, bob],
+        );
+        let h3 = hash_intent_governance_payload(
+            ClearSignActionKind::RemoveMember,
+            3,
+            2,
+            1,
+            0,
+            &[alice, bob],
+            &[alice, bob],
+        );
+        let h4 = hash_intent_governance_payload(
+            ClearSignActionKind::AddMember,
+            3,
+            1,
+            1,
+            0,
+            &[alice, bob],
+            &[alice, bob],
+        );
+        assert_eq!(h1, h2);
+        assert_ne!(h1, h3);
+        assert_ne!(h1, h4);
     }
 
     #[test]

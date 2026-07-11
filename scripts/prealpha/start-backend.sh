@@ -20,6 +20,6 @@ if [[ ! -f "$CLEAR_MSIG_SIGNER" ]]; then
   exit 1
 fi
 
-echo "Using CLEAR_MSIG_URL=${CLEAR_MSIG_URL:-https://api.devnet.solana.com}"
+echo "Using CLEAR_MSIG_URL=${CLEAR_MSIG_URL:-https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH}"
 cd "$ROOT_DIR"
 cargo run -p clear-msig-backend-api

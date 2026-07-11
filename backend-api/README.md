@@ -47,6 +47,7 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `BACKEND_API_BIND` (default `127.0.0.1:8080`)
 - `CLEAR_MSIG_WORKSPACE` (default current directory)
 - `CLEAR_MSIG_BIN` (default `<workspace>/target/debug/clear-msig`)
+- `CLEAR_MSIG_ENV` (`production` enables fail-closed CORS and redacted internal errors)
 - `CLEAR_MSIG_URL` (optional global `--url`)
 - `CLEAR_MSIG_KEYPAIR` (optional global `--keypair`)
 - `CLEAR_MSIG_SIGNER` (optional global `--signer`)
@@ -55,6 +56,7 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `CLEAR_MSIG_DEFAULT_GRPC_URL` (optional default `--grpc-url` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (optional default `--rpc-url` for execute)
 - `CLEAR_MSIG_PRO_STORE_PATH` (optional Pro schedules/audit JSON store; defaults to `/data/pro-store.json` on Render when `/data` exists)
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (production Redis REST store for notifications, agent state, and shared rate-limit paths)
 
 ## Core endpoints
 
@@ -90,11 +92,17 @@ All failures return JSON with:
 - `error` (human readable)
 - `kind` (`bad_request`, `command_failed`, `timeout`, `invalid_output`, `internal`)
 
-For command failures, response includes CLI `stderr`, `stdout`, and exit `code`.
+Development command failures include CLI `stderr`, `stdout`, and exit `code`.
+Production responses retain the stable error kind and exit code but redact raw
+CLI output; detailed diagnostics remain in protected structured logs.
 
 ## Deployment model
 
 - Deploy `clear-wallet` on Solana.
+- Use the current deploy source of truth in `docs/deploy-current.md`.
+- Backend production runs on Render from `render.yaml`.
+- Frontend production runs on Vercel from `frontend/vercel.json`.
+- Production Redis is Upstash Redis REST.
 - Run `clear-msig-backend-api` as your backend service.
 - Ensure `clear-msig` binary is available on the same host/container.
 - Frontend talks only to this service.

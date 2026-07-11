@@ -277,6 +277,47 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedWalletPolicyUpdate: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      policyBytesHex: string;
+      chainKind: number;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-wallet-policy-update`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedIntentGovernance: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      actionKind: number;
+      targetIndex: number;
+      newIntentBodyHex?: string;
+      file?: string;
+      proposers?: string[];
+      approvers?: string[];
+      threshold?: number;
+      cancellationThreshold?: number;
+      timelock?: number;
+    } | Record<string, never> = {},
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-intent-governance`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   executeTypedChainSend: (
     walletName: string,
     proposalAddress: string,
@@ -322,6 +363,7 @@ export const backendApi = {
     proposalAddress: string,
     input: {
       amountRaw: string;
+      agentIdHash: string;
       venueHash: string;
       marketHash: string;
       sideHash: string;
@@ -335,6 +377,29 @@ export const backendApi = {
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-trade-approval`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedAgentSessionGrant: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      sessionIdHash: string;
+      agentIdHash: string;
+      venueHash: string;
+      marketHash: string;
+      maxNotionalRaw: string;
+      maxLeverageX100: number;
+      expiresAt: number;
+      status: 1 | 2;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-session-grant`,
         "POST",
         input,
         { timeoutMs: 55_000 },

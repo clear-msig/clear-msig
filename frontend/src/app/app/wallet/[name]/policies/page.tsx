@@ -26,9 +26,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { encryptStatus } from "@/lib/encrypt/client";
+import { useToast } from "@/components/ui/Toast";
+import { usePersistPersonalWalletPolicy } from "@/lib/hooks/usePersistWalletPolicy";
 import {
   listPolicies,
   removePolicy,
+  savePolicy,
   subscribePolicies,
 } from "@/lib/policies/storage";
 import type { PolicyRule, RuleCondition } from "@/lib/policies/types";
@@ -37,6 +40,8 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 export default function PoliciesPage() {
   const params = useParams<{ name: string }>();
   const reduce = useReducedMotion();
+  const toast = useToast();
+  const persistPolicy = usePersistPersonalWalletPolicy();
   const name = useMemo(() => {
     try {
       return decodeURIComponent(params?.name ?? "");
@@ -61,6 +66,16 @@ export default function PoliciesPage() {
     rules.length === 0
       ? "Add extra checks only when the basic protection is not enough."
       : `${rules.length} ${rules.length === 1 ? "rule" : "rules"} active on ${toDisplayName(name)}.`;
+
+  const deleteRule = async (rule: PolicyRule) => {
+    removePolicy(name, rule.id);
+    try {
+      await persistPolicy(name);
+    } catch (error) {
+      savePolicy(rule);
+      toast.error(error instanceof Error ? error.message : "Couldn't delete check");
+    }
+  };
 
   return (
     <motion.div
@@ -146,7 +161,12 @@ export default function PoliciesPage() {
       ) : (
         <ul className="flex flex-col gap-3">
           {rules.map((rule) => (
-            <PolicyCard key={rule.id} rule={rule} walletName={name} />
+            <PolicyCard
+              key={rule.id}
+              rule={rule}
+              walletName={name}
+              onDelete={deleteRule}
+            />
           ))}
         </ul>
       )}
@@ -157,9 +177,11 @@ export default function PoliciesPage() {
 function PolicyCard({
   rule,
   walletName,
+  onDelete,
 }: {
   rule: PolicyRule;
   walletName: string;
+  onDelete: (rule: PolicyRule) => Promise<void>;
 }) {
   const summaries = rule.conditions.map(summariseCondition);
   return (
@@ -227,7 +249,7 @@ function PolicyCard({
             type="button"
             onClick={() => {
               if (confirm(`Delete the "${rule.name}" rule?`)) {
-                removePolicy(walletName, rule.id);
+                void onDelete(rule);
               }
             }}
             aria-label={`Delete ${rule.name}`}

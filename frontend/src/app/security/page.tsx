@@ -10,6 +10,7 @@
 
 import Link from "next/link";
 import nextDynamic from "next/dynamic";
+import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
@@ -29,9 +30,8 @@ import {
 // PasskeyCard + LedgerCard are the only pieces on this page that need
 // Dynamic Labs + the LedgerProvider context. Hosting them in a
 // separately-imported "use client" module + loading via next/dynamic
-// keeps the Dynamic SDK out of /security's initial chunk. Marketing
-// copy + watchlist + pre-alpha disclosure render immediately; the
-// interactive cards hydrate moments later when the lazy chunk lands.
+// keeps the Dynamic SDK out of /security's initial chunk. The module
+// is rendered only after the user requests account-protection setup.
 const InteractiveSecurityCards = nextDynamic(
   () => import("@/components/security/InteractiveSecurityCards"),
   { ssr: false, loading: () => null },
@@ -39,6 +39,7 @@ const InteractiveSecurityCards = nextDynamic(
 
 export default function SecurityPage() {
   const reduce = useReducedMotion();
+  const [securityControlsRequested, setSecurityControlsRequested] = useState(false);
   const fadeIn = (delay = 0) =>
     reduce
       ? {}
@@ -125,7 +126,18 @@ export default function SecurityPage() {
           <p className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/50">
             Harden your account
           </p>
-          <InteractiveSecurityCards />
+          {securityControlsRequested ? (
+            <InteractiveSecurityCards />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSecurityControlsRequested(true)}
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#ccff00]/30 bg-[#ccff00]/10 px-4 py-2.5 text-sm font-semibold text-[#ccff00] transition-colors hover:border-[#ccff00]/55 hover:bg-[#ccff00]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c]"
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              Set up account protection
+            </button>
+          )}
         </motion.section>
 
         {/* ─── Pre-alpha disclosure ───────────────────────── */}

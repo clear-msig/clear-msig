@@ -25,6 +25,11 @@ import {
   type BatchSendPayload,
   type ClearSignEnvelope,
 } from "@/lib/clearsign-v2";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
+import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 
 export interface BatchSendRow {
   /// Recipient label (contact name or shortened address) for status UI.
@@ -129,14 +134,22 @@ export function useBatchSend() {
         const actionId = randomActionLabel("sol-batch");
         const nonce = randomActionLabel("nonce");
         const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-        const policyCommitment = policyCommitmentHex([
-          `wallet:${walletData.pda.toBase58()}`,
-          `intent:${intentIndex}`,
-          `threshold:${intentRow.account.approvalThreshold}`,
-          `proposers:${intentRow.account.proposers.join(",")}`,
-          `approvers:${intentRow.account.approvers.join(",")}`,
-          `rows:${rows.length}`,
-        ]);
+        const onchainPolicy = await resolveBatchOnchainPolicy(
+          connection,
+          walletData.pda,
+          walletName,
+          rows,
+        );
+        const policyCommitment =
+          onchainPolicy?.commitmentHex ??
+          policyCommitmentHex([
+            `wallet:${walletData.pda.toBase58()}`,
+            `intent:${intentIndex}`,
+            `threshold:${intentRow.account.approvalThreshold}`,
+            `proposers:${intentRow.account.proposers.join(",")}`,
+            `approvers:${intentRow.account.approvers.join(",")}`,
+            `rows:${rows.length}`,
+          ]);
         const envelope: ClearSignEnvelope<BatchSendPayload> = {
           version: 2,
           kind: "batch_send",
@@ -166,6 +179,7 @@ export function useBatchSend() {
           envelope_hash: summary.envelopeHash,
           action_id: envelope.actionId,
           nonce: envelope.nonce,
+          policyBytesHex: onchainPolicy?.hex,
           signable_text: summary.signableText,
           expiry: formatUnixSigningExpiry(envelope.expiresAt),
           actor_pubkey: proposerPk.toBase58(),
@@ -195,6 +209,7 @@ export function useBatchSend() {
           envelope_hash: dry.envelope_hash_hex,
           action_id: dry.action_id,
           nonce: dry.nonce,
+          policyBytesHex: onchainPolicy?.hex,
         });
         const proposalPda =
           typeof submitted?.proposal === "string" ? submitted.proposal : undefined;
@@ -300,6 +315,28 @@ export function useBatchSend() {
   }, []);
 
   return { sendBatch, progress, cancel, reset };
+}
+
+async function resolveBatchOnchainPolicy(
+  connection: Connection,
+  wallet: PublicKey,
+  walletName: string,
+  rows: BatchSendRow[],
+) {
+  await Promise.all(
+    rows.map(async (row) => {
+      const plan = await resolvePolicyEnforcement(walletName, {
+        walletName,
+        chainKind: 0,
+        recipient: row.destination,
+        ticker: "SOL",
+        amountDisplay: lamportsToSol(row.lamports),
+      });
+      assertPolicyNotDenied(plan, "batch send");
+      return plan;
+    }),
+  );
+  return resolvePersistentSendPolicy(connection, wallet, walletName, 0);
 }
 
 function generateNonceHex(): string {

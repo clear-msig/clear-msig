@@ -15,12 +15,16 @@ const USD_DECIMALS = 6;
 
 export function buildAgentTradeClearSignV2(
   proposal: AgentTradeProposal,
-  options: { walletId?: string } = {},
+  options: { walletId?: string; sessionId?: string } = {},
 ): AgentTradeClearSignV2Snapshot {
   const market = proposal.market.trim().toUpperCase();
   const venue = proposal.venue;
   const assetId = `USDC:${venue}`;
-  const sessionId = proposal.clientSignalId?.trim() || proposal.id;
+  const sessionId =
+    options.sessionId?.trim() ||
+    proposal.sessionId?.trim() ||
+    proposal.clientSignalId?.trim() ||
+    proposal.id;
   const route = `${venue}:${proposal.orderType}`;
   const riskCheckHash = hashStable({
     confidence: proposal.confidence,
@@ -36,6 +40,7 @@ export function buildAgentTradeClearSignV2(
     takeProfitPrice: proposal.takeProfitPrice ?? null,
   });
   const payload: AgentTradePayload = {
+    agentId: proposal.agentId,
     venue,
     market,
     side: proposal.side,
@@ -71,6 +76,7 @@ export function buildAgentTradeClearSignV2(
     signableText: summary.signableText,
     onchainProposal: proposal.clearSignV2?.onchainProposal,
     payload: {
+      agentId: proposal.agentId,
       venue,
       market,
       side: proposal.side,
@@ -84,6 +90,7 @@ export function buildAgentTradeClearSignV2(
     },
     executor: {
       amountRaw: decimalToRawAmount(proposal.notionalUsd, USD_DECIMALS),
+      agentIdHash: hashText(proposal.agentId),
       venueHash: hashText(venue),
       marketHash: hashText(market),
       sideHash: hashText(proposal.side),

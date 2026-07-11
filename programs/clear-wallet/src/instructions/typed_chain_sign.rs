@@ -3,7 +3,8 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     chains::{
-        dispatch_metadata_digest, dispatch_sighash, read_bytes20, read_param, read_u64, ChainKind,
+        dispatch_metadata_digest, dispatch_sighash, read_bytes20, read_param, read_u128, read_u64,
+        ChainKind,
     },
     error::WalletError,
     instructions::{
@@ -14,6 +15,7 @@ use crate::{
         dwallet_ownership::{DwalletOwnership, DWALLET_OWNERSHIP_SEED},
         ika_config::IkaConfig,
         intent::Intent,
+        member_allowance::MemberAllowanceLedger,
         policy_spend::PolicySpendState,
         proposal::ProposalStatus,
         typed_proposal::TypedProposal,
@@ -22,7 +24,7 @@ use crate::{
     utils::{
         clearsign::{hash_send_payload, ClearSignActionKind, ClearSignAmount},
         ika_cpi::{DWalletContext, CPI_AUTHORITY_SEED},
-        policy::enforce_typed_remote_send_policy,
+        policy::{enforce_typed_remote_send_policy, enforce_wallet_policy_account},
     },
 };
 
@@ -31,13 +33,23 @@ pub struct IkaSignTypedChainSend<'info> {
     #[account(mut)]
     pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[account(mut)]
+    pub wallet_policy: &'info mut UncheckedAccount,
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = PolicySpendState::seeds(wallet),
+        seeds = PolicySpendState::seeds(wallet, intent),
         bump,
     )]
     pub policy_spend: &'info mut Account<PolicySpendState>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = MemberAllowanceLedger::seeds(wallet, intent),
+        bump,
+    )]
+    pub member_allowance: &'info mut Account<MemberAllowanceLedger>,
     #[account(
         mut,
         has_one = wallet,
@@ -145,6 +157,7 @@ impl<'info> IkaSignTypedChainSend<'info> {
             kind,
             amount_raw,
             &args.recipient_hash,
+            &args.asset_id_hash,
         )?;
 
         let amount = ClearSignAmount {
@@ -160,6 +173,13 @@ impl<'info> IkaSignTypedChainSend<'info> {
             payload_hash,
             args.envelope_hash,
         )?;
+        enforce_wallet_policy_account(
+            self.wallet.address(),
+            self.wallet_policy,
+            args.chain_kind,
+            args.policy_commitment,
+            self.proposal.policy_bytes().as_ref(),
+        )?;
         enforce_typed_remote_send_policy(
             self.proposal.policy_bytes().as_ref(),
             args.policy_commitment,
@@ -169,6 +189,8 @@ impl<'info> IkaSignTypedChainSend<'info> {
             &self.proposal,
             &mut self.policy_spend,
             bumps.policy_spend,
+            &mut self.member_allowance,
+            bumps.member_allowance,
         )?;
 
         approve_ika_message(
@@ -251,6 +273,7 @@ fn verify_native_send_params(
     kind: ChainKind,
     amount_raw: u128,
     recipient_hash: &[u8; 32],
+    asset_id_hash: &[u8; 32],
 ) -> Result<(), ProgramError> {
     match kind {
         ChainKind::Evm1559 | ChainKind::HyperliquidEvm => {
@@ -272,8 +295,89 @@ fn verify_native_send_params(
             );
             Ok(())
         }
+        ChainKind::Evm1559Erc20 => {
+            let token_contract = read_bytes20(intent, params_data, 1)?;
+            let recipient = read_bytes20(intent, params_data, 2)?;
+            verify_erc20_send_commitments(
+                amount_raw,
+                read_u128(intent, params_data, 3)?,
+                recipient_hash,
+                &recipient,
+                asset_id_hash,
+                &token_contract,
+            )
+        }
+        ChainKind::BitcoinP2wpkh => {
+            let params_amount = read_u64(intent, params_data, 5)?;
+            let recipient_pkh = read_bytes20(intent, params_data, 4)?;
+            verify_pkh_send_commitments(
+                kind,
+                amount_raw,
+                params_amount,
+                recipient_hash,
+                &recipient_pkh,
+            )
+        }
+        ChainKind::ZcashTransparent => {
+            let params_amount = read_u64(intent, params_data, 5)?;
+            let recipient_pkh = read_bytes20(intent, params_data, 4)?;
+            verify_pkh_send_commitments(
+                kind,
+                amount_raw,
+                params_amount,
+                recipient_hash,
+                &recipient_pkh,
+            )
+        }
         _ => Err(ProgramError::InvalidArgument),
     }
+}
+
+fn verify_erc20_send_commitments(
+    amount_raw: u128,
+    params_amount: u128,
+    recipient_hash: &[u8; 32],
+    recipient: &[u8; 20],
+    asset_id_hash: &[u8; 32],
+    token_contract: &[u8; 20],
+) -> Result<(), ProgramError> {
+    require!(
+        amount_raw == params_amount,
+        WalletError::InvalidClearSignEnvelope
+    );
+    require!(
+        evm_address_text_commitment(recipient) == *recipient_hash,
+        WalletError::InvalidClearSignEnvelope
+    );
+    require!(
+        evm_address_text_commitment(token_contract) == *asset_id_hash,
+        WalletError::InvalidClearSignEnvelope
+    );
+    Ok(())
+}
+
+fn verify_pkh_send_commitments(
+    kind: ChainKind,
+    amount_raw: u128,
+    params_amount: u64,
+    recipient_hash: &[u8; 32],
+    recipient_pkh: &[u8; 20],
+) -> Result<(), ProgramError> {
+    let amount_u64 = u64::try_from(amount_raw).map_err(|_| WalletError::PolicyAmountExceeded)?;
+    require!(
+        params_amount == amount_u64,
+        WalletError::InvalidClearSignEnvelope
+    );
+    let namespace = match kind {
+        ChainKind::BitcoinP2wpkh => b"btc-p2wpkh:0x".as_slice(),
+        ChainKind::ZcashTransparent => b"zcash-transparent:0x".as_slice(),
+        _ => return Err(ProgramError::InvalidArgument),
+    };
+    require!(
+        pkh_text_commitment(namespace, recipient_pkh) == *recipient_hash,
+        WalletError::InvalidClearSignEnvelope
+    );
+    Ok(())
 }
 
 fn approve_ika_message(
@@ -343,6 +447,109 @@ fn evm_address_text_commitment(address: &[u8; 20]) -> [u8; 32] {
         text[3 + idx * 2] = hex_nibble(byte & 0x0f);
     }
     Sha256::digest(text).into()
+}
+
+fn pkh_text_commitment(prefix: &[u8], pkh: &[u8; 20]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(prefix);
+    for byte in pkh {
+        hasher.update([hex_nibble(byte >> 4), hex_nibble(byte & 0x0f)]);
+    }
+    hasher.finalize().into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const AMOUNT: u64 = 125_000;
+    const RECIPIENT_PKH: [u8; 20] = [0x2a; 20];
+
+    #[test]
+    fn btc_commitments_reject_amount_and_recipient_mismatches() {
+        assert_commitment_guards(ChainKind::BitcoinP2wpkh, b"btc-p2wpkh:0x");
+    }
+
+    #[test]
+    fn zcash_commitments_reject_amount_and_recipient_mismatches() {
+        assert_commitment_guards(ChainKind::ZcashTransparent, b"zcash-transparent:0x");
+    }
+
+    #[test]
+    fn erc20_commitments_bind_amount_recipient_and_token_contract() {
+        let amount = 25_000_000u128;
+        let recipient = [0x11; 20];
+        let token = [0x22; 20];
+        let recipient_hash = evm_address_text_commitment(&recipient);
+        let asset_hash = evm_address_text_commitment(&token);
+
+        assert!(verify_erc20_send_commitments(
+            amount,
+            amount,
+            &recipient_hash,
+            &recipient,
+            &asset_hash,
+            &token,
+        )
+        .is_ok());
+        assert!(verify_erc20_send_commitments(
+            amount,
+            amount + 1,
+            &recipient_hash,
+            &recipient,
+            &asset_hash,
+            &token,
+        )
+        .is_err());
+        assert!(verify_erc20_send_commitments(
+            amount,
+            amount,
+            &recipient_hash,
+            &[0x33; 20],
+            &asset_hash,
+            &token,
+        )
+        .is_err());
+        assert!(verify_erc20_send_commitments(
+            amount,
+            amount,
+            &recipient_hash,
+            &recipient,
+            &asset_hash,
+            &[0x44; 20],
+        )
+        .is_err());
+    }
+
+    fn assert_commitment_guards(kind: ChainKind, namespace: &[u8]) {
+        let recipient_hash = pkh_text_commitment(namespace, &RECIPIENT_PKH);
+        assert!(verify_pkh_send_commitments(
+            kind,
+            AMOUNT as u128,
+            AMOUNT,
+            &recipient_hash,
+            &RECIPIENT_PKH,
+        )
+        .is_ok());
+        assert!(verify_pkh_send_commitments(
+            kind,
+            AMOUNT as u128,
+            AMOUNT + 1,
+            &recipient_hash,
+            &RECIPIENT_PKH,
+        )
+        .is_err());
+
+        let wrong_recipient = [0x7b; 20];
+        assert!(verify_pkh_send_commitments(
+            kind,
+            AMOUNT as u128,
+            AMOUNT,
+            &recipient_hash,
+            &wrong_recipient,
+        )
+        .is_err());
+    }
 }
 
 fn hex_nibble(value: u8) -> u8 {

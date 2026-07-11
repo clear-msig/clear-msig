@@ -9,34 +9,12 @@ import { ArrowLeft, AlertTriangle, Check, Circle, Clock, X } from "lucide-react"
 import { Button } from "@/components/retail/Button";
 import { NativeSelect, TextInput } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
-import {
-  closeAgentExecutionRecord,
-  closeMockAgentExecution,
-  closeOpenMockAgentExecutions,
-  buildAgentTradeLifecycle,
-  estimateAgentOpenTradePerformance,
-  getAgentHyperliquidSetupSettings,
-  listAgentExecutions,
-  listAgentProposals,
-  listAgents,
-  subscribeAgents,
-  summarizeAgentTradeLifecycles,
-  summarizeAgentTradePerformance,
-  syncAgentExecution,
-  type AgentExecutionRecord,
-  type AgentTradeLifecycle,
-  type AgentTradeLifecycleSummary,
-  type AgentMarketDataSnapshot,
-  type AgentProfile,
-  type AgentTradeProposal,
-} from "@/lib/agents/client";
-import {
-  loadAgentVenueReadinessForAgents,
-  startAgentVenueReadinessPolling,
-  type AgentVenueReadiness,
-  type AgentVenueRequestRecord,
-} from "@/lib/agents/clientExecution";
-import { loadAgentMarketDataSnapshots } from "@/lib/agents/clientMarketData";
+import { type AgentExecutionRecord, type AgentMarketDataSnapshot, type AgentProfile, type AgentTradeLifecycle, type AgentTradeLifecycleSummary, type AgentTradeProposal, buildAgentTradeLifecycle, closeAgentExecutionRecord, estimateAgentOpenTradePerformance, summarizeAgentTradeLifecycles, summarizeAgentTradePerformance } from "@/features/agents/domain/runtime";
+import { syncAgentExecution } from "@/features/agents/infrastructure/stateClient";
+import { closeMockAgentExecution, closeOpenMockAgentExecutions, listAgentExecutions, listAgentProposals, listAgents, subscribeAgents } from "@/features/agents/infrastructure/agentStore";
+import { getAgentHyperliquidSetupSettings } from "@/features/agents/infrastructure/hyperliquidSettings";
+import { type AgentVenueReadiness, type AgentVenueRequestRecord, loadAgentVenueReadinessForAgents, startAgentVenueReadinessPolling } from "@/features/agents/infrastructure/executionClient";
+import { loadAgentMarketDataSnapshots } from "@/features/agents/infrastructure/marketDataClient";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type TradeFilter = "open" | "closed" | "all";

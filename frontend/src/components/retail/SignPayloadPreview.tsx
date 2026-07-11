@@ -25,7 +25,6 @@
 // should consciously absorb before signing.
 
 import { Eye } from "lucide-react";
-import { InfoTip } from "./InfoTip";
 
 export interface SignPayloadDetail {
   label: string;
@@ -60,11 +59,15 @@ export function SignPayloadPreview({
   collapsibleDetails = false,
 }: SignPayloadPreviewProps) {
   const hasDetails = !!details && details.length > 0;
-  const showInline = hasDetails && !collapsibleDetails;
-  const showInTip = hasDetails && collapsibleDetails;
+  // Transaction decisions must not hide amount, recipient, network,
+  // fees, or approval requirements behind a hover/tap disclosure.
+  // Keep the legacy prop for call-site compatibility while all send
+  // pages migrate to the explicit review contract.
+  void collapsibleDetails;
+  const showInline = hasDetails;
   return (
     <section
-      aria-label="What you are about to sign"
+      aria-label="Review transaction"
       // Switched from bg-accent/10 to a SOLID surface
       // (bg-surface-raised: theme-aware white / dark) plus a thick
       // left accent stripe. The opacity-layered green tint kept
@@ -85,48 +88,12 @@ export function SignPayloadPreview({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
-            What you are about to sign
+            Review transaction
           </p>
           <div className="mt-1 flex items-start gap-1.5">
             <p className="font-display text-base font-semibold leading-snug text-text-strong">
               {action}
             </p>
-            {showInTip && (
-              <InfoTip
-                label="See signing details"
-                width="md"
-                side="end"
-                className="mt-0.5"
-              >
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
-                  Signing details
-                </span>
-                <span className="mt-2 block divide-y divide-border-soft">
-                  {details!.map((d) => (
-                    <span
-                      key={d.label}
-                      className="flex items-baseline justify-between gap-3 py-1.5 first:pt-0 last:pb-0"
-                    >
-                      <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
-                        {d.label}
-                      </span>
-                      <span
-                        className={
-                          "text-right text-xs leading-snug " +
-                          (d.emphasis === "mono"
-                            ? "font-mono text-text-strong"
-                            : d.emphasis === "amount"
-                              ? "font-display font-semibold text-accent"
-                              : "text-text-strong")
-                        }
-                      >
-                        {d.value}
-                      </span>
-                    </span>
-                  ))}
-                </span>
-              </InfoTip>
-            )}
           </div>
         </div>
       </header>
@@ -146,7 +113,7 @@ export function SignPayloadPreview({
               className="clear-receipt-row flex flex-col gap-0.5 rounded-soft bg-canvas px-2.5 py-1.5"
             >
               <dt className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
-                {d.label}
+                {reviewLabel(d.label)}
               </dt>
               <dd
                 className={
@@ -179,4 +146,27 @@ export function SignPayloadPreview({
       )}
     </section>
   );
+}
+
+function reviewLabel(label: string): string {
+  switch (label) {
+    case "From wallet":
+      return "From";
+    case "Chain":
+      return "Network";
+    case "Recipient":
+    case "Recipient address":
+      return "To";
+    case "Fee":
+    case "Miner fee":
+    case "Gas reserve":
+      return "Network fee";
+    case "Approval threshold":
+      return "Approvals";
+    case "Cooldown":
+    case "Timelock":
+      return "Available after";
+    default:
+      return label;
+  }
 }

@@ -3,9 +3,11 @@ use crate::{
 };
 
 use super::types::{
-    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
-    ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
+    ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
+    ExecuteTypedChainSendRequest, ExecuteTypedEscrowReleaseRequest,
+    ExecuteTypedEscrowReturnRequest, ExecuteTypedIntentGovernanceRequest,
     ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
+    ExecuteTypedWalletPolicyUpdateRequest,
 };
 
 pub(super) fn execute_typed_escrow_release_args(
@@ -74,6 +76,92 @@ pub(super) fn execute_typed_sol_send_args(
     Ok(args)
 }
 
+pub(super) fn execute_typed_wallet_policy_update_args(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedWalletPolicyUpdateRequest,
+) -> Result<Vec<String>, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_optional_hex(&body.policy_bytes_hex, "policyBytesHex")?;
+
+    let mut args = base_proposal_args("typed-wallet-policy-update", name, proposal);
+    args.extend([
+        "--policy-bytes-hex".into(),
+        body.policy_bytes_hex,
+        "--chain-kind".into(),
+        body.chain_kind.to_string(),
+    ]);
+    Ok(args)
+}
+
+pub(super) fn execute_typed_intent_governance_args(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedIntentGovernanceRequest,
+) -> Result<Vec<String>, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    let mut args = base_proposal_args("typed-intent-governance", name, proposal);
+    if let Some(action_kind) = body.action_kind {
+        if !matches!(action_kind, 3 | 4 | 5) {
+            return Err(ApiError::BadRequest(
+                "actionKind must be 3 (add_member), 4 (remove_member), or 5 (change_threshold)"
+                    .into(),
+            ));
+        }
+        args.extend(["--action-kind".into(), action_kind.to_string()]);
+    }
+    if let Some(target_index) = body.target_index {
+        args.extend(["--target-index".into(), target_index.to_string()]);
+    }
+    if let Some(hex) = body.new_intent_body_hex {
+        ensure_optional_hex(&hex, "newIntentBodyHex")?;
+        if body.target_index.is_none() {
+            return Err(ApiError::BadRequest(
+                "targetIndex is required with newIntentBodyHex".into(),
+            ));
+        }
+        args.extend(["--new-intent-body-hex".into(), hex]);
+        return Ok(args);
+    }
+    if body.file.is_none() {
+        // With no explicit rebuild input, the CLI resumes from the execution
+        // payload committed in the on-chain typed proposal.
+        return Ok(args);
+    }
+    let file = body
+        .file
+        .ok_or_else(|| ApiError::BadRequest("newIntentBodyHex or file is required".into()))?;
+    if body.target_index.is_none() {
+        return Err(ApiError::BadRequest(
+            "targetIndex is required when building from file".into(),
+        ));
+    }
+    let proposers = body.proposers.ok_or_else(|| {
+        ApiError::BadRequest("proposers is required when building from file".into())
+    })?;
+    let approvers = body.approvers.ok_or_else(|| {
+        ApiError::BadRequest("approvers is required when building from file".into())
+    })?;
+    let threshold = body.threshold.ok_or_else(|| {
+        ApiError::BadRequest("threshold is required when building from file".into())
+    })?;
+    args.extend([
+        "--file".into(),
+        file,
+        "--proposers".into(),
+        proposers.join(","),
+        "--approvers".into(),
+        approvers.join(","),
+        "--threshold".into(),
+        threshold.to_string(),
+        "--cancellation-threshold".into(),
+        body.cancellation_threshold.unwrap_or(1).to_string(),
+        "--timelock".into(),
+        body.timelock.unwrap_or(0).to_string(),
+    ]);
+    Ok(args)
+}
+
 pub(super) fn execute_typed_chain_send_args(
     name: String,
     proposal: String,
@@ -117,10 +205,9 @@ pub(super) fn execute_typed_chain_send_args(
         asset_id_hash,
     ]);
     if typed_ika {
-        if !matches!(body.chain_kind, 1 | 5) {
+        if !matches!(body.chain_kind, 1 | 2 | 3 | 4 | 5) {
             return Err(ApiError::BadRequest(
-                "typed Ika chain send currently supports native EVM/HYPE chain kinds 1 and 5"
-                    .into(),
+                "typed Ika chain send currently supports chain kinds 1 through 5".into(),
             ));
         }
         let params_data_hex = body.params_data_hex.ok_or_else(|| {
@@ -188,6 +275,7 @@ pub(super) fn execute_typed_agent_trade_approval_args(
         ));
     }
     let venue_hash = validated_hash(body.venue_hash, "venueHash")?;
+    let agent_id_hash = validated_hash(body.agent_id_hash, "agentIdHash")?;
     let market_hash = validated_hash(body.market_hash, "marketHash")?;
     let side_hash = validated_hash(body.side_hash, "sideHash")?;
     let asset_id_hash = validated_hash(body.asset_id_hash, "assetIdHash")?;
@@ -199,6 +287,8 @@ pub(super) fn execute_typed_agent_trade_approval_args(
     args.extend([
         "--amount-raw".into(),
         amount_raw.to_string(),
+        "--agent-id-hash".into(),
+        agent_id_hash,
         "--venue-hash".into(),
         venue_hash,
         "--market-hash".into(),
@@ -219,10 +309,60 @@ pub(super) fn execute_typed_agent_trade_approval_args(
     Ok(args)
 }
 
+pub(super) fn execute_typed_agent_session_grant_args(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedAgentSessionGrantRequest,
+) -> Result<Vec<String>, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    if body.status != 1 && body.status != 2 {
+        return Err(ApiError::BadRequest("status must be 1 or 2".into()));
+    }
+    let max_notional = body
+        .max_notional_raw
+        .trim()
+        .parse::<u128>()
+        .map_err(|_| ApiError::BadRequest("maxNotionalRaw must be an integer".into()))?;
+    if body.status == 1 && (max_notional == 0 || body.max_leverage_x100 == 0) {
+        return Err(ApiError::BadRequest(
+            "active sessions require positive maxNotionalRaw and maxLeverageX100".into(),
+        ));
+    }
+    let mut args = base_proposal_args("typed-agent-session-grant", name, proposal);
+    args.extend([
+        "--session-id-hash".into(),
+        validated_hash(body.session_id_hash, "sessionIdHash")?,
+        "--agent-id-hash".into(),
+        validated_hash(body.agent_id_hash, "agentIdHash")?,
+        "--venue-hash".into(),
+        validated_hash(body.venue_hash, "venueHash")?,
+        "--market-hash".into(),
+        validated_hash(body.market_hash, "marketHash")?,
+        "--max-notional-raw".into(),
+        max_notional.to_string(),
+        "--max-leverage-x100".into(),
+        body.max_leverage_x100.to_string(),
+        "--expires-at".into(),
+        body.expires_at.to_string(),
+        "--status".into(),
+        body.status.to_string(),
+    ]);
+    Ok(args)
+}
+
 fn ensure_wallet_proposal(name: &str, proposal: &str) -> Result<(), ApiError> {
     ensure_wallet_name(name, "name")?;
     ensure_base58(proposal, "proposal", 32, 88)?;
     Ok(())
+}
+
+fn ensure_optional_hex(value: &str, field: &str) -> Result<(), ApiError> {
+    let trimmed = value.trim();
+    let hex = trimmed.strip_prefix("0x").unwrap_or(trimmed);
+    if hex.is_empty() {
+        return Ok(());
+    }
+    ensure_hex(value, field)
 }
 
 fn base_proposal_args(command: &str, name: String, proposal: String) -> Vec<String> {
@@ -302,7 +442,8 @@ mod tests {
     use super::*;
     use crate::proposals::types::{
         ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
-        ExecuteTypedEscrowReturnRow, ExecuteTypedSolBatchSendRow,
+        ExecuteTypedEscrowReturnRow, ExecuteTypedIntentGovernanceRequest,
+        ExecuteTypedSolBatchSendRow,
     };
 
     const VALID_PUBKEY: &str = "11111111111111111111111111111111";
@@ -423,6 +564,99 @@ mod tests {
     }
 
     #[test]
+    fn typed_intent_governance_args_match_cli_shape() {
+        let args = execute_typed_intent_governance_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedIntentGovernanceRequest {
+                action_kind: Some(5),
+                target_index: Some(3),
+                new_intent_body_hex: Some("020304".into()),
+                file: None,
+                proposers: None,
+                approvers: None,
+                threshold: None,
+                cancellation_threshold: None,
+                timelock: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            args,
+            vec![
+                "proposal",
+                "typed-intent-governance",
+                "--wallet",
+                "team",
+                "--proposal",
+                VALID_PUBKEY,
+                "--action-kind",
+                "5",
+                "--target-index",
+                "3",
+                "--new-intent-body-hex",
+                "020304",
+            ]
+        );
+    }
+
+    #[test]
+    fn typed_intent_governance_rejects_unknown_action_kind() {
+        let error = bad_request_message(execute_typed_intent_governance_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedIntentGovernanceRequest {
+                action_kind: Some(9),
+                target_index: Some(3),
+                new_intent_body_hex: Some("020304".into()),
+                file: None,
+                proposers: None,
+                approvers: None,
+                threshold: None,
+                cancellation_threshold: None,
+                timelock: None,
+            },
+        ));
+        assert_eq!(
+            error,
+            "actionKind must be 3 (add_member), 4 (remove_member), or 5 (change_threshold)"
+        );
+    }
+
+    #[test]
+    fn typed_intent_governance_can_resume_from_committed_proposal_payload() {
+        let args = execute_typed_intent_governance_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedIntentGovernanceRequest {
+                action_kind: None,
+                target_index: None,
+                new_intent_body_hex: None,
+                file: None,
+                proposers: None,
+                approvers: None,
+                threshold: None,
+                cancellation_threshold: None,
+                timelock: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            args,
+            vec![
+                "proposal",
+                "typed-intent-governance",
+                "--wallet",
+                "team",
+                "--proposal",
+                VALID_PUBKEY,
+            ]
+        );
+    }
+
+    #[test]
     fn typed_chain_send_ika_args_match_cli_shape_with_defaults() {
         let args = execute_typed_chain_send_args(
             "team".into(),
@@ -472,6 +706,38 @@ mod tests {
                 "--broadcast",
             ]
         );
+    }
+
+    #[test]
+    fn typed_chain_send_ika_allows_all_remote_send_kinds() {
+        for chain_kind in [1, 2, 3, 4, 5] {
+            let args = execute_typed_chain_send_args(
+                "team".into(),
+                VALID_PUBKEY.into(),
+                ExecuteTypedChainSendRequest {
+                    chain_kind,
+                    amount_raw: "1000".into(),
+                    recipient_hash: VALID_HASH.into(),
+                    asset_id_hash: VALID_HASH.into(),
+                    params_data_hex: Some("01020304".into()),
+                    dwallet_program: None,
+                    grpc_url: None,
+                    rpc_url: None,
+                    broadcast: Some(false),
+                },
+                Some(VALID_PUBKEY.into()),
+                Some("https://ika.example".into()),
+                Some("https://rpc.example".into()),
+            )
+            .unwrap();
+
+            assert_eq!(args[1], "typed-chain-send-ika");
+            let idx = args
+                .iter()
+                .position(|arg| arg == "--chain-kind")
+                .expect("missing --chain-kind");
+            assert_eq!(args.get(idx + 1), Some(&chain_kind.to_string()));
+        }
     }
 
     #[test]
@@ -568,6 +834,7 @@ mod tests {
             VALID_PUBKEY.into(),
             ExecuteTypedAgentTradeApprovalRequest {
                 amount_raw: "250000000".into(),
+                agent_id_hash: VALID_HASH.into(),
                 venue_hash: VALID_HASH.into(),
                 market_hash: VALID_HASH.into(),
                 side_hash: VALID_HASH.into(),
@@ -591,6 +858,8 @@ mod tests {
                 VALID_PUBKEY,
                 "--amount-raw",
                 "250000000",
+                "--agent-id-hash",
+                VALID_HASH,
                 "--venue-hash",
                 VALID_HASH,
                 "--market-hash",
@@ -609,6 +878,56 @@ mod tests {
                 VALID_HASH,
             ]
         );
+    }
+
+    #[test]
+    fn typed_agent_session_grant_and_revoke_args_match_cli_shape() {
+        let grant = execute_typed_agent_session_grant_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedAgentSessionGrantRequest {
+                session_id_hash: VALID_HASH.into(),
+                agent_id_hash: VALID_HASH.into(),
+                venue_hash: VALID_HASH.into(),
+                market_hash: VALID_HASH.into(),
+                max_notional_raw: "250000000".into(),
+                max_leverage_x100: 250,
+                expires_at: 1_800_000_000,
+                status: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            grant[0..5],
+            [
+                "proposal",
+                "typed-agent-session-grant",
+                "--wallet",
+                "team",
+                "--proposal"
+            ]
+        );
+        assert!(grant.windows(2).any(|row| row == ["--status", "1"]));
+
+        let revoke = execute_typed_agent_session_grant_args(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedAgentSessionGrantRequest {
+                session_id_hash: VALID_HASH.into(),
+                agent_id_hash: VALID_HASH.into(),
+                venue_hash: VALID_HASH.into(),
+                market_hash: VALID_HASH.into(),
+                max_notional_raw: "0".into(),
+                max_leverage_x100: 0,
+                expires_at: 0,
+                status: 2,
+            },
+        )
+        .unwrap();
+        assert!(revoke
+            .windows(2)
+            .any(|row| row == ["--max-notional-raw", "0"]));
+        assert!(revoke.windows(2).any(|row| row == ["--status", "2"]));
     }
 
     #[test]
@@ -640,6 +959,7 @@ mod tests {
             VALID_PUBKEY.into(),
             ExecuteTypedAgentTradeApprovalRequest {
                 amount_raw: "0".into(),
+                agent_id_hash: VALID_HASH.into(),
                 venue_hash: VALID_HASH.into(),
                 market_hash: VALID_HASH.into(),
                 side_hash: VALID_HASH.into(),

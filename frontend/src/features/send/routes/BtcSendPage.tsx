@@ -1,0 +1,1567 @@
+"use client";
+
+// Bitcoin (P2WPKH) send + setup, fused into one page.
+//
+// Mirrors the eth flow's two halves (`/setup/eth` then `/send/eth`)
+// in a single component because Bitcoin's intent template is fixed
+// (single-input, explicit change output/fee) and
+// the user has no decisions to make at setup time. Showing two pages
+// for "register the intent" + "use the intent" was overhead with no
+// payoff.
+//
+// Pre-flight gates (in order):
+//   1. Wallet bound to Bitcoin? If no → "/chains/add?chain=bitcoin_p2wpkh".
+//   2. BTC 8-param `Custom` intent exists on the wallet? If no →
+//      register one via the standard add-intent meta proposal flow +
+//      auto-execute.
+//   3. dWallet has UTXOs >= amount + min fee? If no → fund-the-vault
+//      copy with the deposit address.
+//
+// Send flow:
+//   1. User enters destination (bech32) + amount.
+//   2. We auto-pick one UTXO that covers the amount + a
+//      conservative fee floor (300 sats. Signet/testnet fees are
+//      tiny). New BTC intents return the remainder as change.
+//   3. Build proposal params, propose+auto-approve, execute with
+//      `broadcast=true`. Backend forwards to mempool.space's Esplora
+//      `POST /tx`.
+//
+// Network: signet by default, matching the CLI's default and the
+// `cli/src/chains/bitcoin.rs` test path. The wallet's chain binding
+// returns either testnet or mainnet addresses; we read the binding
+// at runtime to decide which network the dWallet is bound to. (For
+// pre-alpha all wallets come up on signet/testnet. `tb` HRP. So
+// `validateBtcDestination` accepts both.)
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
+import { useConnection, useWallet } from "@/lib/wallet";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Loader2, Send } from "lucide-react";
+import { fetchWalletByName } from "@/lib/chain/wallets";
+import { listIntents } from "@/lib/chain/intents";
+import { IntentType, ProposalStatus, toHex } from "@/lib/msig";
+import {
+  assertPreparedBitcoinSetupIsCurrent,
+  bytesToHex,
+} from "@/features/send/domain/bitcoin";
+import {
+  hasBitcoinChangeIntent,
+  waitForBitcoinChangeIntent,
+} from "@/features/send/infrastructure/bitcoinIntent";
+import { SendErrorBanner } from "@/features/send/ui/bitcoin/SendErrorBanner";
+import { encodeParams } from "@/lib/msig/encode";
+import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import {
+  waitForProposalApproval,
+  waitForProposalStatus,
+} from "@/lib/chain/proposals";
+import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
+import { backendApi } from "@/lib/api/endpoints";
+import { BackendApiError } from "@/lib/api/client";
+import { friendlyError } from "@/lib/api/errors";
+import { formatUnixSigningExpiry } from "@/lib/api/expiry";
+import { encryptPolicyBatch } from "@/lib/encrypt/client";
+import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
+import { useToast } from "@/components/ui/Toast";
+import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
+import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
+import {
+  SignPayloadPreview,
+  type SignPayloadDetail,
+} from "@/components/retail/SignPayloadPreview";
+import {
+  SendReceipt,
+  type ReceiptDetail,
+} from "@/components/retail/SendReceipt";
+import { UsdHint } from "@/components/retail/UsdHint";
+import { SendChainPicker } from "@/components/retail/SendChainPicker";
+import { SendAmountField } from "@/components/retail/SendAmountField";
+import { InfoTip } from "@/components/retail/InfoTip";
+import { Button } from "@/components/retail/Button";
+import { ChainBadge } from "@/components/retail/ChainBadge";
+import { FormField, TextInput } from "@/components/retail/FormField";
+import { chainByKind } from "@/lib/retail/chains";
+import { appConfig } from "@/lib/config";
+import {
+  SEND_NOTE_LABEL,
+  SEND_NOTE_MAX_LENGTH,
+  SEND_NOTE_PLACEHOLDER,
+} from "@/lib/sendFields";
+import {
+  assertPolicyNotDenied,
+  resolvePolicyEnforcement,
+} from "@/lib/policies/enforce";
+import {
+  policyCommitmentHexForParts,
+} from "@/lib/policies/onchain";
+import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
+import {
+  pkhClearSignRecipient,
+  prepareClearSignAction,
+  randomActionLabel,
+  textCommitmentHex,
+  type ClearSignEnvelope,
+  type SendPayload,
+} from "@/lib/clearsign-v2";
+import {
+  BTC_SEND_FEE_RESERVE_SATS,
+  DEFAULT_BITCOIN_NETWORK,
+  decodeSegwitAddress,
+  bitcoinBroadcastUrl,
+  bitcoinExplorerLabel,
+  fetchBitcoinAddressSnapshot,
+  formatSats,
+  mempoolSpaceTxUrl,
+  parseBtcAmount,
+  reverseHex,
+  selectBitcoinSendUtxo,
+  validateBtcDestination,
+  type BitcoinNetwork,
+  type EsploraUtxo,
+} from "@/lib/chain/btc";
+import {
+  BTC_CHAIN_KIND,
+  bitcoinSendReady,
+  selectBitcoinSendIntent,
+} from "@/lib/chain/btcIntentReadiness";
+
+const BTC_TEMPLATE = "examples/intents/btc_transfer.json";
+interface BroadcastResultLike {
+  chain_kind?: number;
+  tx_id?: string;
+  raw_tx_hex?: string;
+}
+
+type BtcSetupPendingReason = "approval" | "sync";
+
+export default function BitcoinSendPageWrapper() {
+  return (
+    <div className="relative flex min-h-screen flex-col bg-canvas">
+      <BitcoinSendPage />
+    </div>
+  );
+}
+
+function BitcoinSendPage() {
+  const params = useParams<{ name: string }>();
+  const searchParams = useSearchParams();
+  const name = useMemo(() => {
+    try {
+      return decodeURIComponent(params?.name ?? "");
+    } catch {
+      return params?.name ?? "";
+    }
+  }, [params?.name]);
+  const reduce = useReducedMotion();
+  const wallet = useWallet();
+  const { connection } = useConnection();
+  const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  // ── Wallet + chain binding + intents ──────────────────────────────
+  const walletQuery = useQuery({
+    queryKey: ["wallet", name],
+    queryFn: () => fetchWalletByName(connection, name),
+    enabled: name.length > 0,
+    staleTime: 30_000,
+  });
+  const chainsQuery = useWalletChains(name);
+  const intentsQuery = useQuery({
+    queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
+    queryFn: async () => {
+      if (!walletQuery.data) return [];
+      return listIntents(
+        connection,
+        walletQuery.data.pda,
+        walletQuery.data.account.intentIndex,
+      );
+    },
+    enabled: !!walletQuery.data,
+    staleTime: 30_000,
+  });
+
+  const btcBinding = useMemo(() => {
+    return (chainsQuery.data?.chains ?? []).find(
+      (b) => b.chain_kind === BTC_CHAIN_KIND,
+    );
+  }, [chainsQuery.data]);
+
+  const dwalletAddress = useMemo(() => {
+    return btcBinding ? chainAddress(btcBinding) : null;
+  }, [btcBinding]);
+
+  const btcSnapshotQuery = useQuery({
+    queryKey: ["btc-address-snapshot", dwalletAddress ?? "none"],
+    queryFn: () =>
+      dwalletAddress
+        ? fetchBitcoinAddressSnapshot(dwalletAddress)
+        : {
+            network: DEFAULT_BITCOIN_NETWORK,
+            balanceSats: 0n,
+            utxos: [],
+          },
+    enabled: !!dwalletAddress,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: 2,
+    placeholderData: (previous) => previous,
+  });
+  const btcNetwork: BitcoinNetwork =
+    btcSnapshotQuery.data?.network ?? DEFAULT_BITCOIN_NETWORK;
+
+  // sender_pkh: HASH160(dwallet pubkey) = the witness program of the
+  // dWallet's own P2WPKH address. We extract by decoding the address
+  // we already have from the binding rather than re-deriving from
+  // the raw pubkey. The backend already did that math on bind.
+  const senderPkhHex = useMemo<string | null>(() => {
+    if (!dwalletAddress) return null;
+    const decoded = decodeSegwitAddress(dwalletAddress);
+    if (!decoded || decoded.version !== 0 || decoded.program.length !== 20) {
+      return null;
+    }
+    return bytesToHex(decoded.program);
+  }, [dwalletAddress]);
+
+  const btcIntent = useMemo(() => {
+    return selectBitcoinSendIntent((intentsQuery.data ?? []).map((it) => it.account));
+  }, [intentsQuery.data]);
+  const btcIntentSupportsChange = bitcoinSendReady(btcIntent);
+
+  // ── Live balance + UTXOs ──────────────────────────────────────────
+  const balanceSats = btcSnapshotQuery.data?.balanceSats ?? null;
+  const btcUtxos = useMemo(
+    () => btcSnapshotQuery.data?.utxos ?? [],
+    [btcSnapshotQuery.data?.utxos],
+  );
+  const largestSpendableSats = useMemo(() => {
+    const largest = btcUtxos[0];
+    if (!largest || largest.value <= Number(BTC_SEND_FEE_RESERVE_SATS)) return 0n;
+    return BigInt(largest.value) - BTC_SEND_FEE_RESERVE_SATS;
+  }, [btcUtxos]);
+
+  // ── Form state ────────────────────────────────────────────────────
+  const [destination, setDestination] = useState("");
+  const [amountBtc, setAmountBtc] = useState("");
+  const [note, setNote] = useState(() => searchParams?.get("note")?.trim() ?? "");
+  const [destinationError, setDestinationError] = useState<string | null>(null);
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const [sentLabel, setSentLabel] = useState<{
+    amountBtc: string;
+    to: string;
+    note: string;
+    txid: string | null;
+    explorerUrl: string | null;
+  } | null>(null);
+  const [awaitingApprovalLabel, setAwaitingApprovalLabel] = useState<{
+    amountBtc: string;
+    to: string;
+    proposal: string;
+  } | null>(null);
+  // Inline error banner state. The toast version was too easy to miss
+  // (auto-dismisses, no copy of the underlying CLI stderr). This lets
+  // users actually see the real error and take action without
+  // re-clicking Send.
+  const [sendError, setSendError] = useState<{
+    title: string;
+    body: string;
+    /// Raw CLI stderr from the BackendApiError payload, if present.
+    /// Surfaced behind a "Show technical details" expander.
+    stderr?: string;
+    /// The proposal address from the failed attempt, if we got that
+    /// far. Helps with on-chain forensics.
+    proposalAddress?: string;
+  } | null>(null);
+  const [autoStartedSetup, setAutoStartedSetup] = useState(false);
+  const [btcSetupPendingApproval, setBtcSetupPendingApproval] = useState<{
+    proposal: string | null;
+    reason: BtcSetupPendingReason;
+  } | null>(null);
+  const autoStartSetup = searchParams?.get("autostart") === "1";
+
+  const sendAmountSats = useMemo<bigint | null>(
+    () => parseBtcAmount(amountBtc),
+    [amountBtc],
+  );
+
+  const sendSelection = useMemo(() => {
+    if (!sendAmountSats) return null;
+    return selectBitcoinSendUtxo(btcUtxos, sendAmountSats);
+  }, [btcUtxos, sendAmountSats]);
+  const selectedUtxo = sendSelection?.utxo ?? null;
+  const effectiveFeeSats = sendSelection?.feeSats ?? null;
+  const changeSats = sendSelection?.changeSats ?? null;
+
+  // ── Mutations: setup intent (one-time), then send ─────────────────
+  const setupIntent = useMutation({
+    mutationFn: async () => {
+      if (!wallet.publicKey) throw new Error("Connect your wallet first");
+      if (!btcBinding) throw new Error("Bind Bitcoin to this wallet first");
+      if (!walletQuery.data) throw new Error("Wallet is still loading");
+      const addIntent = (intentsQuery.data ?? []).find(
+        (it) => it.account?.intentType === IntentType.AddIntent,
+      );
+      const signerPk = addIntent?.account
+        ? wallet.pickSigner(addIntent.account.proposers)
+        : wallet.publicKey;
+      if (!signerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's proposer list.",
+        );
+      }
+      const me = signerPk.toBase58();
+      const proposers = addIntent?.account?.proposers.length
+        ? addIntent.account.proposers
+        : [me];
+      const approvers = addIntent?.account?.approvers.length
+        ? addIntent.account.approvers
+        : [me];
+      const threshold =
+        addIntent?.account?.approvalThreshold &&
+        addIntent.account.approvalThreshold <= approvers.length
+          ? addIntent.account.approvalThreshold
+          : 1;
+      const enc = new TextEncoder();
+      const encrypted = await encryptPolicyBatch([
+        { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
+        { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
+        { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
+        { plaintext: new Uint8Array([0]), fheType: "euint32" },
+      ]);
+      const policy_ciphertexts = encrypted
+        .map((p) => p.ciphertextIdentifier)
+        .filter((id): id is string => typeof id === "string");
+      const dry = await backendApi.prepare.addIntent(name, {
+        file: BTC_TEMPLATE,
+        proposers,
+        approvers,
+        threshold,
+        cancellation_threshold: 1,
+        timelock: 0,
+        policy_ciphertexts,
+      });
+      assertPreparedBitcoinSetupIsCurrent(dry.params_data_hex);
+      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+      const submitted = await backendApi.submit.addIntent(name, {
+        ...signed,
+        params_data_hex: dry.params_data_hex,
+        expiry: dry.expiry,
+        file: BTC_TEMPLATE,
+      });
+      const proposal = (submitted as Record<string, unknown>)?.proposal;
+      if (typeof proposal !== "string" || proposal.length === 0) {
+        throw new Error("Backend didn't return a proposal address");
+      }
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: addIntent?.account?.approvers,
+        approverPubkey: addIntent?.account
+          ? wallet.pickSigner(addIntent.account.approvers)?.toBase58() ?? null
+          : signerPk.toBase58(),
+        approvalThreshold: addIntent?.account?.approvalThreshold ?? 1,
+      });
+      if (decision.needsApproveSignature) {
+        const approverPk = addIntent?.account
+          ? wallet.pickSigner(addIntent.account.approvers)
+          : signerPk;
+        if (!approverPk) {
+          throw new Error(
+            "The setup proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
+        const approveDry = await backendApi.prepare.approveProposal(
+          name,
+          proposal,
+          { actor_pubkey: approverPk.toBase58() },
+        );
+        const approveSigned = await signDescriptor(approveDry, {
+          preferSigner: approverPk,
+        });
+        await backendApi.submit.approveProposal(name, proposal, {
+          ...approveSigned,
+          expiry: approveDry.expiry,
+        });
+      }
+      const status = await waitForProposalStatus(connection, proposal, {
+        attempts: 12,
+        delayMs: 500,
+        accepted: [ProposalStatus.Approved, ProposalStatus.Executed],
+      });
+      if (status === ProposalStatus.Approved) {
+        await backendApi.executeProposal(name, proposal, {});
+      }
+      if (status !== ProposalStatus.Approved && status !== ProposalStatus.Executed) {
+        return { proposal, status: "pending_approval" as const };
+      }
+      const ready = await waitForBitcoinChangeIntent(connection, name);
+      if (!ready) {
+        return { proposal, status: "pending_sync" as const };
+      }
+      return { proposal, status: "ready" as const };
+    },
+    onSuccess: async (result) => {
+      // BTC's setup+send live in the same page, so the next render
+      // after this mutation flips us from "needs setup" to "compose".
+      // `invalidateQueries` alone marks queries stale but returns
+      // synchronously. The page would re-render with the still-stale
+      // intents list, briefly show "needs setup" again, and the user
+      // would tap "Enable" a second time before the background
+      // refetch lands. AWAITING the refetch holds us on the success
+      // path until the new BTC intent is actually observable.
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
+        queryClient.refetchQueries({ queryKey: ["wallet", name] }),
+      ]);
+      if (result?.status === "pending_approval" || result?.status === "pending_sync") {
+        const reason =
+          result.status === "pending_approval" ? "approval" : "sync";
+        setBtcSetupPendingApproval({
+          proposal: result.proposal ?? null,
+          reason,
+        });
+        toast.success("Bitcoin is turning on", {
+          details:
+            reason === "approval"
+              ? "One more approval is needed before BTC sending is ready."
+              : "Almost done. ClearSig will keep checking; you do not need to turn it on again.",
+        });
+        return;
+      }
+      setBtcSetupPendingApproval(null);
+      toast.success("Bitcoin sending ready", {
+        details: "BTC sends now return change to the wallet.",
+      });
+    },
+    onError: (err) => {
+      console.error("[setup-btc]", err);
+      const fe = friendlyError(err, "set-up-spending");
+      toast.error(fe.title, { details: fe.body });
+    },
+  });
+
+  const send = useMutation({
+    mutationFn: async () => {
+      if (!wallet.publicKey) throw new Error("Connect your wallet first");
+      if (!btcIntent) throw new Error("Bitcoin sends not yet enabled");
+      if (!selectedUtxo) throw new Error("No suitable UTXO available");
+      if (!sendAmountSats) throw new Error("Enter an amount");
+      if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
+      const proposerPk = wallet.pickSigner(btcIntent.proposers);
+      if (!proposerPk) {
+        throw new Error(
+          "None of your connected wallets is in this wallet's proposer list.",
+        );
+      }
+      const dest = validateBtcDestination(destination, btcNetwork);
+      if (!dest.ok) throw new Error(dest.reason);
+      const committedRecipient = pkhClearSignRecipient("btc-p2wpkh", dest.pkh);
+      const submitPolicyPlan = await resolvePolicyEnforcement(name, {
+        walletName: name,
+        chainKind: BTC_CHAIN_KIND,
+        recipient: destination.trim(),
+        ticker: "BTC",
+        amountDisplay: amountBtc,
+      });
+      assertPolicyNotDenied(submitPolicyPlan);
+      const walletPda = walletQuery.data?.pda;
+      if (!walletPda) throw new Error("Wallet is still loading. Try again.");
+      const onchainPolicy = await resolvePersistentSendPolicy(
+        connection,
+        walletPda,
+        name,
+        BTC_CHAIN_KIND,
+      );
+
+      // Bitcoin txids round-trip in TWO byte orders:
+      //   - Esplora / block explorers / `mempool.space` return them in
+      //     DISPLAY order (the human-readable BE hex you'd paste into
+      //     a search box).
+      //   - Bitcoin's internal wire format (BIP143 prev_outpoint, OP_…
+      //     anything that goes into a sighash) uses INTERNAL order
+      //     (LE. Display-reversed).
+      // The on-chain BIP143 builder
+      // (`programs/clear-wallet/src/chains/bitcoin.rs:44`) is explicit
+      // about wanting internal byte order. We reverse the Esplora hex
+      // before stuffing it into the bytes32 param so the sighash
+      // computed on chain references the same UTXO Bitcoin's
+      // mempool will look up at broadcast time.
+      const prevTxidInternal = reverseHex(selectedUtxo.txid);
+
+      const paramsDataHex = toHex(
+        encodeParams(btcIntent, {
+          prev_txid: `0x${prevTxidInternal}`,
+          prev_vout: String(selectedUtxo.vout),
+          prev_amount_sats: String(selectedUtxo.value),
+          sender_pkh: `0x${senderPkhHex}`,
+          recipient_pkh: `0x${bytesToHex(dest.pkh)}`,
+          send_amount_sats: sendAmountSats.toString(),
+          change_pkh: `0x${senderPkhHex}`,
+          fee_sats: BTC_SEND_FEE_RESERVE_SATS.toString(),
+        }),
+      );
+
+      const actionId = randomActionLabel("btc-send");
+      const actionNonce = randomActionLabel("nonce");
+      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+      const policyCommitment =
+        onchainPolicy?.commitmentHex ??
+        policyCommitmentHexForParts([
+          `wallet:${walletQuery.data?.pda.toBase58() ?? name}`,
+          `intent:${btcIntent.intentIndex}`,
+          `chain:${BTC_CHAIN_KIND}`,
+          `threshold:${btcIntent.approvalThreshold ?? ""}`,
+          `proposers:${btcIntent.proposers.join(",")}`,
+          `approvers:${btcIntent.approvers.join(",")}`,
+        ]);
+      const envelope: ClearSignEnvelope<SendPayload> = {
+        version: 2,
+        kind: "send",
+        walletName: name,
+        walletId: walletQuery.data?.pda.toBase58(),
+        actionId,
+        nonce: actionNonce,
+        expiresAt,
+        policyCommitment,
+        payload: {
+          recipient: committedRecipient,
+          recipientEncoding: "sha256_text",
+          amount: sendAmountSats.toString(),
+          asset: "BTC",
+          assetEncoding: "sha256_text",
+          note: note.trim() || undefined,
+        },
+      };
+      const summary = await prepareClearSignAction(envelope, {
+        fallback: false,
+      });
+      const dry = await backendApi.prepare.createTypedProposal(name, {
+        intent_index: btcIntent.intentIndex,
+        action_kind: summary.actionKindCode,
+        policy_commitment: envelope.policyCommitment,
+        payload_hash: summary.payloadHash,
+        envelope_hash: summary.envelopeHash,
+        action_id: envelope.actionId,
+        nonce: envelope.nonce,
+        policyBytesHex: onchainPolicy?.hex,
+        signable_text: summary.signableText,
+        expiry: formatUnixSigningExpiry(envelope.expiresAt),
+        actor_pubkey: proposerPk.toBase58(),
+      });
+      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
+      const submitted = await backendApi.submit.createTypedProposal(name, {
+        ...signed,
+        expiry: dry.expiry,
+        intent_index: dry.intent_index,
+        action_kind: dry.action_kind,
+        policy_commitment: dry.policy_commitment_hex,
+        payload_hash: dry.payload_hash_hex,
+        envelope_hash: dry.envelope_hash_hex,
+        action_id: dry.action_id,
+        nonce: dry.nonce,
+        policyBytesHex: onchainPolicy?.hex,
+      });
+      const proposal = (submitted as Record<string, unknown>)?.proposal;
+      if (typeof proposal !== "string" || proposal.length === 0) {
+        throw new Error("Backend didn't return a proposal address from submit");
+      }
+      const decision = await approveIfNeeded(connection, proposal, {
+        approvers: btcIntent.approvers,
+        approverPubkey: wallet.pickSigner(btcIntent.approvers)?.toBase58() ?? null,
+        approvalThreshold: btcIntent.approvalThreshold,
+      });
+      if (decision.needsApproveSignature) {
+        const approverPk = wallet.pickSigner(btcIntent.approvers);
+        if (!approverPk) {
+          throw new Error(
+            "The proposal landed, but none of your connected wallets can approve it.",
+          );
+        }
+        const approveDry = await backendApi.prepare.approveTypedProposal(
+          name,
+          proposal,
+          { actor_pubkey: approverPk.toBase58() },
+        );
+        const approveSigned = await signTypedDescriptor(approveDry, {
+          preferSigner: approverPk,
+        });
+        await backendApi.submit.approveTypedProposal(name, proposal, {
+          ...approveSigned,
+          expiry: approveDry.expiry,
+        });
+      }
+      assertPolicyNotDenied(submitPolicyPlan);
+      if (submitPolicyPlan.evaluation?.matched) {
+        if (submitPolicyPlan.rule?.action === "require-extra-approvers") {
+          const seen = new Set<string>([
+            proposerPk.toBase58(),
+            wallet.pickSigner(btcIntent.approvers)?.toBase58() ?? "",
+          ]);
+          const extraApprovers = submitPolicyPlan.extraApprovers.filter((addr) => {
+            const normalized = addr.trim();
+            if (!normalized || seen.has(normalized)) return false;
+            seen.add(normalized);
+            return true;
+          });
+          if (extraApprovers.length === 0) {
+            throw new Error(
+              `Policy "${submitPolicyPlan.rule.name}" requires extra approvers, but none were configured.`,
+            );
+          }
+          for (const extraApprover of extraApprovers) {
+            if (!btcIntent.approvers.includes(extraApprover)) {
+              throw new Error(
+                `Policy "${submitPolicyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+              );
+            }
+            const extraSigner = wallet.pickSigner([extraApprover]);
+            if (!extraSigner) {
+              throw new Error(
+                `Policy "${submitPolicyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+              );
+            }
+            const extraDry = await backendApi.prepare.approveTypedProposal(
+              name,
+              proposal,
+              { actor_pubkey: extraSigner.toBase58() },
+            );
+            const extraSigned = await signTypedDescriptor(extraDry, {
+              preferSigner: extraSigner,
+            });
+            await backendApi.submit.approveTypedProposal(name, proposal, {
+              ...extraSigned,
+              expiry: extraDry.expiry,
+            });
+          }
+        } else if (
+          submitPolicyPlan.rule?.action === "require-cooldown" &&
+          submitPolicyPlan.extraCooldownSeconds > 0
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, submitPolicyPlan.extraCooldownSeconds * 1000),
+          );
+        }
+      }
+      const readyToExecute = await waitForProposalApproval(connection, proposal);
+      if (!readyToExecute) {
+        return { proposal, broadcast: null, awaitingApprovers: true };
+      }
+      const executed = await backendApi.executeTypedChainSend(name, proposal, {
+        chainKind: BTC_CHAIN_KIND,
+        amountRaw: sendAmountSats.toString(),
+        recipientHash: textCommitmentHex(committedRecipient),
+        assetIdHash: textCommitmentHex("BTC"),
+        paramsDataHex,
+        broadcast: true,
+        dwalletProgram: appConfig.preAlpha.dwalletProgramId,
+        grpcUrl: appConfig.preAlpha.grpcUrl,
+        // BTC needs a Bitcoin RPC/Esplora base, not the backend's
+        // EVM destination RPC. We pass the network-specific Bitcoin
+        // endpoint explicitly so the CLI's Bitcoin broadcast adapter
+        // can choose Alchemy JSON-RPC or Esplora as appropriate.
+        rpcUrl: bitcoinBroadcastUrl(btcNetwork),
+      });
+      const broadcast = (executed as { broadcast?: BroadcastResultLike })
+        ?.broadcast;
+      return { proposal, broadcast, awaitingApprovers: false };
+    },
+    onSuccess: ({ proposal, broadcast, awaitingApprovers }) => {
+      if (awaitingApprovers) {
+        setAwaitingApprovalLabel({
+          amountBtc: amountBtc.trim(),
+          to: shortBtcAddress(destination.trim()),
+          proposal,
+        });
+        toast.success("Bitcoin request created", {
+          details: "It is waiting for the remaining approval before broadcast.",
+        });
+        return;
+      }
+      const txid = broadcast?.tx_id ?? null;
+      const explorerUrl = txid ? mempoolSpaceTxUrl(txid, btcNetwork) : null;
+      setSentLabel({
+        amountBtc: amountBtc.trim(),
+        to: shortBtcAddress(destination.trim()),
+        note: note.trim(),
+        txid,
+        explorerUrl,
+      });
+      // Refresh balance + UTXOs so the next send sees the spent state.
+      void queryClient.invalidateQueries({
+        queryKey: ["btc-address-snapshot", dwalletAddress ?? "none"],
+      });
+    },
+    onError: (err, _vars, _ctx) => {
+      console.error("[send-btc]", err);
+      const fe = friendlyError(err, "send");
+      // Toast still fires (matches the rest of the app's send flows),
+      // but the inline banner is the durable surface for the stderr ,
+      // a 5-second toast wasn't enough to read or copy the underlying
+      // CLI message before it disappeared. Pull stderr off
+      // BackendApiError directly.
+      const stderr =
+        err instanceof BackendApiError
+          ? (err.payload?.stderr ?? undefined)
+          : undefined;
+      setSendError({
+        title: fe.title,
+        body: fe.body ?? "",
+        stderr,
+      });
+      toast.error(fe.title, { details: fe.body });
+    },
+  });
+
+  const handleSend = () => {
+    // Clear any prior error banner. A fresh attempt deserves a clean
+    // canvas; leftover stderr from a previous failure would confuse
+    // the picture if THIS one succeeds.
+    setSendError(null);
+    setDestinationError(null);
+    setAmountError(null);
+    if (!destination.trim()) {
+      setDestinationError("Enter a Bitcoin address.");
+      return;
+    }
+    const dest = validateBtcDestination(destination, btcNetwork);
+    if (!dest.ok) {
+      setDestinationError(dest.reason);
+      return;
+    }
+    if (!sendAmountSats) {
+      setAmountError("Enter an amount in BTC (e.g. 0.001).");
+      return;
+    }
+    if (!selectedUtxo) {
+      const max = btcUtxos[0]?.value ?? 0;
+      setAmountError(
+        `This amount is too high right now. Tap Use max or enter less than ${formatSats(BigInt(max))} BTC.`,
+      );
+      return;
+    }
+    send.mutate();
+  };
+
+  // ── Render ────────────────────────────────────────────────────────
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
+  const btcMeta = chainByKind(BTC_CHAIN_KIND);
+  const walletDisplay = toDisplayName(name);
+
+  const isLoading =
+    walletQuery.isLoading || chainsQuery.isLoading || intentsQuery.isLoading;
+  const blockedByDisconnect = !wallet.connected;
+  const blockedByLedger = wallet.isLedger;
+  const needsBinding =
+    !blockedByDisconnect && !blockedByLedger && !isLoading && !btcBinding;
+  const needsSetup =
+    !blockedByDisconnect &&
+    !blockedByLedger &&
+    !isLoading &&
+    btcBinding &&
+    !btcIntentSupportsChange;
+  const ready =
+    !blockedByDisconnect &&
+    !blockedByLedger &&
+    !isLoading &&
+    btcBinding &&
+    btcIntentSupportsChange;
+  const policyEvaluation = usePolicyEvaluation({
+    walletName: name,
+    chainKind: BTC_CHAIN_KIND,
+    recipient: destination.trim(),
+    ticker: "BTC",
+    amountDisplay: amountBtc,
+    enabled:
+      !!destination.trim() &&
+      !!sendAmountSats &&
+      !!btcBinding &&
+      btcIntentSupportsChange,
+  });
+  const policyDenied =
+    policyEvaluation?.matched && policyEvaluation.action === "deny";
+  const canSubmit =
+    !!btcBinding &&
+    !!btcIntent &&
+    btcIntentSupportsChange &&
+    !blockedByDisconnect &&
+    !blockedByLedger &&
+    !isLoading &&
+    !!sendAmountSats &&
+    !!selectedUtxo &&
+    !!senderPkhHex &&
+    !policyDenied;
+
+  useEffect(() => {
+    if (btcIntentSupportsChange) setBtcSetupPendingApproval(null);
+  }, [btcIntentSupportsChange]);
+
+  useEffect(() => {
+    if (!btcSetupPendingApproval || btcSetupPendingApproval.reason !== "sync") {
+      return;
+    }
+    let cancelled = false;
+    let inFlight = false;
+    const tick = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      await Promise.allSettled([
+        queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
+        queryClient.refetchQueries({ queryKey: ["wallet", name] }),
+      ]);
+      const readyNow = await hasBitcoinChangeIntent(connection, name);
+      inFlight = false;
+      if (!cancelled && readyNow) {
+        setBtcSetupPendingApproval(null);
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => {
+      void tick();
+    }, 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [btcSetupPendingApproval, connection, name, queryClient]);
+
+  useEffect(() => {
+    if (!autoStartSetup || autoStartedSetup || !needsSetup) return;
+    if (setupIntent.isPending || setupIntent.isSuccess) return;
+    setAutoStartedSetup(true);
+    setupIntent.mutate();
+  }, [autoStartSetup, autoStartedSetup, needsSetup, setupIntent]);
+
+  return (
+    <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
+      <motion.section
+        {...motionProps}
+        transition={{ duration: 0.3 }}
+        className="flex w-full flex-col gap-5"
+      >
+        {/* Compact left-aligned header. Matches SOL + ETH /send. */}
+        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <div className="flex items-center gap-3">
+            {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
+            <div className="flex flex-col gap-0.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                Send
+              </p>
+              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
+                Send BTC
+              </h1>
+            </div>
+          </div>
+          <p className="text-xs text-text-soft sm:text-sm">
+            From{" "}
+            <span className="font-medium text-text-strong">
+              {walletDisplay}
+            </span>
+            <span className="ml-1 text-text-soft/70">· {btcNetwork}</span>
+          </p>
+        </header>
+
+        <SendChainPicker walletName={name} activeKind={BTC_CHAIN_KIND} />
+
+        {blockedByDisconnect && (
+          <BlockedNote
+            title="Sign in first"
+            body="Connect your Solana wallet to authorise sends from this multisig."
+          />
+        )}
+        {!blockedByDisconnect && blockedByLedger && (
+          <BlockedNote
+            title="Use a software wallet for Bitcoin"
+            body="Switch wallets and try again. Ledger support for Bitcoin sends is coming after the beta path is stable."
+          />
+        )}
+        {isLoading && !blockedByDisconnect && !blockedByLedger && (
+          <div className="flex items-center justify-center gap-2 py-8 text-sm text-text-soft">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Checking Bitcoin…
+          </div>
+        )}
+
+        {needsBinding && (
+          <NeedsBinding walletName={name} reduce={!!reduce} />
+        )}
+        {needsSetup && !btcSetupPendingApproval && (
+          <NeedsSetup
+            address={dwalletAddress}
+            balanceSats={balanceSats}
+            balanceLoading={btcSnapshotQuery.isLoading}
+            balanceError={btcSnapshotQuery.error}
+            network={btcNetwork}
+            onSetup={() => {
+              if (setupIntent.isPending || setupIntent.isSuccess) return;
+              setupIntent.mutate();
+            }}
+            busy={setupIntent.isPending}
+            reduce={!!reduce}
+          />
+        )}
+        {needsSetup && btcSetupPendingApproval && (
+          <BitcoinSetupPendingCard
+            walletName={name}
+            proposal={btcSetupPendingApproval.proposal}
+            reason={btcSetupPendingApproval.reason}
+          />
+        )}
+        {ready && !sentLabel && !awaitingApprovalLabel && sendError && (
+          <SendErrorBanner
+            error={sendError}
+            onReset={() => {
+              setSendError(null);
+              setDestination("");
+              setAmountBtc("");
+              setDestinationError(null);
+              setAmountError(null);
+            }}
+            onDismiss={() => setSendError(null)}
+          />
+        )}
+        {ready &&
+          !sentLabel &&
+          !awaitingApprovalLabel &&
+          !sendError &&
+          btcSetupPendingApproval && (
+            <BitcoinSetupPendingCard
+              walletName={name}
+              proposal={btcSetupPendingApproval.proposal}
+              reason={btcSetupPendingApproval.reason}
+            />
+          )}
+        {ready && !sentLabel && !awaitingApprovalLabel && policyEvaluation?.matched && (
+          <PolicyMatchBanner walletName={name} evaluation={policyEvaluation} />
+        )}
+        {ready && !sentLabel && !awaitingApprovalLabel && (
+          <div className="flex flex-col gap-3">
+            <SignPayloadPreview
+              action={
+                sendAmountSats && destination.trim()
+                  ? `Send ${amountBtc.trim()} BTC to ${shortBtcAddress(destination.trim())}`
+                  : "Fill in the amount and recipient above"
+              }
+              details={buildBtcPreviewDetails({
+                walletDisplay,
+                destination,
+                amountBtc,
+                selectedUtxo,
+                effectiveFeeSats,
+                changeSats,
+                note,
+                approvalThreshold: btcIntent?.approvalThreshold ?? 1,
+                timelockSeconds: btcIntent?.timelockSeconds ?? 0,
+              })}
+              collapsibleDetails
+            />
+          </div>
+        )}
+        {ready && !sentLabel && !awaitingApprovalLabel && (
+          <ComposeForm
+            destination={destination}
+            setDestination={setDestination}
+            destinationError={destinationError}
+            amountBtc={amountBtc}
+            setAmountBtc={setAmountBtc}
+            note={note}
+            setNote={setNote}
+            amountError={amountError}
+            balanceSats={balanceSats}
+            balanceLoading={btcSnapshotQuery.isLoading}
+            balanceError={btcSnapshotQuery.error}
+            maxSpendableSats={largestSpendableSats}
+            selectedUtxo={selectedUtxo}
+            effectiveFeeSats={effectiveFeeSats}
+            changeSats={changeSats}
+            address={dwalletAddress}
+            network={btcNetwork}
+            sending={send.isPending}
+            canSubmit={canSubmit}
+            walletDisplay={walletDisplay}
+            onSend={handleSend}
+          />
+        )}
+        {sentLabel && (
+          <SentCard
+            sent={sentLabel}
+            walletDisplay={walletDisplay}
+            walletName={name}
+            network={btcNetwork}
+            onAnother={() => {
+              setSentLabel(null);
+              setDestination("");
+              setAmountBtc("");
+              setNote("");
+            }}
+          />
+        )}
+        {awaitingApprovalLabel && (
+          <AwaitingApprovalCard
+            request={awaitingApprovalLabel}
+            walletDisplay={walletDisplay}
+            walletName={name}
+            onAnother={() => {
+              setAwaitingApprovalLabel(null);
+              setDestination("");
+              setAmountBtc("");
+              setNote("");
+            }}
+          />
+        )}
+      </motion.section>
+    </div>
+  );
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────
+
+function BlockedNote({ title, body }: { title: string; body: string }) {
+  return (
+    <aside className="rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
+      <p className="font-medium text-text-strong">{title}</p>
+      <p className="mt-1">{body}</p>
+    </aside>
+  );
+}
+
+function NeedsBinding({
+  walletName,
+  reduce,
+}: {
+  walletName: string;
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.25 }}
+      className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      <Link
+        href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=bitcoin_p2wpkh&autostart=1`}
+        className="self-start"
+      >
+        <Button>
+          Turn on Bitcoin sending
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </Link>
+    </motion.section>
+  );
+}
+
+function NeedsSetup({
+  address,
+  balanceSats,
+  balanceLoading,
+  balanceError,
+  network,
+  onSetup,
+  busy,
+  reduce,
+}: {
+  address: string | null;
+  balanceSats: bigint | null;
+  balanceLoading: boolean;
+  balanceError: Error | null;
+  network: BitcoinNetwork;
+  onSetup: () => void;
+  busy: boolean;
+  reduce: boolean;
+}) {
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  return (
+    <motion.section
+      {...motionProps}
+      transition={{ duration: 0.25 }}
+      className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+    >
+      {address && (
+        <div className="rounded-soft border border-border-soft bg-canvas p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            Bitcoin address
+          </p>
+          <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
+            {address}
+          </p>
+          <p className="mt-2 font-numerals text-[11px] tabular-nums text-text-soft">
+            Balance:{" "}
+            {balanceLoading ? (
+              "checking..."
+            ) : balanceSats !== null ? (
+              <>
+                {formatSats(balanceSats)} BTC
+                <UsdHint
+                  amount={balanceSats}
+                  smallestPerWhole={100_000_000n}
+                  ticker="BTC"
+                />
+              </>
+            ) : (
+              btcBalanceStatusLabel(balanceError, network)
+            )}
+          </p>
+        </div>
+      )}
+      <Button onClick={onSetup} disabled={busy} fullWidth>
+        {busy ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Turning on Bitcoin…
+          </>
+        ) : (
+          <>
+            Turn on Bitcoin sending
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </>
+        )}
+      </Button>
+    </motion.section>
+  );
+}
+
+function ComposeForm(props: {
+  destination: string;
+  setDestination: (v: string) => void;
+  destinationError: string | null;
+  amountBtc: string;
+  setAmountBtc: (v: string) => void;
+  note: string;
+  setNote: (v: string) => void;
+  amountError: string | null;
+  balanceSats: bigint | null;
+  balanceLoading: boolean;
+  balanceError: Error | null;
+  maxSpendableSats: bigint;
+  selectedUtxo: EsploraUtxo | null;
+  effectiveFeeSats: bigint | null;
+  changeSats: bigint | null;
+  address: string | null;
+  network: BitcoinNetwork;
+  sending: boolean;
+  canSubmit: boolean;
+  walletDisplay: string;
+  onSend: () => void;
+}) {
+  const balanceBtc =
+    props.balanceSats !== null ? formatSats(props.balanceSats) : null;
+  return (
+    <>
+      {/* Compose grid. Amount + Recipient sit side-by-side on lg+
+          and merge into one bordered card on mobile. Same shell as
+          SOL /send and ETH /send/eth. */}
+      <div
+        className={
+          "flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
+          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 " +
+          "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
+        }
+      >
+        {/* Amount card. Balance + Use max live with the input so the
+            spendable BTC state stays visually scoped. */}
+        <section
+          className={
+            "flex flex-col gap-3 " +
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
+          }
+        >
+          <SendAmountField
+            id="btc-amount"
+            ticker="BTC"
+            value={props.amountBtc}
+            onChange={(e) => props.setAmountBtc(e.target.value)}
+            maxLength={20}
+            action={
+              props.maxSpendableSats > 0n ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    props.setAmountBtc(formatSats(props.maxSpendableSats));
+                  }}
+                  className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+                >
+                  Use max
+                </button>
+              ) : null
+            }
+            footer={
+              <>
+                <span>Wallet has </span>
+                <span className="font-numerals font-medium text-text-strong tabular-nums">
+                  {props.balanceLoading
+                    ? "checking..."
+                    : balanceBtc !== null
+                      ? balanceBtc
+                      : btcBalanceStatusLabel(props.balanceError, props.network)}
+                </span>
+                {balanceBtc !== null ? <span> BTC</span> : null}
+                {props.balanceSats !== null && (
+                  <UsdHint
+                    amount={props.balanceSats}
+                    smallestPerWhole={100_000_000n}
+                    ticker="BTC"
+                  />
+                )}
+                {props.amountError && (
+                  <span className="ml-1.5 text-warning">{props.amountError}</span>
+                )}
+                {props.selectedUtxo && props.effectiveFeeSats !== null && (
+                  <span className="block pt-1 text-[11px]">
+                    Fee {formatSats(props.effectiveFeeSats)} BTC
+                    {props.changeSats !== null && props.changeSats > 0n ? (
+                      <> · change {formatSats(props.changeSats)} BTC</>
+                    ) : null}
+                    <InfoTip
+                      label="How the fee is picked"
+                      width="md"
+                      size="xs"
+                      side="end"
+                    >
+                      <span className="block">
+                        Bitcoin sends the amount, pays the network fee, and
+                        returns the remainder to this wallet.
+                      </span>
+                    </InfoTip>
+                  </span>
+                )}
+              </>
+            }
+          />
+        </section>
+
+        {/* Recipient card. Same merged-mobile / split-lg+
+            treatment as Amount above. */}
+        <section
+          className={
+            "flex flex-col gap-3 " +
+            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
+          }
+        >
+          <FormField label="To" error={props.destinationError}>
+            <TextInput
+              id="btc-destination"
+              type="text"
+              value={props.destination}
+              onChange={(e) => props.setDestination(e.target.value)}
+              placeholder={props.network === "mainnet" ? "bc1q…" : "tb1q…"}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
+              className="font-mono"
+            />
+          </FormField>
+
+          <FormField label={SEND_NOTE_LABEL}>
+            <TextInput
+              id="btc-note"
+              type="text"
+              value={props.note}
+              onChange={(e) =>
+                props.setNote(e.target.value.slice(0, SEND_NOTE_MAX_LENGTH))
+              }
+              placeholder={SEND_NOTE_PLACEHOLDER}
+              maxLength={SEND_NOTE_MAX_LENGTH}
+            />
+          </FormField>
+        </section>
+      </div>
+
+      {/* Action footer. Sticky CTA mirrors the other send pages. */}
+      <div className="flex flex-col gap-2 pt-1">
+        <div
+          className={
+            "-mx-3 sm:mx-0 px-3 sm:px-0 " +
+            "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
+            "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
+          }
+        >
+          <Button
+            onClick={props.onSend}
+            disabled={props.sending || !props.canSubmit}
+            variant="primary"
+            fullWidth
+            size="lg"
+          >
+            {props.sending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Sending…
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" aria-hidden="true" />
+                Send request
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BitcoinSetupPendingCard({
+  walletName,
+  proposal,
+  reason,
+}: {
+  walletName: string;
+  proposal: string | null;
+  reason: BtcSetupPendingReason;
+}) {
+  const body =
+    reason === "approval"
+      ? "Waiting for approval. After that, Bitcoin sends will work normally."
+      : "Almost done. ClearSig is checking for the final confirmation.";
+  return (
+    <aside className="rounded-card border border-accent/35 bg-accent/[0.07] p-4 text-sm text-text-soft shadow-card-rest">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-semibold text-text-strong">
+            Bitcoin is turning on
+          </p>
+          <p className="mt-1">{body}</p>
+          {proposal ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[11px] text-text-soft hover:text-text-strong">
+                Details
+              </summary>
+              <p className="mt-1 font-mono text-[11px] text-text-soft">
+                {shortHash(proposal)}
+              </p>
+            </details>
+          ) : null}
+        </div>
+        <Link
+          href={`/app/wallet/${encodeURIComponent(walletName)}/activity`}
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-accent/30 bg-accent/[0.12] px-4 text-xs font-semibold text-accent transition-colors hover:bg-accent/[0.18]"
+        >
+          View activity
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+    </aside>
+  );
+}
+
+function SentCard({
+  sent,
+  walletDisplay,
+  walletName,
+  network,
+  onAnother,
+}: {
+  sent: {
+    amountBtc: string;
+    to: string;
+    note: string;
+    txid: string | null;
+    explorerUrl: string | null;
+  };
+  walletDisplay: string;
+  walletName: string;
+  network: string;
+  onAnother: () => void;
+}) {
+  const networkLabel =
+    network === "mainnet" ? "Bitcoin" : `Bitcoin ${network}`;
+  const details: ReceiptDetail[] = [
+    { label: "From", value: walletDisplay },
+    { label: "Network", value: networkLabel },
+  ];
+  if (sent.txid) {
+    details.push({
+      label: "Tx id",
+      value: shortHash(sent.txid),
+      mono: true,
+      copyText: sent.txid,
+    });
+  }
+  if (sent.note) {
+    details.push({ label: "Note", value: sent.note });
+  }
+  return (
+    <SendReceipt
+      status="confirmed"
+      statusLabel={`Broadcast on ${networkLabel}`}
+      amount={sent.amountBtc}
+      ticker="BTC"
+      recipientLabel={sent.to}
+      details={details}
+      explorerHref={sent.explorerUrl}
+      explorerLabel={bitcoinExplorerLabel(network as BitcoinNetwork)}
+      actions={[
+        {
+          label: "Send another",
+          hint: "Same wallet, different recipient.",
+          onClick: onAnother,
+          primary: true,
+          icon: ArrowRight,
+        },
+        {
+          label: "View activity",
+          hint: "See approvals coming in.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}`,
+        },
+      ]}
+    />
+  );
+}
+
+function AwaitingApprovalCard({
+  request,
+  walletDisplay,
+  walletName,
+  onAnother,
+}: {
+  request: {
+    amountBtc: string;
+    to: string;
+    proposal: string;
+  };
+  walletDisplay: string;
+  walletName: string;
+  onAnother: () => void;
+}) {
+  const details: ReceiptDetail[] = [
+    { label: "From", value: walletDisplay },
+    { label: "Status", value: "Waiting for approvals" },
+    {
+      label: "Proposal",
+      value: shortHash(request.proposal),
+      mono: true,
+      copyText: request.proposal,
+    },
+  ];
+  return (
+    <SendReceipt
+      status="pending"
+      statusLabel="Request created"
+      amount={request.amountBtc}
+      ticker="BTC"
+      recipientLabel={request.to}
+      details={details}
+      actions={[
+        {
+          label: "View activity",
+          hint: "See the request and approval status.",
+          href: `/app/wallet/${encodeURIComponent(walletName)}/activity`,
+          primary: true,
+          icon: ArrowRight,
+        },
+        {
+          label: "New request",
+          hint: "Compose another Bitcoin request.",
+          onClick: onAnother,
+        },
+      ]}
+    />
+  );
+}
+
+function shortHash(s: string): string {
+  if (s.length <= 16) return s;
+  return `${s.slice(0, 8)}…${s.slice(-6)}`;
+}
+
+function buildBtcPreviewDetails(args: {
+  walletDisplay: string;
+  destination: string;
+  amountBtc: string;
+  selectedUtxo: EsploraUtxo | null;
+  effectiveFeeSats: bigint | null;
+  changeSats: bigint | null;
+  note: string;
+  approvalThreshold: number;
+  timelockSeconds: number;
+}): SignPayloadDetail[] {
+  const details: SignPayloadDetail[] = [
+    { label: "From wallet", value: args.walletDisplay },
+    { label: "Network", value: "Bitcoin" },
+    {
+      label: "Approval threshold",
+      value: `${args.approvalThreshold} ${args.approvalThreshold === 1 ? "approval" : "approvals"}`,
+    },
+    {
+      label: "Timelock",
+      value:
+        args.timelockSeconds > 0
+          ? `${args.timelockSeconds} seconds after approval`
+          : "Immediately after approval",
+    },
+  ];
+  const destination = args.destination.trim();
+  if (destination) {
+    details.push({
+      label: "Recipient address",
+      value: shortBtcAddress(destination),
+      emphasis: "mono",
+    });
+  }
+  if (args.amountBtc.trim()) {
+    details.push({
+      label: "Amount",
+      value: `${args.amountBtc.trim()} BTC`,
+      emphasis: "amount",
+    });
+  }
+  if (args.selectedUtxo && args.effectiveFeeSats !== null) {
+    details.push({
+      label: "Network fee",
+      value: `${formatSats(args.effectiveFeeSats)} BTC`,
+    });
+    if (args.changeSats !== null && args.changeSats > 0n) {
+      details.push({
+        label: "Change",
+        value: `${formatSats(args.changeSats)} BTC back to this wallet`,
+      });
+    }
+  }
+  if (args.note.trim()) {
+    details.push({
+      label: "Note",
+      value: args.note.trim(),
+    });
+  }
+  return details;
+}
+
+// ─── error banner ─────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────
+
+function shortBtcAddress(addr: string): string {
+  if (addr.length <= 16) return addr;
+  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+}
+
+function btcBalanceStatusLabel(
+  error: Error | null | undefined,
+  _network: BitcoinNetwork,
+): string {
+  if (!error) return "Balance unavailable";
+  const message = error.message.toLowerCase();
+  if (message.includes("404")) return "No Bitcoin found";
+  if (message.includes("failed to fetch") || message.includes("network")) {
+    return "Balance unavailable";
+  }
+  if (message.includes("429") || message.includes("rate")) {
+    return "Balance temporarily unavailable";
+  }
+  if (message.includes("500") || message.includes("502") || message.includes("503")) {
+    return "Balance temporarily unavailable";
+  }
+  return "Check balance";
+}

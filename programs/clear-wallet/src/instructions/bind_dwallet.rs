@@ -7,7 +7,7 @@
 //!      (wallet, chain_kind), so a single wallet can fan out to multiple
 //!      chains for the same dWallet.
 //!   2. `DwalletOwnership` at `["dwallet_owner", dwallet]` recording which
-//!      clear-msig wallet *first* bound this dWallet. Init-once and
+//!      clear-msig wallet atomically claimed this dWallet. Init-once and
 //!      immutable. Subsequent binds (for additional chain_kinds) and every
 //!      `ika_sign` call re-read this account and reject if `wallet` doesn't
 //!      match — that's how a multisig truly owns a dWallet, despite the
@@ -20,10 +20,9 @@
 //!
 //! ## Pre-conditions
 //!
-//! The dWallet's *current* authority must already be clear-wallet's CPI
-//! authority PDA. The CLI's `wallet add-chain` flow runs the initial
-//! `transfer_ownership` (signed by the dWallet owner) before calling this
-//! instruction.
+//! A first bind must immediately follow Ika's `transfer_ownership` for the
+//! same dWallet in the same transaction. Subsequent chain binds require the
+//! existing immutable ownership lock.
 
 use quasar_lang::{cpi::Seed, prelude::*, sysvars::Sysvar as _, traits::Id};
 
@@ -38,6 +37,12 @@ use crate::{
     },
     utils::ika_cpi::{DWalletContext, CPI_AUTHORITY_SEED},
 };
+
+const INSTRUCTIONS_SYSVAR_ID: Address = Address::new_from_array([
+    6, 167, 213, 23, 24, 123, 209, 102, 53, 218, 212, 4, 85, 253, 194, 192, 193, 36, 198, 143, 33,
+    86, 117, 165, 219, 186, 203, 95, 8, 0, 0, 0,
+]);
+const IKA_TRANSFER_OWNERSHIP_DISCRIMINATOR: u8 = 24;
 
 /// Marker type for the clear-wallet program itself, so we can declare the
 /// `caller_program` field as `&'info Program<ClearWalletProgram>`. Quasar's
@@ -120,6 +125,10 @@ pub struct BindDwallet<'info> {
     #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     pub dwallet_program: &'info Interface<DWalletProgramInterface>,
     pub system_program: &'info Program<System>,
+    /// Proves a first bind immediately follows Ika authority transfer in the
+    /// same atomic transaction.
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    pub instructions_sysvar: &'info UncheckedAccount,
 }
 
 pub struct BindDwalletArgs {
@@ -138,6 +147,12 @@ impl<'info> BindDwallet<'info> {
 
         let wallet_addr = *self.wallet.address();
         let dwallet_addr = *self.dwallet.address();
+        require!(
+            self.dwallet
+                .to_account_view()
+                .owned_by(self.dwallet_program.address()),
+            ProgramError::IncorrectProgramId
+        );
 
         // Derive and verify the IkaConfig PDA: ["ika_config", wallet, &[chain_kind]]
         let chain_byte = [args.chain_kind];
@@ -177,12 +192,30 @@ impl<'info> BindDwallet<'info> {
 
         // ── Init-or-verify the DwalletOwnership lock ──
         //
-        // First binder for this dWallet creates the lock claiming itself.
+        // The atomic authority transfer for this dWallet creates the lock.
         // Subsequent binds (e.g. the same wallet adding another chain_kind)
         // re-verify the recorded wallet matches. Any other wallet trying to
         // bind the same dWallet hits `InvalidArgument` here.
         let ownership_view = self.dwallet_ownership.to_account_view();
         if ownership_view.data_len() == 0 {
+            require_keys_eq!(
+                *self.instructions_sysvar.address(),
+                INSTRUCTIONS_SYSVAR_ID,
+                ProgramError::UnsupportedSysvar
+            );
+            let instructions_data = unsafe {
+                self.instructions_sysvar
+                    .to_account_view()
+                    .borrow_unchecked()
+            };
+            verify_adjacent_ownership_transfer(
+                instructions_data,
+                self.dwallet_program.address(),
+                self.payer.address(),
+                self.dwallet.address(),
+                self.cpi_authority.address(),
+            )?;
+
             // First bind — create the lock.
             let rent = Rent::get()?;
             let lamports = rent.try_minimum_balance(DWALLET_OWNERSHIP_LEN)?;
@@ -284,5 +317,192 @@ impl<'info> BindDwallet<'info> {
         ctx.transfer_dwallet(self.dwallet.to_account_view(), expected_cpi_auth.to_bytes())?;
 
         Ok(())
+    }
+}
+
+fn verify_adjacent_ownership_transfer(
+    instructions_data: &[u8],
+    expected_program: &Address,
+    expected_payer: &Address,
+    expected_dwallet: &Address,
+    expected_authority: &Address,
+) -> Result<(), ProgramError> {
+    let current_index = read_u16_tail(instructions_data)? as usize;
+    require!(current_index > 0, ProgramError::InvalidInstructionData);
+    let previous_index = current_index - 1;
+    let instruction_count = read_u16_at(instructions_data, 0)? as usize;
+    require!(
+        current_index < instruction_count,
+        ProgramError::InvalidInstructionData
+    );
+    let offset_position = 2usize
+        .checked_add(
+            previous_index
+                .checked_mul(2)
+                .ok_or(ProgramError::InvalidInstructionData)?,
+        )
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    let mut cursor = read_u16_at(instructions_data, offset_position)? as usize;
+    let account_count = read_u16(instructions_data, &mut cursor)? as usize;
+    require!(account_count == 2, ProgramError::InvalidInstructionData);
+
+    let payer_flags = read_u8(instructions_data, &mut cursor)?;
+    let payer = read_address(instructions_data, &mut cursor)?;
+    let dwallet_flags = read_u8(instructions_data, &mut cursor)?;
+    let dwallet = read_address(instructions_data, &mut cursor)?;
+    let program = read_address(instructions_data, &mut cursor)?;
+    let data_len = read_u16(instructions_data, &mut cursor)? as usize;
+    let data_end = cursor
+        .checked_add(data_len)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    let data = instructions_data
+        .get(cursor..data_end)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+
+    require_keys_eq!(
+        program,
+        *expected_program,
+        ProgramError::InvalidInstructionData
+    );
+    require_keys_eq!(payer, *expected_payer, ProgramError::InvalidInstructionData);
+    require!(payer_flags & 1 == 1, ProgramError::InvalidInstructionData);
+    require_keys_eq!(
+        dwallet,
+        *expected_dwallet,
+        ProgramError::InvalidInstructionData
+    );
+    require!(dwallet_flags & 2 == 2, ProgramError::InvalidInstructionData);
+    require!(data.len() == 33, ProgramError::InvalidInstructionData);
+    require!(
+        data[0] == IKA_TRANSFER_OWNERSHIP_DISCRIMINATOR,
+        ProgramError::InvalidInstructionData
+    );
+    require!(
+        &data[1..] == expected_authority.as_ref(),
+        ProgramError::InvalidInstructionData
+    );
+    Ok(())
+}
+
+fn read_u16_tail(data: &[u8]) -> Result<u16, ProgramError> {
+    let start = data
+        .len()
+        .checked_sub(2)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    read_u16_at(data, start)
+}
+
+fn read_u16_at(data: &[u8], offset: usize) -> Result<u16, ProgramError> {
+    let end = offset
+        .checked_add(2)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    let bytes = data
+        .get(offset..end)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    Ok(u16::from_le_bytes([bytes[0], bytes[1]]))
+}
+
+fn read_u16(data: &[u8], cursor: &mut usize) -> Result<u16, ProgramError> {
+    let value = read_u16_at(data, *cursor)?;
+    *cursor = cursor
+        .checked_add(2)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    Ok(value)
+}
+
+fn read_u8(data: &[u8], cursor: &mut usize) -> Result<u8, ProgramError> {
+    let value = *data
+        .get(*cursor)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    *cursor = cursor
+        .checked_add(1)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    Ok(value)
+}
+
+fn read_address(data: &[u8], cursor: &mut usize) -> Result<Address, ProgramError> {
+    let end = cursor
+        .checked_add(32)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    let bytes = data
+        .get(*cursor..end)
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    let mut address = [0u8; 32];
+    address.copy_from_slice(bytes);
+    *cursor = end;
+    Ok(Address::new_from_array(address))
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::*;
+
+    fn address(byte: u8) -> Address {
+        Address::new_from_array([byte; 32])
+    }
+
+    fn instructions_data(
+        program: Address,
+        payer: Address,
+        dwallet: Address,
+        authority: Address,
+        discriminator: u8,
+    ) -> std::vec::Vec<u8> {
+        let mut out = std::vec![2, 0, 6, 0, 6, 0];
+        out.extend_from_slice(&2u16.to_le_bytes());
+        out.push(1);
+        out.extend_from_slice(payer.as_ref());
+        out.push(2);
+        out.extend_from_slice(dwallet.as_ref());
+        out.extend_from_slice(program.as_ref());
+        out.extend_from_slice(&33u16.to_le_bytes());
+        out.push(discriminator);
+        out.extend_from_slice(authority.as_ref());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(&1u16.to_le_bytes());
+        out
+    }
+
+    #[test]
+    fn accepts_adjacent_matching_transfer() {
+        let program = address(1);
+        let payer = address(2);
+        let dwallet = address(3);
+        let authority = address(4);
+        let data = instructions_data(program, payer, dwallet, authority, 24);
+
+        assert!(
+            verify_adjacent_ownership_transfer(&data, &program, &payer, &dwallet, &authority)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn rejects_wrong_transfer_target_or_discriminator() {
+        let program = address(1);
+        let payer = address(2);
+        let dwallet = address(3);
+        let authority = address(4);
+        let wrong_target = instructions_data(program, payer, dwallet, address(5), 24);
+        let wrong_discriminator = instructions_data(program, payer, dwallet, authority, 23);
+
+        assert!(verify_adjacent_ownership_transfer(
+            &wrong_target,
+            &program,
+            &payer,
+            &dwallet,
+            &authority
+        )
+        .is_err());
+        assert!(verify_adjacent_ownership_transfer(
+            &wrong_discriminator,
+            &program,
+            &payer,
+            &dwallet,
+            &authority
+        )
+        .is_err());
     }
 }

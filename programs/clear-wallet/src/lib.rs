@@ -280,6 +280,7 @@ pub mod clear_wallet {
         policy_commitment: [u8; 32],
         envelope_hash: [u8; 32],
         amount_raw_le: [u8; 16],
+        agent_id_hash: [u8; 32],
         venue_hash: [u8; 32],
         market_hash: [u8; 32],
         side_hash: [u8; 32],
@@ -294,6 +295,7 @@ pub mod clear_wallet {
                 policy_commitment,
                 envelope_hash,
                 amount_raw_le,
+                agent_id_hash,
                 venue_hash,
                 market_hash,
                 side_hash,
@@ -302,6 +304,36 @@ pub mod clear_wallet {
                 session_id_hash,
                 route_hash,
                 risk_check_hash,
+            })
+    }
+
+    /// Grant or revoke a bounded agent trading session (ClearSign AgentSessionGrant).
+    #[instruction(discriminator = 28)]
+    pub fn execute_typed_agent_session_grant(
+        ctx: Ctx<ExecuteTypedAgentSessionGrant>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        session_id_hash: [u8; 32],
+        agent_id_hash: [u8; 32],
+        venue_hash: [u8; 32],
+        market_hash: [u8; 32],
+        max_notional_raw_le: [u8; 16],
+        max_leverage_x100: u32,
+        expires_at: i64,
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_agent_session_grant(ExecuteTypedAgentSessionGrantArgs {
+                policy_commitment,
+                envelope_hash,
+                session_id_hash,
+                agent_id_hash,
+                venue_hash,
+                market_hash,
+                max_notional_raw_le,
+                max_leverage_x100,
+                expires_at,
+                status,
             })
     }
 
@@ -361,6 +393,46 @@ pub mod clear_wallet {
             },
             &ctx.bumps,
         )
+    }
+
+    #[instruction(discriminator = 26)]
+    pub fn execute_typed_wallet_policy_update(
+        ctx: Ctx<ExecuteTypedWalletPolicyUpdate>,
+        current_policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        new_policy_bytes: Vec<u8, 2048>,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_wallet_policy_update(
+            ExecuteTypedWalletPolicyUpdateArgs {
+                current_policy_commitment,
+                envelope_hash,
+                chain_kind,
+                new_policy_bytes: new_policy_bytes.as_ref(),
+            },
+            &ctx.bumps,
+        )
+    }
+
+    /// Typed ClearSign executor for membership / threshold / timelock changes.
+    /// Rewrites the target intent body after verifying the governance payload hash.
+    #[instruction(discriminator = 27)]
+    pub fn execute_typed_intent_governance(
+        ctx: Ctx<ExecuteTypedIntentGovernance>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        action_kind: u8,
+        target_intent_index: u8,
+        new_intent_body: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_intent_governance(ExecuteTypedIntentGovernanceArgs {
+                policy_commitment,
+                envelope_hash,
+                action_kind,
+                target_intent_index,
+                new_intent_body,
+            })
     }
 
     #[instruction(discriminator = 6)]

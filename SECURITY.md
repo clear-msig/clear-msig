@@ -159,6 +159,30 @@ The product is in pre-alpha. Some load-bearing mitigations (FHE-encrypted polici
 
 **What this does NOT mitigate.** Upstream-blocked. When Dynamic and `@solana/spl-token` ship updated transitives, re-run `npm audit` and bump.
 
+### N. Authenticated notification state
+
+**Vector.** A browser-only inbox can diverge across devices, replay the same
+approval alert, or let local storage tampering hide unread requests. A server
+feed keyed only by a caller-supplied wallet address would instead let anyone
+read or alter another user's notification state.
+
+**Mitigation today.**
+- `/api/notifications` requires a Dynamic access token and verifies its RS256
+  signature against the environment JWKS before trusting `sub` as the feed key.
+- The verifier checks environment, issuer, audience, expiry, future issue time,
+  and the `requiresAdditionalAuth` scope. Tokens are never logged or persisted.
+- Same-origin and per-IP rate-limit guards run before notification mutations.
+- Redis atomically deduplicates stable event IDs and owns read receipts across
+  devices. Production fails closed without durable Redis; process memory is
+  limited to development and tests.
+- Notification links are restricted to same-origin paths and all input fields
+  are bounded before persistence.
+
+**What this does NOT mitigate.** Feed entries summarize chain observations made
+while a signed-in browser is active; this is not background push. Adding a
+chain indexer or worker would allow notifications to arrive while every client
+is offline.
+
 ### O. ClearSign v2 typed proposals
 
 **Vector.** The product now creates typed v2 approval records for escrow and
@@ -197,14 +221,16 @@ What's solid today:
 - Validated `?next=` against open-redirect
 - **Ledger clear signing on the device.** The Solana app on the user's Ledger renders the offchain message body as text on the device screen via `signOffchainMessage`; the host is bypassed for the consent step.
 - **Client-side sign-payload rebuild + verify** for software wallet users (defends the same surface from the host side).
+- **`signLocalClearText`** for agent/local owner approvals — rejects opaque hex blobs; money/governance paths stay on `signDescriptor` / `signTypedDescriptor`
 - localStorage destination shown in sign preview
 - HMAC-signed contacts; tampered entries dropped on load
 - Same-origin guard + per-IP rate limit on every Next API route
-- Optional Upstash adapter for shared rate-limit state across Vercel instances
-- One-click passkey enrollment for embedded-wallet users on /security
+- **Rate limits on all typed execute routes** (including Ika chain-send) keyed by wallet name
+- Upstash-backed notification and agent state in production, plus shared rate limiting
+- One-click passkey enrollment for embedded-wallet users on /security; soft passkey nudge after wallet create
 - SMTP body sanitization + tight invite limits
 - Replay protection via signed nonce in messages
-- ClearSign v2 typed proposal hashes/signatures for escrow approval records
+- ClearSign v2 typed proposal hashes/signatures for escrow, sends, wallet policy, and **intent governance** (members/threshold/timelock)
 - TSS-MPC keys via Dynamic (single-host compromise resistant)
 - Pre-alpha caveat on every "encrypted" / "private" chip
 - 0 critical npm vulns; high-severity remainders are transitive + non-reachable

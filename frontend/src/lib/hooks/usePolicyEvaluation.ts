@@ -28,7 +28,15 @@ interface Args extends Omit<CandidateProposal, "at"> {
 }
 
 export function usePolicyEvaluation(args: Args): RuleEvaluation | null {
-  const { walletName, enabled = true } = args;
+  const {
+    walletName,
+    enabled = true,
+    chainKind,
+    tokenContract,
+    recipient,
+    ticker,
+    amountDisplay,
+  } = args;
   const [evaluation, setEvaluation] = useState<RuleEvaluation | null>(null);
 
   useEffect(() => {
@@ -44,7 +52,14 @@ export function usePolicyEvaluation(args: Args): RuleEvaluation | null {
         return;
       }
       try {
-        const out = await evaluateFirstMatch(rules, args);
+        const out = await evaluateFirstMatch(rules, {
+          walletName,
+          chainKind,
+          tokenContract,
+          recipient,
+          ticker,
+          amountDisplay,
+        });
         if (!cancelled) setEvaluation(out);
       } catch {
         if (!cancelled) setEvaluation(null);
@@ -61,14 +76,11 @@ export function usePolicyEvaluation(args: Args): RuleEvaluation | null {
   }, [
     enabled,
     walletName,
-    args.chainKind,
-    args.tokenContract,
-    args.recipient,
-    args.ticker,
-    args.amountDisplay,
-    // Intentional: not depending on `args` itself, only the
-    // serialisable fields above. Identity-equal candidate inputs
-    // shouldn't re-trigger an async re-evaluate.
+    chainKind,
+    tokenContract,
+    recipient,
+    ticker,
+    amountDisplay,
   ]);
 
   return evaluation;

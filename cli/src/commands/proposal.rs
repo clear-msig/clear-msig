@@ -80,6 +80,49 @@ pub enum ProposalAction {
         #[arg(long)]
         proposal: String,
     },
+    /// Execute an approved typed wallet policy update.
+    TypedWalletPolicyUpdate {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        /// New typed policy bytes as hex. Must match the approved SetProtection payload.
+        #[arg(long)]
+        policy_bytes_hex: String,
+        /// Chain kind whose active policy should be replaced (0 SOL, 1 EVM, 2 BTC, 3 ZEC, 4 ERC-20, 5 HyperEVM).
+        #[arg(long, default_value_t = 0)]
+        chain_kind: u8,
+    },
+    /// Execute an approved typed membership / threshold / timelock update.
+    TypedIntentGovernance {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        /// ClearSign action kind: 3=add_member, 4=remove_member, 5=change_threshold.
+        #[arg(long)]
+        action_kind: Option<u8>,
+        /// Intent index being rewritten (Custom spend intent, not the meta UpdateIntent).
+        #[arg(long)]
+        target_index: Option<u8>,
+        /// New intent body as hex (no discriminator). Preferred when the browser
+        /// already built the body via prepare.updateIntent.
+        #[arg(long)]
+        new_intent_body_hex: Option<String>,
+        /// Template file used when building the body server-side.
+        #[arg(long)]
+        file: Option<String>,
+        #[arg(long, value_delimiter = ',')]
+        proposers: Option<Vec<String>>,
+        #[arg(long, value_delimiter = ',')]
+        approvers: Option<Vec<String>>,
+        #[arg(long)]
+        threshold: Option<u8>,
+        #[arg(long, default_value_t = 1)]
+        cancellation_threshold: u8,
+        #[arg(long, default_value_t = 0)]
+        timelock: u32,
+    },
     /// Execute an approved typed escrow milestone release.
     TypedEscrowRelease {
         #[arg(long)]
@@ -226,6 +269,8 @@ pub enum ProposalAction {
         #[arg(long)]
         amount_raw: u128,
         #[arg(long)]
+        agent_id_hash: String,
+        #[arg(long)]
         venue_hash: String,
         #[arg(long)]
         market_hash: String,
@@ -241,6 +286,29 @@ pub enum ProposalAction {
         route_hash: String,
         #[arg(long)]
         risk_check_hash: String,
+    },
+    /// Grant or revoke a bounded on-chain agent session.
+    TypedAgentSessionGrant {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        session_id_hash: String,
+        #[arg(long)]
+        agent_id_hash: String,
+        #[arg(long)]
+        venue_hash: String,
+        #[arg(long)]
+        market_hash: String,
+        #[arg(long)]
+        max_notional_raw: u128,
+        #[arg(long)]
+        max_leverage_x100: u32,
+        #[arg(long)]
+        expires_at: i64,
+        #[arg(long)]
+        status: u8,
     },
     /// Execute an approved typed escrow unwind / return.
     ///
@@ -281,7 +349,7 @@ pub enum ProposalAction {
         #[arg(long)]
         asset_id_hash: String,
     },
-    /// Sign and optionally broadcast an approved typed ETH/HYPE send via Ika.
+    /// Sign and optionally broadcast an approved typed remote send via Ika.
     TypedChainSendIka {
         #[arg(long)]
         wallet: String,
@@ -730,6 +798,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     proposal_account.status
                 ));
             }
+            ensure_generic_typed_execute_allowed(&proposal_account)?;
             let intent_pubkey: Pubkey = proposal_account
                 .intent
                 .parse()
@@ -748,6 +817,157 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "txid": sig.to_string(),
                 "proposal": proposal_pubkey.to_string(),
                 "path": "typed",
+                "status": "executed",
+            }));
+        }
+
+        ProposalAction::TypedWalletPolicyUpdate {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            policy_bytes_hex,
+            chain_kind,
+        } => {
+            let policy_bytes =
+                parse_hex_local(&policy_bytes_hex).with_context(|| "invalid policy-bytes-hex")?;
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::SetProtection,
+                "typed wallet policy update",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let ix = crate::instructions::execute_typed_wallet_policy_update(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
+                wallet_pubkey,
+                wallet_policy_pubkey(wallet_pubkey),
+                intent_pubkey,
+                proposal_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                chain_kind,
+                &policy_bytes,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_wallet_policy_update",
+                "status": "executed",
+            }));
+        }
+
+        ProposalAction::TypedIntentGovernance {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            action_kind,
+            target_index,
+            new_intent_body_hex,
+            file,
+            proposers,
+            approvers,
+            threshold,
+            cancellation_threshold,
+            timelock,
+        } => {
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            let action_kind = action_kind.unwrap_or(proposal_account.action_kind);
+            let kind = ClearSignActionKind::from_code(action_kind).ok_or_else(|| {
+                anyhow!("invalid action-kind {action_kind} (expected 3, 4, or 5)")
+            })?;
+            if !matches!(
+                kind,
+                ClearSignActionKind::AddMember
+                    | ClearSignActionKind::RemoveMember
+                    | ClearSignActionKind::ChangeThreshold
+            ) {
+                return Err(anyhow!(
+                    "typed-intent-governance only supports action kinds 3/4/5, got {action_kind}"
+                ));
+            }
+            ensure_typed_action(&proposal_account, kind, "typed intent governance")?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let program_id = crate::instructions::program_id();
+            let pid = solana_address::Address::new_from_array(program_id.to_bytes());
+            let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
+
+            let committed = &proposal_account.policy_bytes;
+            let (target_index, new_intent_body) = if new_intent_body_hex.is_none() && file.is_none()
+            {
+                committed_governance_payload(committed, target_index)?
+            } else {
+                let target_index = target_index.ok_or_else(|| {
+                    anyhow!("--target-index is required with an explicit intent body or file")
+                })?;
+                let body = if let Some(hex) = new_intent_body_hex {
+                    parse_hex_local(&hex).with_context(|| "invalid new-intent-body-hex")?
+                } else {
+                    let file = file.ok_or_else(|| {
+                        anyhow!("typed-intent-governance requires committed bytes or --file")
+                    })?;
+                    let proposers = proposers.ok_or_else(|| anyhow!("--proposers is required"))?;
+                    let approvers = approvers.ok_or_else(|| anyhow!("--approvers is required"))?;
+                    let threshold = threshold.ok_or_else(|| {
+                        anyhow!("--threshold is required when building from --file")
+                    })?;
+                    let json_str = std::fs::read_to_string(&file)
+                        .with_context(|| format!("reading intent file: {file}"))?;
+                    let tx_json: clear_wallet_client::intent_json::IntentTransactionJson =
+                        serde_json::from_str(&json_str)
+                            .with_context(|| "parsing intent transaction JSON")?;
+                    let full_json = tx_json.with_governance(
+                        proposers,
+                        approvers,
+                        threshold,
+                        cancellation_threshold,
+                        timelock,
+                    );
+                    let built = full_json.to_built().map_err(|e| anyhow!("{e}"))?;
+                    built.serialize_body(&wallet_addr, 0, target_index, 3)
+                };
+                (target_index, body)
+            };
+
+            let mut expected_committed = Vec::with_capacity(new_intent_body.len() + 1);
+            expected_committed.push(target_index);
+            expected_committed.extend_from_slice(&new_intent_body);
+            if committed != &expected_committed {
+                return Err(anyhow!(
+                    "execution payload does not match the bytes committed in the typed proposal"
+                ));
+            }
+            let (target_addr, _) =
+                clear_wallet_client::pda::find_intent_address(&wallet_addr, target_index, &pid);
+            let target_pubkey = Pubkey::new_from_array(target_addr.to_bytes());
+
+            let ix = crate::instructions::execute_typed_intent_governance(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                target_pubkey,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                action_kind,
+                target_index,
+                &new_intent_body,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_intent_governance",
+                "target_index": target_index,
+                "action_kind": action_kind,
                 "status": "executed",
             }));
         }
@@ -1272,6 +1492,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             wallet: wallet_name,
             proposal: proposal_addr_str,
             amount_raw,
+            agent_id_hash,
             venue_hash,
             market_hash,
             side_hash,
@@ -1300,19 +1521,23 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 .parse()
                 .with_context(|| "invalid intent address in typed proposal")?;
             let venue_hash = decode_hex_32(&venue_hash, "venue_hash")?;
+            let agent_id_hash = decode_hex_32(&agent_id_hash, "agent_id_hash")?;
             let market_hash = decode_hex_32(&market_hash, "market_hash")?;
             let side_hash = decode_hex_32(&side_hash, "side_hash")?;
             let asset_id_hash = decode_hex_32(&asset_id_hash, "asset_id_hash")?;
             let session_id_hash = decode_hex_32(&session_id_hash, "session_id_hash")?;
             let route_hash = decode_hex_32(&route_hash, "route_hash")?;
             let risk_check_hash = decode_hex_32(&risk_check_hash, "risk_check_hash")?;
+            let session_pubkey = agent_session_pubkey(wallet_pubkey, session_id_hash);
             let ix = crate::instructions::execute_typed_agent_trade_approval(
                 wallet_pubkey,
                 intent_pubkey,
                 proposal_pubkey,
+                session_pubkey,
                 proposal_account.policy_commitment,
                 proposal_account.envelope_hash,
                 amount_raw.to_le_bytes(),
+                agent_id_hash,
                 venue_hash,
                 market_hash,
                 side_hash,
@@ -1329,6 +1554,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "path": "typed_agent_trade_approval",
                 "status": "executed",
                 "amount_raw": amount_raw.to_string(),
+                "agent_id_hash": crate::output::hex_of(&agent_id_hash),
                 "venue_hash": crate::output::hex_of(&venue_hash),
                 "market_hash": crate::output::hex_of(&market_hash),
                 "side_hash": crate::output::hex_of(&side_hash),
@@ -1337,6 +1563,71 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "session_id_hash": crate::output::hex_of(&session_id_hash),
                 "route_hash": crate::output::hex_of(&route_hash),
                 "risk_check_hash": crate::output::hex_of(&risk_check_hash),
+                "session": session_pubkey.to_string(),
+            }));
+        }
+
+        ProposalAction::TypedAgentSessionGrant {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            session_id_hash,
+            agent_id_hash,
+            venue_hash,
+            market_hash,
+            max_notional_raw,
+            max_leverage_x100,
+            expires_at,
+            status,
+        } => {
+            if status != 1 && status != 2 {
+                return Err(anyhow!("status must be 1 (active) or 2 (revoked)"));
+            }
+            if status == 1 && (max_notional_raw == 0 || max_leverage_x100 == 0) {
+                return Err(anyhow!(
+                    "active session requires positive notional and leverage"
+                ));
+            }
+            let client = rpc::client(config);
+            let (wallet_pubkey, proposal_pubkey, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::AgentSessionGrant,
+                "typed agent session grant",
+            )?;
+            let intent_pubkey: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address in typed proposal")?;
+            let session_id_hash = decode_hex_32(&session_id_hash, "session_id_hash")?;
+            let agent_id_hash = decode_hex_32(&agent_id_hash, "agent_id_hash")?;
+            let venue_hash = decode_hex_32(&venue_hash, "venue_hash")?;
+            let market_hash = decode_hex_32(&market_hash, "market_hash")?;
+            let session = agent_session_pubkey(wallet_pubkey, session_id_hash);
+            let ix = crate::instructions::execute_typed_agent_session_grant(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
+                wallet_pubkey,
+                intent_pubkey,
+                proposal_pubkey,
+                session,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                session_id_hash,
+                agent_id_hash,
+                venue_hash,
+                market_hash,
+                max_notional_raw.to_le_bytes(),
+                max_leverage_x100,
+                expires_at,
+                status,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal_pubkey.to_string(),
+                "path": "typed_agent_session_grant",
+                "status": "executed",
+                "session": session.to_string(),
             }));
         }
 
@@ -1432,7 +1723,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let ix = crate::instructions::execute_typed_sol_send(
                 solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
-                policy_spend_pubkey(wallet_pubkey),
+                wallet_policy_pubkey(wallet_pubkey),
+                policy_spend_pubkey(wallet_pubkey, intent_pubkey),
+                member_allowance_pubkey(wallet_pubkey, intent_pubkey),
                 vault_pubkey(wallet_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
@@ -1507,7 +1800,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let ix = crate::instructions::execute_typed_chain_send(
                 solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
-                policy_spend_pubkey(wallet_pubkey),
+                wallet_policy_pubkey(wallet_pubkey),
+                policy_spend_pubkey(wallet_pubkey, intent_pubkey),
+                member_allowance_pubkey(wallet_pubkey, intent_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
                 ika_config_pubkey,
@@ -1557,9 +1852,9 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             if amount_raw == 0 {
                 return Err(anyhow!("amount-raw must be greater than zero"));
             }
-            if !matches!(chain_kind, 1 | 5) {
+            if !matches!(chain_kind, 1 | 2 | 3 | 4 | 5) {
                 return Err(anyhow!(
-                    "typed-chain-send-ika currently supports native EVM/HYPE chain kinds 1 and 5"
+                    "typed-chain-send-ika currently supports chain kinds 1 through 5"
                 ));
             }
 
@@ -1657,7 +1952,11 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 recipient_accounts.push(AccountMeta::new(*recipient, false));
             }
             let ix = crate::instructions::execute_typed_sol_batch_send(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
                 wallet_pubkey,
+                wallet_policy_pubkey(wallet_pubkey),
+                policy_spend_pubkey(wallet_pubkey, intent_pubkey),
+                member_allowance_pubkey(wallet_pubkey, intent_pubkey),
                 vault_pubkey(wallet_pubkey),
                 intent_pubkey,
                 proposal_pubkey,
@@ -1939,6 +2238,69 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn typed_proposal(action_kind: ClearSignActionKind) -> accounts::TypedProposalAccount {
+        accounts::TypedProposalAccount {
+            wallet: "wallet".into(),
+            intent: "intent".into(),
+            proposal_index: 1,
+            proposer: "proposer".into(),
+            status: "Approved".into(),
+            action_kind: action_kind.code(),
+            proposed_at: 0,
+            approved_at: 0,
+            expires_at: 1,
+            bump: 1,
+            approval_bitmap: 1,
+            cancellation_bitmap: 0,
+            rent_refund: "payer".into(),
+            policy_commitment: [0; 32],
+            payload_hash: [0; 32],
+            envelope_hash: [0; 32],
+            action_id: Vec::new(),
+            nonce: Vec::new(),
+            policy_bytes: Vec::new(),
+            clear_text: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn generic_typed_execute_rejects_specialized_state_mutations() {
+        for kind in [
+            ClearSignActionKind::AddMember,
+            ClearSignActionKind::RemoveMember,
+            ClearSignActionKind::ChangeThreshold,
+            ClearSignActionKind::SetProtection,
+        ] {
+            let proposal = typed_proposal(kind);
+            let error = ensure_generic_typed_execute_allowed(&proposal)
+                .expect_err("specialized action should not use generic typed-execute")
+                .to_string();
+            assert!(error.contains("generic typed-execute would not apply the state change"));
+        }
+
+        let proposal = typed_proposal(ClearSignActionKind::RecoveryAction);
+        ensure_generic_typed_execute_allowed(&proposal).expect("generic action should be allowed");
+    }
+
+    #[test]
+    fn governance_resume_uses_exact_committed_target_and_body() {
+        let committed = [3u8, 2, 0, 9, 8];
+        assert_eq!(
+            committed_governance_payload(&committed, None).unwrap(),
+            (3, vec![2, 0, 9, 8])
+        );
+        assert!(committed_governance_payload(&committed, Some(4))
+            .unwrap_err()
+            .to_string()
+            .contains("does not match committed target"));
+        assert!(committed_governance_payload(&[3], None).is_err());
+    }
+}
+
 /// Drive a remote-chain proposal through Ika: build the destination-chain
 /// preimage off-chain, send the on-chain `ika_sign` ix, then run the gRPC
 /// presign + sign roundtrip and verify the signature lands in the
@@ -2090,7 +2452,9 @@ fn execute_via_ika(
         } => crate::instructions::ika_sign_typed_chain_send(
             payer_pubkey,
             wallet_pubkey,
-            policy_spend_pubkey(wallet_pubkey),
+            wallet_policy_pubkey(wallet_pubkey),
+            policy_spend_pubkey(wallet_pubkey, intent_pubkey),
+            member_allowance_pubkey(wallet_pubkey, intent_pubkey),
             intent_pubkey,
             proposal_pubkey,
             ika_config_pk,
@@ -2503,7 +2867,6 @@ fn build_broadcast_inputs(
         3 => {
             let prev_txid = ika::read_param_bytes32(intent, params_data, 0)?;
             let prev_vout = ika::read_param_u64(intent, params_data, 1)? as u32;
-            let sender_pkh = ika::read_param_bytes20(intent, params_data, 3)?;
             let recipient_pkh = ika::read_param_bytes20(intent, params_data, 4)?;
             let send_amount_zat = ika::read_param_u64(intent, params_data, 5)?;
 
@@ -2528,7 +2891,6 @@ fn build_broadcast_inputs(
                 version_group_id,
                 prev_txid,
                 prev_vout,
-                sender_pkh,
                 recipient_pkh,
                 send_amount_zat,
                 lock_time,
@@ -2637,6 +2999,43 @@ fn ensure_typed_action(
     Ok(())
 }
 
+fn ensure_generic_typed_execute_allowed(proposal: &accounts::TypedProposalAccount) -> Result<()> {
+    let specialized = match ClearSignActionKind::from_code(proposal.action_kind) {
+        Some(ClearSignActionKind::AddMember) => Some("typed-intent-governance"),
+        Some(ClearSignActionKind::RemoveMember) => Some("typed-intent-governance"),
+        Some(ClearSignActionKind::ChangeThreshold) => Some("typed-intent-governance"),
+        Some(ClearSignActionKind::SetProtection) => Some("typed-wallet-policy-update"),
+        _ => None,
+    };
+    if let Some(command) = specialized {
+        return Err(anyhow!(
+            "action kind {} requires proposal {command}; generic typed-execute would not apply the state change",
+            proposal.action_kind
+        ));
+    }
+    Ok(())
+}
+
+fn committed_governance_payload(
+    committed: &[u8],
+    requested_target: Option<u8>,
+) -> Result<(u8, Vec<u8>)> {
+    let (&committed_target, committed_body) = committed
+        .split_first()
+        .filter(|(_, body)| !body.is_empty())
+        .ok_or_else(|| {
+            anyhow!("typed governance proposal is missing its committed execution payload")
+        })?;
+    if let Some(requested_target) = requested_target {
+        if requested_target != committed_target {
+            return Err(anyhow!(
+                "target-index {requested_target} does not match committed target {committed_target}"
+            ));
+        }
+    }
+    Ok((committed_target, committed_body.to_vec()))
+}
+
 fn parse_return_row(row: &str) -> Result<(Pubkey, u64)> {
     parse_recipient_lamports_row(row, "return")
 }
@@ -2716,12 +3115,39 @@ fn vault_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
     Pubkey::new_from_array(vault.to_bytes())
 }
 
-fn policy_spend_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
+fn policy_spend_pubkey(wallet_pubkey: Pubkey, intent_pubkey: Pubkey) -> Pubkey {
     let (policy_spend, _) = clear_wallet_client::pda::find_policy_spend_address(
         &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(intent_pubkey.to_bytes()),
         &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
     );
     Pubkey::new_from_array(policy_spend.to_bytes())
+}
+
+fn member_allowance_pubkey(wallet_pubkey: Pubkey, intent_pubkey: Pubkey) -> Pubkey {
+    let (member_allowance, _) = clear_wallet_client::pda::find_member_allowance_address(
+        &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(intent_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
+    );
+    Pubkey::new_from_array(member_allowance.to_bytes())
+}
+
+fn agent_session_pubkey(wallet_pubkey: Pubkey, session_id_hash: [u8; 32]) -> Pubkey {
+    let (session, _) = clear_wallet_client::pda::find_agent_session_address(
+        &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &session_id_hash,
+        &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
+    );
+    Pubkey::new_from_array(session.to_bytes())
+}
+
+fn wallet_policy_pubkey(wallet_pubkey: Pubkey) -> Pubkey {
+    let (wallet_policy, _) = clear_wallet_client::pda::find_wallet_policy_address(
+        &solana_address::Address::new_from_array(wallet_pubkey.to_bytes()),
+        &solana_address::Address::new_from_array(crate::instructions::program_id().to_bytes()),
+    );
+    Pubkey::new_from_array(wallet_policy.to_bytes())
 }
 
 fn typed_approve_or_cancel(
@@ -2867,14 +3293,11 @@ fn approve_or_cancel(
     is_approve: bool,
 ) -> Result<()> {
     let expiry_ts = message::resolve_expiry(expiry, config)?;
-    let program_id = crate::instructions::program_id();
-    let pid = solana_address::Address::new_from_array(program_id.to_bytes());
 
     // Resolve wallet by name. Creator-scoped PDA upgrade — see
     // intent.rs:120 for context.
     let client = rpc::client(config);
     let (wallet_pubkey, wallet_account) = rpc::resolve_wallet_by_name(&client, wallet_name)?;
-    let wallet_addr = solana_address::Address::new_from_array(wallet_pubkey.to_bytes());
 
     let proposal_pubkey: Pubkey = proposal_addr_str
         .parse()

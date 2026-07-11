@@ -13,13 +13,7 @@ import {
   TextInput,
 } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
-import {
-  clearAgentBetaFeedback,
-  listAgentBetaFeedback,
-  saveAgentBetaFeedback,
-  type AgentBetaFeedbackItem,
-  type AgentBetaFeedbackKind,
-} from "@/lib/agents/client";
+import { type AgentBetaFeedbackItem, type AgentBetaFeedbackKind, clearAgentBetaFeedback, listAgentBetaFeedback, saveAgentBetaFeedback } from "@/features/agents/infrastructure/feedbackStore";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const FEEDBACK_KINDS: Array<{ value: AgentBetaFeedbackKind; label: string }> = [

@@ -5,14 +5,10 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Bot, Lock, Save } from "lucide-react";
 import { encryptStatus } from "@/lib/encrypt/client";
-import {
-  encryptAgentProfile,
-  newAgentId,
-  saveAgent,
-  syncAgentProfile,
-  type AgentKind,
-  type AgentProfile,
-} from "@/lib/agents/client";
+import { type AgentKind, type AgentProfile } from "@/features/agents/domain/runtime";
+import { syncAgentProfile } from "@/features/agents/infrastructure/stateClient";
+import { newAgentId, saveAgent } from "@/features/agents/infrastructure/agentStore";
+import { encryptAgentProfile } from "@/features/agents/infrastructure/vaultCrypto";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";

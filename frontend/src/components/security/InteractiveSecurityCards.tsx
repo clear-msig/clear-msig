@@ -25,7 +25,7 @@ import {
   useIsLoggedIn,
   useRegisterPasskey,
 } from "@dynamic-labs/sdk-react-core";
-import DynamicProviderTree from "@/components/providers/DynamicProviderTree";
+import DynamicProviderTree from "@/features/wallet-runtime/infrastructure/DynamicProviderTree";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useToast } from "@/components/ui/Toast";
 

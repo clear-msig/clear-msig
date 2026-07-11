@@ -314,18 +314,22 @@ function MemberRow({
       return;
     }
     try {
-      await updateRole.mutateAsync({
+      const result = await updateRole.mutateAsync({
         walletName,
         friendAddress: address,
         newRole: next,
       });
-      const verb =
-        next === "watcher"
-          ? "now watching"
-          : next === "approver"
-            ? "now approve-only"
-            : "now spends and approves";
-      toast.success(`${displayName} is ${verb}`);
+      if (result.kind === "awaiting_approvals") {
+        toast.success("Role change proposed and waiting for the remaining approvals");
+      } else {
+        const verb =
+          next === "watcher"
+            ? "now watching"
+            : next === "approver"
+              ? "now approve-only"
+              : "now spends and approves";
+        toast.success(`${displayName} is ${verb}`);
+      }
       setEditingRole(false);
     } catch (err) {
       console.error("[update-role]", err);
@@ -336,11 +340,17 @@ function MemberRow({
 
   const handleConfirmRemove = async () => {
     try {
-      await remove.mutateAsync({ walletName, friendAddress: address, role });
+      const result = await remove.mutateAsync({
+        walletName,
+        friendAddress: address,
+        role,
+      });
       toast.success(
-        role === "watcher"
-          ? "Watcher removed"
-          : `${displayName} removed from ${walletDisplay}`,
+        result.kind === "awaiting_approvals"
+          ? "Removal proposed and waiting for the remaining approvals"
+          : role === "watcher"
+            ? "Watcher removed"
+            : `${displayName} removed from ${walletDisplay}`,
       );
       setConfirmingRemove(false);
     } catch (err) {
@@ -442,6 +452,7 @@ function MemberRow({
           <div className="mt-2 flex items-center gap-2">
             <input
               type="text"
+              aria-label="Member nickname"
               autoFocus
               value={nicknameDraft}
               onChange={(e) => setNicknameDraft(e.target.value.slice(0, 40))}

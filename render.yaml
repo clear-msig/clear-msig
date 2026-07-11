@@ -28,8 +28,10 @@ services:
     envVars:
       - key: PORT
         value: "10000"
+      - key: CLEAR_MSIG_ENV
+        value: production
       - key: CLEAR_MSIG_URL
-        sync: false
+        value: https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
       - key: BACKEND_API_BIND
         value: 0.0.0.0:10000
       - key: CLEAR_MSIG_ATTESTATION_DIR
@@ -38,8 +40,14 @@ services:
         value: /data/pro-store.json
       - key: CLEAR_MSIG_ALLOWED_ORIGIN
         value: https://clearsig.xyz,https://www.clearsig.xyz
+      - key: CLEAR_MSIG_PROGRAM_ID
+        value: 53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
       - key: RUST_LOG
         value: info
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
       - key: CLEAR_MSIG_KEYPAIR_BASE64
         sync: false
       - key: CLEAR_MSIG_SIGNER_BASE64

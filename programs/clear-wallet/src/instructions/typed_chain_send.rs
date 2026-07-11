@@ -6,11 +6,12 @@ use crate::{
     error::WalletError,
     instructions::typed_proposal::{mark_typed_executed, verify_typed_execution_ready},
     state::{
-        ika_config::IkaConfig, intent::Intent, policy_spend::PolicySpendState,
-        proposal::ProposalStatus, typed_proposal::TypedProposal, wallet::ClearWallet,
+        ika_config::IkaConfig, intent::Intent, member_allowance::MemberAllowanceLedger,
+        policy_spend::PolicySpendState, proposal::ProposalStatus, typed_proposal::TypedProposal,
+        wallet::ClearWallet,
     },
     utils::clearsign::{hash_send_payload, ClearSignActionKind, ClearSignAmount},
-    utils::policy::enforce_typed_remote_send_policy,
+    utils::policy::{enforce_typed_remote_send_policy, enforce_wallet_policy_account},
 };
 
 #[derive(Accounts)]
@@ -18,13 +19,23 @@ pub struct ExecuteTypedChainSend<'info> {
     #[account(mut)]
     pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[account(mut)]
+    pub wallet_policy: &'info mut UncheckedAccount,
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = PolicySpendState::seeds(wallet),
+        seeds = PolicySpendState::seeds(wallet, intent),
         bump,
     )]
     pub policy_spend: &'info mut Account<PolicySpendState>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = MemberAllowanceLedger::seeds(wallet, intent),
+        bump,
+    )]
+    pub member_allowance: &'info mut Account<MemberAllowanceLedger>,
     #[account(
         mut,
         has_one = wallet,
@@ -123,6 +134,13 @@ impl<'info> ExecuteTypedChainSend<'info> {
             payload_hash,
             args.envelope_hash,
         )?;
+        enforce_wallet_policy_account(
+            self.wallet.address(),
+            self.wallet_policy,
+            args.chain_kind,
+            args.policy_commitment,
+            self.proposal.policy_bytes().as_ref(),
+        )?;
         enforce_typed_remote_send_policy(
             self.proposal.policy_bytes().as_ref(),
             args.policy_commitment,
@@ -132,6 +150,8 @@ impl<'info> ExecuteTypedChainSend<'info> {
             &self.proposal,
             &mut self.policy_spend,
             bumps.policy_spend,
+            &mut self.member_allowance,
+            bumps.member_allowance,
         )?;
 
         mark_typed_executed(&mut self.intent, &mut self.proposal);

@@ -2,17 +2,13 @@
 
 // Per-friend, per-wallet allowance metadata.
 //
-// "Sarah can spend up to $200/week from Roommates without extra
-// scrutiny." Stored locally for now - the on-chain SolTransfer
-// intent doesn't track per-approver allowances yet, so this is
-// advisory: it drives the dashboard "X of Y allowance used"
-// indicator and the warning chip on /send when a request would
-// exceed the limit.
-//
-// Migration path: when the program grows an `allowance_per_approver`
-// field on the intent, the chain becomes the source of truth and
-// this module becomes a cache + edit surface that pushes updates
-// through `intent update`.
+// Authoring surface for "Sarah can spend up to N SOL/week". Values
+// live in localStorage for UX, then ride into typed CSP1 policy bytes
+// (extension tag 4) and on-chain MemberAllowanceLedger spend tracking
+// when personal policy is persisted or a typed send includes the plan.
+// Cap is enforced against the proposal *proposer* (member), not the
+// recipient. The current authoring surface is SOL-only; other assets must not
+// reinterpret these values in their own native units.
 
 const STORAGE_KEY = "clear-msig:allowances:v1";
 

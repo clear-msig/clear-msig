@@ -14,29 +14,10 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
-import {
-  buildAgentBetaReadiness,
-  buildAgentMarketReadiness,
-  getAgentVaultPolicy,
-  hasAgentComplianceAcknowledgement,
-  listAgentBetaFeedback,
-  listAgentConnectionKits,
-  listAgentExecutions,
-  listAgentOwnerApprovals,
-  listAgentProposals,
-  listAgentSessions,
-  listAgents,
-  subscribeAgents,
-  type AgentBetaFeedbackItem,
-  type AgentExecutionRecord,
-  type AgentMarketReadiness,
-  type AgentProfile,
-  type AgentTradeProposal,
-} from "@/lib/agents/client";
-import {
-  loadAgentVenueReadiness,
-  type AgentVenueReadiness,
-} from "@/lib/agents/clientExecution";
+import { type AgentExecutionRecord, type AgentMarketReadiness, type AgentProfile, type AgentTradeProposal, buildAgentBetaReadiness, buildAgentMarketReadiness, hasAgentComplianceAcknowledgement } from "@/features/agents/domain/runtime";
+import { getAgentVaultPolicy, listAgentConnectionKits, listAgentExecutions, listAgentOwnerApprovals, listAgentProposals, listAgents, listAgentSessions, subscribeAgents } from "@/features/agents/infrastructure/agentStore";
+import { type AgentBetaFeedbackItem, listAgentBetaFeedback } from "@/features/agents/infrastructure/feedbackStore";
+import { type AgentVenueReadiness, loadAgentVenueReadiness } from "@/features/agents/infrastructure/executionClient";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentAdminPage() {
@@ -122,8 +103,8 @@ export default function AgentAdminPage() {
     venue: {
       state:
         venue?.state === "ready" &&
-        venue.executorProbe?.state === "ready" &&
-        venue.accountProbe?.state === "funded"
+          venue.executorProbe?.state === "ready" &&
+          venue.accountProbe?.state === "funded"
           ? "connected"
           : venue
             ? "needs_setup"
@@ -182,8 +163,8 @@ export default function AgentAdminPage() {
     venue: {
       state:
         venue?.state === "ready" &&
-        venue.executorProbe?.state === "ready" &&
-        venue.accountProbe?.state === "funded"
+          venue.executorProbe?.state === "ready" &&
+          venue.accountProbe?.state === "funded"
           ? "connected"
           : venue
             ? "needs_setup"

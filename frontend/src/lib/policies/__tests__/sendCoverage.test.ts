@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const sendPages = [
-  "src/app/app/wallet/[name]/send/page.tsx",
-  "src/app/app/wallet/[name]/send/btc/page.tsx",
-  "src/app/app/wallet/[name]/send/eth/page.tsx",
-  "src/app/app/wallet/[name]/send/erc20/page.tsx",
-  "src/app/app/wallet/[name]/send/zec/page.tsx",
+  "src/features/send/routes/SolanaSendPage.tsx",
+  "src/features/send/routes/BtcSendPage.tsx",
+  "src/features/send/routes/EthSendPage.tsx",
+  "src/features/send/routes/Erc20SendPage.tsx",
+  "src/features/send/routes/ZecSendPage.tsx",
 ] as const;
 
 describe("send policy enforcement coverage", () => {

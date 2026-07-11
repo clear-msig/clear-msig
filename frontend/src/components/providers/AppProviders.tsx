@@ -19,19 +19,43 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/ui/Toast";
+import { needsWalletRuntime } from "@/features/wallet-runtime/domain/routePolicy";
+import { ConfigGapBanner, WalletRuntimeLoading } from "@/features/wallet-runtime/ui/RuntimeStates";
+import {
+  EXTERNAL_WALLET_RUNTIME_EVENT,
+  EXTERNAL_WALLET_RUNTIME_KEY,
+} from "@/features/wallet-runtime/domain/runtimePreference";
 import { validateConfig } from "@/lib/config";
 import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
-import { LivePricesProvider } from "@/lib/retail/priceFeed";
 
 type Props = {
   children: React.ReactNode;
 };
 
 const LazyDynamicProviderTree = dynamic(
-  () => import("@/components/providers/DynamicProviderTree"),
+  () => import("@/features/wallet-runtime/infrastructure/DynamicProviderTree"),
   {
     ssr: false,
     loading: () => <WalletRuntimeLoading />,
+  },
+);
+
+const LazyExternalDynamicProviderTree = dynamic(
+  () =>
+    import(
+      "@/features/wallet-runtime/infrastructure/ExternalDynamicProviderTree"
+    ),
+  {
+    ssr: false,
+    loading: () => <WalletRuntimeLoading />,
+  },
+);
+
+const LazyLivePricesProvider = dynamic(
+  () => import("@/lib/retail/priceFeed").then((mod) => mod.LivePricesProvider),
+  {
+    ssr: false,
+    loading: () => null,
   },
 );
 
@@ -39,19 +63,6 @@ const LazyPublicAuthRedirectBoundary = dynamic(
   () => import("@/components/providers/PublicAuthRedirectBoundary"),
   { ssr: false, loading: () => <WalletRuntimeLoading /> },
 );
-
-function needsWalletRuntime(pathname: string | null): boolean {
-  if (!pathname) return false;
-  return (
-    pathname === "/connect" ||
-    pathname === "/spike/dynamic" ||
-    pathname === "/welcome" ||
-    pathname === "/send" ||
-    pathname.startsWith("/send/") ||
-    pathname === "/app" ||
-    pathname.startsWith("/app/")
-  );
-}
 
 function needsPublicAuthRedirect(pathname: string | null): boolean {
   if (!pathname) return false;
@@ -74,6 +85,7 @@ function needsPublicAuthRedirect(pathname: string | null): boolean {
 export function AppProviders({ children }: Props) {
   const configGaps = validateConfig();
   const pathname = usePathname();
+  const [externalWalletRuntime, setExternalWalletRuntime] = useState(false);
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -117,6 +129,33 @@ export function AppProviders({ children }: Props) {
     applyTheme(getStoredTheme());
   }, [pathname]);
 
+  useEffect(() => {
+    const refresh = () => {
+      const injected = window as typeof window & {
+        backpack?: unknown;
+        phantom?: { solana?: unknown };
+        solana?: unknown;
+        solflare?: unknown;
+      };
+      const stored =
+        window.localStorage.getItem(EXTERNAL_WALLET_RUNTIME_KEY) === "1";
+      const hasInjectedWallet = Boolean(
+        injected.backpack ||
+          injected.phantom?.solana ||
+          injected.solana ||
+          injected.solflare,
+      );
+      setExternalWalletRuntime(stored || hasInjectedWallet);
+    };
+    refresh();
+    window.addEventListener(EXTERNAL_WALLET_RUNTIME_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(EXTERNAL_WALLET_RUNTIME_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
   if (configGaps.length > 0) {
     return <ConfigGapBanner gaps={configGaps} />;
   }
@@ -136,16 +175,20 @@ export function AppProviders({ children }: Props) {
   }
 
   const publicAuthRedirect = needsPublicAuthRedirect(pathname);
+  const WalletProvider =
+    pathname === "/connect" || externalWalletRuntime
+      ? LazyExternalDynamicProviderTree
+      : LazyDynamicProviderTree;
 
   const content = publicAuthRedirect ? (
     <QueryClientProvider client={queryClient}>
-      <LazyDynamicProviderTree environmentId={environmentId ?? ""}>
+      <WalletProvider environmentId={environmentId ?? ""}>
         <ToastProvider>
           <LazyPublicAuthRedirectBoundary>
             {children}
           </LazyPublicAuthRedirectBoundary>
         </ToastProvider>
-      </LazyDynamicProviderTree>
+      </WalletProvider>
     </QueryClientProvider>
   ) : (
     <QueryClientProvider client={queryClient}>
@@ -159,64 +202,10 @@ export function AppProviders({ children }: Props) {
     <QueryClientProvider client={queryClient}>
       {/* Mount prices only on product surfaces. Public/marketing pages
           no longer pay for wallet or price-feed runtime on first load. */}
-      <LivePricesProvider />
-      <LazyDynamicProviderTree environmentId={environmentId ?? ""}>
+      <LazyLivePricesProvider />
+      <WalletProvider environmentId={environmentId ?? ""}>
         <ToastProvider>{children}</ToastProvider>
-      </LazyDynamicProviderTree>
+      </WalletProvider>
     </QueryClientProvider>
-  );
-}
-
-function WalletRuntimeLoading() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-canvas px-6">
-      <div className="h-10 w-10 animate-pulse rounded-full bg-accent shadow-accent-rest" />
-    </main>
-  );
-}
-
-// ─── Production misconfiguration screen ───────────────────────────
-//
-// When a NEXT_PUBLIC_ var the production deploy depends on is
-// missing, the silent failure mode (calls to localhost, an empty
-// Dynamic widget) is much worse than a fatal banner. This screen
-// ships in place of the app and lists exactly what's missing + why.
-// Renders only in NODE_ENV === "production"; dev hacking is unaffected.
-
-function ConfigGapBanner({
-  gaps,
-}: {
-  gaps: ReturnType<typeof validateConfig>;
-}) {
-  return (
-    <main className="min-h-screen bg-canvas px-gutter py-12">
-      <div className="mx-auto max-w-xl rounded-card border border-danger/40 bg-danger/[0.05] p-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-danger">
-          This deployment is misconfigured
-        </p>
-        <h1 className="mt-2 font-display text-display-xs text-text-strong">
-          {gaps.length === 1 ? "1 environment variable" : `${gaps.length} environment variables`}{" "}
-          missing
-        </h1>
-        <p className="mt-2 text-sm text-text-soft">
-          The production build started without the required configuration.
-          Set the variables below in the Vercel project settings and
-          redeploy.
-        </p>
-        <ul className="mt-4 flex flex-col gap-3">
-          {gaps.map((g) => (
-            <li
-              key={g.envVar}
-              className="rounded-soft border border-border-soft bg-surface-raised p-3"
-            >
-              <code className="font-mono text-sm font-medium text-text-strong">
-                {g.envVar}
-              </code>
-              <p className="mt-1 text-xs text-text-soft">{g.why}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </main>
   );
 }

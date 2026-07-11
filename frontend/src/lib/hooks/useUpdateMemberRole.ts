@@ -1,29 +1,14 @@
 "use client";
 
-// Change a member's role on a shared wallet. Mirror of
-// useRemoveMember: propose UpdateIntent → approve → execute, with a
-// recovery sweep for stale Approved-but-not-Executed proposals so
-// the program's IntentHasActiveProposals check doesn't reject.
-//
-// Role transitions on chain:
-//   full     → in proposers + approvers
-//   approver → in approvers only
-//   watcher  → in neither (local-only watcher store)
-//
-// Watcher target → run the chain mutation only if the friend is
-// currently on chain (drop them from approvers/proposers), then add
-// them to the local watchers store. Watcher → full / approver runs
-// the chain mutation to add them, then removes the local watcher
-// record.
+// Change a member's role on a shared wallet via ClearSign v2 typed governance.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { backendApi } from "@/lib/api/endpoints";
-import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
-import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
 import {
   IntentType,
   ProposalStatus,
@@ -38,15 +23,13 @@ const TEMPLATE_FILE = "examples/intents/solana_transfer.json";
 interface UpdateArgs {
   walletName: string;
   friendAddress: string;
-  /// Display name to write to the watchers store if the new role is
-  /// "watcher". Falls back to a shortened address when missing.
   friendName?: string;
   newRole: Role;
 }
 
 export function useUpdateMemberRole() {
   const { connection } = useConnection();
-  const { signDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet();
   const wallet = useWallet();
   const queryClient = useQueryClient();
 
@@ -75,16 +58,14 @@ export function useUpdateMemberRole() {
       const governanceIntent = intents.find(
         (it) => it.account !== null && it.account.intentIndex === 2,
       )?.account as IntentAccount | undefined;
-      const signerPk = governanceIntent
-        ? wallet.pickSigner(governanceIntent.approvers)
-        : wallet.pickSigner(intent.approvers);
+      const voteIntent = governanceIntent ?? intent;
+      const signerPk = wallet.pickSigner(voteIntent.approvers);
       if (!signerPk) {
         throw new Error(
           "None of your connected wallets can approve member changes for this wallet.",
         );
       }
-      const me = signerPk.toBase58();
-      if (governanceIntent && !governanceIntent.proposers.includes(me)) {
+      if (!voteIntent.proposers.includes(signerPk.toBase58())) {
         throw new Error(
           "Your connected wallet can approve this wallet, but it cannot propose member changes.",
         );
@@ -94,11 +75,9 @@ export function useUpdateMemberRole() {
       const wasProposer = intent.proposers.includes(friendAddress);
       const isOnChain = wasApprover || wasProposer;
 
-      // Compute target proposer/approver lists from the new role.
       let newApprovers = [...intent.approvers];
       let newProposers = [...intent.proposers];
       if (newRole === "watcher") {
-        // Drop from both - chain layer no longer tracks this person.
         newApprovers = newApprovers.filter((a) => a !== friendAddress);
         newProposers = newProposers.filter((p) => p !== friendAddress);
       } else if (newRole === "approver") {
@@ -109,8 +88,6 @@ export function useUpdateMemberRole() {
         if (!wasProposer) newProposers.push(friendAddress);
       }
 
-      // Threshold safety - same guard as remove. Refuse if dropping
-      // approvers leaves the threshold unsatisfiable.
       if (intent.approvalThreshold > newApprovers.length) {
         throw new Error(
           `Changing this role would leave fewer approvers (${newApprovers.length}) ` +
@@ -119,15 +96,9 @@ export function useUpdateMemberRole() {
         );
       }
 
-      // Local-only path: watcher → watcher (no-op chain) is rare but
-      // possible if someone re-saves. Either way, ensure the watcher
-      // record is in sync.
       const localWatchers = listWatchers(walletName);
       const wasWatcher = localWatchers.some((w) => w.address === friendAddress);
 
-      // No on-chain change required if (a) target role is watcher and
-      // they weren't on chain, or (b) chain lists already match the
-      // desired role. Just reconcile the local watcher record.
       const samesAsChain =
         newApprovers.length === intent.approvers.length &&
         newApprovers.every((a, i) => a === intent.approvers[i]) &&
@@ -139,7 +110,9 @@ export function useUpdateMemberRole() {
           addWatcher({
             walletName,
             address: friendAddress,
-            name: friendName ?? `${friendAddress.slice(0, 4)}…${friendAddress.slice(-4)}`,
+            name:
+              friendName ??
+              `${friendAddress.slice(0, 4)}…${friendAddress.slice(-4)}`,
           });
         } else if (newRole !== "watcher" && wasWatcher) {
           removeWatcher(walletName, friendAddress);
@@ -147,8 +120,6 @@ export function useUpdateMemberRole() {
         return { kind: "local-only" } as const;
       }
 
-      // Sweep stale Approved proposals on the target intent so the
-      // program's IntentHasActiveProposals check doesn't reject.
       const proposals = await listProposalsForWallet(
         connection,
         walletData.pda,
@@ -170,88 +141,51 @@ export function useUpdateMemberRole() {
         }
       }
 
-      // Encrypt the new policy fields for forward-compat (Encrypt
-      // alpha 1 will pin these on chain via #[encrypt_fn]).
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(newProposers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(newApprovers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([intent.approvalThreshold]), fheType: "euint8" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
+      const kind =
+        !isOnChain && (newRole === "full" || newRole === "approver")
+          ? "add_member"
+          : newRole === "watcher"
+            ? "remove_member"
+            : "add_member";
 
-      // 1. Prepare UpdateIntent.
-      const dry = await backendApi.prepare.updateIntent(walletName, {
-        index: intent.intentIndex,
-        file: TEMPLATE_FILE,
+      const result = await completeTypedGovernance({
+        connection,
+        walletName,
+        walletId: walletData.pda.toBase58(),
+        voteIntentIndex: voteIntent.intentIndex,
+        voteApprovers: voteIntent.approvers,
+        voteApprovalThreshold: voteIntent.approvalThreshold,
+        targetIntentIndex: intent.intentIndex,
         proposers: newProposers,
         approvers: newApprovers,
-        threshold: intent.approvalThreshold,
-        cancellation_threshold: intent.cancellationThreshold,
-        timelock: intent.timelockSeconds,
-        policy_ciphertexts,
+        approvalThreshold: intent.approvalThreshold,
+        cancellationThreshold: intent.cancellationThreshold,
+        timelockSeconds: intent.timelockSeconds,
+        templateFile: TEMPLATE_FILE,
+        kind,
+        member: friendAddress,
+        role: newRole === "full" ? "full" : "approver",
+        proposerPk: signerPk,
+        signTypedDescriptor,
+        pickApprover: (approvers) => wallet.pickSigner(approvers),
       });
-
-      // 2. Sign propose - first wallet popup.
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      const submitted = await backendApi.submit.updateIntent(walletName, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        index: intent.intentIndex,
-        file: TEMPLATE_FILE,
-      });
-
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error(
-          "Backend didn't return a proposal address from the propose step",
-        );
+      if (result.kind === "awaiting_approvals") {
+        return { kind: "awaiting_approvals", proposal: result.proposal } as const;
       }
 
-      // 3. Approve - only when propose hasn't already auto-approved
-      //    on chain (program flips proposer's bit when proposer ∈
-      //    approvers; with threshold=1 the proposal lands Approved).
-      const decision = await approveIfNeeded(connection, proposal, {
-        approvers: governanceIntent?.approvers ?? intent.approvers,
-        approverPubkey: me,
-      });
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          walletName,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(walletName, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      // 4. Execute - sponsored, no signature.
-      await backendApi.executeProposal(walletName, proposal, {});
-
-      // 5. Reconcile the local watcher record.
       if (newRole === "watcher") {
         addWatcher({
           walletName,
           address: friendAddress,
-          name: friendName ?? `${friendAddress.slice(0, 4)}…${friendAddress.slice(-4)}`,
+          name:
+            friendName ??
+            `${friendAddress.slice(0, 4)}…${friendAddress.slice(-4)}`,
         });
       } else if (wasWatcher) {
         removeWatcher(walletName, friendAddress);
       }
 
-      // Quiet the linter - `isOnChain` exists for symmetry with the
-      // remove hook's call sites; consumers can branch on the return.
-      void isOnChain;
-
-      return { kind: "updated" } as const;
+      return { kind: "updated", proposal: result.proposal } as const;
     },
     onSuccess: (_result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });

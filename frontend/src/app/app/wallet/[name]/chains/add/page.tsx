@@ -39,7 +39,7 @@ export default function AddChainPageWrapper() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-canvas" aria-hidden="true" />
+        <div className="min-h-screen bg-canvas" aria-hidden="true" />
       }
     >
       <AddChainPage />

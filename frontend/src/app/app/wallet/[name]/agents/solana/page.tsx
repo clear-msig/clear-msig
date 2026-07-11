@@ -18,18 +18,9 @@ import {
   TextInput,
 } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
-import {
-  bindAgentVaultPolicyHash,
-  buildAgentSolanaDelegationSummary,
-  getAgentSolanaDelegation,
-  getAgentVaultPolicy,
-  listAgents,
-  saveAgentSolanaDelegation,
-  updateAgentSolanaDelegationStatus,
-  type AgentProfile,
-  type AgentSolanaDelegationRecord,
-  type TradingVenue,
-} from "@/lib/agents/client";
+import { type AgentProfile, bindAgentVaultPolicyHash, type TradingVenue } from "@/features/agents/domain/runtime";
+import { getAgentVaultPolicy, listAgents } from "@/features/agents/infrastructure/agentStore";
+import { type AgentSolanaDelegationRecord, buildAgentSolanaDelegationSummary, getAgentSolanaDelegation, saveAgentSolanaDelegation, updateAgentSolanaDelegationStatus } from "@/features/agents/infrastructure/solanaDelegationStore";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 const VENUES: TradingVenue[] = ["mock_perps", "hyperliquid_testnet", "bulktrade_mock"];
@@ -91,10 +82,10 @@ export default function SolanaDelegationPage() {
 
   const summary = delegation
     ? buildAgentSolanaDelegationSummary({
-        delegation,
-        policy,
-        agent: selectedAgent,
-      })
+      delegation,
+      policy,
+      agent: selectedAgent,
+    })
     : null;
 
   const save = () => {

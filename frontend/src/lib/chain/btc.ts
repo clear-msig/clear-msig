@@ -40,12 +40,7 @@ export async function fetchBitcoinTxHistory(
   limit: number = 10,
 ): Promise<BtcTxRow[]> {
   const isTestnet = isLikelyBitcoinTestnetAddress(address);
-  const base = isTestnet
-    ? "https://mempool.space/testnet/api"
-    : "https://mempool.space/api";
-  if (esploraBaseUrl(isTestnet ? "testnet" : "mainnet").includes(".g.alchemy.com/")) {
-    return fetchAlchemyBitcoinTxHistory(address, isTestnet ? "testnet" : "mainnet", limit);
-  }
+  const base = esploraBaseUrl(isTestnet ? "testnet" : "mainnet");
   const res = await fetch(`${base}/address/${address}/txs`, {
     method: "GET",
     headers: { accept: "application/json" },
@@ -101,113 +96,6 @@ export async function fetchBitcoinTxHistory(
   return rows;
 }
 
-async function fetchAlchemyBitcoinTxHistory(
-  address: string,
-  network: BitcoinNetwork,
-  limit: number,
-): Promise<BtcTxRow[]> {
-  const rpcBase = esploraBaseUrl(network).replace(/\/+$/, "");
-  const addressUrl = `${rpcBase}/api/v2/address/${encodeURIComponent(address)}?details=txids`;
-  const resp = await fetch(addressUrl, {
-    method: "GET",
-    headers: { accept: "application/json" },
-    credentials: "omit",
-  });
-  if (!resp.ok) {
-    if (resp.status === 404) return [];
-    throw new Error(`Alchemy Bitcoin address HTTP ${resp.status}`);
-  }
-  const raw = (await resp.json()) as unknown;
-  const txids = extractTxids(raw).slice(0, limit);
-  const rows: BtcTxRow[] = [];
-  for (const txid of txids) {
-    const tx = await bitcoinRpcCall(network, "getrawtransaction", [txid, true]);
-    const rec = tx.result as Record<string, unknown> | undefined;
-    if (!rec) continue;
-    const confirmations = numberField(rec, "confirmations");
-    const blockTime = numberField(rec, "blocktime", "time");
-    const blockHeight = numberField(rec, "blockheight", "height");
-    rows.push({
-      txId: txid,
-      blockTime: blockTime ?? null,
-      blockHeight: blockHeight ?? null,
-      confirmed: (confirmations ?? 0) > 0,
-      netValueSats: 0n,
-    });
-  }
-  return rows;
-}
-
-async function bitcoinRpcCall(
-  network: BitcoinNetwork,
-  method: string,
-  params: unknown[],
-): Promise<{ result?: unknown; error?: { message?: string } }> {
-  const rpcBase = esploraBaseUrl(network).replace(/\/+$/, "");
-  const resp = await fetch(rpcBase, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method,
-      params,
-    }),
-  });
-  if (!resp.ok) {
-    throw new Error(`Bitcoin RPC returned HTTP ${resp.status}`);
-  }
-  const json = (await resp.json()) as {
-    result?: unknown;
-    error?: { message?: string };
-  };
-  if (json.error) {
-    throw new Error(`Bitcoin RPC error: ${json.error.message ?? "unknown"}`);
-  }
-  return json;
-}
-
-function extractTxids(raw: unknown): string[] {
-  if (Array.isArray(raw)) {
-    return raw.flatMap((item) =>
-      typeof item === "string"
-        ? [item]
-        : typeof item === "object" && item !== null
-          ? extractTxidsFromObject(item as Record<string, unknown>)
-          : [],
-    );
-  }
-  if (typeof raw === "object" && raw !== null) {
-    return extractTxidsFromObject(raw as Record<string, unknown>);
-  }
-  return [];
-}
-
-function extractTxidsFromObject(obj: Record<string, unknown>): string[] {
-  for (const key of ["txids", "transactions", "txid_list", "txidList"]) {
-    const v = obj[key];
-    if (Array.isArray(v)) {
-      return v.filter((x): x is string => typeof x === "string" && x.length > 0);
-    }
-  }
-  return [];
-}
-
-function numberField(
-  row: Record<string, unknown>,
-  ...keys: string[]
-): number | null {
-  for (const key of keys) {
-    const v = row[key];
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string" && v.trim() !== "") {
-      const parsed = Number(v);
-      if (Number.isFinite(parsed)) return parsed;
-    }
-  }
-  return null;
-}
-
 function isLikelyBitcoinTestnetAddress(addr: string): boolean {
   const s = addr.toLowerCase();
   if (s.startsWith("tb1") || s.startsWith("tb1q") || s.startsWith("tb1p")) {
@@ -226,12 +114,24 @@ function isLikelyBitcoinTestnetAddress(addr: string): boolean {
 
 export type BitcoinNetwork = "mainnet" | "testnet" | "signet" | "regtest";
 
+const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY ?? null;
 const BITCOIN_MAINNET_RPC_URL =
-  process.env.NEXT_PUBLIC_BITCOIN_MAINNET_RPC_URL ?? null;
+  process.env.NEXT_PUBLIC_BITCOIN_MAINNET_RPC_URL ??
+  alchemyBitcoinRpcUrl("mainnet", ALCHEMY_API_KEY);
 const BITCOIN_TESTNET_RPC_URL =
-  process.env.NEXT_PUBLIC_BITCOIN_TESTNET_RPC_URL ?? null;
+  process.env.NEXT_PUBLIC_BITCOIN_TESTNET_RPC_URL ??
+  alchemyBitcoinRpcUrl("testnet", ALCHEMY_API_KEY);
 const BITCOIN_SIGNET_RPC_URL =
-  process.env.NEXT_PUBLIC_BITCOIN_SIGNET_RPC_URL ?? null;
+  process.env.NEXT_PUBLIC_BITCOIN_SIGNET_RPC_URL ??
+  alchemyBitcoinRpcUrl("signet", ALCHEMY_API_KEY);
+
+export function alchemyBitcoinRpcUrl(
+  network: BitcoinNetwork,
+  apiKey: string | null,
+): string | null {
+  if (!apiKey || network === "regtest") return null;
+  return `https://bitcoin-${network}.g.alchemy.com/v2/${apiKey}`;
+}
 
 /// Default network for v1. **testnet3**.
 ///
@@ -248,21 +148,35 @@ const BITCOIN_SIGNET_RPC_URL =
 /// collapses the ambiguity.
 export const DEFAULT_BITCOIN_NETWORK: BitcoinNetwork = "testnet";
 
-/// Bitcoin RPC / Esplora base URL per network. If an Alchemy Bitcoin
-/// endpoint is configured for the selected network, return that.
-/// Otherwise fall back to the public mempool.space Esplora endpoint.
+/// Indexed address/UTXO API. Alchemy's Bitcoin test networks expose JSON-RPC,
+/// not UTXO REST methods, so reads stay on a real Esplora provider.
 export function esploraBaseUrl(network: BitcoinNetwork): string {
   switch (network) {
     case "mainnet":
-      return BITCOIN_MAINNET_RPC_URL ?? "https://mempool.space/api";
+      return "https://mempool.space/api";
     case "testnet":
-      return BITCOIN_TESTNET_RPC_URL ?? "https://mempool.space/testnet/api";
+      return "https://mempool.space/testnet/api";
     case "signet":
-      return BITCOIN_SIGNET_RPC_URL ?? "https://mempool.space/signet/api";
+      return "https://mempool.space/signet/api";
     case "regtest":
       // No public regtest Esplora; user is expected to override via
       // env. Returning a placeholder keeps the type exhaustive.
       return "http://localhost:3002";
+  }
+}
+
+/// Transaction broadcast endpoint. Prefer configured Alchemy JSON-RPC and
+/// retain Esplora as a development fallback; the CLI supports both protocols.
+export function bitcoinBroadcastUrl(network: BitcoinNetwork): string {
+  switch (network) {
+    case "mainnet":
+      return BITCOIN_MAINNET_RPC_URL ?? esploraBaseUrl(network);
+    case "testnet":
+      return BITCOIN_TESTNET_RPC_URL ?? esploraBaseUrl(network);
+    case "signet":
+      return BITCOIN_SIGNET_RPC_URL ?? esploraBaseUrl(network);
+    case "regtest":
+      return esploraBaseUrl(network);
   }
 }
 
@@ -365,6 +279,32 @@ export interface EsploraUtxo {
   /** Confirmed value in satoshis. */
   value: number;
   status: { confirmed: boolean; block_height?: number; block_time?: number };
+}
+
+export const BTC_SEND_FEE_RESERVE_SATS = 300n;
+
+export interface BitcoinSendSelection {
+  utxo: EsploraUtxo;
+  feeSats: bigint;
+  changeSats: bigint;
+}
+
+export function selectBitcoinSendUtxo(
+  utxos: readonly EsploraUtxo[],
+  amountSats: bigint,
+  feeSats: bigint = BTC_SEND_FEE_RESERVE_SATS,
+): BitcoinSendSelection | null {
+  if (amountSats <= 0n || feeSats < 0n) return null;
+  const needed = amountSats + feeSats;
+  const utxo = [...utxos]
+    .sort((a, b) => a.value - b.value)
+    .find((candidate) => BigInt(candidate.value) >= needed);
+  if (!utxo) return null;
+  return {
+    utxo,
+    feeSats,
+    changeSats: BigInt(utxo.value) - needed,
+  };
 }
 
 export interface BitcoinAddressSnapshot {
@@ -507,10 +447,6 @@ export async function fetchBitcoinBalance(
   network: BitcoinNetwork = DEFAULT_BITCOIN_NETWORK,
 ): Promise<bigint> {
   const rpcBase = esploraBaseUrl(network);
-  if (rpcBase.includes(".g.alchemy.com/")) {
-    const utxos = await fetchBitcoinUtxos(address, network);
-    return utxos.reduce((acc, utxo) => acc + BigInt(utxo.value), 0n);
-  }
   const url = `${rpcBase}/address/${encodeURIComponent(address)}`;
   const resp = await fetch(url, {
     method: "GET",
@@ -545,77 +481,6 @@ export async function fetchBitcoinUtxos(
   network: BitcoinNetwork = DEFAULT_BITCOIN_NETWORK,
 ): Promise<EsploraUtxo[]> {
   const rpcBase = esploraBaseUrl(network);
-  if (rpcBase.includes(".g.alchemy.com/")) {
-    const base = rpcBase.replace(/\/+$/, "");
-    const url = `${base}/api/v2/utxo/${encodeURIComponent(address)}?confirmed=false`;
-    const resp = await fetch(url, {
-      method: "GET",
-      headers: { accept: "application/json" },
-      credentials: "omit",
-    });
-    if (!resp.ok) {
-      if (resp.status === 404) return [];
-      throw new Error(`Alchemy Bitcoin UTXO HTTP ${resp.status}`);
-    }
-    const raw = (await resp.json()) as unknown;
-    const list = Array.isArray(raw)
-      ? raw
-      : Array.isArray((raw as { utxos?: unknown[] })?.utxos)
-        ? ((raw as { utxos?: unknown[] }).utxos as unknown[])
-        : [];
-    return list
-      .map((row) => {
-        const rec = row as Record<string, unknown>;
-        const txid = typeof rec.txid === "string" ? rec.txid : "";
-        const vout =
-          typeof rec.vout === "number"
-            ? rec.vout
-            : typeof rec.vout === "string"
-              ? parseInt(rec.vout, 10)
-              : NaN;
-        const value =
-          typeof rec.value === "number"
-            ? rec.value
-            : typeof rec.value === "string"
-              ? parseInt(rec.value, 10)
-              : NaN;
-        const confirmed =
-          typeof rec.confirmed === "boolean"
-            ? rec.confirmed
-            : typeof rec.confirmations === "number"
-              ? rec.confirmations > 0
-              : typeof rec.confirmations === "string"
-                ? parseInt(rec.confirmations, 10) > 0
-                : false;
-        const blockHeight =
-          typeof rec.height === "number"
-            ? rec.height
-            : typeof rec.height === "string"
-              ? parseInt(rec.height, 10)
-              : undefined;
-        const blockTime =
-          typeof rec.block_time === "number"
-            ? rec.block_time
-            : typeof rec.blockTime === "number"
-              ? rec.blockTime
-              : undefined;
-        if (!txid || !Number.isFinite(vout) || !Number.isFinite(value)) {
-          return null;
-        }
-        return {
-          txid,
-          vout,
-          value,
-          status: {
-            confirmed,
-            block_height: Number.isFinite(blockHeight) ? blockHeight : undefined,
-            block_time: Number.isFinite(blockTime) ? blockTime : undefined,
-          },
-        } as EsploraUtxo;
-      })
-      .filter((row): row is EsploraUtxo => row !== null)
-      .sort((a, b) => b.value - a.value);
-  }
   const url = `${rpcBase}/address/${encodeURIComponent(address)}/utxo`;
   const resp = await fetch(url, {
     method: "GET",

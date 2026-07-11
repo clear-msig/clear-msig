@@ -12,19 +12,15 @@
 //      the wallet-wide one.
 //   4. Daily velocity. Optional "no more than N sends per day" rule.
 //
-// Caps are enforced in dollars so the user never has to convert SOL
-// to BTC to USDC in their head. Today's enforcement is advisory: the
-// /send page bakes the policy impact ("after this: $4.2k of $5k on
-// Solana") into the SignPayloadPreview so the user sees the rule
-// applied at sign time. Real on-chain enforcement lands when the
-// program adds the policy fields.
+// The editor converts USD caps into stable native-token snapshots when
+// saved. Typed sends commit those snapshots, and the program maintains
+// per-intent rolling amount and send-count windows.
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
-  Check,
   Loader2,
   Wallet as WalletIcon,
   Zap,
@@ -45,6 +41,8 @@ import {
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { CHAIN_CATALOG, type ChainMeta } from "@/lib/retail/chains";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { deriveNativeWeeklyCaps } from "@/lib/policies/budgetLimits";
+import { usePersistPersonalWalletPolicy } from "@/lib/hooks/usePersistWalletPolicy";
 
 const QUICK_WALLET_AMOUNTS: ReadonlyArray<{ label: string; usd: number }> = [
   { label: "$500", usd: 500 },
@@ -89,6 +87,7 @@ export default function BudgetPage() {
   const reduce = useReducedMotion();
   const toast = useToast();
   const usage = useWalletBudgetUsage(name);
+  const persistPersonalPolicy = usePersistPersonalWalletPolicy();
 
   const [walletDraft, setWalletDraft] = useState<string>("");
   const [walletNoLimit, setWalletNoLimit] = useState(false);
@@ -96,6 +95,7 @@ export default function BudgetPage() {
     () => initialChainDrafts(),
   );
   const [velocityDraft, setVelocityDraft] = useState<string>("");
+  const [saving, setSaving] = useState(false);
 
   // Hydrate drafts from saved policy on mount + when storage changes.
   useEffect(() => {
@@ -124,7 +124,8 @@ export default function BudgetPage() {
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
     // Wallet-wide cap. noLimit collapses to null (no overall cap).
     let weeklyUsd: number | null;
     if (walletNoLimit) {
@@ -176,16 +177,42 @@ export default function BudgetPage() {
       velocityPerDay = v;
     }
 
-    saveBudget({
-      walletName: name,
-      weeklyUsd,
-      perChainUsd,
-      velocityPerDay,
-    });
-    toast.success(`${toDisplayName(name)}'s limits saved`, {
-      details: summarisePolicy(weeklyUsd, perChainUsd, velocityPerDay),
-    });
-    router.push(`/app/wallet/${encodeURIComponent(name)}`);
+    setSaving(true);
+    try {
+      saveBudget({
+        walletName: name,
+        weeklyUsd,
+        perChainUsd,
+        onchainWeeklyNative: deriveNativeWeeklyCaps(weeklyUsd, perChainUsd),
+        velocityPerDay,
+      });
+      const result = await persistPersonalPolicy(name);
+      const detail = [
+        summarisePolicy(weeklyUsd, perChainUsd, velocityPerDay),
+        result.updated > 0
+          ? `${result.updated} on-chain ${result.updated === 1 ? "rule" : "rules"} updated`
+          : "On-chain rules already matched",
+        result.waiting > 0
+          ? `${result.waiting} ${result.waiting === 1 ? "update is" : "updates are"} waiting for another approval`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      toast.success(`${toDisplayName(name)}'s limits saved`, {
+        details: detail,
+      });
+      router.push(`/app/wallet/${encodeURIComponent(name)}`);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "The browser could not persist these limits on chain.";
+      toast.error("Limits saved locally, but not on chain", {
+        details: message,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const display = toDisplayName(name);
@@ -220,8 +247,8 @@ export default function BudgetPage() {
 
       <p className="max-w-2xl text-sm text-text-soft sm:text-base">
         One wallet-wide weekly cap, plus optional per-chain caps and a
-        daily send-count limit. ClearSig warns you before a send pushes past
-        the limit.
+        daily send-count limit. Every typed send commits the applicable
+        native-token cap for program enforcement.
       </p>
 
       <CurrentUsageCard name={name} usage={usage} />
@@ -235,6 +262,7 @@ export default function BudgetPage() {
           <span className="font-display text-2xl text-text-strong">$</span>
           <input
             type="text"
+            aria-label="Wallet-wide weekly spending limit in USD"
             inputMode="decimal"
             value={walletDraft}
             onChange={(e) => {
@@ -318,6 +346,7 @@ export default function BudgetPage() {
           </span>
           <input
             type="text"
+            aria-label="Daily send count limit"
             inputMode="numeric"
             value={velocityDraft}
             onChange={(e) =>
@@ -350,17 +379,19 @@ export default function BudgetPage() {
         </div>
       </PolicyCard>
 
-      <Button size="lg" fullWidth onClick={handleSave}>
-        Save limits
-        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      <Button size="lg" fullWidth onClick={handleSave} disabled={saving}>
+        {saving ? "Saving on chain..." : "Save limits"}
+        {saving ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        )}
       </Button>
 
       <p className="text-center text-xs text-text-soft">
-        <strong className="text-text-strong">Heads up.</strong> Demo
-        prices today ({formatUsd(quotePerWhole("SOL")?.usdPerWhole ?? 0)}{" "}
-        / SOL etc.). Caps are nudges; wallet approvals still rule. Real
-        on-chain enforcement lands when the protection program ships the
-        fields.
+        Native-token equivalents are fixed when you save, then enforced by
+        the program for every typed send. Save again whenever you want to
+        refresh the USD conversion.
       </p>
     </div>
   );
@@ -423,6 +454,7 @@ function ChainCapRow({
         </span>
         <input
           type="text"
+          aria-label={`${meta.name} weekly spending limit in USD`}
           inputMode="decimal"
           value={draft.amount}
           onChange={(e) =>
@@ -595,6 +627,7 @@ function UsageBar({
           (thin ? "h-1" : "h-2")
         }
         role="progressbar"
+        aria-label={caption ?? "Spending limit used"}
         aria-valuenow={Math.round(pct * 100)}
         aria-valuemin={0}
         aria-valuemax={100}

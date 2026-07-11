@@ -46,6 +46,7 @@ COPY examples /app/examples
 WORKDIR /app
 
 ENV CLEAR_MSIG_BIN=/usr/local/bin/clear-msig
+ENV CLEAR_MSIG_ENV=production
 ENV BACKEND_API_BIND=0.0.0.0:8080
 ENV RUST_LOG=info
 EXPOSE 8080

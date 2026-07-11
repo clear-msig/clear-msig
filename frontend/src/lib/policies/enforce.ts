@@ -7,12 +7,11 @@
 //   - require-extra-approvers => collect and submit the extra approvals
 //   - require-cooldown         => wait the extra cooldown before execute
 //
-// It stays client-side because the current policy system is still
-// browser-stored. Once the policy rules move on-chain, this helper
-// becomes the UI-side mirror of the program check.
+// Browser evaluation is a preflight only. Static per-chain rule bytes are
+// committed through SetProtection and independently enforced by the program.
 
 import type { CandidateProposal } from "@/lib/policies/evaluate";
-import { evaluateFirstMatch } from "@/lib/policies/evaluate";
+import { evaluateAll, evaluateFirstMatch } from "@/lib/policies/evaluate";
 import { listPolicies } from "@/lib/policies/storage";
 import type { PolicyRule, RuleCondition, RuleEvaluation } from "@/lib/policies/types";
 import { decryptPolicy } from "@/lib/encrypt/client";
@@ -20,8 +19,25 @@ import {
   decryptConditions,
   decryptCooldownSeconds,
 } from "@/lib/policies/encryption";
+import {
+  BUDGET_WINDOW_MS,
+  VELOCITY_WINDOW_MS,
+  getBudget,
+  type PolicyChainTicker,
+} from "@/lib/retail/spendingBudget";
+import { getAllowlist, getTimeWindow } from "@/lib/retail/policy";
+import { listAllowances } from "@/lib/retail/allowances";
 
 const decoder = new TextDecoder();
+
+export interface MemberAllowanceCap {
+  /** Solana base58 of the member (proposer) this cap applies to. */
+  member: string;
+  /** Cap in display units of the send asset (SOL/ETH/…). */
+  capDisplay: string;
+  /** Rolling window in seconds (weekly ≈ 604800, monthly ≈ 2592000). */
+  windowSeconds: number;
+}
 
 export interface PolicyEnforcementPlan {
   evaluation: RuleEvaluation | null;
@@ -29,6 +45,24 @@ export interface PolicyEnforcementPlan {
   conditions: RuleCondition[];
   extraApprovers: string[];
   extraCooldownSeconds: number;
+  recipientGuard?: {
+    mode: "allowlist" | "blocklist";
+    addresses: string[];
+  } | null;
+  allowedTimeWindow?: {
+    startHour: number;
+    endHour: number;
+    daysOfWeek: number[];
+    utcOffsetMinutes: number;
+  } | null;
+  onchainLimits: {
+    velocityCapDisplay: string | null;
+    velocityWindowSeconds: number;
+    maxSendCount: number;
+    countWindowSeconds: number;
+  };
+  /** Per-member spend caps enforced on-chain via CSP1 extension tag 4. */
+  memberAllowances?: MemberAllowanceCap[];
 }
 
 export function assertPolicyNotDenied(
@@ -45,7 +79,13 @@ export async function resolvePolicyEnforcement(
   walletName: string,
   candidate: CandidateProposal,
 ): Promise<PolicyEnforcementPlan> {
+  const onchainLimits = resolveOnchainLimits(walletName, candidate.ticker);
+  const recipientGuard = resolveRecipientGuard(walletName, candidate.chainKind);
+  const memberAllowances = resolveMemberAllowances(walletName, candidate.ticker);
   const rules = listPolicies(walletName);
+  const allowedTimeWindow =
+    resolveSavedAllowedTimeWindow(walletName, candidate) ??
+    (await resolveAllowedTimeWindow(rules, candidate));
   const evaluation = await evaluateFirstMatch(rules, candidate);
   if (!evaluation) {
     return {
@@ -54,6 +94,10 @@ export async function resolvePolicyEnforcement(
       conditions: [],
       extraApprovers: [],
       extraCooldownSeconds: 0,
+      recipientGuard,
+      allowedTimeWindow,
+      onchainLimits,
+      memberAllowances,
     };
   }
 
@@ -65,6 +109,10 @@ export async function resolvePolicyEnforcement(
       conditions: [],
       extraApprovers: [],
       extraCooldownSeconds: 0,
+      recipientGuard,
+      allowedTimeWindow,
+      onchainLimits,
+      memberAllowances,
     };
   }
 
@@ -89,6 +137,105 @@ export async function resolvePolicyEnforcement(
             )) ?? 0,
           )
         : 0,
+    recipientGuard,
+    allowedTimeWindow,
+    onchainLimits,
+    memberAllowances,
+  };
+}
+
+function resolveMemberAllowances(
+  walletName: string,
+  ticker: string,
+): MemberAllowanceCap[] {
+  if (ticker !== "SOL") return [];
+  return listAllowances(walletName)
+    .filter((row) => row.period !== "none")
+    .map((row) => ({
+      member: row.friendAddress,
+      capDisplay: String(Math.max(0, row.amountSol || 0)),
+      windowSeconds:
+        row.period === "monthly" ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60,
+    }));
+}
+
+function resolveRecipientGuard(
+  walletName: string,
+  chainKind: number,
+): PolicyEnforcementPlan["recipientGuard"] {
+  const allowlist = getAllowlist(walletName, chainKind);
+  return allowlist.mode === "on"
+    ? { mode: "allowlist", addresses: allowlist.addresses }
+    : null;
+}
+
+function resolveSavedAllowedTimeWindow(
+  walletName: string,
+  candidate: CandidateProposal,
+): PolicyEnforcementPlan["allowedTimeWindow"] {
+  const window = getTimeWindow(walletName);
+  if (!window.enabled) return null;
+  const at = candidate.at ?? new Date();
+  const noAllowedDays = window.daysOfWeek.length === 0;
+  return {
+    startHour: window.startHour,
+    endHour: noAllowedDays ? window.startHour : window.endHour,
+    daysOfWeek: window.daysOfWeek,
+    utcOffsetMinutes: at.getTimezoneOffset(),
+  };
+}
+
+async function resolveAllowedTimeWindow(
+  rules: PolicyRule[],
+  candidate: CandidateProposal,
+): Promise<PolicyEnforcementPlan["allowedTimeWindow"]> {
+  for (const rule of rules) {
+    if (!rule.enabled) continue;
+    const conditions = await decryptConditions(rule.conditions);
+    const timeWindow = conditions.find(
+      (condition) => condition.kind === "time-window",
+    );
+    if (!timeWindow) continue;
+    const expressesAllowedHours =
+      (rule.action === "allow" && timeWindow.match === "inside") ||
+      (rule.action === "deny" && timeWindow.match === "outside");
+    if (!expressesAllowedHours) continue;
+
+    const guardConditions = conditions.filter(
+      (condition) => condition.kind !== "time-window",
+    );
+    const [guard] = await evaluateAll(
+      [{ ...rule, action: "allow", conditions: guardConditions }],
+      candidate,
+    );
+    if (!guard?.matched) continue;
+
+    const at = candidate.at ?? new Date();
+    return {
+      startHour: timeWindow.startHour,
+      endHour: timeWindow.endHour,
+      daysOfWeek: timeWindow.daysOfWeek,
+      utcOffsetMinutes: at.getTimezoneOffset(),
+    };
+  }
+  return null;
+}
+
+function resolveOnchainLimits(
+  walletName: string,
+  tickerInput: string,
+): PolicyEnforcementPlan["onchainLimits"] {
+  const budget = getBudget(walletName);
+  const ticker = tickerInput.trim().toUpperCase() as PolicyChainTicker;
+  const nativeCap = budget?.onchainWeeklyNative?.[ticker] ?? null;
+  return {
+    velocityCapDisplay:
+      typeof nativeCap === "string" && nativeCap.trim().length > 0
+        ? nativeCap
+        : null,
+    velocityWindowSeconds: Math.floor(BUDGET_WINDOW_MS / 1000),
+    maxSendCount: Math.max(0, Math.floor(budget?.velocityPerDay ?? 0)),
+    countWindowSeconds: Math.floor(VELOCITY_WINDOW_MS / 1000),
   };
 }
 

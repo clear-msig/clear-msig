@@ -6,13 +6,8 @@ import clsx from "clsx";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, ClipboardList, KeyRound, ShieldCheck } from "lucide-react";
-import {
-  listAgentOwnerApprovals,
-  listAgents,
-  subscribeAgents,
-  type AgentOwnerApproval,
-  type AgentProfile,
-} from "@/lib/agents/client";
+import { type AgentOwnerApproval, type AgentProfile } from "@/features/agents/domain/runtime";
+import { listAgentOwnerApprovals, listAgents, subscribeAgents } from "@/features/agents/infrastructure/agentStore";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 type ApprovalFilter = "all" | "wallet_signature" | "browser_confirm";

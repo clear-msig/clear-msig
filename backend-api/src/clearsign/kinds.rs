@@ -13,6 +13,7 @@ pub(super) enum ClearSignActionKind {
     AgentTradeApproval,
     RecoveryAction,
     SwapIntent,
+    AgentSessionGrant,
 }
 
 impl ClearSignActionKind {
@@ -29,6 +30,7 @@ impl ClearSignActionKind {
             "agent_trade_approval" => Ok(Self::AgentTradeApproval),
             "recovery_action" => Ok(Self::RecoveryAction),
             "swap_intent" => Ok(Self::SwapIntent),
+            "agent_session_grant" => Ok(Self::AgentSessionGrant),
             other => Err(ApiError::BadRequest(format!(
                 "unsupported clearsign action kind: {other}"
             ))),
@@ -48,6 +50,7 @@ impl ClearSignActionKind {
             Self::AgentTradeApproval => 9,
             Self::RecoveryAction => 10,
             Self::SwapIntent => 11,
+            Self::AgentSessionGrant => 12,
         }
     }
 }

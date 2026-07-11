@@ -1,18 +1,16 @@
-use core::mem::MaybeUninit;
-
 use quasar_lang::{cpi::Seed, prelude::*, remaining::RemainingAccounts};
 
 use crate::{
     error::WalletError,
     instructions::typed_proposal::{mark_typed_executed, verify_typed_execution_ready},
     state::{
-        intent::Intent, policy_spend::PolicySpendState, proposal::ProposalStatus,
-        typed_proposal::TypedProposal, wallet::ClearWallet,
+        intent::Intent, member_allowance::MemberAllowanceLedger, policy_spend::PolicySpendState,
+        proposal::ProposalStatus, typed_proposal::TypedProposal, wallet::ClearWallet,
     },
     utils::clearsign::{
         hash_batch_send_sol_payload_iter, hash_send_payload, ClearSignActionKind, ClearSignAmount,
     },
-    utils::policy::enforce_typed_sol_send_policy,
+    utils::policy::{enforce_typed_sol_send_policy, enforce_wallet_policy_account},
 };
 
 const SOL_ASSET: &[u8] = b"SOL";
@@ -22,13 +20,23 @@ pub struct ExecuteTypedSolSend<'info> {
     #[account(mut)]
     pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[account(mut)]
+    pub wallet_policy: &'info mut UncheckedAccount,
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = PolicySpendState::seeds(wallet),
+        seeds = PolicySpendState::seeds(wallet, intent),
         bump,
     )]
     pub policy_spend: &'info mut Account<PolicySpendState>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = MemberAllowanceLedger::seeds(wallet, intent),
+        bump,
+    )]
+    pub member_allowance: &'info mut Account<MemberAllowanceLedger>,
     #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
@@ -62,7 +70,26 @@ pub struct ExecuteTypedSolSendArgs {
 
 #[derive(Accounts)]
 pub struct ExecuteTypedSolBatchSend<'info> {
+    #[account(mut)]
+    pub payer: &'info mut Signer,
     pub wallet: Account<ClearWallet<'info>>,
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[account(mut)]
+    pub wallet_policy: &'info mut UncheckedAccount,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = PolicySpendState::seeds(wallet, intent),
+        bump,
+    )]
+    pub policy_spend: &'info mut Account<PolicySpendState>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = MemberAllowanceLedger::seeds(wallet, intent),
+        bump,
+    )]
+    pub member_allowance: &'info mut Account<MemberAllowanceLedger>,
     #[cfg_attr(target_os = "solana", allow(quasar::writable_no_authority))]
     #[account(
         mut,
@@ -111,6 +138,13 @@ impl<'info> ExecuteTypedSolSend<'info> {
             payload_hash,
             args.envelope_hash,
         )?;
+        enforce_wallet_policy_account(
+            self.wallet.address(),
+            self.wallet_policy,
+            0,
+            args.policy_commitment,
+            self.proposal.policy_bytes().as_ref(),
+        )?;
         let recipient_bytes = self.recipient.address().as_ref();
         let recipient_key: &[u8; 32] = recipient_bytes
             .try_into()
@@ -124,6 +158,8 @@ impl<'info> ExecuteTypedSolSend<'info> {
             &self.proposal,
             &mut self.policy_spend,
             bumps.policy_spend,
+            &mut self.member_allowance,
+            bumps.member_allowance,
         )?;
         let vault_seeds = self.vault_seeds(bumps);
         transfer_lamports(
@@ -157,14 +193,13 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
         require!(recipient_count > 0, ProgramError::InvalidInstructionData);
         require!(recipient_count <= 16, WalletError::TooManyAccounts);
 
-        let mut recipients: [MaybeUninit<AccountView>; 16] =
-            unsafe { MaybeUninit::uninit().assume_init() };
+        let mut recipient_keys = [[0u8; 32]; 16];
         let mut remaining_iter = remaining.iter();
         for index in 0..recipient_count {
             let account = remaining_iter
                 .next()
                 .ok_or(ProgramError::NotEnoughAccountKeys)??;
-            recipients[index].write(account);
+            recipient_keys[index].copy_from_slice(account.address().as_ref());
         }
         require!(
             remaining_iter.next().is_none(),
@@ -172,9 +207,8 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
         );
 
         let payload_hash = hash_batch_send_sol_payload_iter((0..recipient_count).map(|index| {
-            let recipient = unsafe { recipients[index].assume_init_ref() };
             (
-                recipient.address().as_ref(),
+                recipient_keys[index].as_ref(),
                 read_amount(args.amount_lamports_le, index),
             )
         }));
@@ -186,14 +220,38 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
             payload_hash,
             args.envelope_hash,
         )?;
+        enforce_wallet_policy_account(
+            self.wallet.address(),
+            self.wallet_policy,
+            0,
+            args.policy_commitment,
+            self.proposal.policy_bytes().as_ref(),
+        )?;
+
+        for index in 0..recipient_count {
+            enforce_typed_sol_send_policy(
+                self.proposal.policy_bytes().as_ref(),
+                args.policy_commitment,
+                &recipient_keys[index],
+                read_amount(args.amount_lamports_le, index),
+                &self.intent,
+                &self.proposal,
+                &mut self.policy_spend,
+                bumps.policy_spend,
+                &mut self.member_allowance,
+                bumps.member_allowance,
+            )?;
+        }
 
         let vault = self.vault.to_account_view();
         let vault_seeds = self.vault_seeds(bumps);
         for index in 0..recipient_count {
-            let recipient = unsafe { recipients[index].assume_init_ref() };
+            let recipient = remaining
+                .get(index)?
+                .ok_or(ProgramError::NotEnoughAccountKeys)?;
             transfer_lamports(
                 vault,
-                recipient,
+                &recipient,
                 self.system_program,
                 &vault_seeds,
                 read_amount(args.amount_lamports_le, index),

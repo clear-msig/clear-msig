@@ -13,16 +13,9 @@
 //      runaway-script attacks and impulse-spend behaviour. null
 //      means "no per-day count limit."
 //
-// Storage is still local. Same migration path as v1: when the
-// program adds the policy fields (or their FHE-encrypted equivalent),
-// this module becomes a cache that proxies through the backend.
-// Single swap point.
-//
-// Why advisory: the user can already SEE rules being checked at
-// sign time, which is the behaviour change that builds trust. Real
-// prevention lands when the program enforces it; today every signed
-// preview shows "after this send: $X of $Y on {chain}", so the user
-// is the policy enforcer.
+// The editor stores a native-token snapshot for each USD cap. Typed send
+// proposals include that stable snapshot in their committed policy bytes,
+// and the program enforces the rolling amount and send-count windows.
 
 const STORAGE_KEY = "clear-msig:spending-budget:v1";
 
@@ -49,6 +42,10 @@ export interface WalletBudget {
   /// keys mean "no per-chain cap". The wallet-wide cap still applies
   /// independently of these.
   perChainUsd?: Partial<Record<PolicyChainTicker, number | null>>;
+  /// Stable native-token equivalents captured when the user saves. These
+  /// values are signed into typed sends, avoiding policy resets as spot prices
+  /// move between requests.
+  onchainWeeklyNative?: Partial<Record<PolicyChainTicker, string | null>>;
   /// Maximum number of executed sends per 24-hour rolling window.
   /// `null` means no velocity limit. Catches "I just signed 50
   /// approvals" pattern when something is off.
@@ -89,6 +86,7 @@ export interface SaveBudgetInput {
   walletName: string;
   weeklyUsd?: number | null;
   perChainUsd?: Partial<Record<PolicyChainTicker, number | null>>;
+  onchainWeeklyNative?: Partial<Record<PolicyChainTicker, string | null>>;
   velocityPerDay?: number | null;
 }
 
@@ -111,6 +109,10 @@ export function saveBudget(
     weeklyUsd:
       input.weeklyUsd !== undefined ? input.weeklyUsd : (existing?.weeklyUsd ?? null),
     perChainUsd: mergeChainCaps(existing?.perChainUsd, input.perChainUsd),
+    onchainWeeklyNative: mergeNativeCaps(
+      existing?.onchainWeeklyNative,
+      input.onchainWeeklyNative,
+    ),
     velocityPerDay:
       input.velocityPerDay !== undefined
         ? input.velocityPerDay
@@ -120,7 +122,22 @@ export function saveBudget(
   const rest = all.filter((r) => r.walletName !== input.walletName);
   rest.push(next);
   persist(rest);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("clear:spending-budget-changed"));
+  }
   return next;
+}
+
+function mergeNativeCaps(
+  existing: Partial<Record<PolicyChainTicker, string | null>> | undefined,
+  patch: Partial<Record<PolicyChainTicker, string | null>> | undefined,
+): Partial<Record<PolicyChainTicker, string | null>> | undefined {
+  if (!patch) return existing;
+  const out: Partial<Record<PolicyChainTicker, string | null>> = { ...existing };
+  for (const ticker of POLICY_CHAIN_TICKERS) {
+    if (ticker in patch) out[ticker] = patch[ticker];
+  }
+  return out;
 }
 
 function mergeChainCaps(
@@ -228,6 +245,13 @@ function isBudget(r: unknown): r is WalletBudget {
     o.velocityPerDay !== undefined &&
     o.velocityPerDay !== null &&
     typeof o.velocityPerDay !== "number"
+  ) {
+    return false;
+  }
+  if (
+    o.onchainWeeklyNative !== undefined &&
+    (typeof o.onchainWeeklyNative !== "object" ||
+      o.onchainWeeklyNative === null)
   ) {
     return false;
   }

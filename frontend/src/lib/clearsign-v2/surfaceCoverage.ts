@@ -1,6 +1,5 @@
 export type ClearSignSurfaceStatus =
   | "typed_onchain"
-  | "typed_executor_available"
   | "typed_approval_only"
   | "legacy_custom_pending_typed_executor"
   | "local_policy_only";
@@ -47,7 +46,7 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
     label: "BTC / EVM / Ika escrow release / return",
     status: "typed_onchain",
     signedPath: "typed proposal -> typed cross-chain escrow execute",
-    notes: "Finalizes verified cross-chain artifacts; direct chain sends now have a typed executor available for UI wiring.",
+    notes: "Finalizes verified cross-chain artifacts through program-verified typed execution.",
   },
   {
     id: "private-escrow",
@@ -66,58 +65,79 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "btc-send",
     label: "BTC send",
-    status: "typed_executor_available",
+    status: "typed_onchain",
     signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
-    notes: "Program/CLI/backend executor verifies recipient, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
+    notes: "The send UI uses typed proposal creation and approval; the program verifies recipient, asset, amount, chain binding, and tx template before Ika signing.",
   },
   {
     id: "eth-send",
     label: "ETH send",
-    status: "typed_executor_available",
+    status: "typed_onchain",
     signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
-    notes: "Program/CLI/backend executor verifies recipient, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
+    notes: "The send UI uses typed proposal creation and approval; the program verifies recipient, asset, amount, chain binding, and tx template before Ika signing.",
   },
   {
     id: "hyperliquid-send",
     label: "Hyperliquid send",
-    status: "typed_executor_available",
+    status: "typed_onchain",
     signedPath: "typed proposal -> typed chain-send proof -> Ika / venue broadcast",
-    notes: "Typed chain-send executor is available for HYPE movement; venue-specific agent policy payloads remain separate.",
+    notes: "HYPE movement is wired to typed proposal creation and program-verified chain-send execution; venue-specific agent policy payloads remain separate.",
   },
   {
     id: "erc20-send",
     label: "ERC-20 send",
-    status: "legacy_custom_pending_typed_executor",
-    signedPath: "legacy Custom proposal -> Ika broadcast",
-    notes: "Needs typed token-send payload and executor.",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
+    notes: "Same typed remote path as ETH; program verifies token contract, recipient, amount, and chain binding before Ika signing.",
   },
   {
     id: "zec-send",
     label: "Zcash send",
-    status: "typed_executor_available",
+    status: "typed_onchain",
     signedPath: "typed proposal -> typed chain-send proof -> Ika broadcast",
-    notes: "Program/CLI/backend executor verifies transparent recipient commitment, asset, amount, chain binding, and tx template; send UI still needs full typed flow wiring.",
+    notes: "The send UI uses typed proposal creation and approval; the program verifies the transparent recipient, asset, amount, chain binding, and tx template before Ika signing.",
+  },
+  {
+    id: "wallet-policy",
+    label: "Wallet policy (limits / protection)",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> execute_typed_wallet_policy_update",
+    notes: "SetProtection binds the WalletPolicy PDA commitment per chain.",
   },
   {
     id: "members-policy",
-    label: "Members, threshold, timelock, setup rules",
-    status: "legacy_custom_pending_typed_executor",
-    signedPath: "legacy intent update proposal",
-    notes: "ClearSign v2 has readable member/policy kinds, but state-changing typed executors are not wired yet.",
+    label: "Members, threshold, timelock",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> execute_typed_intent_governance",
+    notes: "Add/remove member and threshold/timelock rewrites bind the final proposers/approvers/thresholds on-chain.",
   },
   {
     id: "agent-trade-approval",
     label: "Agent trade approval",
-    status: "typed_approval_only",
-    signedPath: "typed approval model exists; product execution is still off-chain/local",
-    notes: "Readable typed action kind exists. Needs product flow wired to typed proposal before live trade execution.",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> agent session PDA notional debit",
+    notes: "Program gates trade finalizer on an active AgentSession (expiry, venue/market, leverage, remaining notional).",
+  },
+  {
+    id: "agent-session-grant",
+    label: "Agent bounded session grant / revoke",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> execute_typed_agent_session_grant",
+    notes: "Creates or revokes program-owned AgentSession PDA bound by ClearSign AgentSessionGrant payload.",
+  },
+  {
+    id: "member-allowances",
+    label: "Per-member spend allowances",
+    status: "typed_onchain",
+    signedPath: "CSP1 EXT_MEMBER_ALLOWANCE + MemberAllowanceLedger window",
+    notes: "SOL friend allowances encode into typed policy bytes (tag 4). The program tracks each matching proposer in an independent MemberAllowanceLedger row.",
   },
   {
     id: "agent-settings",
-    label: "Agent settings / strategy / sessions",
+    label: "Agent settings / strategy / UI sessions",
     status: "local_policy_only",
-    signedPath: "local encrypted policy state",
-    notes: "Not yet a program-verified typed action surface.",
+    signedPath: "local encrypted policy state + optional session grant",
+    notes: "Strategy editors remain local; on-chain session grants are the authoritative bound for trade finalization.",
   },
 ];
 

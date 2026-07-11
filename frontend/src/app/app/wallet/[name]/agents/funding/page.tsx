@@ -16,15 +16,8 @@ import {
   TrendingUp,
   Trophy,
 } from "lucide-react";
-import {
-  agentLeaderboard,
-  buildAgentFundingPlan,
-  getAgentVaultPolicy,
-  listAgentScorecards,
-  listAgentSessions,
-  listAgents,
-  type AgentFundingRecommendation,
-} from "@/lib/agents/client";
+import { type AgentFundingRecommendation, buildAgentFundingPlan } from "@/features/agents/domain/runtime";
+import { agentLeaderboard, getAgentVaultPolicy, listAgents, listAgentScorecards, listAgentSessions } from "@/features/agents/infrastructure/agentStore";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentFundingPage() {
@@ -233,34 +226,34 @@ function FundingCard({
           <ArrowRight className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90" aria-hidden="true" />
         </summary>
         <div className="mt-3 grid gap-3 border-t border-border-soft pt-3 lg:grid-cols-[1fr_0.9fr]">
-        <div>
-          <ul className="mt-2 grid gap-1.5">
-            {item.allocation.reasons.slice(0, 4).map((reason) => (
-              <li key={reason} className="flex items-start gap-2 text-xs leading-relaxed text-text-soft">
-                <Check className="mt-0.5 h-3 w-3 shrink-0 text-accent" aria-hidden="true" />
-                <span>{plainMetric(reason)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-xs font-semibold text-text-strong">
-            Next level
-          </p>
-          {item.allocation.nextTier ? (
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              {item.allocation.nextTier.label} needs{" "}
-              {item.allocation.nextTierGaps.length > 0
-                ? item.allocation.nextTierGaps.slice(0, 3).join(", ")
-                : "continued clean trading"}.
+          <div>
+            <ul className="mt-2 grid gap-1.5">
+              {item.allocation.reasons.slice(0, 4).map((reason) => (
+                <li key={reason} className="flex items-start gap-2 text-xs leading-relaxed text-text-soft">
+                  <Check className="mt-0.5 h-3 w-3 shrink-0 text-accent" aria-hidden="true" />
+                  <span>{plainMetric(reason)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-soft border border-border-soft bg-canvas p-3">
+            <p className="text-xs font-semibold text-text-strong">
+              Next level
             </p>
-          ) : (
-            <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              This trader is already at the highest budget level.
-            </p>
-          )}
+            {item.allocation.nextTier ? (
+              <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                {item.allocation.nextTier.label} needs{" "}
+                {item.allocation.nextTierGaps.length > 0
+                  ? item.allocation.nextTierGaps.slice(0, 3).join(", ")
+                  : "continued clean trading"}.
+              </p>
+            ) : (
+              <p className="mt-1 text-xs leading-relaxed text-text-soft">
+                This trader is already at the highest budget level.
+              </p>
+            )}
+          </div>
         </div>
-      </div>
       </details>
     </article>
   );

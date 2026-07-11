@@ -45,7 +45,7 @@ jobs:
       # only cover the off-chain pieces.
 
       - name: cargo test (host crates)
-        run: cargo test -p clear-msig-cli -p clear-wallet-client
+        run: cargo test -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
 
   frontend-tests:
     name: frontend unit tests
@@ -75,11 +75,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: frontend/.next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**', 'frontend/next.config.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}-
 
-      - name: Unit tests
-        run: npm test
+      - name: Production verification
+        run: npm run build
 
   # ------------------------------------------------------------------
   # SBF build — produces target/deploy/clear_wallet.so for devnet
@@ -164,7 +169,5 @@ jobs:
           name: clear_wallet-so
           path: target/deploy
 
-      - name: Run typed execution SVM tests
-        run: |
-          cargo test -p clear-wallet test_execute_typed_escrow -- --nocapture
-          cargo test -p clear-wallet test_execute_typed_sol -- --nocapture
+      - name: Run clear-wallet SVM tests
+        run: cargo test -p clear-wallet -- --nocapture

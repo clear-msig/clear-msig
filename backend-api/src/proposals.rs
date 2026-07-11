@@ -16,14 +16,18 @@ mod types;
 mod validation;
 
 use typed_execution::{
-    execute_typed_agent_trade_approval_args, execute_typed_chain_send_args,
-    execute_typed_escrow_release_args, execute_typed_escrow_return_args,
+    execute_typed_agent_session_grant_args, execute_typed_agent_trade_approval_args,
+    execute_typed_chain_send_args, execute_typed_escrow_release_args,
+    execute_typed_escrow_return_args, execute_typed_intent_governance_args,
     execute_typed_sol_batch_send_args, execute_typed_sol_send_args,
+    execute_typed_wallet_policy_update_args,
 };
 use types::{
-    ExecuteProposalRequest, ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
+    ExecuteProposalRequest, ExecuteTypedAgentSessionGrantRequest,
+    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
-    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest, PrepareApproveCancelRequest,
+    ExecuteTypedIntentGovernanceRequest, ExecuteTypedSolBatchSendRequest,
+    ExecuteTypedSolSendRequest, ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
     PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest, SignedApproveCancelRequest,
     SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
 };
@@ -76,6 +80,14 @@ pub(crate) fn router() -> Router<AppState> {
             post(execute_typed_sol_send),
         )
         .route(
+            "/wallets/{name}/proposals/{proposal}/typed-wallet-policy-update",
+            post(execute_typed_wallet_policy_update),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-intent-governance",
+            post(execute_typed_intent_governance),
+        )
+        .route(
             "/wallets/{name}/proposals/{proposal}/typed-chain-send",
             post(execute_typed_chain_send),
         )
@@ -86,6 +98,10 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-agent-trade-approval",
             post(execute_typed_agent_trade_approval),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-agent-session-grant",
+            post(execute_typed_agent_session_grant),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/execute/stream",
@@ -525,6 +541,10 @@ async fn execute_typed_escrow_release(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedEscrowReleaseRequest>,
 ) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:escrow-release:{name}"))
+        .await?;
     let args = execute_typed_escrow_release_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -534,6 +554,10 @@ async fn execute_typed_escrow_return(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedEscrowReturnRequest>,
 ) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:escrow-return:{name}"))
+        .await?;
     let args = execute_typed_escrow_return_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -543,7 +567,37 @@ async fn execute_typed_sol_send(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedSolSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:sol-send:{name}"))
+        .await?;
     let args = execute_typed_sol_send_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_wallet_policy_update(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedWalletPolicyUpdateRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:wallet-policy:{name}"))
+        .await?;
+    let args = execute_typed_wallet_policy_update_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_intent_governance(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedIntentGovernanceRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:governance:{name}"))
+        .await?;
+    let args = execute_typed_intent_governance_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 
@@ -552,6 +606,11 @@ async fn execute_typed_chain_send(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedChainSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
+    // Ika broadcast is the expensive path — rate-limit tightly per wallet name.
+    state
+        .rate_limiter
+        .check(&format!("execute:chain-send:{name}"))
+        .await?;
     let args = execute_typed_chain_send_args(
         name,
         proposal,
@@ -568,6 +627,10 @@ async fn execute_typed_sol_batch_send(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedSolBatchSendRequest>,
 ) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:sol-batch:{name}"))
+        .await?;
     let args = execute_typed_sol_batch_send_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
@@ -577,7 +640,24 @@ async fn execute_typed_agent_trade_approval(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<ExecuteTypedAgentTradeApprovalRequest>,
 ) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:agent-trade:{name}"))
+        .await?;
     let args = execute_typed_agent_trade_approval_args(name, proposal, body)?;
+    Ok(Json(state.runner.run_json(args).await?))
+}
+
+async fn execute_typed_agent_session_grant(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedAgentSessionGrantRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:agent-session:{name}"))
+        .await?;
+    let args = execute_typed_agent_session_grant_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
 }
 

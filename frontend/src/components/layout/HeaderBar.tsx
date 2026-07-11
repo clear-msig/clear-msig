@@ -18,7 +18,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,7 +29,6 @@ import {
   Palette,
   RefreshCw,
   ScanLine,
-  ShieldCheck,
   Usb,
   UserCircle2,
 } from "lucide-react";
@@ -71,7 +69,7 @@ export function HeaderBar() {
   const walletMenuRef = useRef<HTMLDivElement | null>(null);
 
   const inApp = pathname.startsWith("/app");
-  const isHome = pathname === "/app";
+  const isHome = pathname === "/app/wallet";
   const isWalletLandingRoute = /^\/app\/wallet\/[^/]+$/.test(pathname);
   const inAppConnected = hydrated && connected && inApp;
 
@@ -80,25 +78,10 @@ export function HeaderBar() {
   //   showTitle      - plain centered text on every /app/* mobile page
   //   showBrandPill  - only on public surfaces
   //   showScan       - only when composing a transfer
-  //   showAccount    - only on the Settings page (Account is reachable
-  //                    from the Settings header now that Settings lives
-  //                    in the bottom nav).
-  //   showSecure     - only on the Home page (recovery hub shortcut).
-  const showBack = inAppConnected && !isHome && !isWalletLandingRoute;
+  const showBack = inAppConnected && !isHome;
   const showTitle = inAppConnected;
   const showBrandPill = !inApp || !connected;
   const showScan = isSendRoute(pathname);
-  // Account shortcut - lives on the Settings page only. Settings
-  // moved into the bottom nav, so Account becomes the
-  // companion surface reachable from the Settings page header.
-  const showAccount = inAppConnected && pathname.startsWith("/app/settings");
-  // Secure shortcut removed — Secure is no longer a separate
-  // top-level destination. Personal recovery now lives as a shape
-  // inside the unified wallet-create flow (/app/wallet/new). The
-  // /app/secure/* routes still work for deep links. See Fesal
-  // feedback 2026-05-11.
-  const showSecure = false;
-  const showWallet = inAppConnected;
   const pageTitle = inAppConnected
     ? isHome
       ? "Welcome back"
@@ -145,10 +128,14 @@ export function HeaderBar() {
   }, [walletMenuOpen]);
 
   const handleBack = () => {
+    if (isWalletLandingRoute) {
+      router.replace("/app/wallet");
+      return;
+    }
     if (navCountRef.current > 1) {
       router.back();
     } else {
-      router.push("/app");
+      router.push("/app/wallet");
     }
   };
 
@@ -203,23 +190,16 @@ export function HeaderBar() {
       role="banner"
     >
       {/* Back button - left edge, mobile only, off-home only. */}
-      <AnimatePresence>
-        {showBack && (
-          <motion.button
-            key="back"
-            type="button"
-            onClick={handleBack}
-            aria-label="Go back"
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -8 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className={MOBILE_HEADER_BTN}
-          >
-            <ChevronLeft size={18} />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      {showBack && (
+        <button
+          type="button"
+          onClick={handleBack}
+          aria-label="Go back"
+          className={MOBILE_HEADER_BTN}
+        >
+          <ChevronLeft size={18} />
+        </button>
+      )}
 
       {/* Brand pill - public surfaces only. */}
       {showBrandPill && (
@@ -255,11 +235,7 @@ export function HeaderBar() {
               : "absolute left-1/2 w-[min(52vw,18rem)] -translate-x-1/2 -translate-y-1/2 justify-center sm:w-[min(56vw,20rem)]",
           )}
         >
-          <motion.h1
-            key={pageTitle}
-            initial={{ opacity: 0, y: -3 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          <h1
             className={clsx(
               "max-w-full truncate font-semibold tracking-tight text-text-strong",
               isHome ? "text-lg" : "text-base",
@@ -267,54 +243,31 @@ export function HeaderBar() {
             )}
           >
             {pageTitle}
-          </motion.h1>
+          </h1>
         </div>
       )}
 
       {/* Right-side action cluster. Only renders when there's at
           least one action to show:
             • Scan     - on send routes
-            • Account  - on the Settings page
-            • Secure   - on the Home page only (recovery hub)
             • Wallet   - on every connected /app/* route. Notifications
                           and theme live inside this menu on mobile.
           ml-auto pushes the cluster to the trailing edge, opposite
           the title / back button on the leading edge. */}
-      <AnimatePresence>
-        {inAppConnected && (showScan || showAccount || showSecure || showWallet) && (
-          <motion.div
-            initial={{ opacity: 0, x: 8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 8 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="ml-auto flex items-center gap-2 md:hidden"
-          >
-            <AnimatePresence>
-              {showScan && (
-                <motion.button
-                  key="scan"
-                  type="button"
-                  onClick={handleScan}
-                  aria-label="Scan a QR code"
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                  className={MOBILE_HEADER_BTN}
-                >
-                  <ScanLine size={18} />
-                </motion.button>
-              )}
-              {showWallet && address && (
-                <motion.div
-                  key="wallet"
-                  ref={walletMenuRef}
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                  className="relative"
-                >
+      {inAppConnected && (
+        <div className="ml-auto flex items-center gap-2 md:hidden">
+          {showScan && (
+            <button
+              type="button"
+              onClick={handleScan}
+              aria-label="Scan a QR code"
+              className={MOBILE_HEADER_BTN}
+            >
+              <ScanLine size={18} />
+            </button>
+          )}
+          {address && (
+            <div ref={walletMenuRef} className="relative">
                   <button
                     type="button"
                     onClick={() => setWalletMenuOpen((v) => !v)}
@@ -327,13 +280,9 @@ export function HeaderBar() {
                   </button>
 
                   {walletMenuOpen && (
-                    <motion.div
+                    <div
                       role="menu"
                       aria-label="Connected wallet"
-                      initial={{ opacity: 0, y: -4, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
                       className={clsx(
                         "absolute right-0 top-[calc(100%+0.5rem)] w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-lg",
                         "max-h-[calc(100vh-5rem)] overflow-y-auto border border-border-soft bg-surface-elevated shadow-xl shadow-black/15 ring-1 ring-black/5",
@@ -454,48 +403,12 @@ export function HeaderBar() {
                           Disconnect
                         </button>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
-                </motion.div>
-              )}
-              {showSecure && (
-                <motion.div
-                  key="secure"
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <Link
-                    href="/app/secure"
-                    aria-label="Secure (recovery)"
-                    className={MOBILE_HEADER_BTN}
-                  >
-                    <ShieldCheck size={18} />
-                  </Link>
-                </motion.div>
-              )}
-              {showAccount && (
-                <motion.div
-                  key="account"
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <Link
-                    href="/app/account"
-                    aria-label="Account"
-                    className={MOBILE_HEADER_BTN}
-                  >
-                    <UserCircle2 size={18} />
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+          )}
+        </div>
+      )}
     </header>
   );
 }

@@ -17,6 +17,7 @@ const SEED_INTENT = new TextEncoder().encode("intent");
 const SEED_PROPOSAL = new TextEncoder().encode("proposal");
 const SEED_TYPED_PROPOSAL = new TextEncoder().encode("typed_proposal");
 const SEED_IKA_CONFIG = new TextEncoder().encode("ika_config");
+const SEED_WALLET_POLICY = new TextEncoder().encode("wallet_policy");
 const SEED_DWALLET_OWNERSHIP = new TextEncoder().encode("dwallet_owner");
 const SEED_CPI_AUTHORITY = new TextEncoder().encode("__ika_cpi_authority");
 
@@ -116,6 +117,18 @@ export function findIkaConfigAddress(
   return PublicKey.findProgramAddressSync(
     [SEED_IKA_CONFIG, wallet.toBytes(), new Uint8Array([chainKind])],
     programId
+  );
+}
+
+/// `["wallet_policy", wallet]`. Stores active typed policy commitments
+/// per chain kind.
+export function findWalletPolicyAddress(
+  wallet: PublicKey,
+  programId: PublicKey,
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [SEED_WALLET_POLICY, wallet.toBytes()],
+    programId,
   );
 }
 

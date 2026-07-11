@@ -19,7 +19,7 @@ export default function NotificationDetailPage() {
   const params = useParams<{ id: string }>();
   const wallet = useWallet();
   const address = wallet.publicKey?.toBase58() ?? "";
-  const { rows, markSeen } = useNotificationFeed(address);
+  const { rows, loading, error, markSeen } = useNotificationFeed(address);
 
   const id = params?.id ?? "";
   const entry = useMemo(() => rows.find((row) => row.id === id), [rows, id]);
@@ -30,7 +30,7 @@ export default function NotificationDetailPage() {
     }
   }, [entry, markSeen]);
 
-  if (!entry) {
+  if (loading || error || !entry) {
     return (
       <div className="flex flex-col gap-4">
         <Link
@@ -41,9 +41,17 @@ export default function NotificationDetailPage() {
           Back to notifications
         </Link>
         <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
-          <p className="text-sm font-medium text-text-strong">Notification not found</p>
+          <p className="text-sm font-medium text-text-strong">
+            {loading
+              ? "Loading notification"
+              : error
+                ? "Notification unavailable"
+                : "Notification not found"}
+          </p>
           <p className="mt-1 text-xs text-text-soft">
-            This item may have been cleared on this device.
+            {loading
+              ? "Syncing the latest server state."
+              : error ?? "This item may be older than the retained notification history."}
           </p>
         </div>
       </div>

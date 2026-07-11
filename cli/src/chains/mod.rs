@@ -51,7 +51,6 @@ pub enum BroadcastInputs {
         version_group_id: u32,
         prev_txid: [u8; 32],
         prev_vout: u32,
-        sender_pkh: [u8; 20],
         recipient_pkh: [u8; 20],
         send_amount_zat: u64,
         lock_time: u32,
@@ -123,7 +122,6 @@ pub fn broadcast_signed_tx(
                 amount_lamports,
                 signature,
                 dwallet_pubkey_compressed,
-                rpc_url,
             )
         }
         // 1 = evm_1559, 4 = evm_1559_erc20, 5 = hyperliquid_evm —
@@ -182,7 +180,6 @@ pub fn broadcast_signed_tx(
                 version_group_id,
                 prev_txid,
                 prev_vout,
-                sender_pkh,
                 recipient_pkh,
                 send_amount_zat,
                 lock_time,
@@ -199,7 +196,6 @@ pub fn broadcast_signed_tx(
                     version_group_id,
                     prev_txid,
                     prev_vout,
-                    sender_pkh,
                     recipient_pkh,
                     send_amount_zat,
                     lock_time,

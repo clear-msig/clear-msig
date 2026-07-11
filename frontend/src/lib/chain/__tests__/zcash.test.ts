@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import bs58 from "bs58";
 import { sha256 } from "@noble/hashes/sha2";
-import { decodeZcashTransparentAddress } from "@/lib/chain/zcash";
+import {
+  decodeZcashTransparentAddress,
+  selectZcashNoChangeUtxo,
+} from "@/lib/chain/zcash";
 
 function makeTransparentAddress(version: [number, number], pkh: Uint8Array) {
   const payload = new Uint8Array(22);
@@ -36,6 +39,44 @@ describe("decodeZcashTransparentAddress", () => {
     const address = makeTransparentAddress([0x1c, 0xb8], pkh);
     expect(
       decodeZcashTransparentAddress(address.slice(0, -1) + "1"),
+    ).toBeNull();
+  });
+});
+
+describe("selectZcashNoChangeUtxo", () => {
+  const utxo = (satoshis: bigint, suffix: string) => ({
+    txid: suffix.repeat(64),
+    vout: 0,
+    satoshis,
+    height: 1,
+  });
+
+  it("accepts only an input whose remainder is exactly the fixed fee", () => {
+    const selection = selectZcashNoChangeUtxo(
+      [utxo(30_000n, "a"), utxo(11_000n, "b")],
+      10_000n,
+      1_000n,
+    );
+
+    expect(selection?.utxo.satoshis).toBe(11_000n);
+    expect(selection?.impliedFeeZats).toBe(1_000n);
+    expect(selection?.feeBurnRisk).toBe(false);
+  });
+
+  it("flags the full remainder when the template has no change output", () => {
+    const selection = selectZcashNoChangeUtxo(
+      [utxo(30_000n, "c")],
+      10_000n,
+      1_000n,
+    );
+
+    expect(selection?.impliedFeeZats).toBe(20_000n);
+    expect(selection?.feeBurnRisk).toBe(true);
+  });
+
+  it("rejects inputs that do not cover amount plus fixed fee", () => {
+    expect(
+      selectZcashNoChangeUtxo([utxo(10_999n, "d")], 10_000n, 1_000n),
     ).toBeNull();
   });
 });

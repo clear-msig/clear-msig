@@ -7,13 +7,9 @@ import clsx from "clsx";
 import { ArrowLeft, Lock, Save, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { encryptStatus } from "@/lib/encrypt/client";
-import {
-  findAgent,
-  saveAgent,
-  syncAgentProfile,
-  type AgentStrategyProfile,
-  type AgentTradingMode,
-} from "@/lib/agents/client";
+import { type AgentStrategyProfile, type AgentTradingMode } from "@/features/agents/domain/runtime";
+import { syncAgentProfile } from "@/features/agents/infrastructure/stateClient";
+import { findAgent, saveAgent } from "@/features/agents/infrastructure/agentStore";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import {
@@ -194,6 +190,7 @@ export default function AgentStrategyPage() {
                   <span className="flex items-center gap-2 text-xs font-semibold text-text-strong">
                     <input
                       type="radio"
+                      aria-label={option.label}
                       checked={mode === option.value}
                       onChange={() => setMode(option.value)}
                       className="h-4 w-4 accent-accent"

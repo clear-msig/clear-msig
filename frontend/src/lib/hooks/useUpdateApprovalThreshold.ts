@@ -1,17 +1,14 @@
 "use client";
 
-// Update an intent's approval threshold without changing the member
-// lists or timelock. Mirrors the timelock / roster editors: propose
-// UpdateIntent → approve → execute, with the same stale-proposal sweep.
+// Update an intent's approval threshold via ClearSign v2 typed governance.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { backendApi } from "@/lib/api/endpoints";
-import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
-import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
 import {
   IntentType,
   ProposalStatus,
@@ -28,7 +25,7 @@ interface UpdateArgs {
 
 export function useUpdateApprovalThreshold() {
   const { connection } = useConnection();
-  const { signDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet();
   const wallet = useWallet();
   const queryClient = useQueryClient();
 
@@ -72,16 +69,14 @@ export function useUpdateApprovalThreshold() {
       const governanceIntent = intents.find(
         (it) => it.account !== null && it.account.intentIndex === 2,
       )?.account as IntentAccount | undefined;
-      const signerPk = governanceIntent
-        ? wallet.pickSigner(governanceIntent.approvers)
-        : wallet.pickSigner(intent.approvers);
+      const voteIntent = governanceIntent ?? intent;
+      const signerPk = wallet.pickSigner(voteIntent.approvers);
       if (!signerPk) {
         throw new Error(
           "None of your connected wallets can approve rule changes for this wallet.",
         );
       }
-      const me = signerPk.toBase58();
-      if (governanceIntent && !governanceIntent.proposers.includes(me)) {
+      if (!voteIntent.proposers.includes(signerPk.toBase58())) {
         throw new Error(
           "Your connected wallet can approve this wallet, but it cannot propose rule changes.",
         );
@@ -108,64 +103,28 @@ export function useUpdateApprovalThreshold() {
         }
       }
 
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(intent.proposers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(intent.approvers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([newThreshold]), fheType: "euint8" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
-
-      const dry = await backendApi.prepare.updateIntent(walletName, {
-        index: intent.intentIndex,
-        file: templateFile,
+      const result = await completeTypedGovernance({
+        connection,
+        walletName,
+        walletId: walletData.pda.toBase58(),
+        voteIntentIndex: voteIntent.intentIndex,
+        voteApprovers: voteIntent.approvers,
+        voteApprovalThreshold: voteIntent.approvalThreshold,
+        targetIntentIndex: intent.intentIndex,
         proposers: intent.proposers,
         approvers: intent.approvers,
-        threshold: newThreshold,
-        cancellation_threshold: intent.cancellationThreshold,
-        timelock: intent.timelockSeconds,
-        policy_ciphertexts,
+        approvalThreshold: newThreshold,
+        cancellationThreshold: intent.cancellationThreshold,
+        timelockSeconds: intent.timelockSeconds,
+        templateFile,
+        kind: "change_threshold",
+        proposerPk: signerPk,
+        signTypedDescriptor,
+        pickApprover: (approvers) => wallet.pickSigner(approvers),
       });
-
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      const submitted = await backendApi.submit.updateIntent(walletName, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        index: intent.intentIndex,
-        file: templateFile,
-      });
-
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error(
-          "Backend didn't return a proposal address from the threshold update",
-        );
-      }
-
-      const decision = await approveIfNeeded(connection, proposal, {
-        approvers: governanceIntent?.approvers ?? intent.approvers,
-        approverPubkey: me,
-      });
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          walletName,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(walletName, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      await backendApi.executeProposal(walletName, proposal, {});
-      return { kind: "updated", proposal } as const;
+      return result.kind === "executed"
+        ? ({ kind: "updated", proposal: result.proposal } as const)
+        : ({ kind: "awaiting_approvals", proposal: result.proposal } as const);
     },
     onSuccess: (_result, vars) => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });

@@ -30,6 +30,7 @@ const STATIC_PRICES_USD: Readonly<Record<string, number>> = {
   ETH: 3000,
   BTC: 90000,
   ZEC: 30,
+  HYPE: 100,
   USDC: 1,
 };
 

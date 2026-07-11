@@ -27,11 +27,9 @@ pub const SEED_MESSAGE_APPROVAL: &[u8] = b"message_approval";
 pub const SEED_CPI_AUTHORITY: &[u8] = b"__ika_cpi_authority";
 
 pub const DISC_COORDINATOR: u8 = 1;
-pub const DISC_NEK: u8 = 3;
 pub const DISC_MESSAGE_APPROVAL: u8 = 14;
 
 pub const COORDINATOR_LEN: usize = 116;
-pub const NEK_LEN: usize = 164;
 
 // MessageApproval layout offsets (updated for new pre-alpha).
 pub const MA_STATUS: usize = 172;
@@ -53,12 +51,6 @@ pub fn curve_u16(curve: DWalletCurve) -> u16 {
         DWalletCurve::Curve25519 => CURVE_CURVE25519,
         DWalletCurve::Ristretto => 3,
     }
-}
-
-/// Backwards-compat alias used by the `curve_byte` call sites that haven't
-/// been migrated to `curve_u16` yet (e.g. the old u8 code paths).
-pub fn curve_byte(curve: DWalletCurve) -> u8 {
-    curve_u16(curve) as u8
 }
 
 // ── PDA helpers ──

@@ -29,9 +29,19 @@ import {
   type Transaction,
   type VersionedTransaction,
 } from "@solana/web3.js";
-import { useDynamicContext, useUserWallets } from "@dynamic-labs/sdk-react-core";
+import {
+  getAuthToken,
+  useDynamicContext,
+  useUserWallets,
+} from "@dynamic-labs/sdk-react-core";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
+import { configureNotificationTokenGetter } from "@/lib/notifications/sessionToken";
+
+// Dynamic is already isolated in the wallet runtime chunk. Register its token
+// accessor here so notification callers do not import the SDK root barrel into
+// every route that records or renders a feed event.
+configureNotificationTokenGetter(getAuthToken);
 import { WalletRuntimeProvider, type WalletValue } from "@/lib/wallet/context";
 import {
   isCompatibleEmbeddedWallet,
@@ -382,7 +392,6 @@ function useDynamicWalletValue(): WalletValue {
       dynamicPublicKey,
       isMobile,
       isPhantomWallet,
-      signerIssue,
     ],
   );
 

@@ -12,6 +12,7 @@ export {
   clearSignVoteMessage,
   summarizeClearSignAction,
   type AgentTradePayload,
+  type AgentSessionGrantPayload,
   type BatchSendPayload,
   type ClearSignActionKind,
   type ClearSignEnvelope,
@@ -36,3 +37,9 @@ export {
   type ClearSignSurfaceCoverage,
   type ClearSignSurfaceStatus,
 } from "@/lib/clearsign-v2/surfaceCoverage";
+
+export {
+  pkhClearSignRecipient,
+  randomActionLabel,
+  textCommitmentHex,
+} from "@/lib/clearsign-v2/commitments";

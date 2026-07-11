@@ -26,6 +26,8 @@ import {
   SidebarProvider,
   useSidebar,
 } from "@/components/providers/SidebarProvider";
+import { ActionNeededProvider } from "@/lib/hooks/useActionNeeded";
+import { RouteAccessibility } from "@/components/layout/RouteAccessibility";
 
 const DashboardHeader = dynamic(
   () =>
@@ -68,7 +70,9 @@ export default function WorkspaceLayout({
   return (
     <AppLockOverlay>
       <SidebarProvider>
-        <WorkspaceShell>{children}</WorkspaceShell>
+        <ActionNeededProvider>
+          <WorkspaceShell>{children}</WorkspaceShell>
+        </ActionNeededProvider>
       </SidebarProvider>
     </AppLockOverlay>
   );
@@ -78,39 +82,25 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const sidebar = useSidebar();
   const expanded = sidebar?.expanded ?? true;
   const pathname = usePathname() ?? "";
+  const isWalletHub = pathname === "/app/wallet";
+  const notificationsReady = useDeferredRuntime();
   return (
-    <main
+    <div
       className={clsx(
         "app-experience relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden",
+        isWalletHub && "wallet-dot-canvas",
       )}
     >
-      {/* Atmospheric accents - two soft radial blooms anchoring the
-          page corners. Pure decoration, pointer-events-none, lifts
-          the obsidian canvas off the "flat black" reading without
-          competing with foreground content. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 -z-0 overflow-hidden"
+      <a
+        href="#main-content"
+        className="fixed left-3 top-3 z-[600] -translate-y-24 rounded-soft bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-card-raised transition-transform focus:translate-y-0"
       >
-        <div
-          className="absolute -left-40 -top-40 h-[560px] w-[560px] rounded-full opacity-35"
-          style={{
-            background:
-              "radial-gradient(circle at center, rgba(204, 255, 0, 0.08) 0%, rgba(204, 255, 0, 0.035) 32%, rgba(204, 255, 0, 0) 68%)",
-          }}
-        />
-        <div
-          className="absolute -bottom-44 -right-44 h-[640px] w-[640px] rounded-full opacity-30"
-          style={{
-            background:
-              "radial-gradient(circle at center, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.03) 34%, rgba(16, 185, 129, 0) 70%)",
-          }}
-        />
-      </div>
-
+        Skip to content
+      </a>
+      <RouteAccessibility pathname={pathname} />
       <MobileHeaderBackdrop />
       <HeaderBar />
-      <ActionNotificationsRuntime />
+      {notificationsReady ? <ActionNotificationsRuntime /> : null}
       <CommandPaletteLoader />
 
       {/* Sidebar - pinned to the viewport's left edge on md+. Owns
@@ -142,7 +132,9 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             pt on the scroll container would push every sticky child
             down by that amount because sticky offsets are measured
             from the padding-box edge of the scrollport. */}
-        <div
+        <main
+          id="main-content"
+          tabIndex={-1}
           className="app-content-stage relative z-10 flex-1 px-4 sm:px-5 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12"
           style={{ scrollbarGutter: "stable" }}
         >
@@ -151,12 +143,29 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
             <PreAlphaBanner />
             <section className="relative z-20 min-w-0">{children}</section>
           </div>
-        </div>
+        </main>
       </div>
 
       <BottomNav />
-    </main>
+    </div>
   );
+}
+
+function useDeferredRuntime(): boolean {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(() => setReady(true), {
+        timeout: 2_000,
+      });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const handle = window.setTimeout(() => setReady(true), 1_200);
+    return () => window.clearTimeout(handle);
+  }, []);
+
+  return ready;
 }
 
 function MobileHeaderBackdrop() {

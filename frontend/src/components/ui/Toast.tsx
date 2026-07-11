@@ -28,7 +28,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CheckCircle2, Info, X, ExternalLink, AlertTriangle } from "lucide-react";
 
 type ToastKind = "success" | "error" | "info";
@@ -110,9 +110,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   // Clear outstanding timers on unmount.
   useEffect(() => {
+    const activeTimers = timers.current;
     return () => {
-      for (const t of timers.current.values()) clearTimeout(t);
-      timers.current.clear();
+      for (const t of activeTimers.values()) clearTimeout(t);
+      activeTimers.clear();
     };
   }, []);
 
@@ -168,23 +169,26 @@ function ToastItem({
   onDismiss: () => void;
 }) {
   const [showDetails, setShowDetails] = useState(false);
+  const reduce = useReducedMotion();
   const Icon = iconFor(entry.kind);
+  const detailsId = `toast-${entry.id}-details`;
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+      initial={reduce ? false : { opacity: 0, y: -20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -12, scale: 0.9 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.9 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      role="status"
+      role={entry.kind === "error" ? "alert" : "status"}
       aria-live={entry.kind === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
       // Solid-bg variants (no backdrop-blur). Toasts often render
       // while the user is interacting with the page underneath
       // (typing, scrolling, signing) - backdrop-blur adds a frame
       // of paint cost on every scroll while the toast is up,
       // measurable on mid-tier mobile. Solid bg keeps it cheap.
       className={[
-        "pointer-events-auto w-full max-w-sm rounded-2xl border px-4 py-3 shadow-2xl",
+        "pointer-events-auto w-[calc(100vw-2rem)] max-w-sm rounded-card border px-4 py-3 shadow-card-raised sm:w-full",
         "flex flex-col gap-2",
         entry.kind === "success" &&
           "border-accent/30 bg-surface-card text-white",
@@ -205,14 +209,16 @@ function ToastItem({
               ? "mt-0.5 shrink-0 text-rose-300"
               : "mt-0.5 shrink-0 text-white/70"
           }
+          aria-hidden="true"
         />
         <div className="flex-1 text-sm leading-snug">{entry.message}</div>
         <button
+          type="button"
           onClick={onDismiss}
           aria-label="Dismiss notification"
-          className="rounded-full p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <X size={14} />
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -233,8 +239,11 @@ function ToastItem({
           )}
           {entry.details && (
             <button
+              type="button"
               onClick={() => setShowDetails((v) => !v)}
-              className="text-xs font-medium text-white/50 underline-offset-2 hover:text-white/80 hover:underline"
+              aria-expanded={showDetails}
+              aria-controls={detailsId}
+              className="inline-flex min-h-tap items-center text-xs font-medium text-white/70 underline-offset-2 hover:text-white hover:underline"
             >
               {showDetails ? "hide details" : "details"}
             </button>
@@ -243,7 +252,7 @@ function ToastItem({
       )}
 
       {showDetails && entry.details && (
-        <pre className="max-h-40 overflow-auto rounded-lg bg-surface-card/40 p-2 pl-7 text-[11px] font-mono leading-snug text-white/70">
+        <pre id={detailsId} className="max-h-40 overflow-auto rounded-lg bg-surface-card/40 p-2 pl-7 text-[11px] font-mono leading-snug text-white/70">
           {entry.details}
         </pre>
       )}

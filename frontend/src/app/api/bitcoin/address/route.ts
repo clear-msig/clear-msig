@@ -20,17 +20,14 @@ const PROVIDER_TIMEOUT_MS = 6000;
 
 const PROVIDERS: Record<BitcoinNetwork, string[]> = {
   mainnet: [
-    process.env.NEXT_PUBLIC_BITCOIN_MAINNET_RPC_URL ?? "",
     "https://mempool.space/api",
     "https://blockstream.info/api",
   ].filter(Boolean),
   testnet: [
-    process.env.NEXT_PUBLIC_BITCOIN_TESTNET_RPC_URL ?? "",
     "https://mempool.space/testnet/api",
     "https://blockstream.info/testnet/api",
   ].filter(Boolean),
   signet: [
-    process.env.NEXT_PUBLIC_BITCOIN_SIGNET_RPC_URL ?? "",
     "https://mempool.space/signet/api",
   ].filter(Boolean),
   regtest: ["http://localhost:3002"],

@@ -26,19 +26,14 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@/lib/wallet";
 import {
-  Activity as ActivityIcon,
+  ArrowLeft,
   ChevronsLeft,
   ChevronsRight,
-  Contact as ContactIcon,
-  Home,
   Plus,
   Search,
-  Settings,
   ShieldCheck,
-  UserCircle2,
   Users,
   Wallet as WalletIcon,
-  type LucideIcon,
 } from "lucide-react";
 import { requestCommandPaletteOpen } from "@/components/layout/commandPaletteBus";
 import { BrandMark } from "@/components/retail/BrandMark";
@@ -50,8 +45,6 @@ import {
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
-  productWorkspaceHomeHref,
-  productWorkspaceLabel,
   resolveWalletProductSurface,
   type WalletProductSurface,
 } from "@/lib/productWorkspace";
@@ -63,6 +56,10 @@ import {
   walletNavHref,
   walletSubNav,
 } from "@/components/layout/walletScopedNav";
+import {
+  PRIMARY_NAV_ITEMS,
+  isPrimaryNavActive,
+} from "@/components/layout/primaryNav";
 
 type Props = {
   /// Called after a navigation link fires - used by the mobile drawer
@@ -98,8 +95,8 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
   // Pull the active wallet slug out of the path so wallet-scoped
   // entries (Chains, …) can link straight back into the right
   // wallet. Matches /app/wallet/{name}/... and decodes the slug.
-  // null when the user is on a non-wallet route (e.g. /app/settings)
-  // so the entry hides and never renders a broken
+  // null when the user is on a non-wallet route (e.g. /app/settings,
+  // /app/wallet hub) - the entry hides so we never render a broken
   // /app/wallet//chains link.
   const activeWalletSlug = activeWalletSlugFromPathname(pathname);
 
@@ -155,7 +152,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
               layout. Tapping a row swaps the sidebar to the wallet-
               scoped variant above. */}
           <SidebarSection
-            label="Workspaces"
+            label="Wallets"
             count={memberships.length}
             loading={myOrganizationsQuery.isLoading}
             expanded={expanded}
@@ -204,61 +201,11 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
 // ─── Primary nav ───────────────────────────────────────────────────
 //
 // The four cross-cutting destinations: Home (wallet hub + drill-downs),
-// Activity, Contacts, Settings. Renders as a labeled list in expanded
+// Activity, People, Settings. Renders as a labeled list in expanded
 // mode, icon-only in rail mode (active state via accent fill, pending
 // count surfaces as a corner dot). Mirrors the active-prefix logic
 // BottomNav and the previous DashboardHeader used so navigation feels
 // the same regardless of viewport.
-
-type PrimaryNavItem = {
-  id?: "home";
-  href: string;
-  label: string;
-  Icon: LucideIcon;
-  matchPrefixes?: string[];
-};
-
-const PRIMARY_NAV: PrimaryNavItem[] = [
-  {
-    id: "home",
-    href: "/app",
-    label: "Home",
-    Icon: Home,
-    // /app is a resolver that opens the selected/first wallet.
-    // /app/wallet/{name}/... is intentionally NOT in the prefix
-    // list - when the user opens a specific wallet, the wallet row
-    // should drop out of active state so only the wallet row in
-    // the sidebar lights up. Cross-wallet inboxes (proposals /
-    // intents / invitations) DO stay under Home.
-    matchPrefixes: [
-      "/app/proposals",
-      "/app/intents",
-      "/app/invitations",
-    ],
-  },
-  { href: "/app/activity", label: "Activity", Icon: ActivityIcon },
-  { href: "/app/contacts", label: "Contacts", Icon: ContactIcon },
-  {
-    href: "/app/account",
-    label: "Account",
-    Icon: UserCircle2,
-    matchPrefixes: ["/app/account"],
-  },
-  {
-    href: "/app/settings",
-    label: "Settings",
-    Icon: Settings,
-    matchPrefixes: ["/app/settings"],
-  },
-];
-
-function isPrimaryActive(pathname: string, item: PrimaryNavItem): boolean {
-  if (pathname === item.href) return true;
-  for (const p of item.matchPrefixes ?? []) {
-    if (pathname === p || pathname.startsWith(`${p}/`)) return true;
-  }
-  return false;
-}
 
 function PrimaryNav({
   pathname,
@@ -279,8 +226,8 @@ function PrimaryNav({
         expanded ? "gap-0.5" : "items-center gap-1.5",
       )}
     >
-      {PRIMARY_NAV.map((item) => {
-        const active = isPrimaryActive(pathname, item);
+      {PRIMARY_NAV_ITEMS.map((item) => {
+        const active = isPrimaryNavActive(pathname, item);
         const showBadge = item.id === "home" && pendingCount > 0;
         const badgeLabel = pendingCount > 9 ? "9+" : String(pendingCount);
         return (
@@ -444,7 +391,7 @@ function WalletScopedSidebar({
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
   const surface = resolveWalletProductSurface(slug);
   const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : WalletIcon;
-  const navItems = walletSubNav(surface);
+  const navItems = walletSubNav();
 
   const isActive = (sub: string) => isWalletNavActive(pathname, base, sub);
 
@@ -452,6 +399,32 @@ function WalletScopedSidebar({
   if (!expanded) {
     return (
       <div className="flex flex-col items-center gap-1.5">
+        <Link
+          href="/app/wallet"
+          onClick={onNavigate}
+          aria-label="All wallets"
+          title="All wallets"
+          className={clsx(
+            "flex h-10 w-10 items-center justify-center rounded-soft border border-border-soft text-text-soft",
+            "transition-colors duration-base ease-out-soft hover:border-border-strong hover:text-text-strong",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+          )}
+        >
+          <ArrowLeft size={14} aria-hidden="true" />
+        </Link>
+        <Link
+          href="/app/wallet/new"
+          onClick={onNavigate}
+          aria-label="New wallet"
+          title="New wallet"
+          className={clsx(
+            "flex h-10 w-10 items-center justify-center rounded-soft bg-accent text-text-on-accent shadow-accent-rest",
+            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+          )}
+        >
+          <Plus size={14} aria-hidden="true" />
+        </Link>
         <span
           aria-label={display}
           title={display}
@@ -489,6 +462,35 @@ function WalletScopedSidebar({
   // ── Expanded mode ──────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-4">
+      {/* Back to all wallets - small monospace caps link, sits at
+          the top so the user always knows they're inside a scoped
+          surface and how to escape. */}
+      <Link
+        href="/app/wallet"
+        onClick={onNavigate}
+        className={clsx(
+          "inline-flex items-center gap-1.5 self-start rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft",
+          "transition-colors duration-base ease-out-soft hover:text-text-strong",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+        )}
+      >
+        <ArrowLeft size={11} aria-hidden="true" />
+        All wallets
+      </Link>
+
+      <Link
+        href="/app/wallet/new"
+        onClick={onNavigate}
+        className={clsx(
+          "inline-flex min-h-10 items-center justify-center gap-2 rounded-soft bg-accent px-3 text-xs font-semibold text-text-on-accent shadow-accent-rest",
+          "transition-[background-color,box-shadow,transform] duration-base ease-out-soft hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+        )}
+      >
+        <Plus size={13} aria-hidden="true" />
+        New wallet
+      </Link>
+
       {/* Active wallet identity card - display name +
           monospace eyebrow. Anchors the user's mental model of
           "you're inside this wallet." */}
@@ -498,7 +500,7 @@ function WalletScopedSidebar({
         </div>
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
-            {productWorkspaceLabel(surface)}
+            Wallet
           </span>
           <span className="mt-0.5 truncate font-display text-[13px] font-semibold tracking-[-0.01em] text-text-strong">
             {display}
@@ -512,7 +514,7 @@ function WalletScopedSidebar({
         className="flex flex-col gap-0.5"
       >
         <p className="mb-1 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
-          Manage
+          Wallet
         </p>
         {navItems.map(({ sub, label, Icon }) => {
           const href = walletNavHref(base, sub);
@@ -559,7 +561,7 @@ function BrandRow({
       )}
     >
       <Link
-        href="/app"
+        href="/app/wallet"
         aria-label="Clear home"
         className={clsx(
           "flex items-center rounded-xl transition-opacity duration-base ease-out-soft hover:opacity-80",
@@ -676,7 +678,9 @@ function SidebarOrgLink({
 }) {
   const onChainName = membership.wallet_name ?? "";
   const surface = resolveWalletProductSurface(onChainName);
-  const href = onChainName ? productWorkspaceHomeHref(onChainName, surface) : "#";
+  const href = onChainName
+    ? `/app/wallet/${encodeURIComponent(onChainName)}`
+    : "#";
   const ProductIcon = surface ? PRODUCT_SURFACE_ICON[surface] : WalletIcon;
   const walletBase = onChainName
     ? `/app/wallet/${encodeURIComponent(onChainName)}`

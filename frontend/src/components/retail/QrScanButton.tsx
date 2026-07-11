@@ -246,6 +246,7 @@ function ScannerModal({ title, onClose, onResult }: ScannerModalProps) {
         <div className="relative aspect-square w-full bg-text-strong">
           <video
             ref={videoRef}
+            aria-label="Camera preview"
             muted
             playsInline
             className="absolute inset-0 h-full w-full object-cover"

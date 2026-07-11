@@ -116,6 +116,7 @@ export function QuickSendInput({ contactNames, onParsed }: QuickSendInputProps) 
           <AiSparkle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </span>
         <input
+          aria-label="Describe a transfer"
           value={text}
           onChange={(e) => {
             setText(e.target.value);

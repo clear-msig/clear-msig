@@ -19,12 +19,13 @@
 //   • Footer  - sticky action bar (Skip · Back · Next) - always
 //               reachable regardless of body length.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ArrowRight, Check, Sparkles, X } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 const SEEN_KEY = "clear.wallet-tour.seen.v1";
 
@@ -58,6 +59,9 @@ const STEPS: Step[] = [
 export function WalletTourModal() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -76,14 +80,14 @@ export function WalletTourModal() {
     }
   }, []);
 
-  const dismiss = () => {
+  const dismiss = useCallback(() => {
     setOpen(false);
     try {
       window.localStorage.setItem(SEEN_KEY, "1");
     } catch {
       /* ignore */
     }
-  };
+  }, []);
 
   // Standard modal expectation - Escape dismisses. The HeaderBar
   // drawer + CommandPalette already close on Escape; this was the
@@ -95,8 +99,7 @@ export function WalletTourModal() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [dismiss, open]);
 
   // Freeze the page underneath. Tour overlays that don't scroll-
   // lock feel like phantom-touches on iOS where a tap that misses
@@ -119,7 +122,7 @@ export function WalletTourModal() {
       {open && (
         <>
           <motion.div
-            initial={{ opacity: 0 }}
+            initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
@@ -128,12 +131,14 @@ export function WalletTourModal() {
             aria-hidden="true"
           />
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="wallet-tour-title"
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            tabIndex={-1}
+            initial={reduce ? false : { opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 12 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             // Three-region layout: sticky header + scrollable body +
             // sticky footer. overflow-hidden on the wrapper +
@@ -205,7 +210,7 @@ export function WalletTourModal() {
                 onClick={dismiss}
                 aria-label="Skip the tour"
                 className={clsx(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-soft",
+                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-soft",
                   "transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                 )}
@@ -218,6 +223,8 @@ export function WalletTourModal() {
             <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-5 sm:px-6">
               <h2
                 id="wallet-tour-title"
+                tabIndex={-1}
+                data-dialog-initial-focus
                 className="font-display text-xl font-semibold leading-tight tracking-tight text-text-strong sm:text-2xl"
               >
                 {current.title}
@@ -229,7 +236,7 @@ export function WalletTourModal() {
                 <Link
                   href={current.cta.href}
                   onClick={dismiss}
-                  className="mt-4 inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/[0.06] px-3 py-1 text-xs font-medium text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+                  className="mt-4 inline-flex min-h-tap items-center gap-1 rounded-full border border-accent/30 bg-accent/[0.06] px-3 py-2 text-xs font-medium text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
                 >
                   {current.cta.label}
                   <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -242,7 +249,7 @@ export function WalletTourModal() {
               <button
                 type="button"
                 onClick={dismiss}
-                className="rounded-soft px-2 py-1.5 text-xs font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+                className="min-h-tap rounded-soft px-3 py-2 text-xs font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 Skip
               </button>
@@ -252,7 +259,7 @@ export function WalletTourModal() {
                     type="button"
                     onClick={back}
                     className={clsx(
-                      "rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft",
+                      "min-h-tap rounded-full border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-soft",
                       "transition-colors duration-base ease-out-soft hover:text-text-strong",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                     )}
@@ -264,7 +271,7 @@ export function WalletTourModal() {
                   type="button"
                   onClick={advance}
                   className={clsx(
-                    "inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-text-on-accent shadow-accent-rest",
+                    "inline-flex min-h-tap items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-semibold text-text-on-accent shadow-accent-rest",
                     "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
                     "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",

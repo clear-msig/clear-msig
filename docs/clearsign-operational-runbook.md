@@ -92,6 +92,10 @@ or program error. Do not debug browser console noise first.
 
 ## Deploy Checklist
 
+Current infra details live in `docs/deploy-current.md`: program deploys use the
+Alchemy devnet RPC and `target/deploy/clear_wallet-keypair.json`, backend deploys
+to Render, frontend deploys to Vercel, and Redis is Upstash REST.
+
 Before deploy:
 
 ```bash
@@ -105,6 +109,8 @@ After deploy:
 - Render backend must point at the same Solana program id as the frontend.
 - Vercel frontend must be redeployed after backend/API contract or frontend
   ClearSign hash changes.
+- Upstash Redis env must be present in production for cross-device notification
+  and agent state paths.
 - Users must refresh the app and create a fresh send request.
 - Run a devnet SOL smoke send with a tiny amount.
 - Save the explorer transaction link in the release notes.
@@ -123,11 +129,8 @@ After deploy:
 The product standard is SOL typed ClearSign for every money-moving action.
 These surfaces still need the same typed, no-hidden-hash treatment:
 
-- BTC send execution
-- ETH native send
 - ERC-20 send
-- Zcash transparent send
-- Hyperliquid send/trade flows
+- Hyperliquid trade flows outside the typed native HYPE send
 - Agent-created proposals
 - Policy/member/admin changes
 - Escrow creation, approval, release, cancel, and cleanup

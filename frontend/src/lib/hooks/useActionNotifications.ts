@@ -1,22 +1,11 @@
 "use client";
 
-// Browser-notification glue for the multisig "something needs you"
-// signal. Watches useActionNeeded and fires a Notification each time
-// a new pending row appears that the user hasn't already seen on
-// this device. Only fires when the tab is hidden - there's no point
-// pinging a user who's already on the page.
-//
-// Why this matters in a multisig: collaborators land proposals at
-// human pace and from a different device than yours. Without a push,
-// you'd have to refresh the dashboard to find out you're blocking
-// a send. This closes that loop without a server-side push pipeline.
-//
-// Persistence: the seen-set lives in localStorage keyed per-user so
-// reloads / navigations don't re-fire. The set is bounded - only
-// proposals seen in the most recent N pending snapshots are kept,
-// so it doesn't grow unboundedly.
+// Turns on-chain approval and membership snapshots into stable server
+// notification events. The server owns deduplication and read state;
+// this hook only handles browser, email, and webhook delivery for events
+// the server confirms are newly inserted.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
@@ -43,50 +32,10 @@ import {
   loadWebhookPrefs,
   shouldFireWebhook,
 } from "@/lib/security/webhookNotifications";
-import {
-  recordNotificationFeed,
-} from "@/lib/security/notificationFeed";
+import { syncNotificationEvents } from "@/lib/notifications/client";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
-
-const STORAGE_PREFIX = "clear.notif-seen.v1.";
-const MAX_SEEN = 200;
-
-function storageKey(userAddress: string): string {
-  return STORAGE_PREFIX + userAddress;
-}
-
-function loadSeen(userAddress: string): Set<string> {
-  if (typeof window === "undefined" || !userAddress) return new Set();
-  try {
-    const raw = window.localStorage.getItem(storageKey(userAddress));
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((x): x is string => typeof x === "string"));
-  } catch {
-    return new Set();
-  }
-}
-
-function persistSeen(userAddress: string, seen: Set<string>): void {
-  if (typeof window === "undefined" || !userAddress) return;
-  try {
-    // Cap at MAX_SEEN by keeping the most-recent insertions. We
-    // don't track insertion time per entry, so trimming uses Set's
-    // insertion-order iterator (newest at the end of an Array
-    // copy).
-    const arr = Array.from(seen);
-    const trimmed = arr.slice(-MAX_SEEN);
-    window.localStorage.setItem(
-      storageKey(userAddress),
-      JSON.stringify(trimmed),
-    );
-  } catch {
-    /* localStorage full or blocked - silently noop */
-  }
-}
 
 function detectPermission(): PermissionState {
   if (typeof window === "undefined") return "unsupported";
@@ -129,48 +78,24 @@ export function useActionNotifications(): UseActionNotificationsResult {
     detectPermission(),
   );
   const [lastFiredAt, setLastFiredAt] = useState<number | null>(null);
-
-  const seenRef = useRef<Set<string>>(new Set());
-  const hydratedRef = useRef(false);
-  const seenProposalRef = useRef<Set<string>>(new Set());
-  const seenMembershipRef = useRef<Map<string, string>>(new Map());
-  const proposalHydratedRef = useRef(false);
-  const membershipHydratedRef = useRef(false);
-
-  // Hydrate the seen set on first user load. Re-hydrates when the
-  // connected wallet changes - different identities, different
-  // pending lists.
-  useEffect(() => {
-    seenRef.current = userAddress ? loadSeen(userAddress) : new Set();
-    seenProposalRef.current = userAddress ? loadProposalSeen(userAddress) : new Set();
-    seenMembershipRef.current = userAddress ? loadMembershipSeen(userAddress) : new Map();
-    hydratedRef.current = userAddress.length > 0;
-    proposalHydratedRef.current = false;
-    membershipHydratedRef.current = false;
-  }, [userAddress]);
+  const membershipRows = memberships.data;
 
   useEffect(() => {
     if (!userAddress) return;
-    if (!proposalHydratedRef.current) {
-      proposalHydratedRef.current = true;
-    }
-    const prev = seenProposalRef.current;
-    const next = new Set(prev);
-    for (const row of activity.allRows) {
-      if (row.status !== 0) continue;
-      if (next.has(row.proposalPda)) continue;
-      next.add(row.proposalPda);
+    const entries = activity.allRows.flatMap((row) => {
+      if (row.status !== 0) return [];
       const who = proposerDisplayName(row.proposer, userAddress);
-      recordNotificationFeed(userAddress, {
+      return [{
+        sourceId: `proposal:${row.proposalPda}:created`,
         kind: "wallet_request",
         walletName: row.walletName,
         title: `${toDisplayName(row.walletName) || row.walletName} has a new request`,
         body: `${friendlyIntentLabel(row.intentTemplate)} · started by ${who}`,
         href: `/app/proposals/${encodeURIComponent(row.proposalPda)}`,
-      });
-    }
-    seenProposalRef.current = next;
-    persistProposalSeen(userAddress, next);
+        createdAt: Number(row.proposedAt) * 1_000,
+      } as const];
+    });
+    void syncNotificationEvents(entries).catch(() => undefined);
   }, [activity.allRows, userAddress]);
 
   // Keep the permission state fresh when the user changes it from
@@ -181,103 +106,86 @@ export function useActionNotifications(): UseActionNotificationsResult {
     setPermission(detectPermission());
   }, [rows.length]);
 
-  // Fire on new pending rows. We compare against the seen set, mark
-  // each fired row as seen, persist, then bail. Tab visibility
-  // gates the actual Notification dispatch - when the tab is
-  // foreground, the user already sees the in-page badge.
   useEffect(() => {
-    if (!hydratedRef.current) return;
-    if (!userAddress) return;
-
-    const seen = seenRef.current;
-    const fresh: typeof rows = [];
-    for (const r of rows) {
-      if (!seen.has(r.proposalPda)) {
-        fresh.push(r);
-      }
-    }
-    if (fresh.length === 0) return;
-    for (const r of fresh) seen.add(r.proposalPda);
-    persistSeen(userAddress, seen);
-
-    // Persist the feed entry regardless of whether browser
-    // notifications are allowed. The in-app inbox should still
-    // show the pending request even on tabs where Notification is
-    // denied or the page is foreground.
-    const FIRE_CAP = 3;
-    const fired = fresh.slice(0, FIRE_CAP);
-    for (const r of fired) {
-      const who = proposerDisplayName(r.proposer, userAddress);
-      const action = friendlyIntentLabel(r.intentTemplate);
+    if (!userAddress || rows.length === 0) return;
+    let cancelled = false;
+    const sourceRows = new Map<string, (typeof rows)[number]>();
+    const entries = rows.map((row) => {
+      const sourceId = `proposal:${row.proposalPda}:approval-needed`;
+      sourceRows.set(sourceId, row);
+      const who = proposerDisplayName(row.proposer, userAddress);
+      const action = friendlyIntentLabel(row.intentTemplate);
       const tally =
-        r.approverCount > 0
-          ? `${r.approvalsCollected}/${r.approverCount} approved`
+        row.approverCount > 0
+          ? `${row.approvalsCollected}/${row.approverCount} approved`
           : "awaiting approval";
-      recordNotificationFeed(userAddress, {
-        kind: "pending_approval",
-        walletName: r.walletName,
-        title: `${toDisplayName(r.walletName) || r.walletName} needs your approval`,
+      return {
+        sourceId,
+        kind: "pending_approval" as const,
+        walletName: row.walletName,
+        title: `${toDisplayName(row.walletName) || row.walletName} needs your approval`,
         body: `${action} · started by ${who} · ${tally}`,
-        href: `/app/proposals/${encodeURIComponent(r.proposalPda)}`,
-      });
-    }
+        href: `/app/proposals/${encodeURIComponent(row.proposalPda)}`,
+        createdAt: Number(row.proposedAt) * 1_000,
+      };
+    });
 
-    // Email/webhooks are independent of the browser Notification API.
-    // Fire them as soon as the in-app feed records the fresh row.
-    void maybeFireEmail(fired[0]);
-    for (const r of fired) {
-      void maybeFirePendingWebhook(r);
-    }
+    void syncNotificationEvents(entries).then((results) => {
+      if (cancelled) return;
+      const fired = results
+        .filter((result) => result.inserted)
+        .map((result) => sourceRows.get(result.entry.sourceId))
+        .filter((row): row is (typeof rows)[number] => !!row)
+        .slice(0, 3);
+      if (fired.length === 0) return;
 
-    if (!("Notification" in window)) return;
-    if (window.Notification.permission !== "granted") return;
-    if (typeof document !== "undefined" && document.visibilityState === "visible") {
-      // User's already on the page - no point pinging them. We
-      // still flipped the seen flag so we don't ping later if they
-      // background the tab and the row sticks around.
-      return;
-    }
+      void maybeFireEmail(fired[0]);
+      for (const row of fired) void maybeFirePendingWebhook(row);
 
-    // Cap how many we fire at once. A flurry of N proposals all at
-    // once shouldn't spam - show the first 3 and let the badge
-    // handle the rest.
-    for (const r of fired) {
-      try {
-        const wallet = toDisplayName(r.walletName) || r.walletName;
-        const action = friendlyIntentLabel(r.intentTemplate);
+      if (!("Notification" in window)) return;
+      if (window.Notification.permission !== "granted") return;
+      if (document.visibilityState === "visible") return;
+
+      for (const r of fired) {
         const who = proposerDisplayName(r.proposer, userAddress);
+        const action = friendlyIntentLabel(r.intentTemplate);
         const tally =
           r.approverCount > 0
             ? `${r.approvalsCollected}/${r.approverCount} approved`
             : "awaiting approval";
-        const n = new window.Notification(
-          `${wallet} needs your approval`,
-          {
+        try {
+          const wallet = toDisplayName(r.walletName) || r.walletName;
+          const n = new window.Notification(`${wallet} needs your approval`, {
             body: `${action} · started by ${who} · ${tally}`,
             icon: "/icon",
             tag: r.proposalPda, // dedupe per proposal across browsers
-          },
-        );
-        n.onclick = () => {
-          try {
-            window.focus();
-            window.location.assign(
-              `/app/proposals/${encodeURIComponent(r.proposalPda)}`,
-            );
-          } finally {
-            n.close();
-          }
-        };
-      } catch {
-        /* notification blocked / quota / browser quirk - ignore */
+          });
+          n.onclick = () => {
+            try {
+              window.focus();
+              window.location.assign(
+                `/app/proposals/${encodeURIComponent(r.proposalPda)}`,
+              );
+            } finally {
+              n.close();
+            }
+          };
+        } catch {
+          /* notification blocked / quota / browser quirk - ignore */
+        }
       }
-    }
-    setLastFiredAt(Date.now());
+      setLastFiredAt(Date.now());
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [rows, userAddress]);
 
   useEffect(() => {
     if (!userAddress || rows.length === 0) return;
+    let syncing = false;
     const interval = window.setInterval(() => {
+      if (syncing) return;
       const prefs = loadApprovalReminderPrefs();
       if (!shouldSendApprovalReminder(prefs)) return;
       const first = rows[0];
@@ -291,70 +199,89 @@ export function useActionNotifications(): UseActionNotificationsResult {
         rows.length === 1
           ? friendlyIntentLabel(first.intentTemplate)
           : "Open ClearSig to review what needs you.";
-      recordNotificationFeed(userAddress, {
-        kind: "pending_approval",
-        walletName: first.walletName,
-        title,
-        body,
-        href: `/app/proposals/${encodeURIComponent(first.proposalPda)}`,
-      });
-      if ("Notification" in window && window.Notification.permission === "granted") {
-        try {
-          const n = new window.Notification(title, {
-            body,
-            icon: "/icon",
-            tag: `clear-reminder-${first.proposalPda}`,
-          });
-          n.onclick = () => {
-            try {
-              window.focus();
-              window.location.assign(
-                `/app/proposals/${encodeURIComponent(first.proposalPda)}`,
-              );
-            } finally {
-              n.close();
-            }
-          };
-        } catch {
-          /* browser blocked the reminder */
+      const reminderAt = Date.now();
+      syncing = true;
+      void syncNotificationEvents([
+        {
+          sourceId: `approval-reminder:${first.proposalPda}:${Math.floor(reminderAt / prefs.intervalMs)}`,
+          kind: "pending_approval",
+          walletName: first.walletName,
+          title,
+          body,
+          href: `/app/proposals/${encodeURIComponent(first.proposalPda)}`,
+          createdAt: reminderAt,
+        },
+      ]).then((results) => {
+        if (
+          results[0]?.inserted &&
+          "Notification" in window &&
+          window.Notification.permission === "granted"
+        ) {
+          try {
+            const n = new window.Notification(title, {
+              body,
+              icon: "/icon",
+              tag: `clear-reminder-${first.proposalPda}`,
+            });
+            n.onclick = () => {
+              try {
+                window.focus();
+                window.location.assign(
+                  `/app/proposals/${encodeURIComponent(first.proposalPda)}`,
+                );
+              } finally {
+                n.close();
+              }
+            };
+          } catch {
+            /* browser blocked the reminder */
+          }
         }
-      }
-      saveApprovalReminderPrefs({
-        ...prefs,
-        lastReminderAt: Date.now(),
+        saveApprovalReminderPrefs({
+          ...prefs,
+          lastReminderAt: reminderAt,
+        });
+      }).catch(() => undefined).finally(() => {
+        syncing = false;
       });
     }, 60_000);
     return () => window.clearInterval(interval);
   }, [rows, userAddress]);
 
   useEffect(() => {
-    if (!userAddress || !memberships.data) return;
-    if (!membershipHydratedRef.current) {
-      membershipHydratedRef.current = true;
-    }
-    const prev = seenMembershipRef.current;
-    const next = new Map(prev);
-    for (const membership of memberships.data) {
+    if (!userAddress || !membershipRows) return;
+    const sourceMemberships = new Map<
+      string,
+      NonNullable<typeof membershipRows>[number]
+    >();
+    const entries = membershipRows.map((membership) => {
       const roleLabel = membership.roles.slice().sort().join("|");
-      const prevLabel = prev.get(membership.wallet);
-      if (prevLabel === roleLabel) continue;
-      next.set(membership.wallet, roleLabel);
+      const sourceId = `membership:${membership.wallet}:${roleLabel}`;
+      sourceMemberships.set(sourceId, membership);
       const roleText = `${describeRolesSummary(membership.roles)}. ${describeRolesRights(membership.roles)}`;
-      recordNotificationFeed(userAddress, {
+      return {
+        sourceId,
         kind: "membership_change",
         walletName: membership.wallet_name || membership.wallet,
         title: `${toDisplayName(membership.wallet_name || membership.wallet) || membership.wallet} updated your access`,
         body: roleText,
         href: `/app/wallet/${encodeURIComponent(membership.wallet_name || membership.wallet)}`,
-      });
-      if ("Notification" in window && window.Notification.permission === "granted") {
+      } as const;
+    });
+    void syncNotificationEvents(entries).then((results) => {
+      if (!("Notification" in window) || window.Notification.permission !== "granted") return;
+      for (const result of results) {
+        if (!result.inserted) continue;
+        const membership = sourceMemberships.get(result.entry.sourceId);
+        if (!membership) continue;
+        const roleText = `${describeRolesSummary(membership.roles)}. ${describeRolesRights(membership.roles)}`;
         try {
           const n = new window.Notification(
             `${toDisplayName(membership.wallet_name || membership.wallet) || membership.wallet} access updated`,
             {
               body: roleText,
               icon: "/icon",
-              tag: `${membership.wallet}-${roleLabel}`,
+              tag: result.entry.sourceId,
             },
           );
           setTimeout(() => n.close(), 4000);
@@ -362,10 +289,8 @@ export function useActionNotifications(): UseActionNotificationsResult {
           /* noop */
         }
       }
-    }
-    seenMembershipRef.current = next;
-    persistMembershipSeen(userAddress, next);
-  }, [memberships.data, userAddress]);
+    }).catch(() => undefined);
+  }, [membershipRows, userAddress]);
 
   const request = useCallback(async (): Promise<PermissionState> => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -389,74 +314,6 @@ export function useActionNotifications(): UseActionNotificationsResult {
     request,
     lastFiredAt,
   };
-}
-
-const PROPOSAL_SEEN_KEY = "clear.notif-seen-proposals.v1.";
-const MEMBERSHIP_SEEN_KEY = "clear.notif-seen-memberships.v1.";
-
-function loadProposalSeen(userAddress: string): Set<string> {
-  if (typeof window === "undefined" || !userAddress) return new Set();
-  try {
-    const raw = window.localStorage.getItem(PROPOSAL_SEEN_KEY + userAddress);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((x): x is string => typeof x === "string"));
-  } catch {
-    return new Set();
-  }
-}
-
-function persistProposalSeen(userAddress: string, seen: Set<string>): void {
-  if (typeof window === "undefined" || !userAddress) return;
-  try {
-    window.localStorage.setItem(
-      PROPOSAL_SEEN_KEY + userAddress,
-      JSON.stringify(Array.from(seen).slice(-200)),
-    );
-  } catch {
-    /* noop */
-  }
-}
-
-function loadMembershipSeen(userAddress: string): Map<string, string> {
-  if (typeof window === "undefined" || !userAddress) return new Map();
-  try {
-    const raw = window.localStorage.getItem(MEMBERSHIP_SEEN_KEY + userAddress);
-    if (!raw) return new Map();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Map();
-    const out = new Map<string, string>();
-    for (const row of parsed) {
-      if (
-        row &&
-        typeof row === "object" &&
-        typeof row.wallet === "string" &&
-        typeof row.roles === "string"
-      ) {
-        out.set(row.wallet, row.roles);
-      }
-    }
-    return out;
-  } catch {
-    return new Map();
-  }
-}
-
-function persistMembershipSeen(userAddress: string, seen: Map<string, string>): void {
-  if (typeof window === "undefined" || !userAddress) return;
-  try {
-    const rows = Array.from(seen.entries()).map(([wallet, roles]) => ({
-      wallet,
-      roles,
-    }));
-    window.localStorage.setItem(
-      MEMBERSHIP_SEEN_KEY + userAddress,
-      JSON.stringify(rows.slice(-200)),
-    );
-  } catch {
-    /* noop */
-  }
 }
 
 // Best-effort email send for the first row in a fresh pending

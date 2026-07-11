@@ -12,7 +12,7 @@
 //! 1. Wait for the dWallet program's coordinator + NEK to initialize.
 //! 2. Request a DKG via gRPC. The mock signer commits the dWallet on-chain
 //!    and transfers ownership to the payer.
-//! 3. Off-chain `transfer_ownership` from payer → clear-wallet's CPI authority PDA.
+//! 3. Prepare `transfer_ownership` from payer → clear-wallet's CPI authority PDA.
 //! 4. `create_wallet` (clear-msig wallet with proposer + 2 approvers).
 //! 5. `add_intent` flow:
 //!     - Build an EVM EIP-1559 intent body using `clear-wallet-client::IntentBuilder`
@@ -20,7 +20,7 @@
 //!     - Propose AddIntent (proposer signs the wrapped offchain message).
 //!     - Approve.
 //!     - Execute (writes the new intent on-chain at index 3).
-//! 6. `bind_dwallet` — creates the IkaConfig PDA and re-asserts the dWallet binding.
+//! 6. Atomically transfer authority + `bind_dwallet` to create IkaConfig.
 //! 7. Propose a Custom EVM intent with concrete params (nonce, to, value, empty data).
 //! 8. Approver1 + Approver2 approve.
 //! 9. `ika_sign` — clear-wallet builds the EVM RLP sighash and CPIs `approve_message`.
@@ -268,20 +268,17 @@ pub async fn run() {
     transfer_data.push(IX_TRANSFER_OWNERSHIP);
     transfer_data.extend_from_slice(cpi_authority_pk.as_ref());
 
-    send_tx(
-        &client,
-        &payer,
-        vec![Instruction::new_with_bytes(
-            dwallet_program_id,
-            &transfer_data,
-            vec![
-                AccountMeta::new_readonly(payer.pubkey(), true),
-                AccountMeta::new(dwallet_pda, false),
-            ],
-        )],
-        &[],
+    let transfer_ix = Instruction::new_with_bytes(
+        dwallet_program_id,
+        &transfer_data,
+        vec![
+            AccountMeta::new_readonly(payer.pubkey(), true),
+            AccountMeta::new(dwallet_pda, false),
+        ],
     );
-    ok(&format!("Authority → {cpi_authority_pk}"));
+    ok(&format!(
+        "Atomic authority transfer prepared → {cpi_authority_pk}"
+    ));
     println!();
 
     // ---------------------------------------------------------------
@@ -526,13 +523,19 @@ pub async fn run() {
             caller_program: pk_to_addr(clear_wallet_program_id),
             dwallet_program: pk_to_addr(dwallet_program_id),
             system_program: pk_to_addr(system_program::id()),
+            instructions_sysvar: pk_to_addr(solana_sdk::sysvar::instructions::id()),
             chain_kind: CHAIN_KIND_EVM,
             user_pubkey,
             signature_scheme: 0,
             cpi_authority_bump,
         }
         .into();
-    send_tx(&client, &payer, vec![sdk_ix_from_ext(bind_ix)], &[]);
+    send_tx(
+        &client,
+        &payer,
+        vec![transfer_ix, sdk_ix_from_ext(bind_ix)],
+        &[],
+    );
     ok(&format!("IkaConfig: {ika_config_pk}"));
     println!();
 

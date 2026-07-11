@@ -12,7 +12,6 @@ pub struct SpendInputs {
     pub version_group_id: u32,
     pub prev_txid: [u8; 32],
     pub prev_vout: u32,
-    pub sender_pkh: [u8; 20],
     pub recipient_pkh: [u8; 20],
     pub send_amount_zat: u64,
     pub lock_time: u32,

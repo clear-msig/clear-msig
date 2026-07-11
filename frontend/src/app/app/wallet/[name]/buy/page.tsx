@@ -35,7 +35,7 @@ import { CHAIN_CATALOG, chainByKind } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { friendlyError } from "@/lib/api/errors";
-import { recordNotificationFeed } from "@/lib/security/notificationFeed";
+import { syncNotificationEvents } from "@/lib/notifications/client";
 import { Button } from "@/components/retail/Button";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -178,7 +178,8 @@ function BuyPage() {
     }
     const key = `${stage.kind}:${stage.intentId}`;
     if (recordedOutcomes.has(key)) return;
-    recordNotificationFeed(userAddress, {
+    void syncNotificationEvents([{
+      sourceId: `ramp:buy:${stage.intentId}:${stage.kind}`,
       kind: "money_movement",
       walletName,
       title: stage.kind === "completed" ? "Crypto bought" : "Buy did not finish",
@@ -187,7 +188,7 @@ function BuyPage() {
           ? `${walletDisplay} received the crypto from your bank checkout.`
           : `${walletDisplay} did not receive crypto from that checkout.`,
       href: `/app/wallet/${encodeURIComponent(walletName)}`,
-    });
+    }]).catch(() => undefined);
     setRecordedOutcomes((current) => new Set(current).add(key));
   }, [recordedOutcomes, stage, userAddress, walletDisplay, walletName]);
 
@@ -383,9 +384,9 @@ function ComposeForm({
   return (
     <div className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <div className="flex flex-col gap-2">
-        <label className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
           Chain
-        </label>
+        </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {CHAIN_CATALOG.filter((c) => c.kind !== 4).map((chain) => {
             const binding = bindings.find((b) => b.chain_kind === chain.kind);
@@ -430,6 +431,7 @@ function ComposeForm({
           </span>
           <input
             id="usd-amount"
+            aria-label="Amount in USD"
             type="text"
             inputMode="decimal"
             placeholder="0.00"

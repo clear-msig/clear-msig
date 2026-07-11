@@ -107,7 +107,7 @@ describe("product workspace routing", () => {
         surface: "personal",
         pathname: "/app/wallet/Family%23abc123/budget",
       }),
-    ).toBe("/app/wallet/Family%23abc123");
+    ).toBeNull();
     expect(
       productWorkspaceRedirectHref({
         walletName,
@@ -192,37 +192,10 @@ describe("product workspace routing", () => {
     expect(filterWalletsByProductSurface(wallets, null)).toEqual(wallets);
   });
 
-  it("keeps Send out of Personal, Pro, and Agent mobile wallet nav", () => {
-    const personalLabels = walletSubNav(
-      resolveWalletProductSurface("My wallet#abc123"),
-    ).map((item) => item.label);
-    const proLabels = walletSubNav(
-      resolveWalletProductSurface("Team#def456"),
-    ).map((item) => item.label);
-    const agentLabels = walletSubNav(
-      resolveWalletProductSurface("Agent vault#ghi789"),
-    ).map((item) => item.label);
+  it("uses one stable wallet navigation model for every wallet", () => {
+    const labels = walletSubNav().map((item) => item.label);
 
-    expect(personalLabels).toEqual([
-      "Overview",
-      "People",
-      "Protection",
-      "Activity",
-    ]);
-    expect(proLabels).toEqual([
-      "Treasury",
-      "Team",
-      "Protection",
-      "Activity",
-    ]);
-    expect(agentLabels).toEqual([
-      "Overview",
-      "Traders",
-      "Rules",
-      "Trades",
-    ]);
-    expect(personalLabels).not.toContain("Send");
-    expect(proLabels).not.toContain("Send");
-    expect(agentLabels).not.toContain("Send");
+    expect(labels).toEqual(["Overview", "Activity", "People", "Rules"]);
+    expect(labels).not.toContain("Send");
   });
 });

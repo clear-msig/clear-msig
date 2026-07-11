@@ -86,6 +86,7 @@ pub(super) fn hash_payload(
             )?;
             let leverage = leverage_to_x100(&payload_text(payload, "maxLeverage")?)?;
             let v2_fields = [
+                optional_payload_text(payload, "agentId")?,
                 optional_payload_text(payload, "venue")?,
                 optional_payload_text(payload, "assetId")?,
                 optional_payload_text(payload, "sessionId")?,
@@ -96,19 +97,21 @@ pub(super) fn hash_payload(
             let has_all_v2 = v2_fields.iter().all(Option::is_some);
             if has_any_v2 && !has_all_v2 {
                 return Err(ApiError::BadRequest(
-                    "agent_trade_approval v2 requires venue, assetId, sessionId, route, and riskCheckHash"
+                    "agent_trade_approval v2 requires agentId, venue, assetId, sessionId, route, and riskCheckHash"
                         .into(),
                 ));
             }
             if has_all_v2 {
-                let venue = v2_fields[0].as_deref().unwrap_or_default();
-                let asset_id = v2_fields[1].as_deref().unwrap_or_default();
-                let session_id = v2_fields[2].as_deref().unwrap_or_default();
-                let route = v2_fields[3].as_deref().unwrap_or_default();
+                let agent_id = v2_fields[0].as_deref().unwrap_or_default();
+                let venue = v2_fields[1].as_deref().unwrap_or_default();
+                let asset_id = v2_fields[2].as_deref().unwrap_or_default();
+                let session_id = v2_fields[3].as_deref().unwrap_or_default();
+                let route = v2_fields[4].as_deref().unwrap_or_default();
                 let risk_check_hash = hash_bytes_from_hex(
-                    v2_fields[4].as_deref().unwrap_or_default(),
+                    v2_fields[5].as_deref().unwrap_or_default(),
                     "payload.riskCheckHash",
                 )?;
+                update_bytes(&mut hasher, &text_commitment(agent_id));
                 update_bytes(&mut hasher, &text_commitment(venue));
                 update_bytes(&mut hasher, &text_commitment(&market));
                 update_bytes(&mut hasher, &text_commitment(&side));
@@ -125,32 +128,74 @@ pub(super) fn hash_payload(
                 update_u32(&mut hasher, leverage);
             }
         }
-        ClearSignActionKind::AddMember | ClearSignActionKind::RemoveMember => {
-            let member = payload_text(payload, "member")?;
-            let role = payload_text(payload, "role")?;
-            update_bytes(
-                &mut hasher,
-                format!(
-                    "{{\"member\":{},\"role\":{}}}",
-                    json_string(&member)?,
-                    json_string(&role)?
-                )
-                .as_bytes(),
-            );
+        ClearSignActionKind::AgentSessionGrant => {
+            let session_id = payload_text(payload, "sessionId")?;
+            let agent_id = payload_text(payload, "agentId")?;
+            let venue = payload_text(payload, "venue")?;
+            let market = payload_text(payload, "market")?.to_uppercase();
+            let amount = Money::new(
+                payload_text(payload, "maxNotionalUsd")?,
+                "USD".into(),
+                AssetEncoding::Text,
+            )?;
+            let leverage = leverage_to_x100(&payload_text(payload, "maxLeverage")?)?;
+            let expires_at = payload
+                .get("expiresAt")
+                .and_then(Value::as_i64)
+                .ok_or_else(|| {
+                    ApiError::BadRequest("payload.expiresAt must be an integer".into())
+                })?;
+            let status = match payload_text(payload, "status")?.as_str() {
+                "active" => 1u8,
+                "revoked" => 2u8,
+                _ => {
+                    return Err(ApiError::BadRequest(
+                        "payload.status must be active or revoked".into(),
+                    ))
+                }
+            };
+            update_bytes(&mut hasher, b"agent_session");
+            hasher.update(text_commitment(&session_id));
+            hasher.update(text_commitment(&agent_id));
+            hasher.update(text_commitment(&venue));
+            hasher.update(text_commitment(&market));
+            hasher.update(amount.raw_amount.to_le_bytes());
+            update_u32(&mut hasher, leverage);
+            hasher.update(expires_at.to_le_bytes());
+            hasher.update([status]);
         }
-        ClearSignActionKind::ChangeThreshold => {
-            let approvals_required = payload_u32(payload, "approvalsRequired")?;
-            update_bytes(
-                &mut hasher,
-                format!("{{\"approvalsRequired\":{approvals_required}}}").as_bytes(),
-            );
+        ClearSignActionKind::AddMember
+        | ClearSignActionKind::RemoveMember
+        | ClearSignActionKind::ChangeThreshold => {
+            // Bind final intent governance state so the signed ClearSign
+            // text cannot diverge from the typed executor rewrite.
+            hash_intent_governance_fields(&mut hasher, payload)?;
         }
         ClearSignActionKind::SetProtection => {
-            let summary = payload_text(payload, "summary")?;
-            update_bytes(
-                &mut hasher,
-                format!("{{\"summary\":{}}}", json_string(&summary)?).as_bytes(),
-            );
+            if let Some(policy_commitment) = payload.get("policyCommitment").and_then(Value::as_str)
+            {
+                let chain_kind = payload
+                    .get("chainKind")
+                    .and_then(Value::as_u64)
+                    .ok_or_else(|| ApiError::BadRequest("payload.chainKind is required".into()))?;
+                if chain_kind > u8::MAX as u64 {
+                    return Err(ApiError::BadRequest(
+                        "payload.chainKind is out of range".into(),
+                    ));
+                }
+                update_bytes(&mut hasher, b"wallet_policy");
+                hasher.update([chain_kind as u8]);
+                hasher.update(hash_bytes_from_hex(
+                    policy_commitment,
+                    "payload.policyCommitment",
+                )?);
+            } else {
+                let summary = payload_text(payload, "summary")?;
+                update_bytes(
+                    &mut hasher,
+                    format!("{{\"summary\":{}}}", json_string(&summary)?).as_bytes(),
+                );
+            }
         }
         ClearSignActionKind::RecoveryAction => {
             let recovery_action = payload_text(payload, "recoveryAction")?;
@@ -281,6 +326,94 @@ pub(super) fn update_u32(hasher: &mut Sha256, value: u32) {
     hasher.update(value.to_le_bytes());
 }
 
+fn hash_intent_governance_fields(hasher: &mut Sha256, payload: &Value) -> Result<(), ApiError> {
+    update_bytes(hasher, b"intent_governance");
+    let target_index = payload_u32(payload, "targetIntentIndex")?;
+    if target_index > u8::MAX as u32 {
+        return Err(ApiError::BadRequest(
+            "payload.targetIntentIndex is out of range".into(),
+        ));
+    }
+    let approval = payload
+        .get("approvalThreshold")
+        .and_then(Value::as_u64)
+        .or_else(|| payload.get("approvalsRequired").and_then(Value::as_u64))
+        .ok_or_else(|| {
+            ApiError::BadRequest(
+                "payload.approvalThreshold (or approvalsRequired) is required".into(),
+            )
+        })?;
+    if approval == 0 || approval > u8::MAX as u64 {
+        return Err(ApiError::BadRequest(
+            "payload.approvalThreshold is out of range".into(),
+        ));
+    }
+    let cancellation = payload
+        .get("cancellationThreshold")
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    if cancellation == 0 || cancellation > u8::MAX as u64 {
+        return Err(ApiError::BadRequest(
+            "payload.cancellationThreshold is out of range".into(),
+        ));
+    }
+    let timelock = payload
+        .get("timelockSeconds")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    if timelock > u32::MAX as u64 {
+        return Err(ApiError::BadRequest(
+            "payload.timelockSeconds is out of range".into(),
+        ));
+    }
+    hasher.update([target_index as u8]);
+    hasher.update([approval as u8]);
+    hasher.update([cancellation as u8]);
+    hasher.update((timelock as u32).to_le_bytes());
+
+    let proposers = payload_pubkey_list(payload, "proposers")?;
+    let approvers = payload_pubkey_list(payload, "approvers")?;
+    update_u32(hasher, proposers.len() as u32);
+    for pk in &proposers {
+        hasher.update(pk);
+    }
+    update_u32(hasher, approvers.len() as u32);
+    for pk in &approvers {
+        hasher.update(pk);
+    }
+    Ok(())
+}
+
+fn payload_pubkey_list(payload: &Value, field: &str) -> Result<Vec<[u8; 32]>, ApiError> {
+    let rows = payload
+        .get(field)
+        .and_then(Value::as_array)
+        .ok_or_else(|| ApiError::BadRequest(format!("payload.{field} must be an array")))?;
+    if rows.is_empty() || rows.len() > 16 {
+        return Err(ApiError::BadRequest(format!(
+            "payload.{field} must contain 1..=16 base58 pubkeys"
+        )));
+    }
+    let mut out = Vec::with_capacity(rows.len());
+    for (idx, row) in rows.iter().enumerate() {
+        let text = row.as_str().ok_or_else(|| {
+            ApiError::BadRequest(format!("payload.{field}[{idx}] must be a string"))
+        })?;
+        let bytes = bs58::decode(text)
+            .into_vec()
+            .map_err(|_| ApiError::BadRequest(format!("payload.{field}[{idx}] must be base58")))?;
+        if bytes.len() != 32 {
+            return Err(ApiError::BadRequest(format!(
+                "payload.{field}[{idx}] must decode to 32 bytes"
+            )));
+        }
+        let mut pk = [0u8; 32];
+        pk.copy_from_slice(&bytes);
+        out.push(pk);
+    }
+    Ok(out)
+}
+
 fn finish_hash(hasher: Sha256) -> [u8; 32] {
     let result = hasher.finalize();
     let mut out = [0u8; 32];
@@ -328,6 +461,7 @@ mod tests {
     #[test]
     fn agent_trade_approval_v2_binds_route_and_risk_artifact() {
         let payload = serde_json::json!({
+            "agentId": "agent-1",
             "venue": "Hyperliquid Testnet",
             "market": "btc-perp",
             "side": "long",
@@ -340,6 +474,7 @@ mod tests {
             "riskCheckHash": "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4"
         });
         let route_changed = serde_json::json!({
+            "agentId": "agent-1",
             "venue": "Hyperliquid Testnet",
             "market": "btc-perp",
             "side": "long",
@@ -352,6 +487,7 @@ mod tests {
             "riskCheckHash": "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4"
         });
         let risk_changed = serde_json::json!({
+            "agentId": "agent-1",
             "venue": "Hyperliquid Testnet",
             "market": "btc-perp",
             "side": "long",
@@ -390,7 +526,7 @@ mod tests {
             .expect_err("partial v2 payload should fail");
         assert!(error
             .to_string()
-            .contains("agent_trade_approval v2 requires venue"));
+            .contains("agent_trade_approval v2 requires agentId"));
     }
 
     #[test]

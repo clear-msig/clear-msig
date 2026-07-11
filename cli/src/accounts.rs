@@ -1,7 +1,7 @@
 use crate::error::*;
 use bech32::{primitives::decode::CheckedHrpstring, Bech32, Hrp};
 use clear_wallet::utils::definition::*;
-use ripemd::{Digest as _, Ripemd160};
+use ripemd::Ripemd160;
 use serde::Serialize;
 use sha2::{Digest as Sha2Digest, Sha256};
 

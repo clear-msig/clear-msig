@@ -43,6 +43,9 @@ export interface ApproveDecision {
   needsApproveSignature: boolean;
   /// Status as observed on chain. `null` when we couldn't read.
   status: ProposalStatus | null;
+  /// Execution must remain gated on this value even when the connected
+  /// approver has already signed and no duplicate signature is needed.
+  readyToExecute: boolean;
 }
 
 export interface ApproveIfNeededOptions {
@@ -60,7 +63,11 @@ export async function approveIfNeeded(
   options: ApproveIfNeededOptions = {},
 ): Promise<ApproveDecision> {
   if (!proposalPda) {
-    return { needsApproveSignature: true, status: null };
+    return {
+      needsApproveSignature: true,
+      status: null,
+      readyToExecute: false,
+    };
   }
 
   let lastReadError: unknown = null;
@@ -71,27 +78,7 @@ export async function approveIfNeeded(
         new PublicKey(proposalPda),
       );
       if (account) {
-        if (
-          account.status === ProposalStatus.Active &&
-          options.approverPubkey &&
-          options.approvers
-        ) {
-          const approverIndex = options.approvers.indexOf(options.approverPubkey);
-          if (
-            approverIndex >= 0 &&
-            approverIndex < 16 &&
-            (account.approvalBitmap & (1 << approverIndex)) !== 0
-          ) {
-            return {
-              needsApproveSignature: false,
-              status: account.status,
-            };
-          }
-        }
-        return {
-          needsApproveSignature: account.status !== ProposalStatus.Approved,
-          status: account.status,
-        };
+        return approvalDecisionForProposal(account, options);
       }
       // Account not visible yet (read replica lag). Backoff and retry.
     } catch (err) {
@@ -120,6 +107,37 @@ export async function approveIfNeeded(
     needsApproveSignature:
       lastReadError !== null || (options.approvalThreshold ?? 1) > 1,
     status: null,
+    readyToExecute: false,
+  };
+}
+
+export function approvalDecisionForProposal(
+  proposal: { status: ProposalStatus; approvalBitmap: number },
+  options: ApproveIfNeededOptions = {},
+): ApproveDecision {
+  const readyToExecute = proposal.status === ProposalStatus.Approved;
+  if (
+    proposal.status === ProposalStatus.Active &&
+    options.approverPubkey &&
+    options.approvers
+  ) {
+    const approverIndex = options.approvers.indexOf(options.approverPubkey);
+    if (
+      approverIndex >= 0 &&
+      approverIndex < 16 &&
+      (proposal.approvalBitmap & (1 << approverIndex)) !== 0
+    ) {
+      return {
+        needsApproveSignature: false,
+        status: proposal.status,
+        readyToExecute,
+      };
+    }
+  }
+  return {
+    needsApproveSignature: !readyToExecute,
+    status: proposal.status,
+    readyToExecute,
   };
 }
 

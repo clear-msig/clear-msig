@@ -205,6 +205,8 @@ export interface AgentTradeProposal {
   id: string;
   walletName: string;
   agentId: string;
+  /** On-chain bounded session selected for this trade. */
+  sessionId?: string;
   venue: TradingVenue;
   market: string;
   side: TradeSide;
@@ -254,6 +256,7 @@ export interface AgentTradeClearSignV2Snapshot {
     txid?: string;
   };
   payload: {
+    agentId: string;
     venue: string;
     market: string;
     side: TradeSide;
@@ -267,6 +270,7 @@ export interface AgentTradeClearSignV2Snapshot {
   };
   executor: {
     amountRaw: string;
+    agentIdHash: string;
     venueHash: string;
     marketHash: string;
     sideHash: string;
@@ -424,6 +428,15 @@ export interface AgentSessionGrant {
   allocationTierId?: AgentAllocationTierId;
   /// Policy hash the session was issued under.
   policyHash?: string;
+  onchain?: {
+    proposalAddress: string;
+    proposalIndex: number;
+    intentIndex: number;
+    operation: "active" | "revoked";
+    status: "created" | "approved" | "executed";
+    txid?: string;
+    updatedAt: number;
+  };
   createdAt: number;
   updatedAt: number;
   version: AgentVersion;

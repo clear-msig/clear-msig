@@ -1,6 +1,6 @@
 // BottomNav - mobile-first primary navigation.
 //
-// Four flat tabs (Home / Activity / Contacts / Account) flanking a
+// Four flat tabs (Home / Activity / People / Settings) flanking a
 // centered floating-action button for "New wallet".
 //
 // The FAB visually "cuts apart" from the bar via a `ring-[6px]
@@ -17,21 +17,14 @@
 
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
-  Activity,
-  Contact,
   Home,
   Plus,
-  Settings,
-  type LucideIcon,
 } from "lucide-react";
 import clsx from "clsx";
 import { useActionNeeded } from "@/lib/hooks/useActionNeeded";
-import { productSetupHref } from "@/lib/productSurfaces";
-import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import {
   activeWalletSlugFromPathname,
@@ -39,67 +32,14 @@ import {
   walletNavHref,
   walletSubNav,
 } from "@/components/layout/walletScopedNav";
-
-type NavItem = {
-  href: string;
-  label: string;
-  Icon: LucideIcon;
-  /// Routes that should mark this item active, in addition to `href`.
-  /// "Home" stays highlighted while drilled into a wallet or proposal.
-  matchPrefixes?: string[];
-  id?: "home" | "activity" | "contacts" | "settings";
-};
-
-const navItems: NavItem[] = [
-  {
-    id: "home",
-    href: "/app",
-    label: "Home",
-    Icon: Home,
-    matchPrefixes: [
-      "/app/proposals",
-      "/app/intents",
-      "/app/invitations",
-    ],
-  },
-  {
-    id: "activity",
-    href: "/app/activity",
-    label: "Activity",
-    Icon: Activity,
-  },
-  {
-    id: "contacts",
-    href: "/app/contacts",
-    label: "Contacts",
-    Icon: Contact,
-  },
-  {
-    id: "settings",
-    href: "/app/settings",
-    label: "Settings",
-    Icon: Settings,
-    // Account is a separate destination reachable from the top-right
-    // header chip on the Settings page. The Settings tab should NOT
-    // light up while on Account - the two are sibling surfaces, not
-    // one-inside-the-other.
-    matchPrefixes: ["/app/settings"],
-  },
-];
-
-function isActive(pathname: string | null, item: NavItem): boolean {
-  if (!pathname) return false;
-  if (pathname === item.href) return true;
-  for (const p of item.matchPrefixes ?? []) {
-    if (pathname === p || pathname.startsWith(`${p}/`)) return true;
-  }
-  return false;
-}
+import {
+  PRIMARY_NAV_ITEMS,
+  isPrimaryNavActive,
+  type PrimaryNavItem,
+} from "@/components/layout/primaryNav";
 
 export function BottomNav() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [launchingCreate, setLaunchingCreate] = useState(false);
   const currentPathname = pathname ?? "";
   // Multisig-specific signal: how many proposals across all my wallets
   // need MY approval right now? The badge sits on the Home tab because
@@ -109,23 +49,10 @@ export function BottomNav() {
   const pendingCount = actionRows.length;
 
   // Two tabs flank each side of the FAB spacer.
-  const leftItems = navItems.slice(0, 2);
-  const rightItems = navItems.slice(2);
+  const leftItems = PRIMARY_NAV_ITEMS.slice(0, 2);
+  const rightItems = PRIMARY_NAV_ITEMS.slice(2);
   const createHref = "/app/wallet/new";
   const activeWalletSlug = activeWalletSlugFromPathname(currentPathname);
-  useEffect(() => {
-    setLaunchingCreate(false);
-  }, [pathname]);
-
-  const handleCreateClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (pathname === createHref || launchingCreate) return;
-    event.preventDefault();
-    setLaunchingCreate(true);
-    window.setTimeout(() => {
-      router.push(createHref);
-    }, 260);
-  };
-
   if (activeWalletSlug) {
     return (
       <WalletScopedBottomNav
@@ -158,7 +85,6 @@ export function BottomNav() {
           anchors it to the palette. */}
       <Link
         href={createHref}
-        onClick={handleCreateClick}
         aria-label="Create a new wallet"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
@@ -173,14 +99,10 @@ export function BottomNav() {
           "transition-[transform,box-shadow] duration-base ease-out-soft",
           "hover:scale-[1.04] hover:shadow-accent-hover active:scale-95",
           "focus-visible:outline-none focus-visible:shadow-accent-hover",
-          launchingCreate && "scale-[1.08] shadow-accent-hover",
         )}
       >
         <Plus
-          className={clsx(
-            "h-6 w-6 transition-transform duration-300 ease-out-soft",
-            launchingCreate && "rotate-180 scale-110",
-          )}
+          className="h-6 w-6"
           strokeWidth={2.5}
           aria-hidden="true"
         />
@@ -219,29 +141,13 @@ function WalletScopedBottomNav({
   slug: string;
   pathname: string;
 }) {
-  const router = useRouter();
-  const [launchingCreate, setLaunchingCreate] = useState(false);
   const base = `/app/wallet/${encodeURIComponent(slug)}`;
-  const surface = resolveWalletProductSurface(slug);
-  const items = walletSubNav(surface);
+  const items = walletSubNav();
   const display = toDisplayName(slug);
-  const createHref = surface ? productSetupHref(surface) : "/app/wallet/new";
+  const productHomeHref = "/app/wallet";
   const splitIndex = Math.ceil(items.length / 2);
   const leftItems = items.slice(0, splitIndex);
   const rightItems = items.slice(splitIndex);
-
-  useEffect(() => {
-    setLaunchingCreate(false);
-  }, [pathname]);
-
-  const handleCreateClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (launchingCreate) return;
-    event.preventDefault();
-    setLaunchingCreate(true);
-    window.setTimeout(() => {
-      router.push(createHref);
-    }, 260);
-  };
 
   return (
     <nav
@@ -254,9 +160,8 @@ function WalletScopedBottomNav({
       )}
     >
       <Link
-        href={createHref}
-        onClick={handleCreateClick}
-        aria-label={`Create ${surface ?? "wallet"} workspace`}
+        href={productHomeHref}
+        aria-label="All wallets"
         className={clsx(
           "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
           "flex h-14 w-14 items-center justify-center rounded-full",
@@ -264,14 +169,10 @@ function WalletScopedBottomNav({
           "transition-[transform,box-shadow] duration-base ease-out-soft",
           "hover:scale-[1.04] hover:shadow-accent-hover active:scale-95",
           "focus-visible:outline-none focus-visible:shadow-accent-hover",
-          launchingCreate && "scale-[1.08] shadow-accent-hover",
         )}
       >
-        <Plus
-          className={clsx(
-            "h-6 w-6 transition-transform duration-300 ease-out-soft",
-            launchingCreate && "scale-110",
-          )}
+        <Home
+          className="h-6 w-6"
           strokeWidth={2.5}
           aria-hidden="true"
         />
@@ -365,11 +266,11 @@ function NavTab({
   pathname,
   pendingCount,
 }: {
-  item: NavItem;
+  item: PrimaryNavItem;
   pathname: string | null;
   pendingCount: number;
 }) {
-  const active = isActive(pathname, item);
+  const active = isPrimaryNavActive(pathname, item);
   const showBadge = item.id === "home" && pendingCount > 0;
   return (
     <li className="flex-1">

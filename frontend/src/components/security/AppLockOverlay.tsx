@@ -14,7 +14,6 @@
 // while the user hasn't proven who they are.
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { BrandMark } from "@/components/retail/BrandMark";
 import {
@@ -106,12 +105,7 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-canvas px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-sm rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest"
-      >
+      <div className="w-full max-w-sm rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
           <ShieldCheck className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
         </div>
@@ -198,7 +192,7 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
             </p>
           )}
         </form>
-      </motion.div>
+      </div>
       <div className="mt-6 inline-flex items-center gap-1.5 text-[11px] text-text-soft">
         <BrandMark size={14} />
         <span>Clear · saved on this device only</span>

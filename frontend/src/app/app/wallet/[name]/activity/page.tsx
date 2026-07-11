@@ -184,6 +184,7 @@ export default function WalletActivityPage() {
             />
             <input
               type="search"
+              aria-label="Search wallet activity"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search request address or type"

@@ -102,6 +102,29 @@ pub(super) struct ExecuteTypedSolSendRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedWalletPolicyUpdateRequest {
+    pub(super) policy_bytes_hex: String,
+    pub(super) chain_kind: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedIntentGovernanceRequest {
+    /// ClearSign action kind: 3=add_member, 4=remove_member, 5=change_threshold.
+    pub(super) action_kind: Option<u8>,
+    pub(super) target_index: Option<u8>,
+    /// Preferred: pre-built intent body (no discriminator) as hex.
+    pub(super) new_intent_body_hex: Option<String>,
+    pub(super) file: Option<String>,
+    pub(super) proposers: Option<Vec<String>>,
+    pub(super) approvers: Option<Vec<String>>,
+    pub(super) threshold: Option<u8>,
+    pub(super) cancellation_threshold: Option<u8>,
+    pub(super) timelock: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedChainSendRequest {
     pub(super) chain_kind: u8,
     pub(super) amount_raw: String,
@@ -131,6 +154,7 @@ pub(super) struct ExecuteTypedSolBatchSendRow {
 #[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedAgentTradeApprovalRequest {
     pub(super) amount_raw: String,
+    pub(super) agent_id_hash: String,
     pub(super) venue_hash: String,
     pub(super) market_hash: String,
     pub(super) side_hash: String,
@@ -139,4 +163,17 @@ pub(super) struct ExecuteTypedAgentTradeApprovalRequest {
     pub(super) session_id_hash: String,
     pub(super) route_hash: String,
     pub(super) risk_check_hash: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedAgentSessionGrantRequest {
+    pub(super) session_id_hash: String,
+    pub(super) agent_id_hash: String,
+    pub(super) venue_hash: String,
+    pub(super) market_hash: String,
+    pub(super) max_notional_raw: String,
+    pub(super) max_leverage_x100: u32,
+    pub(super) expires_at: i64,
+    pub(super) status: u8,
 }

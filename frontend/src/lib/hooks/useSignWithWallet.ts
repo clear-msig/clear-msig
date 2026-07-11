@@ -172,6 +172,31 @@ export function useSignWithWallet() {
     [connected, publicKey, signMessage]
   );
 
+  const signDescriptorWithFlavor = useCallback(
+    async (
+      descriptor: DryRunDescriptor,
+      options: SignOptions | undefined,
+      flavor: MessageFlavor,
+    ): Promise<SignedPayload> => {
+      let bytes: Uint8Array;
+      try {
+        bytes = await rebuildAndVerifyMessage(descriptor, connection, flavor);
+      } catch (err) {
+        if (err instanceof MessageVerificationError) {
+          throw new WalletSignError("message_mismatch", err.message, {
+            expectedHex: err.expected,
+            gotHex: err.got,
+          });
+        }
+        throw err;
+      }
+      const signed = await signBytes(bytes, options);
+      ensureDescriptorFresh(descriptor);
+      return { ...signed, message_flavor: flavor };
+    },
+    [connection, signBytes],
+  );
+
   /// Rebuild the signable bytes from chain state, verify they match
   /// the backend-supplied `message_hex`, then ask the wallet to sign
   /// the locally-rebuilt bytes. Throws `WalletSignError` with code
@@ -226,11 +251,48 @@ export function useSignWithWallet() {
         throw err;
       }
     },
-    [connection, isLedger, ledgerPublicKey, signBytes],
+    [isLedger, ledgerPublicKey, signDescriptorWithFlavor],
+  );
+
+  /**
+   * Sign a caller-built clear-text message for local/browser authority
+   * (agent practice budgets, owner approvals). Never pass backend-supplied
+   * hex — rebuild the message in the browser first. Money-moving and
+   * on-chain governance must use `signDescriptor` / `signTypedDescriptor`.
+   */
+  const signLocalClearText = useCallback(
+    async (
+      clearText: string,
+      options?: SignOptions,
+    ): Promise<SignedPayload> => {
+      const text = clearText.trim();
+      if (text.length < 8) {
+        throw new WalletSignError(
+          "message_mismatch",
+          "Local approval message is empty or too short.",
+        );
+      }
+      // Reject opaque hex blobs that look like a backend-supplied payload
+      // rather than human-readable clear text.
+      const compact = text.replace(/\s+/g, "");
+      if (
+        compact.length >= 64 &&
+        /^[0-9a-fA-F]+$/.test(compact) &&
+        !text.includes(" ")
+      ) {
+        throw new WalletSignError(
+          "message_mismatch",
+          "Refusing to sign an opaque hex payload. Rebuild a readable local message first.",
+        );
+      }
+      return signBytes(new TextEncoder().encode(text), options);
+    },
+    [signBytes],
   );
 
   return {
     signBytes,
+    signLocalClearText,
     signDescriptor,
     signTypedDescriptor,
     canSign: Boolean(connected && publicKey && signMessage),
@@ -265,32 +327,6 @@ export function useSignWithWallet() {
     };
   }
 
-  async function signDescriptorWithFlavor(
-    descriptor: DryRunDescriptor,
-    options: SignOptions | undefined,
-    flavor: MessageFlavor,
-  ): Promise<SignedPayload> {
-    let bytes: Uint8Array;
-    try {
-      bytes = await rebuildAndVerifyMessage(
-        descriptor,
-        connection,
-        flavor,
-      );
-    } catch (err) {
-      if (err instanceof MessageVerificationError) {
-        throw new WalletSignError(
-          "message_mismatch",
-          err.message,
-          { expectedHex: err.expected, gotHex: err.got },
-        );
-      }
-      throw err;
-    }
-    const signed = await signBytes(bytes, options);
-    ensureDescriptorFresh(descriptor);
-    return { ...signed, message_flavor: flavor };
-  }
 }
 
 function ensureDescriptorFresh(descriptor: { expiry: number }) {

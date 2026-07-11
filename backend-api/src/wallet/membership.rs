@@ -70,7 +70,9 @@ pub(super) async fn lookup_memberships(
         i += 1;
     }
 
-    let rpc_url = rpc_url.unwrap_or_else(|| "https://api.devnet.solana.com".to_string());
+    let rpc_url = rpc_url.unwrap_or_else(|| {
+        "https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH".to_string()
+    });
 
     let program_id = state
         .runner

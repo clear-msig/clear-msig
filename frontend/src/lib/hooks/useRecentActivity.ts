@@ -122,15 +122,11 @@ export function useRecentActivity(
         },
         enabled: ready,
         staleTime: 5_000,
-        // Drives the "needs your approval" badge + browser
-        // notifications. 10s foreground keeps the surface fresh
-        // without hammering RPC; we also let the poll continue in
-        // the background (was paused at 30s) so a teammate's new
-        // proposal still triggers a push notification when the tab
-        // isn't focused. That's the entire point of the
-        // Notification API integration in `useActionNotifications` —
-        // background-paused polling silently neutered it.
-        refetchInterval: 10_000,
+        // Multisig proposals arrive at human pace. A 30s foreground
+        // refresh keeps badges current with one shared observer. Keep
+        // it alive in the background so browser approval notifications
+        // still arrive when a teammate proposes from another device.
+        refetchInterval: 30_000,
         refetchIntervalInBackground: true,
         refetchOnWindowFocus: true,
       };

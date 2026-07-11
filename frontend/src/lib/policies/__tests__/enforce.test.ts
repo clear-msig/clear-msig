@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { assertPolicyNotDenied, type PolicyEnforcementPlan } from "@/lib/policies/enforce";
+import {
+  assertPolicyNotDenied,
+  type PolicyEnforcementPlan,
+} from "@/lib/policies/enforce";
 import {
   encodeTypedRemoteSendPolicy,
   encodeTypedSolPolicy,
 } from "@/lib/policies/onchain";
 import { sha256, toHex } from "@/lib/msig/hash";
+
+const NO_LIMITS: PolicyEnforcementPlan["onchainLimits"] = {
+  velocityCapDisplay: null,
+  velocityWindowSeconds: 0,
+  maxSendCount: 0,
+  countWindowSeconds: 0,
+};
 
 function plan(action: "allow" | "deny"): PolicyEnforcementPlan {
   return {
@@ -30,6 +40,7 @@ function plan(action: "allow" | "deny"): PolicyEnforcementPlan {
     extraApprovers: [],
     extraCooldownSeconds: 0,
     conditions: [],
+    onchainLimits: NO_LIMITS,
   };
 }
 
@@ -49,6 +60,7 @@ describe("policy enforcement guardrails", () => {
         conditions: [],
         extraApprovers: [],
         extraCooldownSeconds: 0,
+        onchainLimits: NO_LIMITS,
       }),
     ).not.toThrow();
   });
@@ -84,6 +96,7 @@ describe("policy enforcement guardrails", () => {
           windowDays: 1,
         },
       ],
+      onchainLimits: NO_LIMITS,
     });
 
     expect(encoded).not.toBeNull();
@@ -134,6 +147,7 @@ describe("policy enforcement guardrails", () => {
             maxDisplay: "0.5",
           },
         ],
+        onchainLimits: NO_LIMITS,
       },
       {
         assetTicker: "ETH",
@@ -149,6 +163,131 @@ describe("policy enforcement guardrails", () => {
     expect(toHex(encoded!.bytes.slice(19, 51))).toBe(
       toHex(sha256(new TextEncoder().encode(recipient))),
     );
+  });
+
+  it("encodes deny, required-approver, and cooldown actions for remote execution", () => {
+    const approver = "11111111111111111111111111111111";
+    const deny = encodeTypedRemoteSendPolicy(plan("deny"), {
+      assetTicker: "BTC",
+      decimals: 8,
+    });
+    const protectedPlan: PolicyEnforcementPlan = {
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [approver],
+      extraCooldownSeconds: 3_600,
+      onchainLimits: NO_LIMITS,
+    };
+    const protectedPolicy = encodeTypedRemoteSendPolicy(protectedPlan, {
+      assetTicker: "ZEC",
+      decimals: 8,
+    });
+
+    expect(deny).not.toBeNull();
+    expect(deny!.bytes[4]).toBe(1);
+    expect(deny!.bytes[17]).toBe(0);
+    expect(protectedPolicy).not.toBeNull();
+    expect(readU32Le(protectedPolicy!.bytes, 13)).toBe(3_600);
+    expect(protectedPolicy!.bytes[18]).toBe(1);
+    expect(Array.from(protectedPolicy!.bytes.slice(19, 51))).toEqual(
+      new Array(32).fill(0),
+    );
+  });
+
+  it("encodes saved amount and send-count limits without an advanced rule", () => {
+    const encoded = encodeTypedSolPolicy({
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [],
+      extraCooldownSeconds: 0,
+      onchainLimits: {
+        velocityCapDisplay: "2.5",
+        velocityWindowSeconds: 7 * 86_400,
+        maxSendCount: 3,
+        countWindowSeconds: 86_400,
+      },
+    });
+
+    expect(encoded).not.toBeNull();
+    expect(encoded!.bytes[19]).toBe(1);
+    expect(readU64Le(encoded!.bytes, 22)).toBe(2_500_000_000n);
+    expect(readU32Le(encoded!.bytes, 30)).toBe(7 * 86_400);
+    expect(encoded!.bytes[34]).toBe(2);
+    expect(readU32Le(encoded!.bytes, 37)).toBe(3);
+    expect(readU32Le(encoded!.bytes, 41)).toBe(86_400);
+  });
+
+  it("encodes the Personal allowlist without requiring an advanced rule", () => {
+    const recipient = "11111111111111111111111111111111";
+    const encoded = encodeTypedSolPolicy({
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [],
+      extraCooldownSeconds: 0,
+      recipientGuard: { mode: "allowlist", addresses: [recipient] },
+      onchainLimits: NO_LIMITS,
+    });
+
+    expect(encoded).not.toBeNull();
+    expect(encoded!.bytes[4]).toBe(1);
+    expect(encoded!.bytes[17]).toBe(1);
+    expect(Array.from(encoded!.bytes.slice(19, 51))).toEqual(
+      new Array(32).fill(0),
+    );
+  });
+
+  it("encodes allowed hours and timezone into program-enforced policy bytes", () => {
+    const encoded = encodeTypedSolPolicy({
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [],
+      extraCooldownSeconds: 0,
+      allowedTimeWindow: {
+        startHour: 9,
+        endHour: 17,
+        daysOfWeek: [1, 2, 3, 4, 5],
+        utcOffsetMinutes: -60,
+      },
+      onchainLimits: NO_LIMITS,
+    });
+
+    expect(encoded).not.toBeNull();
+    expect(Array.from(encoded!.bytes.slice(19))).toEqual([
+      3,
+      5,
+      0,
+      9,
+      17,
+      0b0011_1110,
+      0xc4,
+      0xff,
+    ]);
+  });
+
+  it("encodes per-member allowance caps into isolated program ledger rows", () => {
+    const member = "11111111111111111111111111111111";
+    const encoded = encodeTypedSolPolicy({
+      evaluation: null,
+      rule: null,
+      conditions: [],
+      extraApprovers: [],
+      extraCooldownSeconds: 0,
+      memberAllowances: [
+        { member, capDisplay: "1.25", windowSeconds: 7 * 86_400 },
+      ],
+      onchainLimits: NO_LIMITS,
+    });
+
+    expect(encoded).not.toBeNull();
+    expect(encoded!.bytes[19]).toBe(4);
+    expect(encoded!.bytes[20]).toBe(44);
+    expect(encoded!.bytes[21]).toBe(0);
+    expect(readU64Le(encoded!.bytes, 54)).toBe(1_250_000_000n);
+    expect(readU32Le(encoded!.bytes, 62)).toBe(7 * 86_400);
   });
 });
 

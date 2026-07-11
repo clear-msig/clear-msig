@@ -19,11 +19,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Loader2, Pencil, UserPlus, Users } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { encryptPolicyBatch } from "@/lib/encrypt/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
-import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
+import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
 import { IntentType, ProposalStatus } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useContacts } from "@/lib/hooks/useContacts";
@@ -68,7 +67,7 @@ export default function AddFriendPage() {
   const searchParams = useSearchParams();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
@@ -245,77 +244,34 @@ export default function AddFriendPage() {
           : [...intent.proposers, trimmedAddress]
         : [...intent.proposers];
 
-      // 0. Run the new approver/proposer lists through the Encrypt
-      //    surface so the policy mutation flows as ciphertext IDs
-      //    through frontend → backend → CLI. Alpha 1 + program
-      //    `#[encrypt_fn]` upgrade routes them on chain.
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(newProposers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(newApprovers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([intent.approvalThreshold]), fheType: "euint8" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
-
-      // 1. Prepare
-      const dry = await backendApi.prepare.updateIntent(name, {
-        index: intent.intentIndex,
-        file: TEMPLATE_FILE,
+      const voteIntent = updateIntent?.account ?? intent;
+      const result = await completeTypedGovernance({
+        connection,
+        walletName: name,
+        walletId: walletQuery.data?.pda.toBase58() ?? name,
+        voteIntentIndex: voteIntent.intentIndex,
+        voteApprovers: voteIntent.approvers,
+        voteApprovalThreshold: voteIntent.approvalThreshold,
+        targetIntentIndex: intent.intentIndex,
         proposers: newProposers,
         approvers: newApprovers,
-        threshold: intent.approvalThreshold,
-        cancellation_threshold: intent.cancellationThreshold,
-        timelock: intent.timelockSeconds,
-        policy_ciphertexts,
+        approvalThreshold: intent.approvalThreshold,
+        cancellationThreshold: intent.cancellationThreshold,
+        timelockSeconds: intent.timelockSeconds,
+        templateFile: TEMPLATE_FILE,
+        kind: "add_member",
+        member: trimmedAddress,
+        role: wantProposer ? "full" : "approver",
+        proposerPk: signerPk!,
+        signTypedDescriptor,
+        pickApprover: (approvers) => wallet.pickSigner(approvers),
       });
-
-      // 2. Sign - preferSigner routes through the matching
-      //    Ledger/Dynamic pubkey resolved above.
-      const signed = await signDescriptor(dry, { preferSigner: signerPk! });
-
-      // 3. Submit propose: lands the UpdateIntent proposal in Active
-      //    state. The propose call does NOT count as an approval -
-      //    we have to flip the bit explicitly with a second sign.
-      const submitted = await backendApi.submit.updateIntent(name, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        index: intent.intentIndex,
-        file: TEMPLATE_FILE,
-      });
-
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
+      if (result.kind === "awaiting_approvals") {
         throw new Error(
-          "Backend didn't return a proposal address from the propose step",
+          "Member add is waiting for more approvals before it can finish.",
         );
       }
-
-      // 4. Approve, but only if propose didn't already land it
-      //    Approved on chain (program auto-approves the proposer's
-      //    bit when proposer ∈ approvers).
-      const decision = await approveIfNeeded(connection, proposal);
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          name,
-          proposal,
-          { actor_pubkey: signerPk!.toBase58() },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk!,
-        });
-        await backendApi.submit.approveProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      // 5. Execute: actually run UpdateIntent and swap the on-chain
-      //    approver/proposer lists. No user signature needed.
-      await backendApi.executeProposal(name, proposal, {});
-      return submitted;
+      return { proposal: result.proposal };
     },
     onSuccess: async (result) => {
       // Watcher path saves to contacts inline above; chain path saves
