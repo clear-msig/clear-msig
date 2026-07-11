@@ -81,9 +81,9 @@ import {
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
 import {
-  encodeTypedRemoteSendPolicy,
   policyCommitmentHexForParts,
 } from "@/lib/policies/onchain";
+import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
@@ -400,11 +400,14 @@ function SendEthPage() {
         amountDisplay: amount,
       });
       assertPolicyNotDenied(submitPolicyPlan);
-      const onchainPolicy = encodeTypedRemoteSendPolicy(submitPolicyPlan, {
-        assetTicker: EVM_TICKER,
-        decimals: 18,
-        normalizeRecipient: (value) => value.trim().toLowerCase(),
-      });
+      const walletPda = walletQuery.data?.pda;
+      if (!walletPda) throw new Error("Wallet is still loading. Try again.");
+      const onchainPolicy = await resolvePersistentSendPolicy(
+        connection,
+        walletPda,
+        walletName,
+        EVM_CHAIN_KIND,
+      );
 
       // 1. Pull the live nonce. Without this the EVM tx the dWallet
       //    signs gets rejected as a duplicate.

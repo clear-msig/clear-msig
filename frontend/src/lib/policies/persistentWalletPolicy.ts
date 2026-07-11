@@ -1,6 +1,9 @@
 import { Connection, PublicKey } from "@solana/web3.js";
+import bs58 from "bs58";
 import {
   findWalletPolicyAddress,
+  fromHex,
+  parseTypedProposal,
   parseWalletPolicy,
   WALLET_POLICY_CHAIN_SLOTS,
 } from "@/lib/msig";
@@ -13,10 +16,14 @@ import {
 import { getAllowlist, getTimeWindow } from "@/lib/retail/policy";
 import { listAllowances } from "@/lib/retail/allowances";
 import {
+  appendPolicyExtension,
   encodeTypedRemoteSendPolicy,
   encodeTypedSolPolicy,
+  EXT_ADVANCED_RULES,
   type EncodedSolPolicy,
+  policyCommitmentHex,
 } from "@/lib/policies/onchain";
+import { compileAdvancedPolicyRules } from "@/lib/policies/advancedOnchain";
 import type {
   MemberAllowanceCap,
   PolicyEnforcementPlan,
@@ -47,12 +54,33 @@ export interface PersistentPolicyTarget {
   summary: string;
 }
 
-export function buildPersistentPersonalPolicyTargets(
+export async function buildPersistentPersonalPolicyTargets(
   walletName: string,
-): PersistentPolicyTarget[] {
-  return POLICY_TARGETS.map((target) => {
+): Promise<PersistentPolicyTarget[]> {
+  return Promise.all(POLICY_TARGETS.map(async (target) => {
     const plan = personalPlanForTarget(walletName, target);
-    const encoded = encodeForTarget(plan, target);
+    const advanced = await compileAdvancedPolicyRules(walletName, target);
+    if (advanced.trackingVelocity) {
+      const configuredWindow = plan.onchainLimits.velocityCapDisplay
+        ? plan.onchainLimits.velocityWindowSeconds
+        : 0;
+      if (
+        configuredWindow > 0 &&
+        configuredWindow !== advanced.trackingVelocity.windowSeconds
+      ) {
+        throw new Error(
+          `${target.ticker} spending protection and advanced checks must use the same velocity window.`,
+        );
+      }
+      if (!plan.onchainLimits.velocityCapDisplay) {
+        plan.onchainLimits.velocityCapDisplay = advanced.trackingVelocity.capDisplay;
+        plan.onchainLimits.velocityWindowSeconds = advanced.trackingVelocity.windowSeconds;
+      }
+    }
+    let encoded = encodeForTarget(plan, target);
+    if (advanced.payload) {
+      encoded = appendPolicyExtension(encoded, EXT_ADVANCED_RULES, advanced.payload);
+    }
     return {
       ticker: target.ticker,
       chainKind: target.chainKind,
@@ -60,7 +88,61 @@ export function buildPersistentPersonalPolicyTargets(
       policyCommitmentHex: encoded?.commitmentHex ?? EMPTY_POLICY_COMMITMENT,
       summary: policySummary(target.ticker, encoded),
     };
+  }));
+}
+
+export async function persistentSendPolicyForChain(
+  walletName: string,
+  chainKind: number,
+): Promise<Pick<EncodedSolPolicy, "hex" | "commitmentHex"> | null> {
+  const target = (await buildPersistentPersonalPolicyTargets(walletName)).find(
+    (candidate) => candidate.chainKind === chainKind,
+  );
+  if (!target || !target.policyBytesHex) return null;
+  return {
+    hex: target.policyBytesHex,
+    commitmentHex: target.policyCommitmentHex,
+  };
+}
+
+export async function resolvePersistentSendPolicy(
+  connection: Connection,
+  wallet: PublicKey,
+  walletName: string,
+  chainKind: number,
+): Promise<Pick<EncodedSolPolicy, "hex" | "commitmentHex"> | null> {
+  const local = await persistentSendPolicyForChain(walletName, chainKind);
+  const activeCommitment = await currentWalletPolicyCommitment(
+    connection,
+    wallet,
+    chainKind,
+  );
+  if (activeCommitment === EMPTY_POLICY_COMMITMENT) return local;
+  if (local?.commitmentHex === activeCommitment) return local;
+
+  const accounts = await connection.getProgramAccounts(CLEAR_WALLET_PROGRAM_ID, {
+    commitment: DEFAULT_COMMITMENT,
+    filters: [
+      { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.of(6)) } },
+      { memcmp: { offset: 1, bytes: wallet.toBase58() } },
+    ],
   });
+  for (const { account } of accounts) {
+    try {
+      const proposal = parseTypedProposal(new Uint8Array(account.data));
+      if (proposal.actionKind !== 6 || proposal.statusLabel !== "Executed") continue;
+      if (!proposal.policyBytesHex) continue;
+      const commitmentHex = policyCommitmentHex(fromHex(proposal.policyBytesHex));
+      if (commitmentHex === activeCommitment) {
+        return { hex: proposal.policyBytesHex, commitmentHex };
+      }
+    } catch {
+      // Ignore unrelated or legacy accounts returned by broad RPC filters.
+    }
+  }
+  throw new Error(
+    "The active wallet protection could not be recovered from its on-chain update proposal.",
+  );
 }
 
 export async function currentWalletPolicyCommitment(

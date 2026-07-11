@@ -23,6 +23,11 @@ On-chain today:
   committed lamport cap inside the configured time window.
 - Typed remote sends (EVM / BTC / ZEC / ERC-20 / Hyperliquid) enforce the same
   remote policy bytes + WalletPolicy commitment when present.
+- Ordered advanced rules for native SOL / EVM / BTC / ZEC / HyperEVM sends are
+  encoded as CSP1 extension 5. The program evaluates recipient, amount, local
+  time, and velocity conditions with first-match semantics, then enforces deny,
+  required-approver, or cooldown actions. Executed SetProtection proposals keep
+  the exact bytes recoverable across signer devices.
 - Typed intent governance binds final proposers / approvers / thresholds /
   timelock for membership and rule changes.
 - Typed wallet policy updates persist per-chain policy commitments on a
@@ -32,7 +37,7 @@ On-chain today:
 
 Client-side today:
 
-- Deny / UX policy evaluation before propose on send pages.
+- Deny / UX policy evaluation before propose on send pages (preflight only).
 - Extra approver signature orchestration loops before execute.
 - Cooldown waits before broadcast on some pages.
 - Agent risk limits, sessions, and automatic trading controls.
@@ -62,12 +67,9 @@ npm test -- --run src/lib/policies/__tests__/enforce.test.ts src/lib/policies/__
 Before we claim policies are fully verifiable and on-chain-enforced, the program
 still needs typed policy execution for:
 
-- Deny rules.
-- Recipient allow/block rules outside typed SOL send.
-- Per-action amount caps outside typed SOL send.
-- Daily/weekly/monthly velocity caps outside typed SOL send.
-- Extra approver requirements outside typed SOL send.
-- Extra cooldown requirements outside typed SOL send.
+- Token-specific ERC-20 advanced rules. The current WalletPolicy has one chain
+  slot for all ERC-20 contracts and cannot safely assign token decimals without
+  binding contract metadata in the policy interpreter.
 - Agent trading risk limits and session allowances.
 
 The final form should be:

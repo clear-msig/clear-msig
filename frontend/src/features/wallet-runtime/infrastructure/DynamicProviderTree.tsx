@@ -19,16 +19,23 @@ import {
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
 import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
-import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { useEffect, useMemo } from "react";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
 import { DynamicWalletRuntimeProvider } from "@/lib/wallet/dynamic";
+import {
+  EXTERNAL_WALLET_RUNTIME_EVENT,
+  EXTERNAL_WALLET_RUNTIME_KEY,
+} from "@/features/wallet-runtime/domain/runtimePreference";
 
 interface Props {
   environmentId: string;
   children: React.ReactNode;
+  walletConnectors?: DynamicContextProps["settings"]["walletConnectors"];
+  rememberExternalWallet?: boolean;
 }
+
+const EMBEDDED_WALLET_CONNECTORS = [TurnkeySolanaWalletConnectors];
 
 // ── Obsidian & Lime brand override for the Dynamic modal ──────────
 // Dynamic renders its auth modal inside a shadow DOM with class
@@ -174,27 +181,29 @@ const DYNAMIC_BRAND_CSS = `
 }
 `;
 
-export default function DynamicProviderTree({ environmentId, children }: Props) {
+export default function DynamicProviderTree({
+  environmentId,
+  children,
+  walletConnectors = EMBEDDED_WALLET_CONNECTORS,
+  rememberExternalWallet = false,
+}: Props) {
   // Same settings shape and same comments live here as before, just
   // moved out of AppProviders. See the original notes there for
   // why each connector is listed.
   const settings = useMemo<DynamicContextProps["settings"]>(
     () => ({
       environmentId,
-      walletConnectors: [
-        SolanaWalletConnectors,
-        TurnkeySolanaWalletConnectors,
-      ],
+      walletConnectors,
       initialAuthenticationMode: "connect-and-sign",
       deviceRegistrationModal: { enabled: false },
       cssOverrides: DYNAMIC_BRAND_CSS,
     }),
-    [environmentId],
+    [environmentId, walletConnectors],
   );
 
   return (
     <DynamicContextProvider settings={settings}>
-      <DynamicPostConnectModalGuard>
+      <DynamicPostConnectModalGuard rememberExternalWallet={rememberExternalWallet}>
         <LedgerProvider>
           <DynamicWalletRuntimeProvider>{children}</DynamicWalletRuntimeProvider>
         </LedgerProvider>
@@ -205,8 +214,10 @@ export default function DynamicProviderTree({ environmentId, children }: Props) 
 
 function DynamicPostConnectModalGuard({
   children,
+  rememberExternalWallet,
 }: {
   children: React.ReactNode;
+  rememberExternalWallet: boolean;
 }) {
   const { primaryWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow } =
     useDynamicContext();
@@ -224,6 +235,26 @@ function DynamicPostConnectModalGuard({
     const closeAgain = window.setTimeout(() => setShowAuthFlow(false), 250);
     return () => window.clearTimeout(closeAgain);
   }, [hasUsableWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow]);
+
+  useEffect(() => {
+    if (!rememberExternalWallet || typeof window === "undefined") return;
+    const hasExternalWallet = wallets.some((wallet) => {
+      const connector = (wallet as unknown as {
+        connector?: { key?: string; name?: string; overrideKey?: string };
+      }).connector;
+      const id = (
+        connector?.key ??
+        connector?.overrideKey ??
+        connector?.name ??
+        ""
+      ).toLowerCase();
+      return id.length > 0 && !/dynamicwaas|turnkey/.test(id);
+    });
+    if (hasExternalWallet) {
+      window.localStorage.setItem(EXTERNAL_WALLET_RUNTIME_KEY, "1");
+      window.dispatchEvent(new Event(EXTERNAL_WALLET_RUNTIME_EVENT));
+    }
+  }, [rememberExternalWallet, wallets]);
 
   return children;
 }

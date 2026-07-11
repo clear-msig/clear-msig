@@ -1,5 +1,6 @@
 use quasar_lang::{prelude::*, sysvars::Sysvar as _};
 
+use super::advanced_policy::evaluate_advanced_rules;
 use crate::{
     error::WalletError,
     state::{
@@ -26,6 +27,7 @@ const EXT_VELOCITY_SOL: u8 = 1;
 const EXT_SEND_COUNT: u8 = 2;
 const EXT_ALLOWED_TIME: u8 = 3;
 const EXT_MEMBER_ALLOWANCE: u8 = 4;
+const EXT_ADVANCED_RULES: u8 = 5;
 const EXT_HEADER_LEN: usize = 1 + 2;
 const EXT_VELOCITY_SOL_LEN: usize = 8 + 4;
 const EXT_SEND_COUNT_LEN: usize = 4 + 4;
@@ -87,6 +89,64 @@ pub fn enforce_typed_sol_send_policy(
     member_allowance: &mut MemberAllowanceLedger,
     member_allowance_bump: u8,
 ) -> Result<(), ProgramError> {
+    enforce_typed_send_policy(
+        policy_bytes,
+        committed_policy_hash,
+        recipient,
+        amount_lamports,
+        intent,
+        proposal,
+        policy_spend,
+        policy_spend_bump,
+        member_allowance,
+        member_allowance_bump,
+    )
+}
+
+pub fn enforce_typed_remote_send_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient_hash: &[u8; 32],
+    amount_raw: u128,
+    intent: &Intent<'_>,
+    proposal: &TypedProposal<'_>,
+    policy_spend: &mut PolicySpendState,
+    policy_spend_bump: u8,
+    member_allowance: &mut MemberAllowanceLedger,
+    member_allowance_bump: u8,
+) -> Result<(), ProgramError> {
+    // The v1 policy wire stores numeric caps as u64, while ERC-20 amounts are
+    // u128. Saturation preserves recipient/time/send-count enforcement and
+    // guarantees any configured u64 amount or velocity cap rejects a larger
+    // value instead of disabling the entire typed ERC-20 path.
+    let amount_raw = u64::try_from(amount_raw).unwrap_or(u64::MAX);
+    enforce_typed_send_policy(
+        policy_bytes,
+        committed_policy_hash,
+        recipient_hash,
+        amount_raw,
+        intent,
+        proposal,
+        policy_spend,
+        policy_spend_bump,
+        member_allowance,
+        member_allowance_bump,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn enforce_typed_send_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+    amount_raw: u64,
+    intent: &Intent<'_>,
+    proposal: &TypedProposal<'_>,
+    policy_spend: &mut PolicySpendState,
+    policy_spend_bump: u8,
+    member_allowance: &mut MemberAllowanceLedger,
+    member_allowance_bump: u8,
+) -> Result<(), ProgramError> {
     initialize_member_allowance(
         intent,
         committed_policy_hash,
@@ -108,7 +168,6 @@ pub fn enforce_typed_sol_send_policy(
         hash_typed_policy(policy_bytes) == committed_policy_hash,
         WalletError::InvalidPolicy
     );
-
     let policy = TypedSolPolicy::parse(policy_bytes)?;
     let mut active_members = [[0u8; 32]; MAX_MEMBER_ALLOWANCES];
     for (index, member) in active_members
@@ -121,12 +180,13 @@ pub fn enforce_typed_sol_send_policy(
     member_allowance.retain_members(&active_members[..policy.member_cap_count]);
     member_allowance.policy_commitment = committed_policy_hash;
     policy.enforce_recipient(recipient)?;
-    policy.enforce_amount(amount_lamports)?;
+    policy.enforce_amount(amount_raw)?;
     policy.enforce_cooldown(intent, proposal)?;
     policy.enforce_required_approvers(intent, proposal)?;
     policy.enforce_allowed_time()?;
+    policy.enforce_advanced_rules(recipient, amount_raw, intent, proposal, policy_spend)?;
     policy.enforce_velocity(
-        amount_lamports,
+        amount_raw,
         intent,
         committed_policy_hash,
         policy_spend,
@@ -138,39 +198,8 @@ pub fn enforce_typed_sol_send_policy(
         policy_spend,
         policy_spend_bump,
     )?;
-    policy.enforce_member_allowance(amount_lamports, proposal, member_allowance)?;
+    policy.enforce_member_allowance(amount_raw, proposal, member_allowance)?;
     Ok(())
-}
-
-pub fn enforce_typed_remote_send_policy(
-    policy_bytes: &[u8],
-    committed_policy_hash: [u8; 32],
-    recipient_hash: &[u8; 32],
-    amount_raw: u128,
-    intent: &Intent<'_>,
-    proposal: &TypedProposal<'_>,
-    policy_spend: &mut PolicySpendState,
-    policy_spend_bump: u8,
-    member_allowance: &mut MemberAllowanceLedger,
-    member_allowance_bump: u8,
-) -> Result<(), ProgramError> {
-    // The v1 policy wire stores numeric caps as u64, while ERC-20 amounts are
-    // u128. Saturation preserves recipient/time/send-count enforcement and
-    // guarantees any configured u64 amount or velocity cap rejects a larger
-    // value instead of disabling the entire typed ERC-20 path.
-    let amount_raw = u64::try_from(amount_raw).unwrap_or(u64::MAX);
-    enforce_typed_sol_send_policy(
-        policy_bytes,
-        committed_policy_hash,
-        recipient_hash,
-        amount_raw,
-        intent,
-        proposal,
-        policy_spend,
-        policy_spend_bump,
-        member_allowance,
-        member_allowance_bump,
-    )
 }
 
 #[derive(Clone, Copy, Default)]
@@ -193,6 +222,7 @@ struct TypedSolPolicy<'a> {
     required_approvers: &'a [[u8; 32]],
     member_caps: [MemberAllowanceCap; MAX_MEMBER_ALLOWANCES],
     member_cap_count: usize,
+    advanced_rules: Option<&'a [u8]>,
 }
 
 impl<'a> TypedSolPolicy<'a> {
@@ -252,6 +282,7 @@ impl<'a> TypedSolPolicy<'a> {
             required_approvers,
             member_caps: extensions.member_caps,
             member_cap_count: extensions.member_cap_count,
+            advanced_rules: extensions.advanced_rules,
         })
     }
 
@@ -331,6 +362,62 @@ impl<'a> TypedSolPolicy<'a> {
             window.allows_timestamp(now),
             WalletError::PolicyOutsideAllowedHours
         );
+        Ok(())
+    }
+
+    fn enforce_advanced_rules(
+        &self,
+        recipient: &[u8; 32],
+        amount_raw: u64,
+        intent: &Intent<'_>,
+        proposal: &TypedProposal<'_>,
+        policy_spend: &PolicySpendState,
+    ) -> Result<(), ProgramError> {
+        let Some(bytes) = self.advanced_rules else {
+            return Ok(());
+        };
+        let now = Clock::get()?.unix_timestamp.get();
+        let effect = evaluate_advanced_rules(
+            bytes,
+            recipient,
+            amount_raw,
+            policy_spend.window_start.get(),
+            policy_spend.spent_lamports.get(),
+            now,
+        )?;
+        let Some(effect) = effect else {
+            return Ok(());
+        };
+        match effect.action {
+            0 => return Err(WalletError::PolicyDenied.into()),
+            1 => {}
+            2 => {
+                let approvers = bytes_to_keys(
+                    &bytes[effect.approvers_start
+                        ..effect.approvers_start + effect.approver_count * 32],
+                )?;
+                for required in approvers {
+                    let address = Address::new_from_array(*required);
+                    let idx = intent
+                        .approver_index(&address)
+                        .ok_or(WalletError::PolicyRequiredApprovalMissing)?;
+                    require!(
+                        proposal.has_approved_by_index(idx),
+                        WalletError::PolicyRequiredApprovalMissing
+                    );
+                }
+            }
+            3 => {
+                let unlock_at = proposal
+                    .approved_at
+                    .get()
+                    .checked_add(intent.timelock_seconds.get() as i64)
+                    .and_then(|value| value.checked_add(effect.cooldown as i64))
+                    .ok_or(WalletError::InvalidPolicy)?;
+                require!(now >= unlock_at, WalletError::PolicyCooldownNotElapsed);
+            }
+            _ => return Err(WalletError::InvalidPolicy.into()),
+        }
         Ok(())
     }
 
@@ -547,7 +634,7 @@ fn bytes_to_keys(bytes: &[u8]) -> Result<&[[u8; 32]], ProgramError> {
 }
 
 #[derive(Default)]
-struct PolicyExtensions {
+struct PolicyExtensions<'a> {
     velocity_cap_lamports: u64,
     velocity_window_seconds: u32,
     max_send_count: u32,
@@ -555,6 +642,7 @@ struct PolicyExtensions {
     allowed_time: Option<AllowedTimeWindow>,
     member_caps: [MemberAllowanceCap; MAX_MEMBER_ALLOWANCES],
     member_cap_count: usize,
+    advanced_rules: Option<&'a [u8]>,
 }
 
 #[derive(Clone, Copy)]
@@ -587,7 +675,7 @@ impl AllowedTimeWindow {
     }
 }
 
-fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions, ProgramError> {
+fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions<'_>, ProgramError> {
     let mut offset = 0usize;
     let mut extensions = PolicyExtensions::default();
     while offset < bytes.len() {
@@ -686,6 +774,14 @@ fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions, ProgramError> {
                 }
                 extensions.member_cap_count = count;
             }
+            EXT_ADVANCED_RULES => {
+                require!(
+                    extensions.advanced_rules.is_none(),
+                    WalletError::InvalidPolicy
+                );
+                require!(!payload.is_empty(), WalletError::InvalidPolicy);
+                extensions.advanced_rules = Some(payload);
+            }
             _ => return Err(WalletError::InvalidPolicy.into()),
         }
         offset += len;
@@ -695,7 +791,8 @@ fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions, ProgramError> {
 
 #[cfg(test)]
 mod tests {
-    use super::AllowedTimeWindow;
+    use super::{AllowedTimeWindow, TypedSolPolicy};
+    use alloc::vec::Vec;
 
     #[test]
     fn allowed_hours_apply_the_signed_local_offset_and_day() {
@@ -721,5 +818,36 @@ mod tests {
         let utc_21_local_22 = 21 * 3_600;
         assert!(window.allows_timestamp(utc_21_local_22));
         assert!(!window.allows_timestamp(12 * 3_600));
+    }
+
+    #[test]
+    fn parses_advanced_rule_extension_after_velocity() {
+        let recipient = [7u8; 32];
+        let mut rules = Vec::new();
+        rules.extend_from_slice(&[1, 2, 1, 1, 0]);
+        rules.extend_from_slice(&0u32.to_le_bytes());
+        rules.push(1);
+        rules.extend_from_slice(&34u16.to_le_bytes());
+        rules.push(1);
+        rules.push(1);
+        rules.extend_from_slice(&recipient);
+        rules.extend_from_slice(&[0, 0, 0]);
+        rules.extend_from_slice(&0u32.to_le_bytes());
+
+        let mut policy = b"CSP1".to_vec();
+        policy.extend_from_slice(&[0]);
+        policy.extend_from_slice(&0u64.to_le_bytes());
+        policy.extend_from_slice(&0u32.to_le_bytes());
+        policy.extend_from_slice(&[0, 0]);
+        policy.push(1);
+        policy.extend_from_slice(&12u16.to_le_bytes());
+        policy.extend_from_slice(&1_000u64.to_le_bytes());
+        policy.extend_from_slice(&86_400u32.to_le_bytes());
+        policy.push(5);
+        policy.extend_from_slice(&(rules.len() as u16).to_le_bytes());
+        policy.extend_from_slice(&rules);
+
+        let parsed = TypedSolPolicy::parse(&policy).unwrap();
+        assert_eq!(parsed.advanced_rules, Some(rules.as_slice()));
     }
 }

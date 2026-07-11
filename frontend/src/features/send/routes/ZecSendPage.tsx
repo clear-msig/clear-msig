@@ -45,9 +45,9 @@ import {
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
 import {
-  encodeTypedRemoteSendPolicy,
   policyCommitmentHexForParts,
 } from "@/lib/policies/onchain";
+import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import {
   pkhClearSignRecipient,
   prepareClearSignAction,
@@ -358,11 +358,14 @@ export default function ZcashSendPage() {
         "zcash-transparent",
         effectiveRecipient,
       );
-      const onchainPolicy = encodeTypedRemoteSendPolicy(submitPolicyPlan, {
-        assetTicker: "ZEC",
-        decimals: 8,
-        normalizeRecipient: normalizeZcashPolicyRecipient,
-      });
+      const walletPda = walletQuery.data?.pda;
+      if (!walletPda) throw new Error("Wallet is still loading. Try again.");
+      const onchainPolicy = await resolvePersistentSendPolicy(
+        connection,
+        walletPda,
+        name,
+        ZEC_CHAIN_KIND,
+      );
       const paramsDataHex = toHex(
         encodeParams(zcashIntent, {
           prev_txid: `0x${reverseHex(selectedUtxo.txid)}`,
@@ -1047,11 +1050,4 @@ function ZcashAwaitingApproval({
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function normalizeZcashPolicyRecipient(value: string): string {
-  const decoded = decodeZcashTransparentAddress(value);
-  return decoded
-    ? pkhClearSignRecipient("zcash-transparent", decoded.pkh)
-    : value.trim();
 }

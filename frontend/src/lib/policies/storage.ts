@@ -1,9 +1,9 @@
 "use client";
 
 // Per-wallet policy-rule storage. Rules persist locally under a
-// stable per-wallet key. Typed proposals commit the selected plaintext
-// enforcement values for program verification; a future Encrypt rollout
-// can move private rule storage to chain-backed ciphertext references.
+// stable per-wallet key. Typed SetProtection proposals commit the static
+// plaintext enforcement bytes for program verification and cross-device
+// recovery. Local storage is an authoring cache, not the execution source.
 //
 // Storage shape: map of wallet name → ordered list of rules. A
 // custom event ("clear:policies-changed") fires on every write so

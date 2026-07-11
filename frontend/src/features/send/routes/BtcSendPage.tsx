@@ -46,7 +46,6 @@ import { IntentType, ProposalStatus, toHex } from "@/lib/msig";
 import {
   assertPreparedBitcoinSetupIsCurrent,
   bytesToHex,
-  normalizeBitcoinPolicyRecipient,
 } from "@/features/send/domain/bitcoin";
 import {
   hasBitcoinChangeIntent,
@@ -97,9 +96,9 @@ import {
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
 import {
-  encodeTypedRemoteSendPolicy,
   policyCommitmentHexForParts,
 } from "@/lib/policies/onchain";
+import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import {
   pkhClearSignRecipient,
   prepareClearSignAction,
@@ -469,11 +468,14 @@ function BitcoinSendPage() {
         amountDisplay: amountBtc,
       });
       assertPolicyNotDenied(submitPolicyPlan);
-      const onchainPolicy = encodeTypedRemoteSendPolicy(submitPolicyPlan, {
-        assetTicker: "BTC",
-        decimals: 8,
-        normalizeRecipient: normalizeBitcoinPolicyRecipient,
-      });
+      const walletPda = walletQuery.data?.pda;
+      if (!walletPda) throw new Error("Wallet is still loading. Try again.");
+      const onchainPolicy = await resolvePersistentSendPolicy(
+        connection,
+        walletPda,
+        name,
+        BTC_CHAIN_KIND,
+      );
 
       // Bitcoin txids round-trip in TWO byte orders:
       //   - Esplora / block explorers / `mempool.space` return them in

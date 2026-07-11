@@ -8,6 +8,7 @@ const EXT_VELOCITY_SOL = 1;
 const EXT_SEND_COUNT = 2;
 const EXT_ALLOWED_TIME = 3;
 const EXT_MEMBER_ALLOWANCE = 4;
+export const EXT_ADVANCED_RULES = 5;
 const MEMBER_ALLOWANCE_ENTRY_LEN = 32 + 8 + 4;
 
 export interface EncodedSolPolicy {
@@ -256,13 +257,44 @@ export function policyCommitmentHexForParts(parts: string[]): string {
   return toHex(sha256(writer.bytes()));
 }
 
-function policyCommitmentHex(policyBytes: Uint8Array): string {
+export function policyCommitmentHex(policyBytes: Uint8Array): string {
   const writer = new ByteWriter();
   writer.pushBytes("clearsig:policy-engine:v2:policy");
   writer.pushU32(2);
   writer.pushBytes(POLICY_DOMAIN);
   writer.pushBytes(policyBytes);
   return toHex(sha256(writer.bytes()));
+}
+
+export function appendPolicyExtension(
+  encoded: EncodedSolPolicy | null,
+  tag: number,
+  payload: Uint8Array,
+): EncodedSolPolicy {
+  if (!Number.isInteger(tag) || tag < 0 || tag > 255) {
+    throw new Error("Policy extension tag must fit in one byte.");
+  }
+  if (payload.length > 0xffff) {
+    throw new Error("Policy extension is too large.");
+  }
+  const base = encoded?.bytes ?? emptyPolicyBytes();
+  const bytes = new Uint8Array(base.length + 3 + payload.length);
+  bytes.set(base, 0);
+  bytes[base.length] = tag;
+  bytes[base.length + 1] = payload.length & 0xff;
+  bytes[base.length + 2] = payload.length >>> 8;
+  bytes.set(payload, base.length + 3);
+  return {
+    bytes,
+    hex: toHex(bytes),
+    commitmentHex: policyCommitmentHex(bytes),
+  };
+}
+
+function emptyPolicyBytes(): Uint8Array {
+  const bytes = new Uint8Array(19);
+  bytes.set(MAGIC, 0);
+  return bytes;
 }
 
 function parseSolLamports(input: string): bigint {

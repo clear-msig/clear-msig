@@ -57,3 +57,28 @@ test("counts immediately mounted dynamic runtime chunks once per route", () => {
   ]);
   assert.deepEqual(manifest.pages["/public/page"], ["shared.js"]);
 });
+
+test("keeps mutually exclusive wallet runtimes in separate route profiles", () => {
+  const base = { pages: { "/app/a/page": ["route.js"] } };
+  const loadables = {
+    embedded: { files: ["core.js", "embedded.js"] },
+    external: { files: ["core.js", "external.js"] },
+  };
+  const embedded = includeImmediateRuntimeChunks(base, loadables, [
+    { routePrefix: "/app/", loadableKey: "embedded" },
+  ]);
+  const external = includeImmediateRuntimeChunks(base, loadables, [
+    { routePrefix: "/app/", loadableKey: "external" },
+  ]);
+
+  assert.deepEqual(embedded.pages["/app/a/page"], [
+    "route.js",
+    "core.js",
+    "embedded.js",
+  ]);
+  assert.deepEqual(external.pages["/app/a/page"], [
+    "route.js",
+    "core.js",
+    "external.js",
+  ]);
+});

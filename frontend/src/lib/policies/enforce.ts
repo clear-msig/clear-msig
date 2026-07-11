@@ -7,8 +7,8 @@
 //   - require-extra-approvers => collect and submit the extra approvals
 //   - require-cooldown         => wait the extra cooldown before execute
 //
-// Rule authoring stays browser-local for now, while the resulting typed
-// policy is committed by the signers and enforced by the program.
+// Browser evaluation is a preflight only. Static per-chain rule bytes are
+// committed through SetProtection and independently enforced by the program.
 
 import type { CandidateProposal } from "@/lib/policies/evaluate";
 import { evaluateAll, evaluateFirstMatch } from "@/lib/policies/evaluate";

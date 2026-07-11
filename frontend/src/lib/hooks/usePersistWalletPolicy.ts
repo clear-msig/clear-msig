@@ -160,7 +160,7 @@ export function usePersistPersonalWalletPolicy() {
       let updated = 0;
       let skipped = 0;
       let waiting = 0;
-      for (const target of buildPersistentPersonalPolicyTargets(walletName)) {
+      for (const target of await buildPersistentPersonalPolicyTargets(walletName)) {
         const currentCommitment = await currentWalletPolicyCommitment(
           connection,
           walletData.pda,

@@ -1175,6 +1175,43 @@ fn append_member_allowance_extension(mut policy: Vec<u8>, rows: &[(Pubkey, u64, 
     policy
 }
 
+fn append_advanced_rules_extension(mut policy: Vec<u8>, rules: &[u8]) -> Vec<u8> {
+    policy.push(5);
+    policy.extend_from_slice(&(rules.len() as u16).to_le_bytes());
+    policy.extend_from_slice(rules);
+    policy
+}
+
+fn advanced_recipient_rule(action: u8, recipient: [u8; 32]) -> Vec<u8> {
+    let mut rule = vec![action, 1, 0];
+    rule.extend_from_slice(&0u32.to_le_bytes());
+    rule.push(1);
+    rule.extend_from_slice(&34u16.to_le_bytes());
+    rule.push(1);
+    rule.push(1);
+    rule.extend_from_slice(&recipient);
+    rule
+}
+
+fn advanced_unconditional_rule(action: u8) -> Vec<u8> {
+    let mut rule = vec![action, 0, 0];
+    rule.extend_from_slice(&0u32.to_le_bytes());
+    rule
+}
+
+fn advanced_required_approver_rule(approver: Pubkey) -> Vec<u8> {
+    let mut rule = vec![2, 0, 1];
+    rule.extend_from_slice(&0u32.to_le_bytes());
+    rule.extend_from_slice(approver.as_ref());
+    rule
+}
+
+fn advanced_cooldown_rule(seconds: u32) -> Vec<u8> {
+    let mut rule = vec![3, 0, 0];
+    rule.extend_from_slice(&seconds.to_le_bytes());
+    rule
+}
+
 fn typed_hash_policy_bytes(
     mode: u8,
     max_amount_raw: u64,
@@ -2902,7 +2939,13 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             &amount_cap,
         ));
 
-        let velocity = typed_sol_policy_bytes_with_velocity(0, 0, 0, &[], &[], 1_000, 86_400);
+        let mut ordered_rules = vec![1, 2];
+        ordered_rules.extend_from_slice(&advanced_recipient_rule(1, recipient_hash));
+        ordered_rules.extend_from_slice(&advanced_unconditional_rule(0));
+        let velocity = append_advanced_rules_extension(
+            typed_sol_policy_bytes_with_velocity(0, 0, 0, &[], &[], 1_000, 86_400),
+            &ordered_rules,
+        );
         assert!(execute_typed_remote_send_with_policy(
             &mut svm,
             payer,
@@ -2995,7 +3038,12 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
         ));
 
         let required_approver = Pubkey::new_unique();
-        let required = typed_hash_policy_bytes(0, 0, 0, &[], &[required_approver]);
+        let mut required_rules = vec![1, 1];
+        required_rules.extend_from_slice(&advanced_required_approver_rule(required_approver));
+        let required = append_advanced_rules_extension(
+            typed_hash_policy_bytes(0, 0, 0, &[], &[]),
+            &required_rules,
+        );
         assert!(!execute_typed_remote_send_with_policy(
             &mut svm,
             payer,
@@ -3014,7 +3062,12 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             &required,
         ));
 
-        let cooldown = typed_hash_policy_bytes(0, 0, u32::MAX, &[], &[]);
+        let mut cooldown_rules = vec![1, 1];
+        cooldown_rules.extend_from_slice(&advanced_cooldown_rule(u32::MAX));
+        let cooldown = append_advanced_rules_extension(
+            typed_hash_policy_bytes(0, 0, 0, &[], &[]),
+            &cooldown_rules,
+        );
         assert!(!execute_typed_remote_send_with_policy(
             &mut svm,
             payer,
@@ -3031,6 +3084,30 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             asset_id_hash,
             tx_template_hash,
             &cooldown,
+        ));
+
+        let mut deny_rules = vec![1, 1];
+        deny_rules.extend_from_slice(&advanced_recipient_rule(0, recipient_hash));
+        let advanced_deny = append_advanced_rules_extension(
+            typed_hash_policy_bytes(0, 0, 0, &[], &[]),
+            &deny_rules,
+        );
+        assert!(!execute_typed_remote_send_with_policy(
+            &mut svm,
+            payer,
+            wallet_name,
+            wallet,
+            remote_intent,
+            10,
+            &proposer,
+            ika_config,
+            dwallet,
+            chain_kind,
+            100,
+            recipient_hash,
+            asset_id_hash,
+            tx_template_hash,
+            &advanced_deny,
         ));
     }
 }

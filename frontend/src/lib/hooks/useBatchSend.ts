@@ -29,7 +29,7 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
-import { encodeTypedSolPolicy } from "@/lib/policies/onchain";
+import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 
 export interface BatchSendRow {
   /// Recipient label (contact name or shortened address) for status UI.
@@ -134,7 +134,12 @@ export function useBatchSend() {
         const actionId = randomActionLabel("sol-batch");
         const nonce = randomActionLabel("nonce");
         const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-        const onchainPolicy = await resolveBatchOnchainPolicy(walletName, rows);
+        const onchainPolicy = await resolveBatchOnchainPolicy(
+          connection,
+          walletData.pda,
+          walletName,
+          rows,
+        );
         const policyCommitment =
           onchainPolicy?.commitmentHex ??
           policyCommitmentHex([
@@ -313,10 +318,12 @@ export function useBatchSend() {
 }
 
 async function resolveBatchOnchainPolicy(
+  connection: Connection,
+  wallet: PublicKey,
   walletName: string,
   rows: BatchSendRow[],
 ) {
-  const encoded = await Promise.all(
+  await Promise.all(
     rows.map(async (row) => {
       const plan = await resolvePolicyEnforcement(walletName, {
         walletName,
@@ -326,17 +333,10 @@ async function resolveBatchOnchainPolicy(
         amountDisplay: lamportsToSol(row.lamports),
       });
       assertPolicyNotDenied(plan, "batch send");
-      return encodeTypedSolPolicy(plan);
+      return plan;
     }),
   );
-  const first = encoded[0] ?? null;
-  const firstHex = first?.hex ?? null;
-  if (encoded.some((policy) => (policy?.hex ?? null) !== firstHex)) {
-    throw new Error(
-      "These recipients resolve to different security policies. Send them separately.",
-    );
-  }
-  return first;
+  return resolvePersistentSendPolicy(connection, wallet, walletName, 0);
 }
 
 function generateNonceHex(): string {

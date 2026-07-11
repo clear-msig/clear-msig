@@ -312,6 +312,17 @@ export async function decryptCooldownSeconds(
   return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
 }
 
+export async function decryptApprovers(
+  payloads: EncryptedPayload[] | undefined,
+): Promise<string[]> {
+  const out: string[] = [];
+  for (const payload of payloads ?? []) {
+    const value = (await decryptText(payload))?.trim();
+    if (value) out.push(value);
+  }
+  return out;
+}
+
 function parseNullableNumber(text: string): number | null {
   if (text.length === 0) return null;
   const parsed = Number.parseInt(text, 10);

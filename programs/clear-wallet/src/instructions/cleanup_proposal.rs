@@ -6,6 +6,7 @@ use crate::{
         proposal::{Proposal, ProposalStatus},
         typed_proposal::TypedProposal,
     },
+    utils::clearsign::ClearSignActionKind,
 };
 
 #[derive(Accounts)]
@@ -45,7 +46,11 @@ pub struct CleanupTypedProposal<'info> {
         close = rent_refund,
         constraint = proposal.status == ProposalStatus::Executed
             || proposal.status == ProposalStatus::Cancelled
-            @ WalletError::ProposalNotFinalized
+            @ WalletError::ProposalNotFinalized,
+        constraint = typed_proposal_cleanup_allowed(
+            proposal.action_kind,
+            proposal.policy_bytes().as_ref()
+        ) @ WalletError::InvalidPolicy
     )]
     pub proposal: Account<TypedProposal<'info>>,
     /// Recipient of the typed proposal account's rent.
@@ -57,5 +62,31 @@ pub struct CleanupTypedProposal<'info> {
 impl<'info> CleanupTypedProposal<'info> {
     pub fn cleanup(&mut self) -> Result<(), ProgramError> {
         Ok(())
+    }
+}
+
+fn typed_proposal_cleanup_allowed(action_kind: u8, policy_bytes: &[u8]) -> bool {
+    action_kind != ClearSignActionKind::SetProtection.code() || policy_bytes.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::typed_proposal_cleanup_allowed;
+    use crate::utils::clearsign::ClearSignActionKind;
+
+    #[test]
+    fn retains_non_empty_policy_updates_for_cross_device_recovery() {
+        assert!(!typed_proposal_cleanup_allowed(
+            ClearSignActionKind::SetProtection.code(),
+            b"CSP1"
+        ));
+        assert!(typed_proposal_cleanup_allowed(
+            ClearSignActionKind::SetProtection.code(),
+            &[]
+        ));
+        assert!(typed_proposal_cleanup_allowed(
+            ClearSignActionKind::Send.code(),
+            b"CSP1"
+        ));
     }
 }

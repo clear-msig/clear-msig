@@ -87,7 +87,7 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
-import { encodeTypedSolPolicy } from "@/lib/policies/onchain";
+import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import { SEND_NOTE_MAX_LENGTH, SEND_NOTE_PLACEHOLDER } from "@/lib/sendFields";
 import {
   prepareClearSignAction,
@@ -623,7 +623,16 @@ function SendPage() {
         amountDisplay: amount,
       });
       assertPolicyNotDenied(submitPolicyPlan);
-      const onchainPolicy = encodeTypedSolPolicy(submitPolicyPlan);
+      const walletPda = walletQuery.data?.pda;
+      if (!walletPda) {
+        throw new Error("Wallet is still loading. Try again.");
+      }
+      const onchainPolicy = await resolvePersistentSendPolicy(
+        connection,
+        walletPda,
+        walletName,
+        0,
+      );
 
       // Policy pre-flight. Block before the signing request opens so the
       // user never signs a doomed send. Sources of truth: localStorage
@@ -647,11 +656,6 @@ function SendPage() {
       // SOL → lamports. Solana's smallest unit, 1 SOL = 1e9 lamports.
       const lamports = Math.round(numericAmount * 1_000_000_000);
       const lamportsBigint = BigInt(lamports);
-      const walletPda = walletQuery.data?.pda;
-      if (!walletPda) {
-        throw new Error("Wallet is still loading. Try again.");
-      }
-
       // 1. Prepare a typed ClearSign v2 proposal. This binds the
       // exact recipient account + lamports to the message the user
       // signs, and the Solana program recomputes those bytes before

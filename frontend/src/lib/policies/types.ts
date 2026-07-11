@@ -6,7 +6,8 @@
 // happens. Adapted for the clear-msig domain: a rule lives under a
 // specific wallet, augments the on-chain intent (which carries the
 // approver set + base threshold), and adds finer-grained checks
-// that today are evaluated client-side before the user signs.
+// that are evaluated client-side before signing and encoded into the
+// wallet's static per-chain policy commitment for program enforcement.
 //
 // Encryption story (matches docs.encrypt.xyz pre-alpha):
 //   - Condition VALUES (allowlist addresses, amount caps, time
@@ -21,10 +22,9 @@
 //     cooldowns, required approvers, and rolling limits. clear-wallet
 //     verifies those bytes during execution. Encrypt-backed private
 //     policy storage remains a separate rollout.
-//   - Synced across devices. Each user's policy rules live in
-//     their own browser localStorage. When on-chain enforcement
-//     ships, the rules become a single source of truth visible to
-//     everyone in the multisig.
+//   - Authoring drafts remain encrypted in browser storage. The trusted
+//     plaintext rule bytes live in the executed SetProtection proposal,
+//     are pinned by WalletPolicy, and can be recovered by every signer.
 
 import type { EncryptedPayload } from "@/lib/encrypt/client";
 

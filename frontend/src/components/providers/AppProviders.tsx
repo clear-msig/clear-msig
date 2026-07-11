@@ -21,6 +21,10 @@ import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/ui/Toast";
 import { needsWalletRuntime } from "@/features/wallet-runtime/domain/routePolicy";
 import { ConfigGapBanner, WalletRuntimeLoading } from "@/features/wallet-runtime/ui/RuntimeStates";
+import {
+  EXTERNAL_WALLET_RUNTIME_EVENT,
+  EXTERNAL_WALLET_RUNTIME_KEY,
+} from "@/features/wallet-runtime/domain/runtimePreference";
 import { validateConfig } from "@/lib/config";
 import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
 
@@ -30,6 +34,17 @@ type Props = {
 
 const LazyDynamicProviderTree = dynamic(
   () => import("@/features/wallet-runtime/infrastructure/DynamicProviderTree"),
+  {
+    ssr: false,
+    loading: () => <WalletRuntimeLoading />,
+  },
+);
+
+const LazyExternalDynamicProviderTree = dynamic(
+  () =>
+    import(
+      "@/features/wallet-runtime/infrastructure/ExternalDynamicProviderTree"
+    ),
   {
     ssr: false,
     loading: () => <WalletRuntimeLoading />,
@@ -70,6 +85,7 @@ function needsPublicAuthRedirect(pathname: string | null): boolean {
 export function AppProviders({ children }: Props) {
   const configGaps = validateConfig();
   const pathname = usePathname();
+  const [externalWalletRuntime, setExternalWalletRuntime] = useState(false);
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -113,6 +129,33 @@ export function AppProviders({ children }: Props) {
     applyTheme(getStoredTheme());
   }, [pathname]);
 
+  useEffect(() => {
+    const refresh = () => {
+      const injected = window as typeof window & {
+        backpack?: unknown;
+        phantom?: { solana?: unknown };
+        solana?: unknown;
+        solflare?: unknown;
+      };
+      const stored =
+        window.localStorage.getItem(EXTERNAL_WALLET_RUNTIME_KEY) === "1";
+      const hasInjectedWallet = Boolean(
+        injected.backpack ||
+          injected.phantom?.solana ||
+          injected.solana ||
+          injected.solflare,
+      );
+      setExternalWalletRuntime(stored || hasInjectedWallet);
+    };
+    refresh();
+    window.addEventListener(EXTERNAL_WALLET_RUNTIME_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(EXTERNAL_WALLET_RUNTIME_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
   if (configGaps.length > 0) {
     return <ConfigGapBanner gaps={configGaps} />;
   }
@@ -132,16 +175,20 @@ export function AppProviders({ children }: Props) {
   }
 
   const publicAuthRedirect = needsPublicAuthRedirect(pathname);
+  const WalletProvider =
+    pathname === "/connect" || externalWalletRuntime
+      ? LazyExternalDynamicProviderTree
+      : LazyDynamicProviderTree;
 
   const content = publicAuthRedirect ? (
     <QueryClientProvider client={queryClient}>
-      <LazyDynamicProviderTree environmentId={environmentId ?? ""}>
+      <WalletProvider environmentId={environmentId ?? ""}>
         <ToastProvider>
           <LazyPublicAuthRedirectBoundary>
             {children}
           </LazyPublicAuthRedirectBoundary>
         </ToastProvider>
-      </LazyDynamicProviderTree>
+      </WalletProvider>
     </QueryClientProvider>
   ) : (
     <QueryClientProvider client={queryClient}>
@@ -156,9 +203,9 @@ export function AppProviders({ children }: Props) {
       {/* Mount prices only on product surfaces. Public/marketing pages
           no longer pay for wallet or price-feed runtime on first load. */}
       <LazyLivePricesProvider />
-      <LazyDynamicProviderTree environmentId={environmentId ?? ""}>
+      <WalletProvider environmentId={environmentId ?? ""}>
         <ToastProvider>{children}</ToastProvider>
-      </LazyDynamicProviderTree>
+      </WalletProvider>
     </QueryClientProvider>
   );
 }

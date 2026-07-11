@@ -8,9 +8,23 @@ const IMMEDIATE_RUNTIME_RULES = [
     loadableKey:
       "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/DynamicProviderTree",
   },
+  {
+    route: "/connect/page",
+    loadableKey:
+      "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/ExternalDynamicProviderTree",
+  },
 ];
 
-const CURRENT_APP_TOTAL_BUDGET_KB = 1_250;
+const EXTERNAL_APP_RUNTIME_RULES = [
+  {
+    routePrefix: "/app/",
+    loadableKey:
+      "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/ExternalDynamicProviderTree",
+  },
+];
+
+const CURRENT_APP_TOTAL_BUDGET_KB = 1_030;
+const CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB = 1_250;
 const CURRENT_MAX_CHUNK_BUDGET_KB = 510;
 const TARGET_APP_TOTAL_BUDGET_KB = 250;
 const TARGET_MAX_CHUNK_BUDGET_KB = 150;
@@ -83,13 +97,18 @@ function run() {
 
   const initialManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const loadableManifest = JSON.parse(readFileSync(loadableManifestPath, "utf8"));
-  for (const rule of IMMEDIATE_RUNTIME_RULES) {
+  for (const rule of [...IMMEDIATE_RUNTIME_RULES, ...EXTERNAL_APP_RUNTIME_RULES]) {
     if (!loadableManifest[rule.loadableKey]) {
       console.error(`Bundle budget could not find immediate runtime: ${rule.loadableKey}`);
       process.exit(1);
     }
   }
   const manifest = includeImmediateRuntimeChunks(initialManifest, loadableManifest);
+  const externalAppManifest = includeImmediateRuntimeChunks(
+    initialManifest,
+    loadableManifest,
+    EXTERNAL_APP_RUNTIME_RULES,
+  );
   const failures = [];
   const gzipCache = new Map();
   const routeSizes = analyzeBundleManifest(manifest, (file) => {
@@ -104,11 +123,28 @@ function run() {
     gzipCache.set(file, bytes);
     return bytes;
   });
+  const externalAppSizes = analyzeBundleManifest(externalAppManifest, (file) => {
+    const cached = gzipCache.get(file);
+    if (cached !== undefined) return cached;
+    const path = `${buildRoot}${file}`;
+    if (!existsSync(path)) {
+      failures.push(`manifest chunk is missing: ${file}`);
+      return 0;
+    }
+    const bytes = gzipSync(readFileSync(path)).byteLength;
+    gzipCache.set(file, bytes);
+    return bytes;
+  }).filter((item) => item.route.startsWith("/app/"));
 
   for (const item of routeSizes) {
     const appRoute = item.route.startsWith("/app/");
-    const totalBudgetKb = appRoute ? CURRENT_APP_TOTAL_BUDGET_KB : 260;
-    const routeBudgetKb = appRoute ? 230 : 180;
+    const connectRoute = item.route === "/connect/page";
+    const totalBudgetKb = appRoute
+      ? CURRENT_APP_TOTAL_BUDGET_KB
+      : connectRoute
+        ? CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB
+        : 260;
+    const routeBudgetKb = appRoute || connectRoute ? 230 : 180;
     const totalKb = item.totalBytes / 1024;
     const routeKb = item.routeBytes / 1024;
     if (totalKb > totalBudgetKb) {
@@ -119,6 +155,16 @@ function run() {
     if (routeKb > routeBudgetKb) {
       failures.push(
         `${item.route} owns ${routeKb.toFixed(1)} kB gzip; budget is ${routeBudgetKb} kB`,
+      );
+    }
+  }
+
+  for (const item of externalAppSizes) {
+    const totalKb = item.totalBytes / 1024;
+    if (totalKb > CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB) {
+      failures.push(
+        `${item.route} is ${totalKb.toFixed(1)} kB gzip with external-wallet runtime; ` +
+          `budget is ${CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB} kB`,
       );
     }
   }
@@ -146,6 +192,13 @@ function run() {
       `${CURRENT_MAX_CHUNK_BUDGET_KB} kB gzip; final targets are ${TARGET_APP_TOTAL_BUDGET_KB} kB and ` +
       `${TARGET_MAX_CHUNK_BUDGET_KB} kB.`,
   );
+  externalAppSizes.sort((left, right) => right.totalBytes - left.totalBytes);
+  if (externalAppSizes[0]) {
+    console.log(
+      `External-wallet profile: max ${(externalAppSizes[0].totalBytes / 1024).toFixed(1)} kB gzip; ` +
+        `budget ${CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB} kB.`,
+    );
+  }
 
   if (failures.length > 0) {
     console.error([...new Set(failures)].map((failure) => `- ${failure}`).join("\n"));
