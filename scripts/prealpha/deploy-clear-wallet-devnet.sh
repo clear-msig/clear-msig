@@ -15,7 +15,8 @@ DEPLOY_TRANSPORT="${DEPLOY_TRANSPORT:---use-quic}"
 TEMP_KEYPAIRS=()
 
 cleanup_temp_keypairs() {
-  for keypair in "${TEMP_KEYPAIRS[@]}"; do
+  local keypair
+  for keypair in ${TEMP_KEYPAIRS+"${TEMP_KEYPAIRS[@]}"}; do
     if [[ -n "$keypair" && -f "$keypair" ]]; then
       rm -f "$keypair"
     fi
