@@ -55,7 +55,8 @@ async fn main() -> anyhow::Result<()> {
     let pro_store_path = pro::default_store_path();
 
     info!(
-        cli_bin = %runner.cli_bin,
+        execution_mode = runner.execution_mode(),
+        execution_workers = runner.worker_limit,
         pro_store_path = %pro_store_path.display(),
         rate_limit_window_secs,
         rate_limit_max,

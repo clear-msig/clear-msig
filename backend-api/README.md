@@ -1,10 +1,9 @@
 # clear-msig-backend-api
 
 HTTP adapter service that exposes stable JSON APIs for frontend integration.
-It currently invokes the `clear-msig` executable through a bounded subprocess
-runner. The CLI is also a reusable Rust library now, and moving typed execution
-into a smaller core called directly by both adapters remains the production
-target.
+It links the same typed Rust execution library used by the `clear-msig` binary
+and runs commands in a bounded blocking-worker pool. No HTTP endpoint launches
+the CLI executable.
 
 This is the backend bridge between UI and your existing on-chain + CLI flows.
 
@@ -12,8 +11,9 @@ This is the backend bridge between UI and your existing on-chain + CLI flows.
 
 - Keeps frontend decoupled from CLI argument formatting.
 - Preserves your proven CLI logic instead of duplicating transaction logic.
-- Validates every generated invocation against a shared command allowlist and
-  applies execution timeouts, output caps, kill-on-drop, and structured logs.
+- Validates every generated invocation against the full CLI schema and applies
+  execution timeouts, response caps, worker concurrency limits, and structured
+  logs.
 - Provides one place for request validation, timeout control, and uniform error envelopes.
 
 ## Start
@@ -21,7 +21,6 @@ This is the backend bridge between UI and your existing on-chain + CLI flows.
 From workspace root:
 
 ```bash
-cargo build -p clear-msig-cli
 cargo run -p clear-msig-backend-api
 ```
 
@@ -51,13 +50,12 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 ## Environment variables
 
 - `BACKEND_API_BIND` (default `127.0.0.1:8080`)
-- `CLEAR_MSIG_WORKSPACE` (default current directory)
-- `CLEAR_MSIG_BIN` (default `<workspace>/target/debug/clear-msig`)
 - `CLEAR_MSIG_ENV` (`production` enables fail-closed CORS and redacted internal errors)
 - `CLEAR_MSIG_URL` (optional global `--url`)
 - `CLEAR_MSIG_KEYPAIR` (optional global `--keypair`)
 - `CLEAR_MSIG_SIGNER` (optional global `--signer`)
 - `CLEAR_MSIG_CMD_TIMEOUT_SECS` (default `120`)
+- `CLEAR_MSIG_EXECUTION_WORKERS` (default `8`; bounds in-process blocking work)
 - `CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM` (optional default `--dwallet-program` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_GRPC_URL` (optional default `--grpc-url` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (optional default `--rpc-url` for execute)
@@ -98,9 +96,14 @@ All failures return JSON with:
 - `error` (human readable)
 - `kind` (`bad_request`, `command_failed`, `timeout`, `invalid_output`, `internal`)
 
-Development command failures include CLI `stderr`, `stdout`, and exit `code`.
-Production responses retain the stable error kind and exit code but redact raw
-CLI output; detailed diagnostics remain in protected structured logs.
+Development execution failures include detailed core diagnostics. Production
+responses retain the stable error kind but redact internal execution details;
+full diagnostics remain in protected structured logs.
+
+The Solana and Ika clients used by the shared core are currently synchronous.
+If an HTTP timeout fires after work starts, that worker may finish in the
+background; the semaphore keeps the number of such workers bounded. Migrating
+those adapters to cancellable async I/O remains separate hardening work.
 
 ## Deployment model
 
@@ -110,5 +113,4 @@ CLI output; detailed diagnostics remain in protected structured logs.
 - Frontend production runs on Vercel from `frontend/vercel.json`.
 - Production Redis is Upstash Redis REST.
 - Run `clear-msig-backend-api` as your backend service.
-- Ensure `clear-msig` binary is available on the same host/container.
 - Frontend talks only to this service.

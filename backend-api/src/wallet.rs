@@ -18,7 +18,8 @@ use membership::{lookup_memberships, MembershipQuery, MembershipResponse};
 #[derive(Serialize)]
 struct HealthResponse {
     status: &'static str,
-    cli_bin: String,
+    execution_mode: &'static str,
+    execution_workers: usize,
 }
 
 #[derive(Deserialize)]
@@ -65,7 +66,8 @@ pub(crate) fn router() -> Router<AppState> {
 async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, ApiError> {
     Ok(Json(HealthResponse {
         status: "ok",
-        cli_bin: state.runner.cli_bin.clone(),
+        execution_mode: state.runner.execution_mode(),
+        execution_workers: state.runner.worker_limit,
     }))
 }
 

@@ -1,5 +1,6 @@
 use crate::config::{config_path, PersistedConfig};
 use crate::error::*;
+use crate::output::print_json;
 use crate::signing::MessageSigner;
 use clap::Subcommand;
 
@@ -61,8 +62,7 @@ pub fn handle(action: ConfigAction) -> Result<()> {
                 config.ledger_account = Some(account);
             }
             config.save()?;
-            let json = serde_json::to_string_pretty(&config)?;
-            println!("{json}");
+            print_json(&config);
         }
         ConfigAction::Show => {
             let config = PersistedConfig::load();
@@ -98,7 +98,7 @@ pub fn handle(action: ConfigAction) -> Result<()> {
                 }
             }
 
-            println!("{}", serde_json::to_string_pretty(&output)?);
+            print_json(&output);
         }
     }
     Ok(())

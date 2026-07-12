@@ -102,7 +102,7 @@ pub(super) fn execute_typed_intent_governance_args(
     ensure_wallet_proposal(&name, &proposal)?;
     let mut args = base_proposal_args("typed-intent-governance", name, proposal);
     if let Some(action_kind) = body.action_kind {
-        if !matches!(action_kind, 3 | 4 | 5) {
+        if !matches!(action_kind, 3..=5) {
             return Err(ApiError::BadRequest(
                 "actionKind must be 3 (add_member), 4 (remove_member), or 5 (change_threshold)"
                     .into(),
@@ -205,7 +205,7 @@ pub(super) fn execute_typed_chain_send_args(
         asset_id_hash,
     ]);
     if typed_ika {
-        if !matches!(body.chain_kind, 1 | 2 | 3 | 4 | 5) {
+        if !matches!(body.chain_kind, 1..=5) {
             return Err(ApiError::BadRequest(
                 "typed Ika chain send currently supports chain kinds 1 through 5".into(),
             ));

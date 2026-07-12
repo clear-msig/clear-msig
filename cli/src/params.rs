@@ -132,7 +132,7 @@ pub fn encode_params(intent: &IntentAccount, raw_params: &[String]) -> Result<Ve
             pool.get(start..end) == Some(name_bytes)
         });
         if !found {
-            eprintln!("warning: unknown param '{key}' (not defined in intent)");
+            crate::progress!("warning: unknown param '{key}' (not defined in intent)");
         }
     }
 

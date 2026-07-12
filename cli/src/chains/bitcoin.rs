@@ -268,7 +268,7 @@ fn pick_verifying_combination(
         return Ok(ChosenScalars { r: *r, s: *s });
     }
     if try_verify(&bip143_digest, &r_rev, &s_rev) {
-        eprintln!(
+        crate::progress!(
             "⚠ [btc-verify] sig over sha256d(preimage) verified with \
              reversed-byte scalars. Ika emitted little-endian r,s; \
              auto-correcting for this broadcast."

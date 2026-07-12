@@ -104,7 +104,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn production_command_errors_redact_process_output() {
+    fn production_execution_errors_redact_internal_details() {
         let body = ApiError::CommandFailed {
             code: Some(1),
             stderr: "secret signer path".to_string(),
@@ -119,7 +119,7 @@ mod tests {
     }
 
     #[test]
-    fn development_command_errors_preserve_diagnostics() {
+    fn development_execution_errors_preserve_diagnostics() {
         let body = ApiError::CommandFailed {
             code: Some(1),
             stderr: "stderr details".to_string(),

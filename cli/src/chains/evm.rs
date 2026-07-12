@@ -143,7 +143,7 @@ pub fn recover_v(
     for v in [0u8, 1u8] {
         if let Some(pk) = &reversed[v as usize] {
             if pk.as_slice() == expected_pubkey_compressed {
-                eprintln!(
+                crate::progress!(
                     "⚠ [evm-recover] canonical recovery failed; reversed-byte \
                      scalars recovered (v={v}). Upstream signer is emitting \
                      little-endian r,s — auto-correcting for this broadcast. \

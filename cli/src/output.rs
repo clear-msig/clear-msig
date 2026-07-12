@@ -1,8 +1,72 @@
+use std::cell::RefCell;
+use std::fmt::Arguments;
+
 use serde::Serialize;
+use serde_json::Value;
+
+thread_local! {
+    static JSON_CAPTURE: RefCell<Option<Vec<Value>>> = const { RefCell::new(None) };
+}
+
+struct CaptureGuard {
+    previous: Option<Vec<Value>>,
+    finished: bool,
+}
+
+impl CaptureGuard {
+    fn start() -> Self {
+        let previous = JSON_CAPTURE.with(|capture| capture.replace(Some(Vec::new())));
+        Self {
+            previous,
+            finished: false,
+        }
+    }
+
+    fn finish(mut self) -> Vec<Value> {
+        let values = JSON_CAPTURE.with(|capture| capture.replace(self.previous.take()));
+        self.finished = true;
+        values.unwrap_or_default()
+    }
+}
+
+impl Drop for CaptureGuard {
+    fn drop(&mut self) {
+        if !self.finished {
+            JSON_CAPTURE.with(|capture| {
+                capture.replace(self.previous.take());
+            });
+        }
+    }
+}
+
+pub fn capture_json<T>(operation: impl FnOnce() -> T) -> (T, Vec<Value>) {
+    let guard = CaptureGuard::start();
+    let result = operation();
+    (result, guard.finish())
+}
+
+pub fn emit_progress(arguments: Arguments<'_>) {
+    let embedded = JSON_CAPTURE.with(|capture| capture.borrow().is_some());
+    if !embedded {
+        eprintln!("{arguments}");
+    }
+}
 
 /// Print a JSON value to stdout.
 pub fn print_json<T: Serialize>(value: &T) {
-    println!("{}", serde_json::to_string_pretty(value).unwrap());
+    let value = serde_json::to_value(value).unwrap();
+    let captured = JSON_CAPTURE.with(|capture| {
+        let mut capture = capture.borrow_mut();
+        if let Some(values) = capture.as_mut() {
+            values.push(value.clone());
+            true
+        } else {
+            false
+        }
+    });
+    if !captured {
+        println!("{}", serde_json::to_string_pretty(&value).unwrap());
+    }
 }
 
 /// A structured descriptor of what a signing action is about to do.
@@ -78,4 +142,38 @@ pub fn hex_of(bytes: &[u8]) -> String {
         s.push(HEX[(b & 0x0f) as usize] as char);
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{capture_json, print_json};
+
+    #[test]
+    fn captures_structured_output_without_leaking_nested_state() {
+        let (_, outer) = capture_json(|| {
+            print_json(&serde_json::json!({ "scope": "outer-before" }));
+            let (_, inner) = capture_json(|| {
+                print_json(&serde_json::json!({ "scope": "inner" }));
+            });
+            assert_eq!(inner, vec![serde_json::json!({ "scope": "inner" })]);
+            print_json(&serde_json::json!({ "scope": "outer-after" }));
+        });
+
+        assert_eq!(
+            outer,
+            vec![
+                serde_json::json!({ "scope": "outer-before" }),
+                serde_json::json!({ "scope": "outer-after" }),
+            ]
+        );
+    }
+
+    #[test]
+    fn restores_capture_state_after_a_panic() {
+        let _ = std::panic::catch_unwind(|| {
+            capture_json(|| panic!("simulated embedded command panic"));
+        });
+        let (_, values) = capture_json(|| print_json(&serde_json::json!({ "ok": true })));
+        assert_eq!(values, vec![serde_json::json!({ "ok": true })]);
+    }
 }

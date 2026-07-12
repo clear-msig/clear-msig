@@ -243,9 +243,9 @@ fn parse_wallet_name(data: &[u8]) -> Result<Option<(String, String)>, ApiError> 
     Ok(Some((name, creator)))
 }
 
-fn parse_intent_membership(
-    data: &[u8],
-) -> Result<Option<(String, u8, Vec<String>, Vec<String>)>, ApiError> {
+type ParsedIntentMembership = (String, u8, Vec<String>, Vec<String>);
+
+fn parse_intent_membership(data: &[u8]) -> Result<Option<ParsedIntentMembership>, ApiError> {
     if data.first().copied() != Some(2) {
         return Ok(None);
     }

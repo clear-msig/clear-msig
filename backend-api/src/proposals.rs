@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     routing::{get, post},
     Json, Router,
 };
@@ -102,10 +102,6 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-agent-session-grant",
             post(execute_typed_agent_session_grant),
-        )
-        .route(
-            "/wallets/{name}/proposals/{proposal}/execute/stream",
-            get(stream_execute_proposal),
         )
         .route("/proposals/{proposal}", get(show_proposal))
         .route("/proposals/{proposal}/cleanup", post(cleanup_proposal))
@@ -659,168 +655,6 @@ async fn execute_typed_agent_session_grant(
         .await?;
     let args = execute_typed_agent_session_grant_args(name, proposal, body)?;
     Ok(Json(state.runner.run_json(args).await?))
-}
-
-async fn stream_execute_proposal(
-    State(state): State<AppState>,
-    Path((name, proposal)): Path<(String, String)>,
-    Query(body): Query<ExecuteProposalRequest>,
-) -> Result<
-    axum::response::sse::Sse<
-        impl futures_core::Stream<
-            Item = std::result::Result<axum::response::sse::Event, std::convert::Infallible>,
-        >,
-    >,
-    ApiError,
-> {
-    use axum::response::sse::{Event, KeepAlive, Sse};
-    use futures_util::StreamExt;
-
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    let args = build_execute_args(&state, name, proposal, body)?;
-    let invocation = state.runner.validated_invocation(&args)?;
-
-    let (tx, rx) = tokio::sync::mpsc::channel::<Event>(32);
-    let runner = state.runner.clone();
-    tokio::spawn(async move {
-        use std::process::Stdio;
-        use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
-        use tokio::process::Command;
-
-        use crate::runner::MAX_CHILD_OUTPUT_BYTES;
-
-        let mut cmd = Command::new(&runner.cli_bin);
-        cmd.args(&invocation)
-            .kill_on_drop(true)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        let child =
-            match cmd.spawn() {
-                Ok(c) => c,
-                Err(e) => {
-                    let _ = tx
-                        .send(Event::default().event("error").data(
-                            serde_json::json!({ "error": format!("spawn: {e}") }).to_string(),
-                        ))
-                        .await;
-                    return;
-                }
-            };
-        let mut child = child;
-        let stderr =
-            match child.stderr.take() {
-                Some(s) => s,
-                None => {
-                    let _ = tx
-                        .send(Event::default().event("error").data(
-                            serde_json::json!({ "error": "missing stderr pipe" }).to_string(),
-                        ))
-                        .await;
-                    return;
-                }
-            };
-        let stdout = child.stdout.take();
-
-        let tx_err = tx.clone();
-        let stderr_task = tokio::spawn(async move {
-            let mut lines = BufReader::new(stderr.take(MAX_CHILD_OUTPUT_BYTES)).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                let _ = tx_err
-                    .send(
-                        Event::default()
-                            .event("progress")
-                            .data(serde_json::json!({ "line": line }).to_string()),
-                    )
-                    .await;
-            }
-        });
-
-        let stdout_task = tokio::spawn(async move {
-            if let Some(stdout) = stdout {
-                let mut buf = Vec::new();
-                let result = stdout
-                    .take(MAX_CHILD_OUTPUT_BYTES + 1)
-                    .read_to_end(&mut buf)
-                    .await;
-                (result, buf)
-            } else {
-                (Ok(0), Vec::new())
-            }
-        });
-
-        let status =
-            match tokio::time::timeout(runner.timeout, child.wait()).await {
-                Err(_) => {
-                    let _ = child.kill().await;
-                    let _ = child.wait().await;
-                    stdout_task.abort();
-                    stderr_task.abort();
-                    let _ = tx
-                        .send(Event::default().event("error").data(
-                            serde_json::json!({ "error": "execution timed out" }).to_string(),
-                        ))
-                        .await;
-                    return;
-                }
-                Ok(result) => match result {
-                    Ok(s) => s,
-                    Err(e) => {
-                        stdout_task.abort();
-                        stderr_task.abort();
-                        let _ = tx
-                            .send(Event::default().event("error").data(
-                                serde_json::json!({ "error": format!("wait: {e}") }).to_string(),
-                            ))
-                            .await;
-                        return;
-                    }
-                },
-            };
-
-        let stdout_bytes =
-            match stdout_task.await {
-                Ok((Ok(_), bytes)) if bytes.len() as u64 <= MAX_CHILD_OUTPUT_BYTES => bytes,
-                _ => {
-                    stderr_task.abort();
-                    let _ = tx
-                    .send(Event::default().event("error").data(
-                        serde_json::json!({ "error": "invalid or oversized command output" })
-                            .to_string(),
-                    ))
-                    .await;
-                    return;
-                }
-            };
-
-        let _ = stderr_task.await;
-
-        let stdout_str = String::from_utf8_lossy(&stdout_bytes).to_string();
-        if status.success() {
-            let parsed: serde_json::Value = serde_json::from_str(&stdout_str)
-                .unwrap_or_else(|_| serde_json::json!({ "raw_stdout": stdout_str }));
-            let _ = tx
-                .send(Event::default().event("done").data(parsed.to_string()))
-                .await;
-        } else {
-            let _ = tx
-                .send(
-                    Event::default().event("error").data(
-                        serde_json::json!({
-                            "code": status.code(),
-                            "stdout": stdout_str,
-                        })
-                        .to_string(),
-                    ),
-                )
-                .await;
-        }
-    });
-
-    let stream = tokio_stream::wrappers::ReceiverStream::new(rx)
-        .map(std::result::Result::<_, std::convert::Infallible>::Ok);
-    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
 async fn cleanup_proposal(

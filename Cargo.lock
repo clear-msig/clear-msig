@@ -1063,16 +1063,13 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bs58",
- "clear-msig-command-contract",
- "futures-core",
- "futures-util",
+ "clear-msig-cli",
  "reqwest",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "thiserror 2.0.18",
  "tokio",
- "tokio-stream",
  "tower-http",
  "tracing",
  "tracing-subscriber",
@@ -8027,7 +8024,6 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
- "tokio-util",
 ]
 
 [[package]]

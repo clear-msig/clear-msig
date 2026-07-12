@@ -153,7 +153,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
         } => {
             let policy_ciphertext_bytes = accounts::encode_policy_ciphertexts(&policy_ciphertexts)?;
             if !policy_ciphertexts.is_empty() {
-                eprintln!(
+                crate::progress!(
                     "[encrypt] create-wallet storing {} policy ciphertext id(s): {}",
                     policy_ciphertexts.len(),
                     policy_ciphertexts.join(", ")
@@ -249,12 +249,12 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             // Wait for the dWallet program's coordinator (mock auto-init).
             ika::wait_for_coordinator(&client, &dwallet_program_pk, Duration::from_secs(30))
                 .with_context(|| "dWallet program coordinator not initialized")?;
-            eprintln!("✓ dWallet program ready");
+            crate::progress!("✓ dWallet program ready");
 
             let (curve, scheme) = ika::signing_params(chain_kind)?;
             let curve_val = ika::curve_u16(curve);
             let scheme_u16 = scheme as u16;
-            eprintln!("→ Using curve: {curve:?} (u16={curve_val})");
+            crate::progress!("→ Using curve: {curve:?} (u16={curve_val})");
 
             // 1. DKG (or skip if BYO dWallet).
             //
@@ -271,7 +271,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 existing_dwallet_pubkey
             {
                 let pk = parse_hex(&hex_pk)?;
-                eprintln!("→ Using existing dWallet pubkey ({} bytes)", pk.len());
+                crate::progress!("→ Using existing dWallet pubkey ({} bytes)", pk.len());
                 let (target_dwallet_pda, _) = ika::dwallet_pda(&dwallet_program_pk, curve_val, &pk);
 
                 // Resolve the 32-byte Ika session id. Prefer the explicit
@@ -288,7 +288,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                     }
                     let mut a = [0u8; 32];
                     a.copy_from_slice(&bytes);
-                    eprintln!(
+                    crate::progress!(
                         "  ↳ session id from --existing-dwallet-addr: {}",
                         hex_encode(&a)
                     );
@@ -316,7 +316,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                         }
                         let mut a = [0u8; 32];
                         a.copy_from_slice(&prior_addr);
-                        eprintln!(
+                        crate::progress!(
                             "  ↳ recovered session id from chain_kind={probe_kind} binding: {}",
                             hex_encode(&a)
                         );
@@ -333,7 +333,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 };
                 (addr, pk)
             } else {
-                eprintln!("→ Running DKG via gRPC ({grpc_url})...");
+                crate::progress!("→ Running DKG via gRPC ({grpc_url})...");
                 // Derive a per-binding 32-byte session preimage so each
                 // DKG produces a unique session_identifier. Previously
                 // we passed `payer_pubkey` here, which was shared across
@@ -358,12 +358,12 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 };
                 let dkg_result = ika::dkg(config, &grpc_url, curve, session_preimage)
                     .with_context(|| "Ika DKG failed")?;
-                eprintln!("✓ DKG complete");
-                eprintln!(
+                crate::progress!("✓ DKG complete");
+                crate::progress!(
                     "  → dWallet address: {}",
                     hex_encode(&dkg_result.dwallet_addr)
                 );
-                eprintln!(
+                crate::progress!(
                     "  → dWallet pubkey:  {}",
                     hex_encode(&dkg_result.public_key)
                 );
@@ -371,7 +371,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 // Persist the DKG attestation so `proposal execute` can use it
                 // for the gRPC Sign request later.
                 ika::save_attestation(&wallet_name, chain_kind, &dkg_result.attestation)?;
-                eprintln!("✓ Attestation saved (chain_kind={chain_kind})");
+                crate::progress!("✓ Attestation saved (chain_kind={chain_kind})");
 
                 (dkg_result.dwallet_addr, dkg_result.public_key)
             };
@@ -386,7 +386,7 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 Duration::from_secs(20),
             )
             .with_context(|| "dWallet PDA never appeared on-chain after DKG")?;
-            eprintln!("✓ dWallet on-chain: {dwallet_pda}");
+            crate::progress!("✓ dWallet on-chain: {dwallet_pda}");
 
             // 3. Transfer authority → clear-wallet's CPI authority PDA, but
             //    only if it isn't already there. Re-binding an existing
@@ -449,11 +449,11 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             let bind_sig = rpc::send_instructions(&client, config, bind_plan)
                 .with_context(|| "atomic transfer_ownership + bind_dwallet failed")?;
             if transferred {
-                eprintln!("✓ Authority transferred and bound atomically → {cpi_auth_pk}");
+                crate::progress!("✓ Authority transferred and bound atomically → {cpi_auth_pk}");
             } else {
-                eprintln!("✓ Authority already → clear-wallet CPI PDA ({cpi_auth_pk})");
+                crate::progress!("✓ Authority already → clear-wallet CPI PDA ({cpi_auth_pk})");
             }
-            eprintln!("✓ IkaConfig: {ika_config_pk}");
+            crate::progress!("✓ IkaConfig: {ika_config_pk}");
 
             print_json(&serde_json::json!({
                 "txid": bind_sig.to_string(),

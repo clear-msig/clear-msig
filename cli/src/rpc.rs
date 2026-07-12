@@ -70,7 +70,7 @@ pub fn resolve_wallet_by_name(
                 if attempt >= RPC_SCAN_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
                     return Err(error).with_context(|| "scanning ClearWallet accounts");
                 }
-                eprintln!(
+                crate::progress!(
                     "devnet RPC scan failed while resolving wallet name (attempt {attempt}/{RPC_SCAN_RETRY_ATTEMPTS}); retrying..."
                 );
                 thread::sleep(rpc_retry_delay(attempt));
@@ -155,7 +155,7 @@ pub fn send_instructions(
                 if attempt >= RPC_SEND_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
                     return Err(error).with_context(|| "fetching latest blockhash");
                 }
-                eprintln!(
+                crate::progress!(
                     "devnet RPC blockhash fetch failed (attempt {attempt}/{RPC_SEND_RETRY_ATTEMPTS}); retrying..."
                 );
                 thread::sleep(rpc_retry_delay(attempt));
@@ -174,7 +174,7 @@ pub fn send_instructions(
                 if attempt >= RPC_SEND_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
                     return Err(error).with_context(|| "sending transaction");
                 }
-                eprintln!(
+                crate::progress!(
                     "devnet RPC send failed (attempt {attempt}/{RPC_SEND_RETRY_ATTEMPTS}); retrying with a fresh blockhash..."
                 );
                 thread::sleep(rpc_retry_delay(attempt));

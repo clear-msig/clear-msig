@@ -2,8 +2,7 @@
 #
 # Create from Render Dashboard: New > Blueprint > connect this repo.
 # The service builds the existing Dockerfile, which bundles:
-#   - clear-msig-backend-api
-#   - clear-msig CLI
+#   - clear-msig-backend-api with the shared execution library linked in-process
 #   - examples/intents/*
 #
 # Required secrets are marked sync:false and must be filled in the

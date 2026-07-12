@@ -1,3 +1,11 @@
+macro_rules! progress {
+    ($($argument:tt)*) => {
+        $crate::output::emit_progress(format_args!($($argument)*))
+    };
+}
+
+pub(crate) use progress;
+
 mod accounts;
 mod chains;
 pub mod commands;
@@ -93,11 +101,31 @@ pub fn validate_invocation_args(args: &[String]) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+/// Execute one CLI invocation in-process and return its single structured
+/// response. This is the shared adapter used by backend workers and tests;
+/// the binary remains a thin stdout/stderr wrapper around the same handlers.
+pub fn execute_args(args: &[String]) -> anyhow::Result<serde_json::Value> {
+    let argv = std::iter::once("clear-msig").chain(args.iter().map(String::as_str));
+    let cli = Cli::try_parse_from(argv).map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let (result, outputs) = output::capture_json(|| execute(cli));
+    result?;
+    match outputs.as_slice() {
+        [value] => Ok(value.clone()),
+        [] => Err(anyhow::anyhow!(
+            "command completed without a structured response"
+        )),
+        _ => Err(anyhow::anyhow!(
+            "command emitted {} structured responses",
+            outputs.len()
+        )),
+    }
+}
+
 pub fn run_from_env() -> ExitCode {
     match execute(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("{error:?}");
+            crate::progress!("{error:?}");
             let json = serde_json::json!({ "error": format!("{error}") });
             println!("{}", serde_json::to_string_pretty(&json).unwrap());
             ExitCode::FAILURE
@@ -139,8 +167,8 @@ fn execute(cli: Cli) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_invocation_args;
     use super::Cli;
+    use super::{execute_args, validate_invocation_args};
     use clap::CommandFactory;
 
     #[test]
@@ -176,5 +204,14 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn in_process_config_show_returns_one_json_value() {
+        let value = execute_args(&["config".into(), "show".into()]).unwrap();
+        assert!(value
+            .get("config_path")
+            .and_then(|item| item.as_str())
+            .is_some());
     }
 }

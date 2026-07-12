@@ -82,7 +82,11 @@ impl AgentSession {
         })
     }
 
-    pub fn write(&self, ptr: *mut u8) {
+    /// # Safety
+    ///
+    /// `ptr` must be non-null and writable for the complete serialized agent
+    /// session layout. The caller must hold exclusive access to that buffer.
+    pub unsafe fn write(&self, ptr: *mut u8) {
         unsafe {
             *ptr = AGENT_SESSION_DISCRIMINATOR;
             let mut offset = 1usize;

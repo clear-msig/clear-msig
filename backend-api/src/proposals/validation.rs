@@ -57,7 +57,7 @@ pub(super) fn push_actor_pubkey(
 
 fn ensure_typed_text(value: &str, field: &str) -> Result<(), ApiError> {
     ensure_non_empty(value, field)?;
-    if value.as_bytes().len() > 128 {
+    if value.len() > 128 {
         return Err(ApiError::BadRequest(format!(
             "{field} must be 128 bytes or fewer"
         )));

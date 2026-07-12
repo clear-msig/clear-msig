@@ -165,7 +165,7 @@ impl<'info> ExecuteTypedAgentTradeApproval<'info> {
             .checked_add(amount_raw)
             .ok_or(WalletError::AgentSessionLimitExceeded)?;
         session.set_spent_notional_raw(next_spent);
-        session.write(view.data_mut_ptr());
+        unsafe { session.write(view.data_mut_ptr()) };
 
         mark_typed_executed(&mut self.intent, &mut self.proposal);
         Ok(())
@@ -328,7 +328,7 @@ impl<'info> ExecuteTypedAgentSessionGrant<'info> {
             next.status = AGENT_SESSION_STATUS_ACTIVE;
             next.spent_notional_raw_le = [0u8; 16];
         }
-        next.write(view.data_mut_ptr());
+        unsafe { next.write(view.data_mut_ptr()) };
 
         mark_typed_executed(&mut self.intent, &mut self.proposal);
         Ok(())

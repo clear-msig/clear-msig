@@ -230,7 +230,7 @@ pub fn load_attestation(wallet_name: &str, chain_kind: u8) -> Result<NetworkSign
     };
 
     if used_legacy {
-        eprintln!(
+        crate::progress!(
             "⚠ [attestation] using legacy {wallet_name}.json (no per-chain file \
              yet for chain_kind={chain_kind}). If this fails, the legacy file \
              holds another chain's attestation — re-bind chain_kind={chain_kind} \
@@ -497,7 +497,7 @@ fn grpc_call(grpc_url: &str, request: UserSignedRequest) -> Result<TransactionRe
         framed.extend_from_slice(&buf);
         let path = "/tmp/clear-msig-grpc-request.bin";
         std::fs::write(path, &framed).ok();
-        eprintln!(
+        crate::progress!(
             "[DEBUG] dumped {} bytes of gRPC body to {path}",
             framed.len()
         );

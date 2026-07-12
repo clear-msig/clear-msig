@@ -559,7 +559,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 return Ok(());
             }
 
-            eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
+            crate::progress!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
             let signature =
                 sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
@@ -679,7 +679,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 return Ok(());
             }
 
-            eprintln!(
+            crate::progress!(
                 "Signing ClearSign v2 proposal message:\n{}",
                 String::from_utf8_lossy(vote_message.as_deref().unwrap_or_else(|| {
                     config
@@ -2351,7 +2351,7 @@ fn execute_via_ika(
     use std::time::Duration;
 
     let chain_kind = intent_account.chain_kind;
-    eprintln!("→ Remote-chain execution (chain_kind={chain_kind}) via Ika dWallet");
+    crate::progress!("→ Remote-chain execution (chain_kind={chain_kind}) via Ika dWallet");
 
     let program_id = crate::instructions::program_id();
 
@@ -2368,7 +2368,7 @@ fn execute_via_ika(
         .dwallet
         .parse()
         .context("invalid dwallet in IkaConfig")?;
-    eprintln!("✓ IkaConfig: {ika_config_pk} → dWallet {dwallet_pk}");
+    crate::progress!("✓ IkaConfig: {ika_config_pk} → dWallet {dwallet_pk}");
 
     // 2. Resolve signing params and fetch the dWallet pubkey.
     let (curve, scheme) = ika::signing_params(chain_kind)?;
@@ -2405,7 +2405,7 @@ fn execute_via_ika(
         _ => ika::build_chain_preimage(intent_account, params_data)?,
     };
     let message_hash = ika::hash_preimage(chain_kind, &preimage);
-    eprintln!(
+    crate::progress!(
         "✓ Built {}-byte preimage, hash {}",
         preimage.len(),
         hex_lower(&message_hash)
@@ -2491,7 +2491,7 @@ fn execute_via_ika(
     };
     let quorum_tx_sig =
         rpc::send_instruction(client, config, ix).with_context(|| "ika_sign failed")?;
-    eprintln!("✓ ika_sign tx: {quorum_tx_sig}");
+    crate::progress!("✓ ika_sign tx: {quorum_tx_sig}");
 
     // 6. Wait for the MessageApproval PDA to materialize on-chain.
     let ma_data = ika::poll_until(
@@ -2501,7 +2501,7 @@ fn execute_via_ika(
         Duration::from_secs(15),
     )
     .with_context(|| "MessageApproval PDA never appeared after ika_sign")?;
-    eprintln!("✓ MessageApproval present: {message_approval_pk}");
+    crate::progress!("✓ MessageApproval present: {message_approval_pk}");
 
     // Build sign_message_for_broadcast unconditionally — needed for the
     // chain-native broadcast in step 9 regardless of whether we have to
@@ -2538,7 +2538,7 @@ fn execute_via_ika(
     // get rejected by Ika; we just reuse the on-chain signature.
     let already_signed = message_approval_is_signed(&ma_data);
     let ma_signed: Vec<u8> = if already_signed {
-        eprintln!("✓ MessageApproval already signed — reusing on-chain signature");
+        crate::progress!("✓ MessageApproval already signed — reusing on-chain signature");
         ma_data
     } else {
         // Load the DKG attestation saved during `wallet add-chain` and use its
@@ -2555,7 +2555,7 @@ fn execute_via_ika(
             ) {
                 Ok(session) => (att, session),
                 Err(err) => {
-                    eprintln!(
+                    crate::progress!(
                         "⚠ local attestation does not match the current chain binding: {err}. \
                          Trying on-chain DWalletAttestation PDA."
                     );
@@ -2574,7 +2574,7 @@ fn execute_via_ika(
                 }
             },
             Err(err) => {
-                eprintln!(
+                crate::progress!(
                     "⚠ local attestation load failed: {err}. Trying on-chain DWalletAttestation PDA."
                 );
                 let chain_att =
@@ -2593,7 +2593,7 @@ fn execute_via_ika(
         };
 
         let presign_id = ika::presign(config, grpc_url, dwallet_addr_bytes, curve, algo)?;
-        eprintln!("✓ Presign allocated ({} bytes)", presign_id.len());
+        crate::progress!("✓ Presign allocated ({} bytes)", presign_id.len());
 
         // Build the chain-specific (sign_message, message_metadata) pair
         // for the gRPC sign request. sign_message is the same bytes as
@@ -2627,7 +2627,7 @@ fn execute_via_ika(
             message_metadata,
             quorum_tx_sig.as_ref().to_vec(),
         )?;
-        eprintln!("✓ Signature received from Ika ({} bytes)", signature.len());
+        crate::progress!("✓ Signature received from Ika ({} bytes)", signature.len());
 
         // 8. Poll MessageApproval until the network commits the signature.
         ika::poll_until(
@@ -2723,7 +2723,7 @@ fn execute_via_ika(
             let tx_sig = sol_client
                 .send_and_confirm_transaction(&tx)
                 .with_context(|| "failed to send Solana transaction")?;
-            eprintln!("✓ Broadcast solana: {tx_sig}");
+            crate::progress!("✓ Broadcast solana: {tx_sig}");
             output["broadcast"] = serde_json::json!({
                 "chain": "solana",
                 "chain_kind": 0,
@@ -2742,9 +2742,9 @@ fn execute_via_ika(
                 rpc_url,
             )
             .with_context(|| format!("broadcast to {rpc_url} failed"))?;
-            eprintln!("✓ Broadcast {}: {}", result.chain, result.tx_id);
+            crate::progress!("✓ Broadcast {}: {}", result.chain, result.tx_id);
             if let Some(url) = &result.explorer_url {
-                eprintln!("  → {url}");
+                crate::progress!("  → {url}");
             }
             output["broadcast"] = serde_json::to_value(&result)?;
         }
@@ -3264,7 +3264,7 @@ fn typed_approve_or_cancel(
         return Ok(());
     }
 
-    eprintln!(
+    crate::progress!(
         "Signing ClearSign v2 {action} message:\n{}",
         String::from_utf8_lossy(&vote_message)
     );
@@ -3400,7 +3400,7 @@ fn approve_or_cancel(
         return Ok(());
     }
 
-    eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
+    crate::progress!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
     let signature =
         sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
 

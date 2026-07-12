@@ -200,7 +200,7 @@ cli/src/
   chains/         Per-chain broadcast adapters
   ika.rs          gRPC DKG / presign / sign, PDA + preimage helpers
 
-backend-api/      Axum HTTP+SSE relayer that shells out to the CLI
+backend-api/      Axum relayer linked to the shared Rust execution library
 frontend/         Next.js 15 + React 19 app
 examples/intents/ Per-chain intent JSON templates
 ```

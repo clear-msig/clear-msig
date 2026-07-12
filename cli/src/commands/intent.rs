@@ -142,7 +142,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
         } => {
             let policy_ciphertext_bytes = accounts::encode_policy_ciphertexts(&policy_ciphertexts)?;
             if !policy_ciphertexts.is_empty() {
-                eprintln!(
+                crate::progress!(
                     "[encrypt] intent-add storing {} policy ciphertext id(s): {}",
                     policy_ciphertexts.len(),
                     policy_ciphertexts.join(", ")
@@ -250,7 +250,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 return Ok(());
             }
 
-            eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
+            crate::progress!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
             let signature =
                 sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
@@ -353,7 +353,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 return Ok(());
             }
 
-            eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
+            crate::progress!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
             let signature =
                 sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
@@ -396,7 +396,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
         } => {
             let policy_ciphertext_bytes = accounts::encode_policy_ciphertexts(&policy_ciphertexts)?;
             if !policy_ciphertexts.is_empty() {
-                eprintln!(
+                crate::progress!(
                     "[encrypt] intent-update storing {} policy ciphertext id(s): {}",
                     policy_ciphertexts.len(),
                     policy_ciphertexts.join(", ")
@@ -515,7 +515,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 return Ok(());
             }
 
-            eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
+            crate::progress!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
             let signature =
                 sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
@@ -736,7 +736,7 @@ pub fn handle(action: IntentAction, config: &RuntimeConfig) -> Result<()> {
                 return Ok(());
             }
 
-            eprintln!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
+            crate::progress!("Signing message:\n{}", String::from_utf8_lossy(&msg[20..]));
             let signature =
                 sign_message_with_flavor(&*config.signer, &msg, &msg_plain, config.message_flavor)?;
             let proposer_pubkey = config.signer.pubkey();
