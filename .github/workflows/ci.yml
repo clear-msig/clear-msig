@@ -83,7 +83,7 @@ jobs:
         run: npm ci
 
       - name: Restore Next.js build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: frontend/.next/cache
           key: ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**', 'frontend/next.config.ts') }}
@@ -123,7 +123,7 @@ jobs:
           shared-key: sbf
 
       - name: Cache Solana platform-tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/solana
           key: solana-platform-tools-v1.52-${{ runner.os }}
