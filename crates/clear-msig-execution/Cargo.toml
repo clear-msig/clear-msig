@@ -72,7 +72,7 @@ bcs = "0.1"
 # BLAKE2b for Zcash transparent sighash computation (ZIP-243).
 blake2b_simd = "1"
 # Serialize Solana transactions for broadcast.
-bincode = "1"
+bincode = "3"
 
 # Vendored copy of the Quasar-generated clear-wallet client. Required because
 # the program uses `wincode` for instruction data, not raw byte appends.
