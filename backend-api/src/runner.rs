@@ -67,6 +67,39 @@ impl CliRunner {
         self.run_request(request, subcommand, false, None).await
     }
 
+    pub(crate) async fn run_typed_lifecycle(
+        &self,
+        context: clear_msig_cli::TypedExecutionContext,
+        lifecycle: clear_msig_cli::TypedProposalLifecycle,
+    ) -> Result<Value, ApiError> {
+        let subcommand = lifecycle.label().to_string();
+        let dry_run = matches!(
+            context,
+            clear_msig_cli::TypedExecutionContext::DryRun { .. }
+        );
+        let actor_prefix = match &context {
+            clear_msig_cli::TypedExecutionContext::DryRun { actor_pubkey } => actor_pubkey
+                .as_deref()
+                .map(|value| value.chars().take(6).collect()),
+            clear_msig_cli::TypedExecutionContext::PreSigned { signer_pubkey, .. } => {
+                Some(signer_pubkey.chars().take(6).collect())
+            }
+            clear_msig_cli::TypedExecutionContext::Backend => None,
+        };
+        let request = clear_msig_cli::prepare_typed_proposal_lifecycle(
+            self.execution_globals.clone(),
+            context,
+            lifecycle,
+        )
+        .map_err(|error| {
+            ApiError::Internal(format!(
+                "backend generated an invalid typed lifecycle: {error}"
+            ))
+        })?;
+        self.run_request(request, subcommand, dry_run, actor_prefix)
+            .await
+    }
+
     async fn run_request(
         &self,
         request: clear_msig_cli::ExecutionRequest,

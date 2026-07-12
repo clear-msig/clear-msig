@@ -9,9 +9,9 @@ This is the backend bridge between UI and your existing on-chain + CLI flows.
 
 ## Why this service exists
 
-- Keeps the frontend decoupled from execution details. Typed proposal execution
-  routes use domain commands directly; legacy routes still have adapter
-  argument builders scheduled for migration.
+- Keeps the frontend decoupled from execution details. Typed proposal lifecycle
+  and execution routes use domain commands directly; legacy routes still have
+  adapter argument builders scheduled for migration.
 - Preserves your proven CLI logic instead of duplicating transaction logic.
 - Validates legacy adapter invocations against the full CLI schema and validates
   typed proposal commands through closed enums, bounded collections, and value
