@@ -171,7 +171,7 @@ jobs:
           shared-key: svm
 
       - name: Download clear_wallet.so artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: clear_wallet-so
           path: target/deploy
