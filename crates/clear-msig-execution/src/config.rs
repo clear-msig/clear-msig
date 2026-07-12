@@ -118,6 +118,7 @@ impl PersistedConfig {
 pub struct RuntimeConfig {
     pub control: crate::control::ExecutionControl,
     pub solana_rpc_factory: std::sync::Arc<dyn crate::rpc::SolanaRpcFactory>,
+    pub ika_grpc_port: std::sync::Arc<dyn crate::ika::IkaGrpcPort>,
     pub rpc_url: String,
     pub payer: solana_keypair::Keypair,
     pub signer: Box<dyn MessageSigner>,
@@ -155,6 +156,7 @@ pub fn load_config(
     globals: &CliGlobals,
     control: crate::control::ExecutionControl,
     solana_rpc_factory: std::sync::Arc<dyn crate::rpc::SolanaRpcFactory>,
+    ika_grpc_port: std::sync::Arc<dyn crate::ika::IkaGrpcPort>,
 ) -> Result<RuntimeConfig> {
     let persisted = PersistedConfig::load();
 
@@ -257,6 +259,7 @@ pub fn load_config(
     Ok(RuntimeConfig {
         control,
         solana_rpc_factory,
+        ika_grpc_port,
         rpc_url,
         payer,
         signer,

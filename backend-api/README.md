@@ -112,6 +112,8 @@ bounded; all current network futures are dropped when execution is cancelled.
 Solana account reads, wallet scans, blockhash reads, and transaction submission
 also pass through an injectable execution-library port; command handlers cannot
 construct an SDK RPC client directly.
+Ika submission uses a separate injectable port whose public contract contains
+no tonic or experimental Ika SDK types; only the live adapter owns that stack.
 
 ## Deployment model
 

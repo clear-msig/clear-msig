@@ -42,8 +42,8 @@ This work has started:
   cancellation-aware destination HTTP port shared by BTC, EVM, and Zcash.
 - `crates/clear-msig-execution/src/rpc.rs`: narrow injectable Solana account,
   scan, blockhash, and transaction port with a cancellation-aware live adapter.
-- `crates/clear-msig-execution/src/ika.rs`: cancellation-aware Ika adapter;
-  its client-construction port is the next infrastructure split.
+- `crates/clear-msig-execution/src/ika.rs`: narrow injectable Ika submission
+  port with a cancellation-aware tonic adapter and opaque response boundary.
 - `cli`: thin binary package that only launches `clear-msig-execution`.
 
 `backend-api/src/main.rs` should remain small: shared state, execution runner,

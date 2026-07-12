@@ -84,9 +84,17 @@ if grep -REn 'solana_client::.*RpcClient' crates/clear-msig-execution/src/comman
   exit 1
 fi
 grep -q 'control.cancelled()' crates/clear-msig-execution/src/rpc.rs
+grep -q 'trait IkaGrpcPort' crates/clear-msig-execution/src/ika.rs
+grep -q 'with_ika_grpc_port' crates/clear-msig-execution/src/lib.rs
+grep -q 'ika_grpc_port: std::sync::Arc<dyn crate::ika::IkaGrpcPort>' crates/clear-msig-execution/src/config.rs
+grep -q 'cancellation_drops_pending_ika_io' crates/clear-msig-execution/src/ika.rs
+if grep -REn 'DWalletServiceClient|submit_transaction' crates/clear-msig-execution/src/commands; then
+  echo "Backend architecture check failed: command handlers bypassed the Ika gRPC port." >&2
+  exit 1
+fi
 grep -q 'control.cancelled()' crates/clear-msig-execution/src/ika.rs
 grep -q 'control.cancel()' backend-api/src/runner.rs
 
 bash scripts/check-execution-properties.sh
 
-echo "Backend architecture: command contracts + reusable execution library + thin CLI, with injected Solana and destination ports."
+echo "Backend architecture: command contracts + reusable execution library + thin CLI, with injected Solana, Ika, and destination ports."

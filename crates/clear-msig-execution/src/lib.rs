@@ -36,7 +36,9 @@ pub use clear_msig_command_contract::{
 pub use control::ExecutionControl;
 pub use direct::prepare_direct_command;
 pub use execution::prepare_typed_proposal_execution;
+pub use ika::{IkaGrpcPort, IkaSubmitRequest};
 pub use lifecycle::prepare_typed_proposal_lifecycle;
+pub use rpc::{SolanaRpcFactory, SolanaRpcPort};
 
 #[derive(Subcommand)]
 pub enum Command {
@@ -71,6 +73,7 @@ pub struct ExecutionRequest {
     command: Command,
     control: control::ExecutionControl,
     solana_rpc_factory: std::sync::Arc<dyn rpc::SolanaRpcFactory>,
+    ika_grpc_port: std::sync::Arc<dyn ika::IkaGrpcPort>,
 }
 
 /// Prepare a typed command for one isolated execution.
@@ -103,6 +106,7 @@ impl ExecutionRequest {
             command,
             control: control::ExecutionControl::default(),
             solana_rpc_factory: std::sync::Arc::new(rpc::LiveSolanaRpcFactory),
+            ika_grpc_port: std::sync::Arc::new(ika::LiveIkaGrpcPort),
         }
     }
 
@@ -117,11 +121,17 @@ impl ExecutionRequest {
         self.solana_rpc_factory = factory;
         self
     }
+
+    pub fn with_ika_grpc_port(mut self, port: std::sync::Arc<dyn ika::IkaGrpcPort>) -> Self {
+        self.ika_grpc_port = port;
+        self
+    }
 }
 
 fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
     request.control.check()?;
     let solana_rpc_factory = request.solana_rpc_factory.clone();
+    let ika_grpc_port = request.ika_grpc_port.clone();
     match request.command {
         Command::Config { action } => commands::config::handle(action),
         Command::Wallet { action } => {
@@ -129,6 +139,7 @@ fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
                 &request.globals,
                 request.control.clone(),
                 solana_rpc_factory.clone(),
+                ika_grpc_port.clone(),
             )?;
             commands::wallet::handle(action, &config)
         }
@@ -137,6 +148,7 @@ fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
                 &request.globals,
                 request.control.clone(),
                 solana_rpc_factory.clone(),
+                ika_grpc_port.clone(),
             )?;
             commands::intent::handle(action, &config)
         }
@@ -145,6 +157,7 @@ fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
                 &request.globals,
                 request.control.clone(),
                 solana_rpc_factory,
+                ika_grpc_port,
             )?;
             commands::proposal::handle(action, &config)
         }
@@ -157,6 +170,7 @@ mod tests {
     use std::sync::Arc;
 
     struct TestSolanaRpcFactory;
+    struct TestIkaGrpcPort;
 
     impl crate::rpc::SolanaRpcFactory for TestSolanaRpcFactory {
         fn connect(
@@ -165,6 +179,17 @@ mod tests {
             _control: crate::ExecutionControl,
         ) -> crate::rpc::Client {
             panic!("test factory should not connect for config commands")
+        }
+    }
+
+    impl crate::ika::IkaGrpcPort for TestIkaGrpcPort {
+        fn submit(
+            &self,
+            _grpc_url: &str,
+            _request: crate::ika::IkaSubmitRequest,
+            _control: crate::ExecutionControl,
+        ) -> anyhow::Result<Vec<u8>> {
+            panic!("test port should not submit for config commands")
         }
     }
 
@@ -194,5 +219,18 @@ mod tests {
         )
         .with_solana_rpc_factory(factory.clone());
         assert!(Arc::ptr_eq(&request.solana_rpc_factory, &factory));
+    }
+
+    #[test]
+    fn execution_request_carries_the_injected_ika_port() {
+        let port: Arc<dyn crate::ika::IkaGrpcPort> = Arc::new(TestIkaGrpcPort);
+        let request = prepare_command(
+            crate::config::CliGlobals::default(),
+            Command::Config {
+                action: crate::commands::config::ConfigAction::Show,
+            },
+        )
+        .with_ika_grpc_port(port.clone());
+        assert!(Arc::ptr_eq(&request.ika_grpc_port, &port));
     }
 }

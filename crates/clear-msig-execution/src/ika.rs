@@ -16,6 +16,100 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer as _;
 use std::time::{Duration, Instant};
 
+pub struct IkaSubmitRequest {
+    pub user_signature: Vec<u8>,
+    pub signed_request_data: Vec<u8>,
+}
+
+pub trait IkaGrpcPort: Send + Sync {
+    fn submit(
+        &self,
+        grpc_url: &str,
+        request: IkaSubmitRequest,
+        control: crate::ExecutionControl,
+    ) -> Result<Vec<u8>>;
+}
+
+#[derive(Default)]
+pub struct LiveIkaGrpcPort;
+
+impl LiveIkaGrpcPort {
+    fn run<T>(
+        &self,
+        control: crate::ExecutionControl,
+        operation: impl std::future::Future<Output = Result<T>>,
+    ) -> Result<T> {
+        let controlled = async move {
+            tokio::select! {
+                result = operation => result,
+                _ = control.cancelled() => Err(anyhow!("Ika gRPC request cancelled")),
+            }
+        };
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.block_on(controlled)
+        } else {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .with_context(|| "tokio runtime build failed")?
+                .block_on(controlled)
+        }
+    }
+}
+
+impl IkaGrpcPort for LiveIkaGrpcPort {
+    fn submit(
+        &self,
+        grpc_url: &str,
+        request: IkaSubmitRequest,
+        control: crate::ExecutionControl,
+    ) -> Result<Vec<u8>> {
+        let request = UserSignedRequest {
+            user_signature: request.user_signature,
+            signed_request_data: request.signed_request_data,
+        };
+        if std::env::var("CLEAR_MSIG_DEBUG_GRPC").is_ok() {
+            use prost::Message;
+            let mut buf = Vec::new();
+            request.encode(&mut buf).unwrap();
+            let mut framed = Vec::with_capacity(5 + buf.len());
+            framed.push(0u8);
+            framed.extend_from_slice(&(buf.len() as u32).to_be_bytes());
+            framed.extend_from_slice(&buf);
+            let path = "/tmp/clear-msig-grpc-request.bin";
+            std::fs::write(path, &framed).ok();
+            crate::progress!(
+                "[DEBUG] dumped {} bytes of gRPC body to {path}",
+                framed.len()
+            );
+        }
+        let grpc_url = grpc_url.to_string();
+        let operation = async move {
+            let mut client = if grpc_url.starts_with("https") {
+                let tls = tonic::transport::ClientTlsConfig::new().with_native_roots();
+                let channel = tonic::transport::Channel::from_shared(grpc_url.to_string())
+                    .with_context(|| "invalid gRPC URL")?
+                    .tls_config(tls)
+                    .with_context(|| "TLS config failed")?
+                    .connect()
+                    .await
+                    .with_context(|| format!("failed to connect to gRPC at {grpc_url}"))?;
+                DWalletServiceClient::new(channel)
+            } else {
+                DWalletServiceClient::connect(grpc_url.to_string())
+                    .await
+                    .with_context(|| format!("failed to connect to gRPC at {grpc_url}"))?
+            };
+            let response = client
+                .submit_transaction(request)
+                .await
+                .with_context(|| "gRPC submit_transaction failed")?;
+            Ok(response.into_inner().response_data)
+        };
+        self.run(control, operation)
+    }
+}
+
 /// Default Ika pre-alpha gRPC endpoint.
 pub const DEFAULT_GRPC_URL: &str = "https://pre-alpha-dev-1.ika.ika-network.net:443";
 
@@ -483,13 +577,13 @@ pub fn sign(
 
 // ── Plumbing ──
 
-fn build_signed_request(payer: &Pubkey, request: SignedRequestData) -> UserSignedRequest {
+fn build_signed_request(payer: &Pubkey, request: SignedRequestData) -> IkaSubmitRequest {
     let signed_data = bcs::to_bytes(&request).expect("BCS serialize");
     let user_sig = UserSignature::Ed25519 {
         signature: vec![0u8; 64],
         public_key: payer.to_bytes().to_vec(),
     };
-    UserSignedRequest {
+    IkaSubmitRequest {
         user_signature: bcs::to_bytes(&user_sig).expect("BCS serialize sig"),
         signed_request_data: signed_data,
     }
@@ -499,65 +593,33 @@ fn build_signed_request(payer: &Pubkey, request: SignedRequestData) -> UserSigne
 fn grpc_call(
     config: &RuntimeConfig,
     grpc_url: &str,
-    request: UserSignedRequest,
+    request: IkaSubmitRequest,
 ) -> Result<TransactionResponseData> {
-    // DEBUG: dump the protobuf-framed body so we can replay via curl.
-    if std::env::var("CLEAR_MSIG_DEBUG_GRPC").is_ok() {
-        use prost::Message;
-        let mut buf = Vec::new();
-        request.encode(&mut buf).unwrap();
-        let mut framed = Vec::with_capacity(5 + buf.len());
-        framed.push(0u8);
-        framed.extend_from_slice(&(buf.len() as u32).to_be_bytes());
-        framed.extend_from_slice(&buf);
-        let path = "/tmp/clear-msig-grpc-request.bin";
-        std::fs::write(path, &framed).ok();
-        crate::progress!(
-            "[DEBUG] dumped {} bytes of gRPC body to {path}",
-            framed.len()
-        );
+    let response_data = config
+        .ika_grpc_port
+        .submit(grpc_url, request, config.control.clone())?;
+    decode_grpc_response(&response_data)
+}
+
+fn decode_grpc_response(response_data: &[u8]) -> Result<TransactionResponseData> {
+    bcs::from_bytes(response_data).with_context(|| "BCS deserialize response")
+}
+
+#[cfg(test)]
+mod grpc_port_tests {
+    use super::{decode_grpc_response, LiveIkaGrpcPort};
+
+    #[test]
+    fn cancellation_drops_pending_ika_io() {
+        let control = crate::ExecutionControl::default();
+        control.cancel();
+        let result = LiveIkaGrpcPort.run(control, std::future::pending::<anyhow::Result<()>>());
+        assert!(result.unwrap_err().to_string().contains("cancelled"));
     }
-    let control = config.control.clone();
-    let grpc_url = grpc_url.to_string();
-    let operation = async move {
-        let mut client = if grpc_url.starts_with("https") {
-            let tls = tonic::transport::ClientTlsConfig::new().with_native_roots();
-            let channel = tonic::transport::Channel::from_shared(grpc_url.to_string())
-                .with_context(|| "invalid gRPC URL")?
-                .tls_config(tls)
-                .with_context(|| "TLS config failed")?
-                .connect()
-                .await
-                .with_context(|| format!("failed to connect to gRPC at {grpc_url}"))?;
-            DWalletServiceClient::new(channel)
-        } else {
-            DWalletServiceClient::connect(grpc_url.to_string())
-                .await
-                .with_context(|| format!("failed to connect to gRPC at {grpc_url}"))?
-        };
-        let response = client
-            .submit_transaction(request)
-            .await
-            .with_context(|| "gRPC submit_transaction failed")?;
-        let response_data: TransactionResponseData =
-            bcs::from_bytes(&response.into_inner().response_data)
-                .with_context(|| "BCS deserialize response")?;
-        Ok(response_data)
-    };
-    let controlled = async move {
-        tokio::select! {
-            result = operation => result,
-            _ = control.cancelled() => Err(anyhow!("Ika gRPC request cancelled")),
-        }
-    };
-    if let Ok(handle) = tokio::runtime::Handle::try_current() {
-        handle.block_on(controlled)
-    } else {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .with_context(|| "tokio runtime build failed")?
-            .block_on(controlled)
+
+    #[test]
+    fn malformed_ika_response_is_rejected_at_the_port_boundary() {
+        assert!(decode_grpc_response(&[0xff, 0x00]).is_err());
     }
 }
 
