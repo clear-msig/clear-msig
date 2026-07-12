@@ -28,7 +28,7 @@ wincode = { version = "0.4", features = ["derive", "std"] }
 quasar-lang = { git = "https://github.com/blueshift-gg/quasar", branch = "fix/signer-check-and-wincode-versions" }
 
 ed25519-dalek = { version = "2", features = ["rand_core"] }
-rand = "0.8"
+rand = "0.9"
 sha2 = "0.10"
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 hex = "0.4"

@@ -27,7 +27,7 @@ solana-address = { version = "2.2.0", features = ["curve25519"] }
 wincode = { version = "0.4", features = ["derive", "std"] }
 quasar-svm = { git = "https://github.com/blueshift-gg/quasar-svm" }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
-rand = "0.8"
+rand = "0.9"
 bs58 = "0.5"
 spl-token = "9"
 sha2 = "0.10"
