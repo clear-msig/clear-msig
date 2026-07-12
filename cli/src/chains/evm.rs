@@ -30,6 +30,7 @@ use serde::Deserialize;
 /// envelope; only calldata / chain id differ, and that is already baked into
 /// the `preimage` we receive here.
 pub fn assemble_and_broadcast(
+    transport: &dyn crate::chains::transport::DestinationTransport,
     preimage: &[u8],
     r: &[u8; 32],
     s: &[u8; 32],
@@ -50,7 +51,7 @@ pub fn assemble_and_broadcast(
     // own recovery on the receiving end uses canonical bytes.
     let recovered = recover_v(&digest, r, s, dwallet_pubkey_compressed)?;
     let raw_tx_hex = build_signed_eip1559(preimage, &recovered.r, &recovered.s, recovered.v)?;
-    let tx_id = broadcast_eip1559(rpc_url, &raw_tx_hex)?;
+    let tx_id = broadcast_eip1559(transport, rpc_url, &raw_tx_hex)?;
 
     Ok(BroadcastResult {
         chain: "evm_1559",
@@ -390,27 +391,28 @@ struct JsonRpcError {
 /// Broadcast a signed EIP-1559 transaction (`raw_tx_hex` = `0x02...`) via the
 /// given JSON-RPC URL using `eth_sendRawTransaction`. Returns the resulting
 /// transaction hash on success.
-pub fn broadcast_eip1559(rpc_url: &str, raw_tx_hex: &str) -> Result<String> {
+pub fn broadcast_eip1559(
+    transport: &dyn crate::chains::transport::DestinationTransport,
+    rpc_url: &str,
+    raw_tx_hex: &str,
+) -> Result<String> {
     let body = serde_json::json!({
         "jsonrpc": "2.0",
         "method": "eth_sendRawTransaction",
         "params": [raw_tx_hex],
         "id": 1,
     });
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .with_context(|| "build reqwest client")?;
-    let resp = client
-        .post(rpc_url)
-        .json(&body)
-        .send()
+    let response = transport
+        .post_json(rpc_url, &body)
         .with_context(|| format!("POST {rpc_url}"))?;
-    let status = resp.status();
-    let text = resp.text().with_context(|| "read RPC response body")?;
-    if !status.is_success() {
-        return Err(anyhow!("EVM RPC HTTP {status}: {text}"));
+    if !response.is_success() {
+        return Err(anyhow!(
+            "EVM RPC HTTP {}: {}",
+            response.status,
+            response.body
+        ));
     }
+    let text = response.body;
     let parsed: JsonRpcResponse<String> =
         serde_json::from_str(&text).with_context(|| format!("parse RPC response: {text}"))?;
     if let Some(err) = parsed.error {

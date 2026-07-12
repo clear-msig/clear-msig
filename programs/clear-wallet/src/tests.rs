@@ -4323,7 +4323,7 @@ fn test_execute_typed_escrow_return_moves_sol_to_funders() {
 }
 
 #[test]
-fn test_execute_typed_sol_send_moves_sol() {
+fn test_execute_typed_sol_send_is_permissionless_and_idempotent() {
     let mut svm = setup();
     let payer = Pubkey::new_unique();
     let proposer = new_keypair();
@@ -4400,8 +4400,11 @@ fn test_execute_typed_sol_send_moves_sol() {
 
     let vault = fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
     let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+    let relayer = Pubkey::new_unique();
+    assert_ne!(relayer, payer);
+    assert_ne!(relayer, pubkey_of(&proposer));
     let execute = build_execute_typed_sol_send_ix(
-        payer,
+        relayer,
         wallet,
         intent,
         proposal,
@@ -4413,7 +4416,7 @@ fn test_execute_typed_sol_send_moves_sol() {
     let result = svm.process_instruction(
         &execute,
         &[
-            funded_account(payer),
+            funded_account(relayer),
             empty_wallet_policy_account(wallet),
             empty_policy_spend_account(wallet, intent, policy_commitment),
             empty_member_allowance_account(wallet, intent),
@@ -4441,6 +4444,30 @@ fn test_execute_typed_sol_send_moves_sol() {
         svm.get_account(&proposal).unwrap().data[105],
         2,
         "typed proposal should be Executed(2)"
+    );
+
+    let recipient_after_first = svm.get_account(&recipient).unwrap();
+    let vault_after_first = svm.get_account(&vault).unwrap().lamports;
+    let replay = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(relayer),
+            empty_wallet_policy_account(wallet),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
+            empty_member_allowance_account(wallet, intent),
+            recipient_after_first.clone(),
+        ],
+    );
+    assert!(replay.is_err(), "executed typed send must reject replay");
+    assert_eq!(
+        svm.get_account(&recipient).unwrap().lamports,
+        recipient_after_first.lamports,
+        "duplicate execute moved recipient funds twice"
+    );
+    assert_eq!(
+        svm.get_account(&vault).unwrap().lamports,
+        vault_after_first,
+        "duplicate execute debited the vault twice"
     );
 }
 

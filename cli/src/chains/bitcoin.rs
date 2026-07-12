@@ -83,6 +83,7 @@ pub struct SpendInputs {
 /// `chain_kind = 2` (`bitcoin_p2wpkh`). Returns the broadcast txid +
 /// the raw signed tx hex on success.
 pub fn assemble_and_broadcast(
+    transport: &dyn crate::chains::transport::DestinationTransport,
     inputs: SpendInputs,
     preimage: &[u8],
     r: &[u8; 32],
@@ -139,7 +140,7 @@ pub fn assemble_and_broadcast(
     );
     let raw_tx_hex = hex_encode(&raw_tx);
 
-    let tx_id = broadcast_via_bitcoin_rpc(rpc_url, &raw_tx_hex)?;
+    let tx_id = broadcast_via_bitcoin_rpc(transport, rpc_url, &raw_tx_hex)?;
     let explorer_url = derive_explorer_url(rpc_url, &tx_id);
 
     Ok(BroadcastResult {
@@ -438,34 +439,40 @@ enum EsploraResponse {
 /// Broadcast a fully-signed Bitcoin tx via either:
 ///   - Esplora `POST <base>/tx` for the mempool.space path, or
 ///   - Bitcoin JSON-RPC `sendrawtransaction` for Alchemy endpoints.
-fn broadcast_via_bitcoin_rpc(rpc_base: &str, raw_tx_hex: &str) -> Result<String> {
+fn broadcast_via_bitcoin_rpc(
+    transport: &dyn crate::chains::transport::DestinationTransport,
+    rpc_base: &str,
+    raw_tx_hex: &str,
+) -> Result<String> {
     if is_alchemy_bitcoin_rpc(rpc_base) {
-        return broadcast_via_alchemy(rpc_base, raw_tx_hex);
+        return broadcast_via_alchemy(transport, rpc_base, raw_tx_hex);
     }
-    broadcast_via_esplora(rpc_base, raw_tx_hex)
+    broadcast_via_esplora(transport, rpc_base, raw_tx_hex)
 }
 
-fn broadcast_via_alchemy(rpc_base: &str, raw_tx_hex: &str) -> Result<String> {
+fn broadcast_via_alchemy(
+    transport: &dyn crate::chains::transport::DestinationTransport,
+    rpc_base: &str,
+    raw_tx_hex: &str,
+) -> Result<String> {
     let endpoint = rpc_base.trim_end_matches('/');
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .with_context(|| "build reqwest client")?;
-    let resp = client
-        .post(endpoint)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "sendrawtransaction",
-            "params": [raw_tx_hex],
-        }))
-        .send()
+    let response = transport
+        .post_json(
+            endpoint,
+            &serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "sendrawtransaction",
+                "params": [raw_tx_hex],
+            }),
+        )
         .with_context(|| format!("POST {endpoint}"))?;
-    let status = resp.status();
-    let text = resp.text().with_context(|| "read Alchemy response body")?;
-    if !status.is_success() {
+    let status = response.status;
+    let text = response.body;
+    if !(200..300).contains(&status) {
         return Err(anyhow!(
-            "Alchemy broadcast failed (HTTP {status}): {}",
+            "Alchemy broadcast failed (HTTP {}): {}",
+            status,
             text.trim()
         ));
     }
@@ -480,23 +487,21 @@ fn broadcast_via_alchemy(rpc_base: &str, raw_tx_hex: &str) -> Result<String> {
         .ok_or_else(|| anyhow!("Alchemy response missing result: {text}"))
 }
 
-fn broadcast_via_esplora(rpc_base: &str, raw_tx_hex: &str) -> Result<String> {
+fn broadcast_via_esplora(
+    transport: &dyn crate::chains::transport::DestinationTransport,
+    rpc_base: &str,
+    raw_tx_hex: &str,
+) -> Result<String> {
     let endpoint = format!("{}/tx", rpc_base.trim_end_matches('/'));
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .with_context(|| "build reqwest client")?;
-    let resp = client
-        .post(&endpoint)
-        .header("Content-Type", "text/plain")
-        .body(raw_tx_hex.to_string())
-        .send()
+    let response = transport
+        .post_text(&endpoint, raw_tx_hex)
         .with_context(|| format!("POST {endpoint}"))?;
-    let status = resp.status();
-    let text = resp.text().with_context(|| "read Esplora response body")?;
-    if !status.is_success() {
+    let status = response.status;
+    let text = response.body;
+    if !(200..300).contains(&status) {
         return Err(anyhow!(
-            "Esplora broadcast failed (HTTP {status}): {}",
+            "Esplora broadcast failed (HTTP {}): {}",
+            status,
             text.trim()
         ));
     }

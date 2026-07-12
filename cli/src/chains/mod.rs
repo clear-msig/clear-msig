@@ -17,6 +17,7 @@ use serde::Serialize;
 pub mod bitcoin;
 pub mod evm;
 pub mod solana_broadcast;
+pub mod transport;
 pub mod zcash;
 
 /// Chain-specific data the broadcast layer needs in addition to the
@@ -87,6 +88,7 @@ pub struct BroadcastResult {
 /// `inputs` carries any chain-specific data that isn't recoverable from
 /// the preimage alone — see [`BroadcastInputs`].
 pub fn broadcast_signed_tx(
+    transport: &dyn transport::DestinationTransport,
     chain_kind: u8,
     inputs: BroadcastInputs,
     preimage: &[u8],
@@ -130,8 +132,14 @@ pub fn broadcast_signed_tx(
             if !matches!(inputs, BroadcastInputs::Evm) {
                 return Err(anyhow!("EVM chain_kind requires BroadcastInputs::Evm"));
             }
-            let mut result =
-                evm::assemble_and_broadcast(preimage, &r, &s, dwallet_pubkey_compressed, rpc_url)?;
+            let mut result = evm::assemble_and_broadcast(
+                transport,
+                preimage,
+                &r,
+                &s,
+                dwallet_pubkey_compressed,
+                rpc_url,
+            )?;
             if chain_kind == 5 {
                 result.chain = "hyperliquid_evm";
                 result.chain_kind = 5;
@@ -156,6 +164,7 @@ pub fn broadcast_signed_tx(
                 ));
             };
             bitcoin::assemble_and_broadcast(
+                transport,
                 bitcoin::SpendInputs {
                     prev_txid,
                     prev_vout,
@@ -191,6 +200,7 @@ pub fn broadcast_signed_tx(
                 ));
             };
             zcash::assemble_and_broadcast(
+                transport,
                 zcash::SpendInputs {
                     header,
                     version_group_id,

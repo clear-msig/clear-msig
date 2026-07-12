@@ -33,6 +33,12 @@ This work has started:
   execute, cleanup.
 - `backend-api/src/clearsign.rs`: pre-signed request validation and expiry
   formatting, the first slice of the future ClearSign core.
+- `crates/clear-msig-command-contract`: backend-independent command and signer
+  contracts with bounded validation.
+- `cli/src/chains/transport.rs`: mockable, cancellation-aware destination HTTP
+  port shared by BTC, EVM, and Zcash broadcasters.
+- `cli/src/rpc.rs` and `cli/src/ika.rs`: cancellation-aware Solana and Ika
+  infrastructure adapters.
 
 `backend-api/src/main.rs` should remain small: shared state, execution runner,
 generic validation, CORS/tracing, and route mounting.

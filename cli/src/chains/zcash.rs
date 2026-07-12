@@ -21,6 +21,7 @@ pub struct SpendInputs {
 /// Assemble a signed Zcash Sapling v4 transparent P2PKH transaction and
 /// broadcast it via the provided RPC URL.
 pub fn assemble_and_broadcast(
+    transport: &dyn crate::chains::transport::DestinationTransport,
     inputs: SpendInputs,
     r: &[u8; 32],
     s: &[u8; 32],
@@ -97,16 +98,20 @@ pub fn assemble_and_broadcast(
     let raw_hex = hex::encode(&tx);
 
     // Broadcast: detect Blockchair push API vs standard JSON-RPC.
-    let client = reqwest::blocking::Client::new();
     let tx_id = if rpc_url.contains("blockchair") {
         // Blockchair push API: POST with form data.
-        let resp: serde_json::Value = client
-            .post(rpc_url)
-            .form(&[("data", &raw_hex)])
-            .send()
-            .with_context(|| format!("POST to {rpc_url}"))?
-            .json()
-            .with_context(|| "parse Blockchair response")?;
+        let response = transport
+            .post_form_hex(rpc_url, &raw_hex)
+            .with_context(|| format!("POST to {rpc_url}"))?;
+        if !response.is_success() {
+            return Err(anyhow!(
+                "Blockchair push failed (HTTP {}): {}",
+                response.status,
+                response.body
+            ));
+        }
+        let resp: serde_json::Value =
+            serde_json::from_str(&response.body).with_context(|| "parse Blockchair response")?;
         if let Some(err) = resp.get("context").and_then(|c| c.get("error")) {
             if !err.is_null() {
                 return Err(anyhow!("Blockchair push failed: {err}"));
@@ -125,13 +130,18 @@ pub fn assemble_and_broadcast(
             "method": "sendrawtransaction",
             "params": [raw_hex],
         });
-        let resp: serde_json::Value = client
-            .post(rpc_url)
-            .json(&body)
-            .send()
-            .with_context(|| format!("POST to {rpc_url}"))?
-            .json()
-            .with_context(|| "parse JSON-RPC response")?;
+        let response = transport
+            .post_json(rpc_url, &body)
+            .with_context(|| format!("POST to {rpc_url}"))?;
+        if !response.is_success() {
+            return Err(anyhow!(
+                "Zcash RPC failed (HTTP {}): {}",
+                response.status,
+                response.body
+            ));
+        }
+        let resp: serde_json::Value =
+            serde_json::from_str(&response.body).with_context(|| "parse JSON-RPC response")?;
         if let Some(err) = resp.get("error").filter(|e| !e.is_null()) {
             let code = err.get("code").and_then(|c| c.as_i64()).unwrap_or(0);
             let message = err

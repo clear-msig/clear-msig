@@ -105,9 +105,9 @@ full diagnostics remain in protected structured logs.
 
 If an HTTP timeout fires, the backend cancels the request and gives its worker a
 bounded drain window. Solana RPC and Ika gRPC futures are dropped on that signal.
-The destination-chain BTC, EVM, and Zcash HTTP broadcasters are still blocking;
-a worker inside one of those calls may outlive the drain window, although the
-semaphore continues to bound total concurrency.
+BTC, EVM, and Zcash broadcasts use the same cancellation signal through a
+mockable destination transport port. CPU-only assembly remains synchronous and
+bounded; all current network futures are dropped when execution is cancelled.
 
 ## Deployment model
 

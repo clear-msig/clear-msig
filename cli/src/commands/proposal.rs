@@ -2730,8 +2730,11 @@ fn execute_via_ika(
             });
         } else {
             let inputs = build_broadcast_inputs(chain_kind, intent_account, params_data)?;
+            let transport =
+                crate::chains::transport::CancellableHttpTransport::new(config.control.clone())?;
 
             let result = crate::chains::broadcast_signed_tx(
+                &transport,
                 chain_kind,
                 inputs,
                 &preimage,

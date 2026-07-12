@@ -71,4 +71,6 @@ grep -q 'control.cancelled()' cli/src/rpc.rs
 grep -q 'control.cancelled()' cli/src/ika.rs
 grep -q 'control.cancel()' backend-api/src/runner.rs
 
-echo "Backend architecture: core-owned contracts, cancellable Solana/Ika I/O, bounded in-process execution."
+bash scripts/check-execution-properties.sh
+
+echo "Backend architecture: core-owned contracts, cancellable destination I/O, bounded in-process execution."
