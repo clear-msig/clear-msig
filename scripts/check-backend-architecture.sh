@@ -94,6 +94,8 @@ if grep -REn 'DWalletServiceClient|submit_transaction' crates/clear-msig-executi
 fi
 grep -q 'control.cancelled()' crates/clear-msig-execution/src/ika.rs
 grep -q 'control.cancel()' backend-api/src/runner.rs
+grep -q 'cargo test -p clear-msig-command-contract -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api' .github/workflows/ci.yml
+grep -q 'cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-cli' .github/workflows/ci.yml
 
 bash scripts/check-execution-properties.sh
 

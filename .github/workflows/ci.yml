@@ -32,9 +32,9 @@ jobs:
         with:
           shared-key: host
 
-      # Backend clippy is strict below. CLI and program clippy still have a
-      # documented warning backlog, so do not describe the workspace as
-      # globally clippy-clean yet.
+      # Backend, command-contract, and thin-CLI clippy are strict below. The
+      # execution library and program still have a documented warning backlog,
+      # so do not describe the workspace as globally clippy-clean yet.
       #
       # The on-chain crate (`clear-wallet`) is meant for the SBF target and
       # uses nightly features gated to target_os="solana"; host clippy/test
@@ -46,11 +46,11 @@ jobs:
       - name: Rust formatting
         run: cargo fmt --all -- --check
 
-      - name: Backend clippy (strict, dependencies excluded)
-        run: cargo clippy -p clear-msig-backend-api --all-targets --no-deps -- -D warnings
+      - name: Backend + contract + thin CLI clippy (strict, dependencies excluded)
+        run: cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-cli --all-targets --no-deps -- -D warnings
 
       - name: cargo test (host crates)
-        run: cargo test -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
+        run: cargo test -p clear-msig-command-contract -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
 
   frontend-tests:
     name: frontend unit tests

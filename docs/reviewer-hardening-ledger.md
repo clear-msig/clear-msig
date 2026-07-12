@@ -27,7 +27,8 @@ it does not mean the production system is generally secure.
 - Backend timeouts cancel Solana, Ika, BTC, EVM, and Zcash network futures and
   allow a five-second drain. CPU-only transaction assembly remains synchronous;
   the default eight-worker semaphore bounds that work.
-- Backend and thin-CLI clippy pass with `-D warnings --no-deps`. The reusable
+- Backend, command-contract, and thin-CLI clippy pass with `-D warnings
+  --no-deps`, and CI runs the execution library's complete host test suite. The reusable
   execution library still reports 18 pre-existing strict-clippy findings,
   chiefly oversized instruction-builder signatures; the program and wider
   dependency graph are also not globally warning-free.
