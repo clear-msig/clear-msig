@@ -13,7 +13,7 @@
 //     on chain) but the failure mode of a half-landed broadcast is
 //     bad UX: the second provider returns "already known" and the
 //     CLI thinks it's a fresh failure. So broadcast stays
-//     single-URL - `cli/src/chains/evm.rs` handles that path.
+//     single-URL - `crates/clear-msig-execution/src/chains/evm.rs` handles that path.
 //   - Subscriptions. We don't use eth_subscribe anywhere yet.
 //
 // Order of attempts (per call):

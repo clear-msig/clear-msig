@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn batch_payments_are_encoded_only_inside_the_cli_adapter() {
+    fn batch_payments_are_encoded_only_inside_the_execution_adapter() {
         let action: ProposalAction = TypedProposalExecution::SolBatchSend {
             wallet: "team".into(),
             proposal: "proposal".into(),

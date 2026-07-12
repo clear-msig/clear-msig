@@ -1,4 +1,4 @@
-use clear_msig_cli::{TypedExecutionContext, TypedProposalLifecycle};
+use clear_msig_command_contract::{TypedExecutionContext, TypedProposalLifecycle};
 
 use crate::{ensure_base58, ensure_hex, ensure_non_empty, ensure_wallet_name, ApiError};
 

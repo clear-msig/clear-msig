@@ -191,7 +191,7 @@ export function friendlyError(
   //
   //   1. **Byte-exact preimage parity drift**. The on-chain
   //      `programs/clear-wallet/src/chains/<chain>.rs` and the
-  //      `cli/src/chains/<chain>.rs` must produce IDENTICAL bytes
+  //      `crates/clear-msig-execution/src/chains/<chain>.rs` must produce IDENTICAL bytes
   //      for the preimage. A one-byte divergence (off-by-one length
   //      prefix, wrong endianness, missing field) causes exactly
   //      this signature-recovery failure. This parity is the
@@ -215,7 +215,7 @@ export function friendlyError(
   // (Iamknownasfesal / Ika devrel) a real rotation would invalidate
   // every wallet, not selective per-chain. So this isn't that.
   // ── ETH recover_v failure after BOTH canonical AND byte-reversed
-  //    passes (cli/src/chains/evm.rs::recover_v). The auto-correction
+  //    passes (crates/clear-msig-execution/src/chains/evm.rs::recover_v). The auto-correction
   //    landed in commit 92250a0; this matcher only fires when even
   //    the reversed-byte fallback didn't recover the dWallet pubkey,
   //    which means the failure is real (preimage drift, key mismatch,
@@ -234,7 +234,7 @@ export function friendlyError(
 
   // ── Bitcoin script-verify rejection. Mostly the LE-scalar case
   //    (Ika's mock signer emits little-endian sometimes); the CLI
-  //    auto-corrects in cli/src/chains/bitcoin.rs::pick_canonical_or_reversed
+  //    auto-corrects in crates/clear-msig-execution/src/chains/bitcoin.rs::pick_canonical_or_reversed
   //    as of commit 98484ca, so a fresh retry of the SAME proposal
   //    will usually succeed without any new signing roundtrip. The
   //    fix swaps byte order at broadcast time. If users still hit

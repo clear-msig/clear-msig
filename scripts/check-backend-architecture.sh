@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-forbidden='tokio::process|std::process::Command|Command::new|CLEAR_MSIG_BIN|cli_bin|clear_msig_cli::execute_args'
+forbidden='tokio::process|std::process::Command|Command::new|CLEAR_MSIG_BIN|cli_bin|CliRunner|clear_msig_cli|clear-msig-cli'
 if grep -REn "$forbidden" backend-api/src backend-api/Cargo.toml Dockerfile render.yaml; then
   echo "Backend architecture check failed: a forbidden execution coupling was introduced." >&2
   exit 1
 fi
 
-grep -q 'clear-msig-cli = { path = "../cli" }' backend-api/Cargo.toml
+grep -q 'clear-msig-execution = { path = "../crates/clear-msig-execution" }' backend-api/Cargo.toml
 grep -q 'clear-msig-command-contract = { path = "../crates/clear-msig-command-contract" }' backend-api/Cargo.toml
 grep -q '"in_process_cancellable"' backend-api/src/runner.rs
-grep -q 'clear_msig_cli::execute_request' backend-api/src/runner.rs
+grep -q 'clear_msig_execution::execute_request' backend-api/src/runner.rs
 grep -q 'run_typed_proposal' backend-api/src/proposals.rs
 grep -q 'run_typed_lifecycle' backend-api/src/proposals.rs
 grep -q 'run_direct' backend-api/src/wallet.rs
@@ -19,10 +19,17 @@ grep -q 'run_direct' backend-api/src/proposals.rs
 grep -q 'TypedProposalExecution' backend-api/src/proposals/typed_execution.rs
 grep -q 'TypedProposalLifecycle' backend-api/src/proposals/typed_lifecycle.rs
 
-if grep -REn 'clear_msig_cli::(DirectCommand|DirectExecutionContext|TypedProposalExecution|TypedExecutionContext|TypedProposalLifecycle|LamportPayment)' backend-api/src; then
-  echo "Backend architecture check failed: backend domain types leaked back into the CLI adapter crate." >&2
+if grep -REn 'clear_msig_execution::(DirectCommand|DirectExecutionContext|TypedProposalExecution|TypedExecutionContext|TypedProposalLifecycle|LamportPayment)' backend-api/src; then
+  echo "Backend architecture check failed: backend domain types leaked into the execution infrastructure crate." >&2
   exit 1
 fi
+
+if grep -REn 'clear-wallet|solana|ika|reqwest|tokio' cli/Cargo.toml cli/src; then
+  echo "Backend architecture check failed: execution dependencies leaked into the thin CLI package." >&2
+  exit 1
+fi
+grep -q 'clear_msig_execution::prepare_command' cli/src/main.rs
+grep -q 'clear_msig_execution::execute_request' cli/src/main.rs
 
 if grep -REn 'clap|ConfigAction|WalletAction|IntentAction|ProposalAction|"--[a-z]' crates/clear-msig-command-contract/src; then
   echo "Backend architecture check failed: CLI adapter vocabulary leaked into the command core." >&2
@@ -61,16 +68,16 @@ if grep -REn 'run_json|prepare_execution|validate_invocation_args|base_args' bac
   exit 1
 fi
 
-if grep -REn 'solana_client::rpc_client::RpcClient|std::thread::sleep' cli/src/rpc.rs cli/src/ika.rs; then
+if grep -REn 'solana_client::rpc_client::RpcClient|std::thread::sleep' crates/clear-msig-execution/src/rpc.rs crates/clear-msig-execution/src/ika.rs; then
   echo "Backend architecture check failed: synchronous Solana/Ika infrastructure was reintroduced." >&2
   exit 1
 fi
 
-grep -q 'solana_client::nonblocking::rpc_client::RpcClient' cli/src/rpc.rs
-grep -q 'control.cancelled()' cli/src/rpc.rs
-grep -q 'control.cancelled()' cli/src/ika.rs
+grep -q 'solana_client::nonblocking::rpc_client::RpcClient' crates/clear-msig-execution/src/rpc.rs
+grep -q 'control.cancelled()' crates/clear-msig-execution/src/rpc.rs
+grep -q 'control.cancelled()' crates/clear-msig-execution/src/ika.rs
 grep -q 'control.cancel()' backend-api/src/runner.rs
 
 bash scripts/check-execution-properties.sh
 
-echo "Backend architecture: core-owned contracts, cancellable destination I/O, bounded in-process execution."
+echo "Backend architecture: command contracts + reusable execution library + thin CLI, with bounded cancellable I/O."

@@ -27,7 +27,7 @@
 //      `POST /tx`.
 //
 // Network: signet by default, matching the CLI's default and the
-// `cli/src/chains/bitcoin.rs` test path. The wallet's chain binding
+// `crates/clear-msig-execution/src/chains/bitcoin.rs` test path. The wallet's chain binding
 // returns either testnet or mainnet addresses; we read the binding
 // at runtime to decide which network the dWallet is bound to. (For
 // pre-alpha all wallets come up on signet/testnet. `tb` HRP. So

@@ -2,7 +2,7 @@ use crate::{
     ensure_base58, ensure_hex, ensure_hex_exact_len, ensure_intent_filename, ensure_wallet_name,
     ApiError,
 };
-use clear_msig_cli::{LamportPayment, TypedProposalExecution};
+use clear_msig_command_contract::{LamportPayment, TypedProposalExecution};
 
 use super::types::{
     ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,

@@ -8,7 +8,7 @@ name = "clear-msig-backend-api"
 path = "src/main.rs"
 
 [dependencies]
-clear-msig-cli = { path = "../cli" }
+clear-msig-execution = { path = "../crates/clear-msig-execution" }
 clear-msig-command-contract = { path = "../crates/clear-msig-command-contract" }
 anyhow = "1"
 axum = { version = "0.8", features = ["macros"] }

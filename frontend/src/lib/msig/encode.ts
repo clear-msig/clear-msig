@@ -1,4 +1,4 @@
-// Param encoder . browser-side mirror of cli/src/params.rs::encode_params.
+// Param encoder . browser-side mirror of crates/clear-msig-execution/src/params.rs::encode_params.
 //
 // Given an IntentAccount (already parsed from on-chain state) and a map
 // of param_name → string-form value, produce the exact `params_data`

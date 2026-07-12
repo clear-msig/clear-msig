@@ -195,10 +195,12 @@ programs/clear-wallet/src/
   utils/          Message building, ika_cpi, hashing
   client/         PDA derivation, intent builder, JSON parsing
 
-cli/src/
-  commands/       wallet, intent, proposal, config
+crates/clear-msig-execution/src/
+  commands/       wallet, intent, proposal, config execution handlers
   chains/         Per-chain broadcast adapters
   ika.rs          gRPC DKG / presign / sign, PDA + preimage helpers
+
+cli/src/          Thin `clear-msig` binary launcher only
 
 backend-api/      Axum relayer linked to the shared Rust execution library
 frontend/         Next.js 15 + React 19 app

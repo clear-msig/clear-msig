@@ -5,14 +5,15 @@ It links the same typed Rust execution library used by the `clear-msig` binary
 and runs commands in a bounded worker pool. Solana RPC and Ika gRPC operations
 use cancellation-aware async clients; no HTTP endpoint launches the CLI executable.
 
-This is the backend bridge between UI and your existing on-chain + CLI flows.
+This is the backend bridge between the UI and typed on-chain execution flows.
 
 ## Why this service exists
 
 - Keeps the frontend decoupled from execution details. Wallet, intent, proposal,
   ClearSign lookup, typed lifecycle, and typed execution routes construct closed
   domain commands directly.
-- Preserves your proven CLI logic instead of duplicating transaction logic.
+- Calls the reusable execution library directly instead of duplicating
+  transaction logic or invoking the CLI binary.
 - Validates route commands through closed enums, bounded collections, and value
   size limits from the lightweight command-contract crate. All paths receive
   execution timeouts, response caps, worker concurrency limits, and structured

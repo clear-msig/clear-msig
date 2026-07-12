@@ -8,7 +8,7 @@ it does not mean the production system is generally secure.
 
 | Review recommendation | Status | Evidence | Still open |
 | --- | --- | --- | --- |
-| Reusable Rust execution core | **Partial** | The lightweight `clear-msig-command-contract` crate owns wallet, intent, proposal, lifecycle, execution, and signer-context contracts plus boundary validation. Backend routes import those contracts directly; CI rejects CLI-domain leakage and raw argument builders. Solana, Ika, BTC, EVM, and Zcash I/O is cancellation-aware behind ports. | The CLI still projects contracts into concrete command handlers; extracting those handlers into dedicated execution modules remains open. |
+| Reusable Rust execution core | **Complete** | `clear-msig-command-contract` owns bounded domain requests. `clear-msig-execution` owns concrete preparation, handlers, cancellation, RPC/Ika, and destination adapters. Both the backend worker and thin `clear-msig` binary call that library directly; CI rejects backend-to-CLI and CLI-to-infrastructure coupling. | This completes the shared-library topology recommendation, not production security. Solana and Ika constructor injection can still be narrowed inside the execution crate. |
 | Complete Agent domain migration | **Partial** | Agent UI/controller boundaries and narrow infrastructure ports are enforced by `frontend/scripts/check-architecture.mjs`; direct legacy runtime imports from route/controller/UI fail CI. | Pure Agent domain implementations still physically live under `frontend/src/lib/agents` and are re-exported through the feature domain. |
 | Reduce authenticated JavaScript | **Partial** | `npm run profile:bundles` attributes SDK modules by route; route/chunk budgets prevent regression. | No material shared-runtime reduction has landed. Current authenticated routes remain about 1 MB gzip under the project ratchet, dominated by Dynamic. |
 | Adversarial end-to-end testing | **Partial** | SVM tests cover payload substitution, replay, wrong recipient/amount, stale policy/session, route/risk changes, limits, and duplicate execution. CLI tests cover interrupted signed MessageApproval recovery. | Compromised-relayer and interrupted cross-service tests against live destination testnets are not yet comprehensive property tests. |
@@ -22,13 +22,15 @@ it does not mean the production system is generally secure.
 - Optimized backend binary: 15,398,316 bytes.
 - Current local SBF artifact: 615,184 bytes, SHA-256
   `3d22b71d939c001de34e2f86e6c50f85ee037a68b4b35d2bb3e697636d336321`.
-- The old Docker build already compiled the same Solana/Ika graph for the CLI,
+- The old Docker build already compiled the same Solana/Ika graph for execution,
   so this is not a valid before/after build-time improvement claim.
 - Backend timeouts cancel Solana, Ika, BTC, EVM, and Zcash network futures and
   allow a five-second drain. CPU-only transaction assembly remains synchronous;
   the default eight-worker semaphore bounds that work.
-- Backend clippy passes with `-D warnings --no-deps`. The wider graph is not
-  clippy-clean: the current program reports 48 warnings and the CLI reports 18.
+- Backend and thin-CLI clippy pass with `-D warnings --no-deps`. The reusable
+  execution library still reports 18 pre-existing strict-clippy findings,
+  chiefly oversized instruction-builder signatures; the program and wider
+  dependency graph are also not globally warning-free.
 - Raw-pointer account serializers are now explicit `unsafe fn` APIs with
   documented buffer requirements and explicit unsafe call sites.
 - Agent Vault remains a pre-alpha governed-capital product direction. On-chain

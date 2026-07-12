@@ -1063,8 +1063,8 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bs58",
- "clear-msig-cli",
  "clear-msig-command-contract",
+ "clear-msig-execution",
  "reqwest",
  "serde",
  "serde_json",
@@ -1078,6 +1078,19 @@ dependencies = [
 
 [[package]]
 name = "clear-msig-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "clear-msig-execution",
+ "serde_json",
+]
+
+[[package]]
+name = "clear-msig-command-contract"
+version = "0.1.0"
+
+[[package]]
+name = "clear-msig-execution"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1127,10 +1140,6 @@ dependencies = [
  "tonic",
  "wincode 0.4.9",
 ]
-
-[[package]]
-name = "clear-msig-command-contract"
-version = "0.1.0"
 
 [[package]]
 name = "clear-wallet"

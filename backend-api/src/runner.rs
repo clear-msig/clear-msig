@@ -9,8 +9,8 @@ const DEFAULT_WORKER_LIMIT: usize = 8;
 const CANCELLATION_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
-pub(crate) struct CliRunner {
-    execution_globals: clear_msig_cli::config::CliGlobals,
+pub(crate) struct ExecutionRunner {
+    execution_globals: clear_msig_execution::config::CliGlobals,
     pub(crate) rpc_url: String,
     pub(crate) program_id: String,
     pub(crate) timeout: Duration,
@@ -21,7 +21,7 @@ pub(crate) struct CliRunner {
     pub(crate) default_destination_rpc_url: Option<String>,
 }
 
-impl CliRunner {
+impl ExecutionRunner {
     pub(crate) fn execution_mode(&self) -> &'static str {
         "in_process_cancellable"
     }
@@ -31,7 +31,7 @@ impl CliRunner {
         execution: clear_msig_command_contract::TypedProposalExecution,
     ) -> Result<Value, ApiError> {
         let subcommand = execution.label().to_string();
-        let request = clear_msig_cli::prepare_typed_proposal_execution(
+        let request = clear_msig_execution::prepare_typed_proposal_execution(
             self.execution_globals.clone(),
             execution,
         )
@@ -64,7 +64,7 @@ impl CliRunner {
             } => Some(signer_pubkey.chars().take(6).collect()),
             clear_msig_command_contract::TypedExecutionContext::Backend => None,
         };
-        let request = clear_msig_cli::prepare_typed_proposal_lifecycle(
+        let request = clear_msig_execution::prepare_typed_proposal_lifecycle(
             self.execution_globals.clone(),
             context,
             lifecycle,
@@ -100,7 +100,7 @@ impl CliRunner {
             } => Some(signer_pubkey.chars().take(6).collect()),
             clear_msig_command_contract::DirectExecutionContext::Backend => None,
         };
-        let request = clear_msig_cli::prepare_direct_command(
+        let request = clear_msig_execution::prepare_direct_command(
             self.execution_globals.clone(),
             context,
             command,
@@ -116,7 +116,7 @@ impl CliRunner {
 
     async fn run_request(
         &self,
-        request: clear_msig_cli::ExecutionRequest,
+        request: clear_msig_execution::ExecutionRequest,
         subcommand: String,
         dry_run: bool,
         actor_prefix: Option<String>,
@@ -130,7 +130,7 @@ impl CliRunner {
         let control = request.cancellation_handle();
         let mut worker = tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            clear_msig_cli::execute_request(request)
+            clear_msig_execution::execute_request(request)
         });
         let remaining = self.timeout.saturating_sub(started.elapsed());
         let result = match timeout(remaining, &mut worker).await {
@@ -203,11 +203,11 @@ fn validate_response_size(value: &Value) -> Result<(), ApiError> {
     Ok(())
 }
 
-pub(crate) fn build_runner() -> CliRunner {
+pub(crate) fn build_runner() -> ExecutionRunner {
     let url = non_empty_env("CLEAR_MSIG_URL");
     let keypair = non_empty_env("CLEAR_MSIG_KEYPAIR");
     let signer = non_empty_env("CLEAR_MSIG_SIGNER");
-    let execution_globals = clear_msig_cli::config::CliGlobals {
+    let execution_globals = clear_msig_execution::config::CliGlobals {
         url: url.clone(),
         keypair: keypair.clone(),
         signer: signer.clone(),
@@ -242,7 +242,7 @@ pub(crate) fn build_runner() -> CliRunner {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
 
-    CliRunner {
+    ExecutionRunner {
         execution_globals,
         rpc_url,
         program_id,

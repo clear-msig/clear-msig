@@ -35,10 +35,14 @@ This work has started:
   formatting, the first slice of the future ClearSign core.
 - `crates/clear-msig-command-contract`: backend-independent command and signer
   contracts with bounded validation.
-- `cli/src/chains/transport.rs`: mockable, cancellation-aware destination HTTP
-  port shared by BTC, EVM, and Zcash broadcasters.
-- `cli/src/rpc.rs` and `cli/src/ika.rs`: cancellation-aware Solana and Ika
-  infrastructure adapters.
+- `crates/clear-msig-execution`: reusable execution library shared by the
+  backend worker and thin CLI binary. It owns concrete handlers, cancellation,
+  and destination infrastructure without making the backend depend on a CLI.
+- `crates/clear-msig-execution/src/chains/transport.rs`: mockable,
+  cancellation-aware destination HTTP port shared by BTC, EVM, and Zcash.
+- `crates/clear-msig-execution/src/rpc.rs` and `ika.rs`: cancellation-aware
+  Solana and Ika infrastructure adapters.
+- `cli`: thin binary package that only launches `clear-msig-execution`.
 
 `backend-api/src/main.rs` should remain small: shared state, execution runner,
 generic validation, CORS/tracing, and route mounting.

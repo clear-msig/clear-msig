@@ -7,7 +7,7 @@ It describes the current pre-alpha system, not the intended production system.
 | --- | --- | --- | --- | --- |
 | Frontend | Misdescribe a request, hide state, choose a hostile recipient, or refuse service. | Change bytes after the wallet signature or bypass program policy. | Client reconstructs signable bytes from on-chain state; Ledger can display the canonical text; use another client or CLI. | Same-origin XSS can initiate a new misleading request. Hardware display coverage is incomplete. |
 | Backend / relayer | Censor, delay, reorder independent requests, return errors, or withhold broadcast. | Forge a user signature, change committed payload fields, lower thresholds, or execute an unapproved proposal. | Compare proposal/envelope/payload hashes on chain; any fee payer can submit an approved execution directly. Backend execution uses direct domain contracts, a bounded worker pool, timeout-triggered cancellation, response caps, and structured outcome logs. | Backend convenience workflows can still be unavailable, but are not an authorization dependency. |
-| Execution library / CLI adapter | Refuse execution, fail after a partial step, or submit the wrong transaction attempt. | Make a destination transaction with fields different from the approved preimage. | The lightweight command-contract crate owns bounded wallet, intent, proposal, lifecycle, execution, and signer-context values. Solana, Ika, BTC, EVM, and Zcash network futures are cancellation-aware behind infrastructure ports. Program and destination chains verify committed bytes. | Concrete command-handler projection still lives in the CLI adapter. |
+| Execution library / client adapter | Refuse execution, fail after a partial step, or submit the wrong transaction attempt. | Make a destination transaction with fields different from the approved preimage. | The command-contract crate owns bounded domain values. The reusable execution crate owns concrete handlers and cancellation-aware Solana, Ika, BTC, EVM, and Zcash adapters. Backend and CLI call it directly; the CLI package contains no execution dependencies. Program and destination chains verify committed bytes. | Solana and Ika client construction is still concrete inside the execution library rather than injected through narrow test ports. |
 | Redis / notification storage | Drop, duplicate, delay, or fabricate notifications. | Create approvals, sessions, policies, or transfers. | Rebuild UI state from Solana and destination chains. | Notifications are convenience data and must never become authorization inputs. |
 | Solana RPC | Censor reads/writes, serve stale data, or lie to one client about account state. | Change finalized ledger state or produce a valid user signature. | Retry another RPC, verify account owners/discriminators, compare finalized transaction signatures. | Production clients need multi-provider/quorum reads for high-value decisions. |
 | Destination-chain RPC/indexer | Hide balances, misreport UTXOs, reject broadcasts, or return stale fees. | Mutate a signed destination transaction. | Cross-check another provider or broadcast the same raw transaction elsewhere. | Fee and UTXO selection still depend on external indexed data before signing. |
@@ -34,9 +34,8 @@ It describes the current pre-alpha system, not the intended production system.
 ## Production blockers
 
 1. Replace the mock Ika signer with production distributed MPC.
-2. Extract concrete command handlers from the CLI adapter into dedicated
-   execution modules. All current network broadcasters are cancellation-aware
-   and child-process orchestration is retired.
+2. Finish narrow injected ports for Solana and Ika clients inside the reusable
+   execution library. Destination HTTP already uses a replaceable port.
 3. Add multi-provider RPC verification for high-value reads and broadcasts.
 4. Complete adversarial/property testing and commission an external audit.
 5. Put program upgrades behind reviewed, multi-party operational governance.

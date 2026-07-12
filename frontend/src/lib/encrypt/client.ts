@@ -384,7 +384,7 @@ export function encryptStatus(): EncryptStatus {
   // pieces still need work for "switch on" to be more than a flag:
   //
   //   1. CLI today logs `policy_ciphertexts` rather than threading
-  //      them into the on-chain instruction. (cli/src/commands/intent.rs)
+  //      them into the on-chain instruction. (crates/clear-msig-execution/src/commands/intent.rs)
   //   2. The Solana program has no FHE-aware handlers
   //      (`#[encrypt_fn]`, `EUint*`). Approval / threshold checks
   //      need to operate on encrypted refs, not plaintext.

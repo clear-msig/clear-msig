@@ -1,7 +1,7 @@
 // Block-explorer URL helpers for every chain clear-msig can drive.
 //
 // `chain_kind` matches programs/clear-wallet/src/state/intent.rs and
-// cli/src/chains/mod.rs:
+// crates/clear-msig-execution/src/chains/mod.rs:
 //   0 = Solana             → explorer.solana.com (cluster from RPC URL)
 //   1 = EVM 1559           → Etherscan family, picked from destination RPC URL
 //   2 = Bitcoin P2WPKH     → mempool.space (testnet vs mainnet from RPC URL)
@@ -9,7 +9,7 @@
 //   4 = EVM 1559 ERC-20    → same as EVM 1559
 //   5 = Hyperliquid HyperEVM→ Hyperliquid explorer
 //
-// The CLI's `BroadcastResult` (cli/src/chains/mod.rs) carries an
+// The execution library's `BroadcastResult` (crates/clear-msig-execution/src/chains/mod.rs) carries an
 // optional `explorer_url` that some chains (Bitcoin) populate
 // server-side. When that's present we trust it; otherwise we derive
 // from the chain_kind + tx_id + the destination RPC URL the user
@@ -37,7 +37,7 @@ export function addressUrl(address: string): string {
 }
 
 /// Optional fields carried in the JSON the backend returns from
-/// `proposal execute --broadcast`. Mirror of cli/src/chains/mod.rs::
+/// `proposal execute --broadcast`. Mirror of crates/clear-msig-execution/src/chains/mod.rs::
 /// BroadcastResult. All fields optional because older CLIs may not
 /// populate every one.
 export interface BroadcastResultLike {

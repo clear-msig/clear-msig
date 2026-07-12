@@ -20,12 +20,12 @@ grep -q 'proposal.status = ProposalStatus::Executed' \
 grep -q 'test_execute_typed_sol_send_is_permissionless_and_idempotent' \
   programs/clear-wallet/src/tests.rs
 
-if grep -REn 'reqwest::blocking|solana_client::rpc_client::RpcClient' cli/src; then
+if grep -REn 'reqwest::blocking|solana_client::rpc_client::RpcClient' crates/clear-msig-execution/src; then
   echo "Execution property check failed: a blocking destination or Solana client was introduced." >&2
   exit 1
 fi
 
-grep -q 'trait DestinationTransport' cli/src/chains/transport.rs
-grep -q 'control.cancelled()' cli/src/chains/transport.rs
+grep -q 'trait DestinationTransport' crates/clear-msig-execution/src/chains/transport.rs
+grep -q 'control.cancelled()' crates/clear-msig-execution/src/chains/transport.rs
 
 echo "Execution properties: replaceable relayer, replay guard, cancellable destination transport."

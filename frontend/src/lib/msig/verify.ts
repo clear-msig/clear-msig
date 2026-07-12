@@ -69,7 +69,7 @@ export class MessageVerificationError extends Error {
 /// appears literally in the signed text (`propose`, `approve`,
 /// `cancel`). The frontend must translate before rebuilding the bytes
 /// or the byte-compare will always fail. Source of truth lives in
-/// `cli/src/commands/{intent,proposal}.rs`; keep this map in sync.
+/// `crates/clear-msig-execution/src/commands/{intent,proposal}.rs`; keep this map in sync.
 const ACTION_TO_BYTE_VERB: Record<string, Action> = {
   intent_add: "propose",
   intent_remove: "propose",
