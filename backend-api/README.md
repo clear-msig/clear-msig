@@ -9,11 +9,14 @@ This is the backend bridge between UI and your existing on-chain + CLI flows.
 
 ## Why this service exists
 
-- Keeps frontend decoupled from CLI argument formatting.
+- Keeps the frontend decoupled from execution details. Typed proposal execution
+  routes use domain commands directly; legacy routes still have adapter
+  argument builders scheduled for migration.
 - Preserves your proven CLI logic instead of duplicating transaction logic.
-- Validates every generated invocation against the full CLI schema and applies
-  execution timeouts, response caps, worker concurrency limits, and structured
-  logs.
+- Validates legacy adapter invocations against the full CLI schema and validates
+  typed proposal commands through closed enums, bounded collections, and value
+  size limits. Both paths receive execution timeouts, response caps, worker
+  concurrency limits, and structured logs.
 - Provides one place for request validation, timeout control, and uniform error envelopes.
 
 ## Start

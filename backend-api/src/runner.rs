@@ -10,6 +10,7 @@ const DEFAULT_WORKER_LIMIT: usize = 8;
 #[derive(Clone)]
 pub(crate) struct CliRunner {
     pub(crate) base_args: Vec<String>,
+    execution_globals: clear_msig_cli::config::CliGlobals,
     pub(crate) timeout: Duration,
     pub(crate) worker_limit: usize,
     workers: Arc<Semaphore>,
@@ -41,11 +42,39 @@ impl CliRunner {
     }
 
     pub(crate) async fn run_json(&self, args: Vec<String>) -> Result<Value, ApiError> {
-        let started = std::time::Instant::now();
         let subcommand = cli_subcommand_label(&args);
         let dry_run = args.iter().any(|argument| argument == "--dry-run");
         let actor_prefix = extract_actor_prefix(&args);
         let request = self.prepare_request(&args)?;
+        self.run_request(request, subcommand, dry_run, actor_prefix)
+            .await
+    }
+
+    pub(crate) async fn run_typed_proposal(
+        &self,
+        execution: clear_msig_cli::TypedProposalExecution,
+    ) -> Result<Value, ApiError> {
+        let subcommand = execution.label().to_string();
+        let request = clear_msig_cli::prepare_typed_proposal_execution(
+            self.execution_globals.clone(),
+            execution,
+        )
+        .map_err(|error| {
+            ApiError::Internal(format!(
+                "backend generated an invalid typed execution: {error}"
+            ))
+        })?;
+        self.run_request(request, subcommand, false, None).await
+    }
+
+    async fn run_request(
+        &self,
+        request: clear_msig_cli::ExecutionRequest,
+        subcommand: String,
+        dry_run: bool,
+        actor_prefix: Option<String>,
+    ) -> Result<Value, ApiError> {
+        let started = std::time::Instant::now();
         let workers = self.workers.clone();
 
         let execution = async move {
@@ -121,26 +150,19 @@ fn validate_response_size(value: &Value) -> Result<(), ApiError> {
 }
 
 pub(crate) fn build_runner() -> CliRunner {
+    let url = non_empty_env("CLEAR_MSIG_URL");
+    let keypair = non_empty_env("CLEAR_MSIG_KEYPAIR");
+    let signer = non_empty_env("CLEAR_MSIG_SIGNER");
+    let execution_globals = clear_msig_cli::config::CliGlobals {
+        url: url.clone(),
+        keypair: keypair.clone(),
+        signer: signer.clone(),
+        ..Default::default()
+    };
     let mut base_args = Vec::new();
-
-    if let Ok(url) = env::var("CLEAR_MSIG_URL") {
-        if !url.trim().is_empty() {
-            base_args.push("--url".to_string());
-            base_args.push(url);
-        }
-    }
-    if let Ok(keypair) = env::var("CLEAR_MSIG_KEYPAIR") {
-        if !keypair.trim().is_empty() {
-            base_args.push("--keypair".to_string());
-            base_args.push(keypair);
-        }
-    }
-    if let Ok(signer) = env::var("CLEAR_MSIG_SIGNER") {
-        if !signer.trim().is_empty() {
-            base_args.push("--signer".to_string());
-            base_args.push(signer);
-        }
-    }
+    push_optional_global(&mut base_args, "--url", url);
+    push_optional_global(&mut base_args, "--keypair", keypair);
+    push_optional_global(&mut base_args, "--signer", signer);
 
     let timeout_secs = env::var("CLEAR_MSIG_CMD_TIMEOUT_SECS")
         .ok()
@@ -167,12 +189,27 @@ pub(crate) fn build_runner() -> CliRunner {
 
     CliRunner {
         base_args,
+        execution_globals,
         timeout: Duration::from_secs(timeout_secs),
         worker_limit,
         workers: Arc::new(Semaphore::new(worker_limit)),
         default_dwallet_program,
         default_grpc_url,
         default_destination_rpc_url,
+    }
+}
+
+fn non_empty_env(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn push_optional_global(args: &mut Vec<String>, flag: &str, value: Option<String>) {
+    if let Some(value) = value {
+        args.push(flag.to_string());
+        args.push(value);
     }
 }
 

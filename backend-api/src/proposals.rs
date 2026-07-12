@@ -16,11 +16,15 @@ mod types;
 mod validation;
 
 use typed_execution::{
-    execute_typed_agent_session_grant_args, execute_typed_agent_trade_approval_args,
-    execute_typed_chain_send_args, execute_typed_escrow_release_args,
-    execute_typed_escrow_return_args, execute_typed_intent_governance_args,
-    execute_typed_sol_batch_send_args, execute_typed_sol_send_args,
-    execute_typed_wallet_policy_update_args,
+    execute_typed_agent_session_grant as build_typed_agent_session_grant,
+    execute_typed_agent_trade_approval as build_typed_agent_trade_approval,
+    execute_typed_chain_send as build_typed_chain_send,
+    execute_typed_escrow_release as build_typed_escrow_release,
+    execute_typed_escrow_return as build_typed_escrow_return,
+    execute_typed_intent_governance as build_typed_intent_governance,
+    execute_typed_sol_batch_send as build_typed_sol_batch_send,
+    execute_typed_sol_send as build_typed_sol_send,
+    execute_typed_wallet_policy_update as build_typed_wallet_policy_update,
 };
 use types::{
     ExecuteProposalRequest, ExecuteTypedAgentSessionGrantRequest,
@@ -541,8 +545,8 @@ async fn execute_typed_escrow_release(
         .rate_limiter
         .check(&format!("execute:escrow-release:{name}"))
         .await?;
-    let args = execute_typed_escrow_release_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_escrow_release(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_escrow_return(
@@ -554,8 +558,8 @@ async fn execute_typed_escrow_return(
         .rate_limiter
         .check(&format!("execute:escrow-return:{name}"))
         .await?;
-    let args = execute_typed_escrow_return_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_escrow_return(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_sol_send(
@@ -567,8 +571,8 @@ async fn execute_typed_sol_send(
         .rate_limiter
         .check(&format!("execute:sol-send:{name}"))
         .await?;
-    let args = execute_typed_sol_send_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_sol_send(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_wallet_policy_update(
@@ -580,8 +584,8 @@ async fn execute_typed_wallet_policy_update(
         .rate_limiter
         .check(&format!("execute:wallet-policy:{name}"))
         .await?;
-    let args = execute_typed_wallet_policy_update_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_wallet_policy_update(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_intent_governance(
@@ -593,8 +597,8 @@ async fn execute_typed_intent_governance(
         .rate_limiter
         .check(&format!("execute:governance:{name}"))
         .await?;
-    let args = execute_typed_intent_governance_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_intent_governance(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_chain_send(
@@ -607,7 +611,7 @@ async fn execute_typed_chain_send(
         .rate_limiter
         .check(&format!("execute:chain-send:{name}"))
         .await?;
-    let args = execute_typed_chain_send_args(
+    let execution = build_typed_chain_send(
         name,
         proposal,
         body,
@@ -615,7 +619,7 @@ async fn execute_typed_chain_send(
         state.runner.default_grpc_url.clone(),
         state.runner.default_destination_rpc_url.clone(),
     )?;
-    Ok(Json(state.runner.run_json(args).await?))
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_sol_batch_send(
@@ -627,8 +631,8 @@ async fn execute_typed_sol_batch_send(
         .rate_limiter
         .check(&format!("execute:sol-batch:{name}"))
         .await?;
-    let args = execute_typed_sol_batch_send_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_sol_batch_send(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_agent_trade_approval(
@@ -640,8 +644,8 @@ async fn execute_typed_agent_trade_approval(
         .rate_limiter
         .check(&format!("execute:agent-trade:{name}"))
         .await?;
-    let args = execute_typed_agent_trade_approval_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_agent_trade_approval(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_agent_session_grant(
@@ -653,8 +657,8 @@ async fn execute_typed_agent_session_grant(
         .rate_limiter
         .check(&format!("execute:agent-session:{name}"))
         .await?;
-    let args = execute_typed_agent_session_grant_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_agent_session_grant(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn cleanup_proposal(

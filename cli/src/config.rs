@@ -9,6 +9,7 @@ use std::path::PathBuf;
 /// Every global CLI flag, bundled for propagation from `main.rs` into
 /// `load_config`. Keeps the function signature from exploding as more
 /// cross-cutting flags (pre-signed mode, dry-run, …) land.
+#[derive(Clone, Default)]
 pub struct CliGlobals {
     pub url: Option<String>,
     pub keypair: Option<String>,

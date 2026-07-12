@@ -11,5 +11,12 @@ grep -q 'clear-msig-cli = { path = "../cli" }' backend-api/Cargo.toml
 grep -q '"in_process_bounded"' backend-api/src/runner.rs
 grep -q 'clear_msig_cli::prepare_execution' backend-api/src/runner.rs
 grep -q 'clear_msig_cli::execute_request' backend-api/src/runner.rs
+grep -q 'run_typed_proposal' backend-api/src/proposals.rs
+grep -q 'TypedProposalExecution' backend-api/src/proposals/typed_execution.rs
+
+if grep -En 'Result<Vec<String>|&mut Vec<String>|"--[a-z]' backend-api/src/proposals/typed_execution.rs; then
+  echo "Backend architecture check failed: typed proposal routes rebuilt raw adapter arguments." >&2
+  exit 1
+fi
 
 echo "Backend architecture: validated typed requests, bounded in-process execution, no CLI subprocess coupling."

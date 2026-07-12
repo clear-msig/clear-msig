@@ -11,6 +11,7 @@ mod chains;
 pub mod commands;
 pub mod config;
 mod error;
+mod execution;
 mod ika;
 mod instructions;
 mod message;
@@ -24,6 +25,8 @@ mod signing;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+
+pub use execution::{prepare_typed_proposal_execution, LamportPayment, TypedProposalExecution};
 
 #[derive(Parser)]
 #[command(name = "clear-msig", about = "Clear-sign multisig wallet CLI")]

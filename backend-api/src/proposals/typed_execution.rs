@@ -1,6 +1,8 @@
 use crate::{
-    ensure_base58, ensure_hex, ensure_hex_exact_len, ensure_non_empty, ensure_wallet_name, ApiError,
+    ensure_base58, ensure_hex, ensure_hex_exact_len, ensure_intent_filename, ensure_wallet_name,
+    ApiError,
 };
+use clear_msig_cli::{LamportPayment, TypedProposalExecution};
 
 use super::types::{
     ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
@@ -10,97 +12,93 @@ use super::types::{
     ExecuteTypedWalletPolicyUpdateRequest,
 };
 
-pub(super) fn execute_typed_escrow_release_args(
+pub(super) fn execute_typed_escrow_release(
     name: String,
     proposal: String,
     body: ExecuteTypedEscrowReleaseRequest,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
-    ensure_non_empty(&body.escrow_id, "escrowId")?;
-    ensure_non_empty(&body.milestone_id, "milestoneId")?;
+    ensure_bounded_text(&body.escrow_id, "escrowId")?;
+    ensure_bounded_text(&body.milestone_id, "milestoneId")?;
     ensure_positive_lamports(body.amount_lamports, "amountLamports")?;
 
-    let mut args = base_proposal_args("typed-escrow-release", name, proposal);
-    args.extend([
-        "--recipient".into(),
-        validated_base58(body.recipient, "recipient")?,
-        "--amount-lamports".into(),
-        body.amount_lamports.to_string(),
-        "--escrow-id".into(),
-        body.escrow_id,
-        "--milestone-id".into(),
-        body.milestone_id,
-    ]);
-    Ok(args)
+    Ok(TypedProposalExecution::EscrowRelease {
+        wallet: name,
+        proposal,
+        recipient: validated_base58(body.recipient, "recipient")?,
+        amount_lamports: body.amount_lamports,
+        escrow_id: body.escrow_id,
+        milestone_id: body.milestone_id,
+    })
 }
 
-pub(super) fn execute_typed_escrow_return_args(
+pub(super) fn execute_typed_escrow_return(
     name: String,
     proposal: String,
     body: ExecuteTypedEscrowReturnRequest,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
-    ensure_non_empty(&body.escrow_id, "escrowId")?;
+    ensure_bounded_text(&body.escrow_id, "escrowId")?;
     ensure_bounded_rows(body.returns.len(), "returns")?;
 
-    let mut args = base_proposal_args("typed-escrow-return", name, proposal);
-    args.extend(["--escrow-id".into(), body.escrow_id]);
-    for row in body.returns {
-        push_recipient_lamports(
-            &mut args,
-            "--return",
-            row.recipient,
-            row.amount_lamports,
-            "returns.recipient",
-            "returns.amountLamports",
-        )?;
-    }
-    Ok(args)
+    let returns = body
+        .returns
+        .into_iter()
+        .map(|row| {
+            validated_lamport_payment(
+                row.recipient,
+                row.amount_lamports,
+                "returns.recipient",
+                "returns.amountLamports",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(TypedProposalExecution::EscrowReturn {
+        wallet: name,
+        proposal,
+        escrow_id: body.escrow_id,
+        returns,
+    })
 }
 
-pub(super) fn execute_typed_sol_send_args(
+pub(super) fn execute_typed_sol_send(
     name: String,
     proposal: String,
     body: ExecuteTypedSolSendRequest,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
     ensure_positive_lamports(body.amount_lamports, "amountLamports")?;
 
-    let mut args = base_proposal_args("typed-sol-send", name, proposal);
-    args.extend([
-        "--recipient".into(),
-        validated_base58(body.recipient, "recipient")?,
-        "--amount-lamports".into(),
-        body.amount_lamports.to_string(),
-    ]);
-    Ok(args)
+    Ok(TypedProposalExecution::SolSend {
+        wallet: name,
+        proposal,
+        recipient: validated_base58(body.recipient, "recipient")?,
+        amount_lamports: body.amount_lamports,
+    })
 }
 
-pub(super) fn execute_typed_wallet_policy_update_args(
+pub(super) fn execute_typed_wallet_policy_update(
     name: String,
     proposal: String,
     body: ExecuteTypedWalletPolicyUpdateRequest,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
     ensure_optional_hex(&body.policy_bytes_hex, "policyBytesHex")?;
 
-    let mut args = base_proposal_args("typed-wallet-policy-update", name, proposal);
-    args.extend([
-        "--policy-bytes-hex".into(),
-        body.policy_bytes_hex,
-        "--chain-kind".into(),
-        body.chain_kind.to_string(),
-    ]);
-    Ok(args)
+    Ok(TypedProposalExecution::WalletPolicyUpdate {
+        wallet: name,
+        proposal,
+        policy_bytes_hex: body.policy_bytes_hex,
+        chain_kind: body.chain_kind,
+    })
 }
 
-pub(super) fn execute_typed_intent_governance_args(
+pub(super) fn execute_typed_intent_governance(
     name: String,
     proposal: String,
     body: ExecuteTypedIntentGovernanceRequest,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
-    let mut args = base_proposal_args("typed-intent-governance", name, proposal);
     if let Some(action_kind) = body.action_kind {
         if !matches!(action_kind, 3..=5) {
             return Err(ApiError::BadRequest(
@@ -108,11 +106,11 @@ pub(super) fn execute_typed_intent_governance_args(
                     .into(),
             ));
         }
-        args.extend(["--action-kind".into(), action_kind.to_string()]);
     }
-    if let Some(target_index) = body.target_index {
-        args.extend(["--target-index".into(), target_index.to_string()]);
-    }
+    let mut file = None;
+    let mut proposers = None;
+    let mut approvers = None;
+    let mut threshold = None;
     if let Some(hex) = body.new_intent_body_hex {
         ensure_optional_hex(&hex, "newIntentBodyHex")?;
         if body.target_index.is_none() {
@@ -120,56 +118,67 @@ pub(super) fn execute_typed_intent_governance_args(
                 "targetIndex is required with newIntentBodyHex".into(),
             ));
         }
-        args.extend(["--new-intent-body-hex".into(), hex]);
-        return Ok(args);
-    }
-    if body.file.is_none() {
+        return Ok(TypedProposalExecution::IntentGovernance {
+            wallet: name,
+            proposal,
+            action_kind: body.action_kind,
+            target_index: body.target_index,
+            new_intent_body_hex: Some(hex),
+            file,
+            proposers,
+            approvers,
+            threshold,
+            cancellation_threshold: body.cancellation_threshold.unwrap_or(1),
+            timelock: body.timelock.unwrap_or(0),
+        });
+    } else if body.file.is_none() {
         // With no explicit rebuild input, the CLI resumes from the execution
         // payload committed in the on-chain typed proposal.
-        return Ok(args);
+    } else {
+        if body.target_index.is_none() {
+            return Err(ApiError::BadRequest(
+                "targetIndex is required when building from file".into(),
+            ));
+        }
+        file = body.file;
+        ensure_intent_filename(file.as_deref().unwrap_or_default(), "file")?;
+        let validated_proposers = body.proposers.ok_or_else(|| {
+            ApiError::BadRequest("proposers is required when building from file".into())
+        })?;
+        validate_members(&validated_proposers, "proposers")?;
+        proposers = Some(validated_proposers);
+        let validated_approvers = body.approvers.ok_or_else(|| {
+            ApiError::BadRequest("approvers is required when building from file".into())
+        })?;
+        validate_members(&validated_approvers, "approvers")?;
+        approvers = Some(validated_approvers);
+        threshold = Some(body.threshold.ok_or_else(|| {
+            ApiError::BadRequest("threshold is required when building from file".into())
+        })?);
     }
-    let file = body
-        .file
-        .ok_or_else(|| ApiError::BadRequest("newIntentBodyHex or file is required".into()))?;
-    if body.target_index.is_none() {
-        return Err(ApiError::BadRequest(
-            "targetIndex is required when building from file".into(),
-        ));
-    }
-    let proposers = body.proposers.ok_or_else(|| {
-        ApiError::BadRequest("proposers is required when building from file".into())
-    })?;
-    let approvers = body.approvers.ok_or_else(|| {
-        ApiError::BadRequest("approvers is required when building from file".into())
-    })?;
-    let threshold = body.threshold.ok_or_else(|| {
-        ApiError::BadRequest("threshold is required when building from file".into())
-    })?;
-    args.extend([
-        "--file".into(),
+    Ok(TypedProposalExecution::IntentGovernance {
+        wallet: name,
+        proposal,
+        action_kind: body.action_kind,
+        target_index: body.target_index,
+        new_intent_body_hex: None,
         file,
-        "--proposers".into(),
-        proposers.join(","),
-        "--approvers".into(),
-        approvers.join(","),
-        "--threshold".into(),
-        threshold.to_string(),
-        "--cancellation-threshold".into(),
-        body.cancellation_threshold.unwrap_or(1).to_string(),
-        "--timelock".into(),
-        body.timelock.unwrap_or(0).to_string(),
-    ]);
-    Ok(args)
+        proposers,
+        approvers,
+        threshold,
+        cancellation_threshold: body.cancellation_threshold.unwrap_or(1),
+        timelock: body.timelock.unwrap_or(0),
+    })
 }
 
-pub(super) fn execute_typed_chain_send_args(
+pub(super) fn execute_typed_chain_send(
     name: String,
     proposal: String,
     body: ExecuteTypedChainSendRequest,
     default_dwallet_program: Option<String>,
     default_grpc_url: Option<String>,
     default_rpc_url: Option<String>,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
     if body.chain_kind == 0 {
         return Err(ApiError::BadRequest(
@@ -185,25 +194,6 @@ pub(super) fn execute_typed_chain_send_args(
         || body.grpc_url.is_some()
         || body.rpc_url.is_some()
         || body.broadcast.unwrap_or(false);
-    let mut args = base_proposal_args(
-        if typed_ika {
-            "typed-chain-send-ika"
-        } else {
-            "typed-chain-send"
-        },
-        name,
-        proposal,
-    );
-    args.extend([
-        "--chain-kind".into(),
-        body.chain_kind.to_string(),
-        "--amount-raw".into(),
-        amount_raw.to_string(),
-        "--recipient-hash".into(),
-        recipient_hash,
-        "--asset-id-hash".into(),
-        asset_id_hash,
-    ]);
     if typed_ika {
         if !matches!(body.chain_kind, 1..=5) {
             return Err(ApiError::BadRequest(
@@ -214,59 +204,78 @@ pub(super) fn execute_typed_chain_send_args(
             ApiError::BadRequest("paramsDataHex is required for typed Ika chain send".into())
         })?;
         ensure_hex(&params_data_hex, "paramsDataHex")?;
-        args.extend(["--params-data-hex".into(), params_data_hex]);
-
+        ensure_max_value_bytes(&params_data_hex, "paramsDataHex")?;
         let dwallet_program = body
             .dwallet_program
             .or(default_dwallet_program)
             .ok_or_else(|| {
                 ApiError::BadRequest("dwalletProgram is required for typed Ika chain send".into())
             })?;
-        ensure_non_empty(&dwallet_program, "dwalletProgram")?;
-        args.extend(["--dwallet-program".into(), dwallet_program]);
-
-        if let Some(grpc_url) = body.grpc_url.or(default_grpc_url) {
-            ensure_non_empty(&grpc_url, "grpcUrl")?;
-            args.extend(["--grpc-url".into(), grpc_url]);
+        ensure_bounded_text(&dwallet_program, "dwalletProgram")?;
+        let grpc_url = body.grpc_url.or(default_grpc_url);
+        if let Some(grpc_url) = &grpc_url {
+            ensure_bounded_text(grpc_url, "grpcUrl")?;
         }
-        if let Some(rpc_url) = body.rpc_url.or(default_rpc_url) {
-            ensure_non_empty(&rpc_url, "rpcUrl")?;
-            args.extend(["--rpc-url".into(), rpc_url]);
+        let rpc_url = body.rpc_url.or(default_rpc_url);
+        if let Some(rpc_url) = &rpc_url {
+            ensure_bounded_text(rpc_url, "rpcUrl")?;
         }
-        if body.broadcast.unwrap_or(false) {
-            args.push("--broadcast".into());
-        }
+        return Ok(TypedProposalExecution::ChainSendIka {
+            wallet: name,
+            proposal,
+            chain_kind: body.chain_kind,
+            amount_raw,
+            recipient_hash,
+            asset_id_hash,
+            params_data_hex,
+            dwallet_program,
+            grpc_url,
+            rpc_url,
+            broadcast: body.broadcast.unwrap_or(false),
+        });
     }
-    Ok(args)
+    Ok(TypedProposalExecution::ChainSend {
+        wallet: name,
+        proposal,
+        chain_kind: body.chain_kind,
+        amount_raw,
+        recipient_hash,
+        asset_id_hash,
+    })
 }
 
-pub(super) fn execute_typed_sol_batch_send_args(
+pub(super) fn execute_typed_sol_batch_send(
     name: String,
     proposal: String,
     body: ExecuteTypedSolBatchSendRequest,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
     ensure_bounded_rows(body.payments.len(), "payments")?;
 
-    let mut args = base_proposal_args("typed-sol-batch-send", name, proposal);
-    for row in body.payments {
-        push_recipient_lamports(
-            &mut args,
-            "--payment",
-            row.recipient,
-            row.amount_lamports,
-            "payments.recipient",
-            "payments.amountLamports",
-        )?;
-    }
-    Ok(args)
+    let payments = body
+        .payments
+        .into_iter()
+        .map(|row| {
+            validated_lamport_payment(
+                row.recipient,
+                row.amount_lamports,
+                "payments.recipient",
+                "payments.amountLamports",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(TypedProposalExecution::SolBatchSend {
+        wallet: name,
+        proposal,
+        payments,
+    })
 }
 
-pub(super) fn execute_typed_agent_trade_approval_args(
+pub(super) fn execute_typed_agent_trade_approval(
     name: String,
     proposal: String,
     body: ExecuteTypedAgentTradeApprovalRequest,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
     let amount_raw = parse_positive_u128(&body.amount_raw, "amountRaw")?;
     if body.max_leverage_x100 == 0 {
@@ -283,37 +292,27 @@ pub(super) fn execute_typed_agent_trade_approval_args(
     let route_hash = validated_hash(body.route_hash, "routeHash")?;
     let risk_check_hash = validated_hash(body.risk_check_hash, "riskCheckHash")?;
 
-    let mut args = base_proposal_args("typed-agent-trade-approval", name, proposal);
-    args.extend([
-        "--amount-raw".into(),
-        amount_raw.to_string(),
-        "--agent-id-hash".into(),
+    Ok(TypedProposalExecution::AgentTradeApproval {
+        wallet: name,
+        proposal,
+        amount_raw,
         agent_id_hash,
-        "--venue-hash".into(),
         venue_hash,
-        "--market-hash".into(),
         market_hash,
-        "--side-hash".into(),
         side_hash,
-        "--asset-id-hash".into(),
         asset_id_hash,
-        "--max-leverage-x100".into(),
-        body.max_leverage_x100.to_string(),
-        "--session-id-hash".into(),
+        max_leverage_x100: body.max_leverage_x100,
         session_id_hash,
-        "--route-hash".into(),
         route_hash,
-        "--risk-check-hash".into(),
         risk_check_hash,
-    ]);
-    Ok(args)
+    })
 }
 
-pub(super) fn execute_typed_agent_session_grant_args(
+pub(super) fn execute_typed_agent_session_grant(
     name: String,
     proposal: String,
     body: ExecuteTypedAgentSessionGrantRequest,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<TypedProposalExecution, ApiError> {
     ensure_wallet_proposal(&name, &proposal)?;
     if body.status != 1 && body.status != 2 {
         return Err(ApiError::BadRequest("status must be 1 or 2".into()));
@@ -328,26 +327,18 @@ pub(super) fn execute_typed_agent_session_grant_args(
             "active sessions require positive maxNotionalRaw and maxLeverageX100".into(),
         ));
     }
-    let mut args = base_proposal_args("typed-agent-session-grant", name, proposal);
-    args.extend([
-        "--session-id-hash".into(),
-        validated_hash(body.session_id_hash, "sessionIdHash")?,
-        "--agent-id-hash".into(),
-        validated_hash(body.agent_id_hash, "agentIdHash")?,
-        "--venue-hash".into(),
-        validated_hash(body.venue_hash, "venueHash")?,
-        "--market-hash".into(),
-        validated_hash(body.market_hash, "marketHash")?,
-        "--max-notional-raw".into(),
-        max_notional.to_string(),
-        "--max-leverage-x100".into(),
-        body.max_leverage_x100.to_string(),
-        "--expires-at".into(),
-        body.expires_at.to_string(),
-        "--status".into(),
-        body.status.to_string(),
-    ]);
-    Ok(args)
+    Ok(TypedProposalExecution::AgentSessionGrant {
+        wallet: name,
+        proposal,
+        session_id_hash: validated_hash(body.session_id_hash, "sessionIdHash")?,
+        agent_id_hash: validated_hash(body.agent_id_hash, "agentIdHash")?,
+        venue_hash: validated_hash(body.venue_hash, "venueHash")?,
+        market_hash: validated_hash(body.market_hash, "marketHash")?,
+        max_notional_raw: max_notional,
+        max_leverage_x100: body.max_leverage_x100,
+        expires_at: body.expires_at,
+        status: body.status,
+    })
 }
 
 fn ensure_wallet_proposal(name: &str, proposal: &str) -> Result<(), ApiError> {
@@ -357,6 +348,7 @@ fn ensure_wallet_proposal(name: &str, proposal: &str) -> Result<(), ApiError> {
 }
 
 fn ensure_optional_hex(value: &str, field: &str) -> Result<(), ApiError> {
+    ensure_max_value_bytes(value, field)?;
     let trimmed = value.trim();
     let hex = trimmed.strip_prefix("0x").unwrap_or(trimmed);
     if hex.is_empty() {
@@ -365,15 +357,40 @@ fn ensure_optional_hex(value: &str, field: &str) -> Result<(), ApiError> {
     ensure_hex(value, field)
 }
 
-fn base_proposal_args(command: &str, name: String, proposal: String) -> Vec<String> {
-    vec![
-        "proposal".into(),
-        command.into(),
-        "--wallet".into(),
-        name,
-        "--proposal".into(),
-        proposal,
-    ]
+fn ensure_bounded_text(value: &str, field: &str) -> Result<(), ApiError> {
+    if value.trim().is_empty() {
+        return Err(ApiError::BadRequest(format!("{field} must not be empty")));
+    }
+    ensure_max_value_bytes(value, field)
+}
+
+fn ensure_max_value_bytes(value: &str, field: &str) -> Result<(), ApiError> {
+    if value.len() > 16 * 1024 {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be 16384 bytes or fewer"
+        )));
+    }
+    if value
+        .chars()
+        .any(|character| matches!(character, '\0' | '\n' | '\r'))
+    {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must not contain control separators"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_members(values: &[String], field: &str) -> Result<(), ApiError> {
+    if values.is_empty() || values.len() > 64 {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must contain between 1 and 64 members"
+        )));
+    }
+    for value in values {
+        ensure_base58(value, field, 32, 44)?;
+    }
+    Ok(())
 }
 
 fn ensure_positive_lamports(amount: u64, field: &str) -> Result<(), ApiError> {
@@ -422,19 +439,18 @@ fn validated_hash(value: String, field: &str) -> Result<String, ApiError> {
     Ok(value.trim().to_lowercase())
 }
 
-fn push_recipient_lamports(
-    args: &mut Vec<String>,
-    flag: &str,
+fn validated_lamport_payment(
     recipient: String,
     amount_lamports: u64,
     recipient_field: &str,
     amount_field: &str,
-) -> Result<(), ApiError> {
+) -> Result<LamportPayment, ApiError> {
     let recipient = validated_base58(recipient, recipient_field)?;
     ensure_positive_lamports(amount_lamports, amount_field)?;
-    args.push(flag.into());
-    args.push(format!("{recipient}:{amount_lamports}"));
-    Ok(())
+    Ok(LamportPayment {
+        recipient,
+        amount_lamports,
+    })
 }
 
 #[cfg(test)]
@@ -449,7 +465,7 @@ mod tests {
     const VALID_PUBKEY: &str = "11111111111111111111111111111111";
     const VALID_HASH: &str = "8a58cb501c3269e8abe8f456629b04e12855131b2e8b1e6807749817d167a9d4";
 
-    fn bad_request_message(result: Result<Vec<String>, ApiError>) -> String {
+    fn bad_request_message<T: std::fmt::Debug>(result: Result<T, ApiError>) -> String {
         match result {
             Err(ApiError::BadRequest(message)) => message,
             other => panic!("expected BadRequest, got {other:?}"),
@@ -457,8 +473,8 @@ mod tests {
     }
 
     #[test]
-    fn typed_sol_send_args_match_cli_shape() {
-        let args = execute_typed_sol_send_args(
+    fn typed_sol_send_builds_typed_command() {
+        let execution = execute_typed_sol_send(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedSolSendRequest {
@@ -469,25 +485,19 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            args,
-            vec![
-                "proposal",
-                "typed-sol-send",
-                "--wallet",
-                "team",
-                "--proposal",
-                VALID_PUBKEY,
-                "--recipient",
-                VALID_PUBKEY,
-                "--amount-lamports",
-                "1000000",
-            ]
+            execution,
+            TypedProposalExecution::SolSend {
+                wallet: "team".into(),
+                proposal: VALID_PUBKEY.into(),
+                recipient: VALID_PUBKEY.into(),
+                amount_lamports: 1_000_000,
+            }
         );
     }
 
     #[test]
-    fn typed_escrow_release_args_match_cli_shape() {
-        let args = execute_typed_escrow_release_args(
+    fn typed_escrow_release_builds_typed_command() {
+        let execution = execute_typed_escrow_release(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedEscrowReleaseRequest {
@@ -500,29 +510,21 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            args,
-            vec![
-                "proposal",
-                "typed-escrow-release",
-                "--wallet",
-                "team",
-                "--proposal",
-                VALID_PUBKEY,
-                "--recipient",
-                VALID_PUBKEY,
-                "--amount-lamports",
-                "2000000",
-                "--escrow-id",
-                "escrow-1",
-                "--milestone-id",
-                "milestone-1",
-            ]
+            execution,
+            TypedProposalExecution::EscrowRelease {
+                wallet: "team".into(),
+                proposal: VALID_PUBKEY.into(),
+                recipient: VALID_PUBKEY.into(),
+                amount_lamports: 2_000_000,
+                escrow_id: "escrow-1".into(),
+                milestone_id: "milestone-1".into(),
+            }
         );
     }
 
     #[test]
-    fn typed_chain_send_args_match_cli_shape() {
-        let args = execute_typed_chain_send_args(
+    fn typed_chain_send_builds_typed_command() {
+        let execution = execute_typed_chain_send(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedChainSendRequest {
@@ -543,29 +545,21 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            args,
-            vec![
-                "proposal",
-                "typed-chain-send",
-                "--wallet",
-                "team",
-                "--proposal",
-                VALID_PUBKEY,
-                "--chain-kind",
-                "1",
-                "--amount-raw",
-                "1000000000000000000",
-                "--recipient-hash",
-                VALID_HASH,
-                "--asset-id-hash",
-                VALID_HASH,
-            ]
+            execution,
+            TypedProposalExecution::ChainSend {
+                wallet: "team".into(),
+                proposal: VALID_PUBKEY.into(),
+                chain_kind: 1,
+                amount_raw: 1_000_000_000_000_000_000,
+                recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+            }
         );
     }
 
     #[test]
-    fn typed_intent_governance_args_match_cli_shape() {
-        let args = execute_typed_intent_governance_args(
+    fn typed_intent_governance_builds_typed_command() {
+        let execution = execute_typed_intent_governance(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedIntentGovernanceRequest {
@@ -583,27 +577,26 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            args,
-            vec![
-                "proposal",
-                "typed-intent-governance",
-                "--wallet",
-                "team",
-                "--proposal",
-                VALID_PUBKEY,
-                "--action-kind",
-                "5",
-                "--target-index",
-                "3",
-                "--new-intent-body-hex",
-                "020304",
-            ]
+            execution,
+            TypedProposalExecution::IntentGovernance {
+                wallet: "team".into(),
+                proposal: VALID_PUBKEY.into(),
+                action_kind: Some(5),
+                target_index: Some(3),
+                new_intent_body_hex: Some("020304".into()),
+                file: None,
+                proposers: None,
+                approvers: None,
+                threshold: None,
+                cancellation_threshold: 1,
+                timelock: 0,
+            }
         );
     }
 
     #[test]
     fn typed_intent_governance_rejects_unknown_action_kind() {
-        let error = bad_request_message(execute_typed_intent_governance_args(
+        let error = bad_request_message(execute_typed_intent_governance(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedIntentGovernanceRequest {
@@ -626,7 +619,7 @@ mod tests {
 
     #[test]
     fn typed_intent_governance_can_resume_from_committed_proposal_payload() {
-        let args = execute_typed_intent_governance_args(
+        let execution = execute_typed_intent_governance(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedIntentGovernanceRequest {
@@ -644,21 +637,26 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            args,
-            vec![
-                "proposal",
-                "typed-intent-governance",
-                "--wallet",
-                "team",
-                "--proposal",
-                VALID_PUBKEY,
-            ]
+            execution,
+            TypedProposalExecution::IntentGovernance {
+                wallet: "team".into(),
+                proposal: VALID_PUBKEY.into(),
+                action_kind: None,
+                target_index: None,
+                new_intent_body_hex: None,
+                file: None,
+                proposers: None,
+                approvers: None,
+                threshold: None,
+                cancellation_threshold: 1,
+                timelock: 0,
+            }
         );
     }
 
     #[test]
-    fn typed_chain_send_ika_args_match_cli_shape_with_defaults() {
-        let args = execute_typed_chain_send_args(
+    fn typed_chain_send_ika_resolves_defaults_into_typed_command() {
+        let execution = execute_typed_chain_send(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedChainSendRequest {
@@ -679,39 +677,27 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            args,
-            vec![
-                "proposal",
-                "typed-chain-send-ika",
-                "--wallet",
-                "team",
-                "--proposal",
-                VALID_PUBKEY,
-                "--chain-kind",
-                "5",
-                "--amount-raw",
-                "42000000000000000",
-                "--recipient-hash",
-                VALID_HASH,
-                "--asset-id-hash",
-                VALID_HASH,
-                "--params-data-hex",
-                "01020304",
-                "--dwallet-program",
-                VALID_PUBKEY,
-                "--grpc-url",
-                "https://ika.example",
-                "--rpc-url",
-                "https://rpc.example",
-                "--broadcast",
-            ]
+            execution,
+            TypedProposalExecution::ChainSendIka {
+                wallet: "team".into(),
+                proposal: VALID_PUBKEY.into(),
+                chain_kind: 5,
+                amount_raw: 42_000_000_000_000_000,
+                recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                params_data_hex: "01020304".into(),
+                dwallet_program: VALID_PUBKEY.into(),
+                grpc_url: Some("https://ika.example".into()),
+                rpc_url: Some("https://rpc.example".into()),
+                broadcast: true,
+            }
         );
     }
 
     #[test]
     fn typed_chain_send_ika_allows_all_remote_send_kinds() {
         for chain_kind in [1, 2, 3, 4, 5] {
-            let args = execute_typed_chain_send_args(
+            let execution = execute_typed_chain_send(
                 "team".into(),
                 VALID_PUBKEY.into(),
                 ExecuteTypedChainSendRequest {
@@ -731,18 +717,19 @@ mod tests {
             )
             .unwrap();
 
-            assert_eq!(args[1], "typed-chain-send-ika");
-            let idx = args
-                .iter()
-                .position(|arg| arg == "--chain-kind")
-                .expect("missing --chain-kind");
-            assert_eq!(args.get(idx + 1), Some(&chain_kind.to_string()));
+            assert!(matches!(
+                execution,
+                TypedProposalExecution::ChainSendIka {
+                    chain_kind: actual,
+                    ..
+                } if actual == chain_kind
+            ));
         }
     }
 
     #[test]
     fn typed_chain_send_rejects_sol_chain_kind() {
-        let error = bad_request_message(execute_typed_chain_send_args(
+        let error = bad_request_message(execute_typed_chain_send(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedChainSendRequest {
@@ -764,8 +751,8 @@ mod tests {
     }
 
     #[test]
-    fn typed_escrow_return_args_validate_and_format_rows() {
-        let args = execute_typed_escrow_return_args(
+    fn typed_escrow_return_validates_typed_rows() {
+        let execution = execute_typed_escrow_return(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedEscrowReturnRequest {
@@ -785,34 +772,35 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            args,
-            vec![
-                "proposal",
-                "typed-escrow-return",
-                "--wallet",
-                "team",
-                "--proposal",
-                VALID_PUBKEY,
-                "--escrow-id",
-                "escrow-1",
-                "--return",
-                "11111111111111111111111111111111:1",
-                "--return",
-                "11111111111111111111111111111111:2",
-            ]
+            execution,
+            TypedProposalExecution::EscrowReturn {
+                wallet: "team".into(),
+                proposal: VALID_PUBKEY.into(),
+                escrow_id: "escrow-1".into(),
+                returns: vec![
+                    LamportPayment {
+                        recipient: VALID_PUBKEY.into(),
+                        amount_lamports: 1,
+                    },
+                    LamportPayment {
+                        recipient: VALID_PUBKEY.into(),
+                        amount_lamports: 2,
+                    },
+                ],
+            }
         );
     }
 
     #[test]
-    fn typed_batch_send_args_reject_empty_and_oversized_rows() {
-        let empty = bad_request_message(execute_typed_sol_batch_send_args(
+    fn typed_batch_send_rejects_empty_and_oversized_rows() {
+        let empty = bad_request_message(execute_typed_sol_batch_send(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedSolBatchSendRequest { payments: vec![] },
         ));
         assert_eq!(empty, "payments must include at least one recipient");
 
-        let oversized = bad_request_message(execute_typed_sol_batch_send_args(
+        let oversized = bad_request_message(execute_typed_sol_batch_send(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedSolBatchSendRequest {
@@ -828,8 +816,8 @@ mod tests {
     }
 
     #[test]
-    fn typed_agent_trade_approval_args_match_cli_shape() {
-        let args = execute_typed_agent_trade_approval_args(
+    fn typed_agent_trade_approval_builds_typed_command() {
+        let execution = execute_typed_agent_trade_approval(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedAgentTradeApprovalRequest {
@@ -848,41 +836,27 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            args,
-            vec![
-                "proposal",
-                "typed-agent-trade-approval",
-                "--wallet",
-                "team",
-                "--proposal",
-                VALID_PUBKEY,
-                "--amount-raw",
-                "250000000",
-                "--agent-id-hash",
-                VALID_HASH,
-                "--venue-hash",
-                VALID_HASH,
-                "--market-hash",
-                VALID_HASH,
-                "--side-hash",
-                VALID_HASH,
-                "--asset-id-hash",
-                VALID_HASH,
-                "--max-leverage-x100",
-                "250",
-                "--session-id-hash",
-                VALID_HASH,
-                "--route-hash",
-                VALID_HASH,
-                "--risk-check-hash",
-                VALID_HASH,
-            ]
+            execution,
+            TypedProposalExecution::AgentTradeApproval {
+                wallet: "team".into(),
+                proposal: VALID_PUBKEY.into(),
+                amount_raw: 250_000_000,
+                agent_id_hash: VALID_HASH.into(),
+                venue_hash: VALID_HASH.into(),
+                market_hash: VALID_HASH.into(),
+                side_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                max_leverage_x100: 250,
+                session_id_hash: VALID_HASH.into(),
+                route_hash: VALID_HASH.into(),
+                risk_check_hash: VALID_HASH.into(),
+            }
         );
     }
 
     #[test]
-    fn typed_agent_session_grant_and_revoke_args_match_cli_shape() {
-        let grant = execute_typed_agent_session_grant_args(
+    fn typed_agent_session_grant_and_revoke_preserve_numeric_policy() {
+        let grant = execute_typed_agent_session_grant(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedAgentSessionGrantRequest {
@@ -897,19 +871,17 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(
-            grant[0..5],
-            [
-                "proposal",
-                "typed-agent-session-grant",
-                "--wallet",
-                "team",
-                "--proposal"
-            ]
-        );
-        assert!(grant.windows(2).any(|row| row == ["--status", "1"]));
+        assert!(matches!(
+            grant,
+            TypedProposalExecution::AgentSessionGrant {
+                max_notional_raw: 250_000_000,
+                max_leverage_x100: 250,
+                status: 1,
+                ..
+            }
+        ));
 
-        let revoke = execute_typed_agent_session_grant_args(
+        let revoke = execute_typed_agent_session_grant(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedAgentSessionGrantRequest {
@@ -924,15 +896,20 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(revoke
-            .windows(2)
-            .any(|row| row == ["--max-notional-raw", "0"]));
-        assert!(revoke.windows(2).any(|row| row == ["--status", "2"]));
+        assert!(matches!(
+            revoke,
+            TypedProposalExecution::AgentSessionGrant {
+                max_notional_raw: 0,
+                max_leverage_x100: 0,
+                status: 2,
+                ..
+            }
+        ));
     }
 
     #[test]
     fn typed_routes_reject_zero_lamports() {
-        let send = bad_request_message(execute_typed_sol_send_args(
+        let send = bad_request_message(execute_typed_sol_send(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedSolSendRequest {
@@ -942,7 +919,7 @@ mod tests {
         ));
         assert_eq!(send, "amountLamports must be greater than zero");
 
-        let batch = bad_request_message(execute_typed_sol_batch_send_args(
+        let batch = bad_request_message(execute_typed_sol_batch_send(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedSolBatchSendRequest {
@@ -954,7 +931,7 @@ mod tests {
         ));
         assert_eq!(batch, "payments.amountLamports must be greater than zero");
 
-        let agent = bad_request_message(execute_typed_agent_trade_approval_args(
+        let agent = bad_request_message(execute_typed_agent_trade_approval(
             "team".into(),
             VALID_PUBKEY.into(),
             ExecuteTypedAgentTradeApprovalRequest {
