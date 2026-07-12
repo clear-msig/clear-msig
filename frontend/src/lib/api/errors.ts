@@ -273,6 +273,15 @@ export function friendlyError(
     };
   }
 
+  if (bag.walletErrorCode === "timeout") {
+    return {
+      title: "Your wallet did not open",
+      body:
+        "Nothing moved. Return to ClearSig, reconnect the wallet if needed, and try the request again.",
+      durationMs: 10_000,
+    };
+  }
+
   if (bag.walletErrorCode === "message_mismatch") {
     return {
       title: "ClearSign details changed before signing",

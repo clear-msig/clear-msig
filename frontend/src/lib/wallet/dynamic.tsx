@@ -48,21 +48,12 @@ import {
   selectSolanaWallet,
   walletConnectorId,
 } from "@/lib/wallet/selection";
+import {
+  signMessageWithInjectedProvider,
+  signTransactionWithInjectedProvider,
+} from "@/lib/wallet/injectedSolana";
 
 type SolanaTransaction = Transaction | VersionedTransaction;
-
-type InjectedSolanaProvider = {
-  isBackpack?: boolean;
-  isPhantom?: boolean;
-  isSolflare?: boolean;
-  publicKey?: { toString(): string };
-  signTransaction?: <T extends SolanaTransaction>(tx: T) => Promise<T>;
-};
-
-type InjectedProviderCandidate = {
-  source: "backpack" | "phantom" | "solana" | "solflare";
-  provider: InjectedSolanaProvider | undefined;
-};
 
 type SolanaMessageSignature =
   | Uint8Array
@@ -76,91 +67,6 @@ type BytePreservingSolanaWallet = {
   signUint8ArrayMessage?: (encodedMessage: Uint8Array) => Promise<Uint8Array>;
   getSigner?: () => Promise<SolanaSignerLike | undefined>;
 };
-
-function getInjectedProviderCandidates(
-  connectorKey: string,
-): InjectedProviderCandidate[] {
-  if (typeof window === "undefined") return [];
-  const w = window as unknown as {
-    backpack?: InjectedSolanaProvider;
-    phantom?: { solana?: InjectedSolanaProvider };
-    solana?: InjectedSolanaProvider;
-    solflare?: InjectedSolanaProvider;
-  };
-  const wantsSolflare = /solflare/.test(connectorKey);
-  const wantsPhantom = /phantom/.test(connectorKey);
-  const wantsBackpack = /backpack/.test(connectorKey);
-  if (wantsSolflare) {
-    return [
-      { source: "solflare", provider: w.solflare },
-      { source: "solana", provider: w.solana },
-    ];
-  }
-  if (wantsPhantom) {
-    return [
-      { source: "phantom", provider: w.phantom?.solana },
-      { source: "solana", provider: w.solana },
-    ];
-  }
-  if (wantsBackpack) {
-    return [
-      { source: "backpack", provider: w.backpack },
-      { source: "solana", provider: w.solana },
-    ];
-  }
-  return [
-    { source: "solana", provider: w.solana },
-    { source: "solflare", provider: w.solflare },
-    { source: "phantom", provider: w.phantom?.solana },
-    { source: "backpack", provider: w.backpack },
-  ];
-}
-
-function injectedProviderMatchesConnector(
-  candidate: InjectedProviderCandidate,
-  connectorKey: string,
-) {
-  const { provider, source } = candidate;
-  if (!provider) return false;
-  if (/solflare/.test(connectorKey)) {
-    return source === "solflare" || provider.isSolflare === true;
-  }
-  if (/phantom/.test(connectorKey)) {
-    return source === "phantom" || provider.isPhantom === true;
-  }
-  if (/backpack/.test(connectorKey)) {
-    return source === "backpack" || provider.isBackpack === true;
-  }
-  return true;
-}
-
-async function signTransactionWithInjectedProvider<T extends SolanaTransaction>({
-  connectorKey,
-  expectedPublicKey,
-  transaction,
-}: {
-  connectorKey: string;
-  expectedPublicKey: PublicKey | null;
-  transaction: T;
-}): Promise<T | null> {
-  const expected = expectedPublicKey?.toBase58();
-  if (!expected) return null;
-
-  for (const candidate of getInjectedProviderCandidates(connectorKey)) {
-    const { provider } = candidate;
-    if (
-      !provider ||
-      typeof provider.signTransaction !== "function" ||
-      !injectedProviderMatchesConnector(candidate, connectorKey)
-    ) {
-      continue;
-    }
-    const providerPublicKey = provider.publicKey?.toString();
-    if (!providerPublicKey || providerPublicKey !== expected) continue;
-    return provider.signTransaction(transaction);
-  }
-  return null;
-}
 
 /// Drop-in replacement for `useWallet()` from @solana/wallet-adapter-react.
 /// Returns a Solana wallet view derived from Dynamic's primary wallet,
@@ -309,56 +215,16 @@ function useDynamicWalletValue(): WalletValue {
         if (!solanaWallet) {
           throw new Error("Connect a wallet before signing");
         }
-        // Phantom mobile in-app browser: bypass the Dynamic SDK and
-        // call window.solana.signMessage(bytes, "utf8") directly so
-        // Phantom renders the body as text instead of raw hex. Going
-        // through Dynamic's signer drops the display hint (the Solana
-        // wallet-adapter signature is `signMessage(bytes)`, no second
-        // arg), so the same bytes that render fine on the extension
-        // come up as a hex blob on mobile. Phantom's own API does
-        // accept the display hint, so we route around the adapter
-        // when Phantom is injected at window.solana.
-        //
-        // Gated tightly: only when (a) we detect mobile, (b) Dynamic
-        // says the active connector is Phantom, (c) window.solana
-        // exists and reports isPhantom, and (d) Phantom's published
-        // pubkey matches the Dynamic-tracked one. If any check fails
-        // we fall through to the standard adapter path. Errors from
-        // Phantom itself (rejected, locked, etc.) propagate verbatim
-        // — falling back would mean a second popup.
-        if (isMobile && isPhantomWallet && typeof window !== "undefined") {
-          const phantom = (
-            window as unknown as {
-              solana?: {
-                isPhantom?: boolean;
-                publicKey?: { toString(): string };
-                signMessage?: (
-                  b: Uint8Array,
-                  display?: string,
-                ) => Promise<unknown>;
-              };
-            }
-          ).solana;
-          const phantomPk = phantom?.publicKey?.toString();
-          const dynamicPk = dynamicPublicKey?.toBase58();
-          if (
-            phantom?.isPhantom &&
-            typeof phantom.signMessage === "function" &&
-            phantomPk &&
-            dynamicPk &&
-            phantomPk === dynamicPk
-          ) {
-            const result = await phantom.signMessage(bytes, "utf8");
-            if (result instanceof Uint8Array) return result;
-            const sig = (result as { signature?: Uint8Array })?.signature;
-            if (!(sig instanceof Uint8Array)) {
-              throw new Error(
-                "Phantom returned an unexpected signMessage shape",
-              );
-            }
-            return sig;
-          }
-        }
+        // Prefer a matching injected provider for external wallets. This
+        // keeps the signing request attached to the wallet's native mobile
+        // handoff and preserves the readable UTF-8 display hint. Embedded
+        // wallets have no matching injected provider and continue below.
+        const injected = await signMessageWithInjectedProvider({
+          connectorKey: walletConnectorKey,
+          expectedPublicKey: dynamicPublicKey,
+          bytes,
+        });
+        if (injected) return injected;
         const bytePreservingWallet =
           solanaWallet as unknown as BytePreservingSolanaWallet;
         if (typeof bytePreservingWallet.signUint8ArrayMessage === "function") {
@@ -390,8 +256,7 @@ function useDynamicWalletValue(): WalletValue {
       ledger.session,
       ledgerPublicKey,
       dynamicPublicKey,
-      isMobile,
-      isPhantomWallet,
+      walletConnectorKey,
     ],
   );
 

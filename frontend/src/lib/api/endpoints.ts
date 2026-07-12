@@ -410,6 +410,48 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedAgentRiskPolicy: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      sessionIdHash: string;
+      oraclePolicyHash: string;
+      maxLossRaw: string;
+      status: 1 | 2;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-risk-policy`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedAgentTradeSettlement: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      sessionIdHash: string;
+      executionIdHash: string;
+      settlementArtifactHash: string;
+      oraclePolicyHash: string;
+      closedNotionalRaw: string;
+      outcome: 1 | 2 | 3;
+      pnlAbsRaw: string;
+      settlementSequence: number;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-trade-settlement`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   cleanupProposal: (proposalAddress: string) =>
     apiRequest<Record<string, unknown>, Record<string, never>>(
       `/proposals/${encodeURIComponent(proposalAddress)}/cleanup`,

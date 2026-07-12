@@ -437,6 +437,16 @@ export interface AgentSessionGrant {
     txid?: string;
     updatedAt: number;
   };
+  riskOnchain?: {
+    proposalAddress: string;
+    proposalIndex: number;
+    intentIndex: number;
+    policyHash: string;
+    operation: "active" | "paused";
+    status: "created" | "approved" | "executed";
+    txid?: string;
+    updatedAt: number;
+  };
   createdAt: number;
   updatedAt: number;
   version: AgentVersion;
