@@ -46,7 +46,7 @@ hex = "0.4"
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 k256 = { version = "0.13", features = ["ecdsa"] }
 ripemd = "0.1"
-bech32 = "0.11"
+bech32 = "0.12"
 # Used by `proposal execute --broadcast` to push signed EVM RLP envelopes
 # directly to a Sepolia / mainnet / chain-of-choice JSON-RPC endpoint after
 # the dwallet network returns the signature, so the CLI can take an
