@@ -18,7 +18,7 @@ solana-address = { version = "2.2.0", features = ["syscalls", "curve25519"] }
 solana-instruction = { version = "3.2.0" }
 solana-instruction-view = "2"
 brine-ed25519 = { git = "https://github.com/ChewingGlass/brine-ed25519", default-features = false }
-sha2 = { version = "0.10", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 tiny-keccak = { version = "2.0", default-features = false, features = ["keccak"] }
 
 [dev-dependencies]
@@ -30,4 +30,4 @@ ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
 bs58 = "0.5"
 spl-token = "9"
-sha2 = "0.10"
+sha2 = "0.11"
