@@ -6,11 +6,13 @@ use crate::ApiError;
 
 const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 const DEFAULT_WORKER_LIMIT: usize = 8;
+const CANCELLATION_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone)]
 pub(crate) struct CliRunner {
-    pub(crate) base_args: Vec<String>,
     execution_globals: clear_msig_cli::config::CliGlobals,
+    pub(crate) rpc_url: String,
+    pub(crate) program_id: String,
     pub(crate) timeout: Duration,
     pub(crate) worker_limit: usize,
     workers: Arc<Semaphore>,
@@ -21,38 +23,12 @@ pub(crate) struct CliRunner {
 
 impl CliRunner {
     pub(crate) fn execution_mode(&self) -> &'static str {
-        "in_process_bounded"
-    }
-
-    pub(crate) fn prepare_request(
-        &self,
-        args: &[String],
-    ) -> Result<clear_msig_cli::ExecutionRequest, ApiError> {
-        let invocation = self
-            .base_args
-            .iter()
-            .chain(args.iter())
-            .cloned()
-            .collect::<Vec<_>>();
-        clear_msig_cli::prepare_execution(&invocation).map_err(|error| {
-            ApiError::Internal(format!(
-                "backend generated an invalid core invocation: {error}"
-            ))
-        })
-    }
-
-    pub(crate) async fn run_json(&self, args: Vec<String>) -> Result<Value, ApiError> {
-        let subcommand = cli_subcommand_label(&args);
-        let dry_run = args.iter().any(|argument| argument == "--dry-run");
-        let actor_prefix = extract_actor_prefix(&args);
-        let request = self.prepare_request(&args)?;
-        self.run_request(request, subcommand, dry_run, actor_prefix)
-            .await
+        "in_process_cancellable"
     }
 
     pub(crate) async fn run_typed_proposal(
         &self,
-        execution: clear_msig_cli::TypedProposalExecution,
+        execution: clear_msig_command_contract::TypedProposalExecution,
     ) -> Result<Value, ApiError> {
         let subcommand = execution.label().to_string();
         let request = clear_msig_cli::prepare_typed_proposal_execution(
@@ -69,22 +45,24 @@ impl CliRunner {
 
     pub(crate) async fn run_typed_lifecycle(
         &self,
-        context: clear_msig_cli::TypedExecutionContext,
-        lifecycle: clear_msig_cli::TypedProposalLifecycle,
+        context: clear_msig_command_contract::TypedExecutionContext,
+        lifecycle: clear_msig_command_contract::TypedProposalLifecycle,
     ) -> Result<Value, ApiError> {
         let subcommand = lifecycle.label().to_string();
         let dry_run = matches!(
             context,
-            clear_msig_cli::TypedExecutionContext::DryRun { .. }
+            clear_msig_command_contract::TypedExecutionContext::DryRun { .. }
         );
         let actor_prefix = match &context {
-            clear_msig_cli::TypedExecutionContext::DryRun { actor_pubkey } => actor_pubkey
-                .as_deref()
-                .map(|value| value.chars().take(6).collect()),
-            clear_msig_cli::TypedExecutionContext::PreSigned { signer_pubkey, .. } => {
-                Some(signer_pubkey.chars().take(6).collect())
+            clear_msig_command_contract::TypedExecutionContext::DryRun { actor_pubkey } => {
+                actor_pubkey
+                    .as_deref()
+                    .map(|value| value.chars().take(6).collect())
             }
-            clear_msig_cli::TypedExecutionContext::Backend => None,
+            clear_msig_command_contract::TypedExecutionContext::PreSigned {
+                signer_pubkey, ..
+            } => Some(signer_pubkey.chars().take(6).collect()),
+            clear_msig_command_contract::TypedExecutionContext::Backend => None,
         };
         let request = clear_msig_cli::prepare_typed_proposal_lifecycle(
             self.execution_globals.clone(),
@@ -102,22 +80,25 @@ impl CliRunner {
 
     pub(crate) async fn run_direct(
         &self,
-        context: clear_msig_cli::DirectExecutionContext,
-        command: clear_msig_cli::DirectCommand,
+        context: clear_msig_command_contract::DirectExecutionContext,
+        command: clear_msig_command_contract::DirectCommand,
     ) -> Result<Value, ApiError> {
         let subcommand = command.label().to_string();
         let dry_run = matches!(
             context,
-            clear_msig_cli::DirectExecutionContext::DryRun { .. }
+            clear_msig_command_contract::DirectExecutionContext::DryRun { .. }
         );
         let actor_prefix = match &context {
-            clear_msig_cli::DirectExecutionContext::DryRun { actor_pubkey } => actor_pubkey
-                .as_deref()
-                .map(|value| value.chars().take(6).collect()),
-            clear_msig_cli::DirectExecutionContext::PreSigned { signer_pubkey, .. } => {
-                Some(signer_pubkey.chars().take(6).collect())
+            clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey } => {
+                actor_pubkey
+                    .as_deref()
+                    .map(|value| value.chars().take(6).collect())
             }
-            clear_msig_cli::DirectExecutionContext::Backend => None,
+            clear_msig_command_contract::DirectExecutionContext::PreSigned {
+                signer_pubkey,
+                ..
+            } => Some(signer_pubkey.chars().take(6).collect()),
+            clear_msig_command_contract::DirectExecutionContext::Backend => None,
         };
         let request = clear_msig_cli::prepare_direct_command(
             self.execution_globals.clone(),
@@ -142,38 +123,41 @@ impl CliRunner {
     ) -> Result<Value, ApiError> {
         let started = std::time::Instant::now();
         let workers = self.workers.clone();
-
-        let execution = async move {
-            let permit = workers
-                .acquire_owned()
-                .await
-                .map_err(|_| ApiError::Internal("in-process execution pool is closed".into()))?;
-            tokio::task::spawn_blocking(move || {
-                let _permit = permit;
-                clear_msig_cli::execute_request(request)
-            })
+        let permit = timeout(self.timeout, workers.acquire_owned())
             .await
-            .map_err(|error| ApiError::Internal(format!("execution worker failed: {error}")))?
-            .map_err(|error| ApiError::CommandFailed {
-                code: None,
-                stderr: format!("{error:#}"),
-                stdout: String::new(),
-            })
-        };
-
-        let result = timeout(self.timeout, execution).await;
-        let elapsed_ms = started.elapsed().as_millis() as u64;
-        let value = match result {
+            .map_err(|_| ApiError::Timeout(self.timeout))?
+            .map_err(|_| ApiError::Internal("in-process execution pool is closed".into()))?;
+        let control = request.cancellation_handle();
+        let mut worker = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            clear_msig_cli::execute_request(request)
+        });
+        let remaining = self.timeout.saturating_sub(started.elapsed());
+        let result = match timeout(remaining, &mut worker).await {
+            Ok(result) => Some(result),
             Err(_) => {
+                control.cancel();
+                let drained = timeout(CANCELLATION_DRAIN_TIMEOUT, &mut worker)
+                    .await
+                    .is_ok();
                 tracing::warn!(
                     subcommand,
                     dry_run,
                     actor = actor_prefix.as_deref().unwrap_or("-"),
-                    elapsed_ms,
-                    outcome = "timeout_worker_continues_bounded",
+                    elapsed_ms = started.elapsed().as_millis() as u64,
+                    drained,
+                    outcome = "timeout_cancelled",
                     "clear-msig in-process invocation"
                 );
                 return Err(ApiError::Timeout(self.timeout));
+            }
+        };
+        let elapsed_ms = started.elapsed().as_millis() as u64;
+        let value = match result.expect("completed worker result") {
+            Err(error) => {
+                return Err(ApiError::Internal(format!(
+                    "execution worker failed: {error}"
+                )));
             }
             Ok(Err(error)) => {
                 tracing::warn!(
@@ -185,7 +169,11 @@ impl CliRunner {
                     error = %error,
                     "clear-msig in-process invocation"
                 );
-                return Err(error);
+                return Err(ApiError::CommandFailed {
+                    code: None,
+                    stderr: format!("{error:#}"),
+                    stdout: String::new(),
+                });
             }
             Ok(Ok(value)) => value,
         };
@@ -225,10 +213,11 @@ pub(crate) fn build_runner() -> CliRunner {
         signer: signer.clone(),
         ..Default::default()
     };
-    let mut base_args = Vec::new();
-    push_optional_global(&mut base_args, "--url", url);
-    push_optional_global(&mut base_args, "--keypair", keypair);
-    push_optional_global(&mut base_args, "--signer", signer);
+    let rpc_url = url.unwrap_or_else(|| {
+        "https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH".to_string()
+    });
+    let program_id = non_empty_env("CLEAR_MSIG_PROGRAM_ID")
+        .unwrap_or_else(|| "53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v".to_string());
 
     let timeout_secs = env::var("CLEAR_MSIG_CMD_TIMEOUT_SECS")
         .ok()
@@ -254,8 +243,9 @@ pub(crate) fn build_runner() -> CliRunner {
         .filter(|value| !value.is_empty());
 
     CliRunner {
-        base_args,
         execution_globals,
+        rpc_url,
+        program_id,
         timeout: Duration::from_secs(timeout_secs),
         worker_limit,
         workers: Arc::new(Semaphore::new(worker_limit)),
@@ -272,51 +262,6 @@ fn non_empty_env(name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn push_optional_global(args: &mut Vec<String>, flag: &str, value: Option<String>) {
-    if let Some(value) = value {
-        args.push(flag.to_string());
-        args.push(value);
-    }
-}
-
-fn cli_subcommand_label(args: &[String]) -> String {
-    let mut output = Vec::with_capacity(2);
-    let mut seen = 0;
-    let known = ["wallet", "intent", "proposal", "config"];
-    let mut index = 0;
-    while index < args.len() && seen < 2 {
-        let argument = &args[index];
-        if argument.starts_with("--") {
-            index += 2;
-            continue;
-        }
-        if seen == 0 && !known.contains(&argument.as_str()) {
-            index += 1;
-            continue;
-        }
-        output.push(argument.as_str());
-        seen += 1;
-        index += 1;
-    }
-    if output.is_empty() {
-        "-".into()
-    } else {
-        output.join(" ")
-    }
-}
-
-fn extract_actor_prefix(args: &[String]) -> Option<String> {
-    let mut arguments = args.iter();
-    while let Some(argument) = arguments.next() {
-        if argument == "--signer-pubkey" {
-            if let Some(value) = arguments.next() {
-                return Some(value.chars().take(6).collect());
-            }
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::{build_runner, validate_response_size, MAX_RESPONSE_BYTES};
@@ -327,14 +272,11 @@ mod tests {
         assert!(validate_response_size(&value).is_err());
     }
 
-    #[tokio::test]
-    async fn executes_config_show_without_a_child_process() {
+    #[test]
+    fn exposes_typed_runtime_network_configuration() {
         let runner = build_runner();
-        let value = runner
-            .run_json(vec!["config".into(), "show".into()])
-            .await
-            .unwrap();
-        assert!(value.get("config_path").is_some());
-        assert_eq!(runner.execution_mode(), "in_process_bounded");
+        assert!(!runner.rpc_url.is_empty());
+        assert!(!runner.program_id.is_empty());
+        assert_eq!(runner.execution_mode(), "in_process_cancellable");
     }
 }

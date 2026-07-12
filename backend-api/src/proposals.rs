@@ -148,7 +148,7 @@ async fn create_proposal(
 
     let rate_limit_key = body.pre_signed.signer_pubkey.clone();
     let expiry = format_expiry(body.pre_signed.expiry)?;
-    let command = clear_msig_cli::DirectCommand::ProposalCreate {
+    let command = clear_msig_command_contract::DirectCommand::ProposalCreate {
         wallet: name,
         intent_index: body.intent_index,
         params: Vec::new(),
@@ -176,10 +176,10 @@ async fn list_proposals(
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    let command = clear_msig_cli::DirectCommand::ProposalList { wallet: name };
+    let command = clear_msig_command_contract::DirectCommand::ProposalList { wallet: name };
     run_direct_proposal(
         state,
-        clear_msig_cli::DirectExecutionContext::Backend,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
         command,
         None,
     )
@@ -191,10 +191,10 @@ async fn show_proposal(
     Path(proposal): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_base58(&proposal, "proposal", 32, 88)?;
-    let command = clear_msig_cli::DirectCommand::ProposalShow { proposal };
+    let command = clear_msig_command_contract::DirectCommand::ProposalShow { proposal };
     run_direct_proposal(
         state,
-        clear_msig_cli::DirectExecutionContext::Backend,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
         command,
         None,
     )
@@ -216,7 +216,7 @@ async fn approve_proposal(
     }
     let rate_limit_key = body.pre_signed.signer_pubkey.clone();
     let expiry = format_expiry(body.pre_signed.expiry)?;
-    let command = clear_msig_cli::DirectCommand::ProposalApprove {
+    let command = clear_msig_command_contract::DirectCommand::ProposalApprove {
         wallet: name,
         proposal,
         expiry: Some(expiry),
@@ -252,7 +252,7 @@ async fn cancel_proposal(
     body.pre_signed.ensure_valid()?;
     let rate_limit_key = body.pre_signed.signer_pubkey.clone();
     let expiry = format_expiry(body.pre_signed.expiry)?;
-    let command = clear_msig_cli::DirectCommand::ProposalCancel {
+    let command = clear_msig_command_contract::DirectCommand::ProposalCancel {
         wallet: name,
         proposal,
         expiry: Some(expiry),
@@ -293,7 +293,7 @@ async fn prepare_proposal_create(
         .expiry
         .map(|value| normalize_expiry_arg(&value))
         .transpose()?;
-    let command = clear_msig_cli::DirectCommand::ProposalCreate {
+    let command = clear_msig_command_contract::DirectCommand::ProposalCreate {
         wallet: name,
         intent_index: body.intent_index,
         params: body.params,
@@ -301,7 +301,7 @@ async fn prepare_proposal_create(
     };
     run_direct_proposal(
         state,
-        clear_msig_cli::DirectExecutionContext::DryRun { actor_pubkey },
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey },
         command,
         None,
     )
@@ -363,13 +363,13 @@ async fn prepare_approve_or_cancel(
         .map(|value| normalize_expiry_arg(&value))
         .transpose()?;
     let command = if is_approve {
-        clear_msig_cli::DirectCommand::ProposalApprove {
+        clear_msig_command_contract::DirectCommand::ProposalApprove {
             wallet: name,
             proposal,
             expiry,
         }
     } else {
-        clear_msig_cli::DirectCommand::ProposalCancel {
+        clear_msig_command_contract::DirectCommand::ProposalCancel {
             wallet: name,
             proposal,
             expiry,
@@ -377,7 +377,7 @@ async fn prepare_approve_or_cancel(
     };
     run_direct_proposal(
         state,
-        clear_msig_cli::DirectExecutionContext::DryRun { actor_pubkey },
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey },
         command,
         None,
     )
@@ -429,7 +429,7 @@ async fn execute_proposal(
     let command = build_execute_command(&state, name, proposal, body)?;
     run_direct_proposal(
         state,
-        clear_msig_cli::DirectExecutionContext::Backend,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
         command,
         None,
     )
@@ -573,10 +573,10 @@ async fn cleanup_proposal(
     Path(proposal): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_base58(&proposal, "proposal", 32, 88)?;
-    let command = clear_msig_cli::DirectCommand::ProposalCleanup { proposal };
+    let command = clear_msig_command_contract::DirectCommand::ProposalCleanup { proposal };
     run_direct_proposal(
         state,
-        clear_msig_cli::DirectExecutionContext::Backend,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
         command,
         None,
     )
@@ -588,7 +588,7 @@ fn build_execute_command(
     name: String,
     proposal: String,
     body: ExecuteProposalRequest,
-) -> Result<clear_msig_cli::DirectCommand, ApiError> {
+) -> Result<clear_msig_command_contract::DirectCommand, ApiError> {
     let dwallet_program = body
         .dwallet_program
         .or_else(|| state.runner.default_dwallet_program.clone());
@@ -608,18 +608,20 @@ fn build_execute_command(
     if let Some(rpc_url) = &rpc_url {
         ensure_non_empty(rpc_url, "rpc_url")?;
     }
-    Ok(clear_msig_cli::DirectCommand::ProposalExecute {
-        wallet: name,
-        proposal,
-        dwallet_program,
-        grpc_url,
-        rpc_url,
-        broadcast: body.broadcast.unwrap_or(false),
-    })
+    Ok(
+        clear_msig_command_contract::DirectCommand::ProposalExecute {
+            wallet: name,
+            proposal,
+            dwallet_program,
+            grpc_url,
+            rpc_url,
+            broadcast: body.broadcast.unwrap_or(false),
+        },
+    )
 }
 
-fn presigned_context(pre_signed: PreSigned) -> clear_msig_cli::DirectExecutionContext {
-    clear_msig_cli::DirectExecutionContext::PreSigned {
+fn presigned_context(pre_signed: PreSigned) -> clear_msig_command_contract::DirectExecutionContext {
+    clear_msig_command_contract::DirectExecutionContext::PreSigned {
         signer_pubkey: pre_signed.signer_pubkey,
         signature: pre_signed.signature,
         params_data: pre_signed.params_data_hex,
@@ -642,8 +644,8 @@ fn validate_actor_pubkey(actor_pubkey: Option<String>) -> Result<Option<String>,
 
 async fn run_direct_proposal(
     state: AppState,
-    context: clear_msig_cli::DirectExecutionContext,
-    command: clear_msig_cli::DirectCommand,
+    context: clear_msig_command_contract::DirectExecutionContext,
+    command: clear_msig_command_contract::DirectCommand,
     rate_limit_key: Option<&str>,
 ) -> Result<Json<Value>, ApiError> {
     if let Some(key) = rate_limit_key {

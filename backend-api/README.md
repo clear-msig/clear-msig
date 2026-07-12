@@ -2,8 +2,8 @@
 
 HTTP adapter service that exposes stable JSON APIs for frontend integration.
 It links the same typed Rust execution library used by the `clear-msig` binary
-and runs commands in a bounded blocking-worker pool. No HTTP endpoint launches
-the CLI executable.
+and runs commands in a bounded worker pool. Solana RPC and Ika gRPC operations
+use cancellation-aware async clients; no HTTP endpoint launches the CLI executable.
 
 This is the backend bridge between UI and your existing on-chain + CLI flows.
 
@@ -14,9 +14,9 @@ This is the backend bridge between UI and your existing on-chain + CLI flows.
   domain commands directly.
 - Preserves your proven CLI logic instead of duplicating transaction logic.
 - Validates route commands through closed enums, bounded collections, and value
-  size limits. The remaining configuration-introspection compatibility adapter
-  is parsed against the full CLI schema. All paths receive execution timeouts,
-  response caps, worker concurrency limits, and structured logs.
+  size limits from the lightweight command-contract crate. All paths receive
+  execution timeouts, response caps, worker concurrency limits, and structured
+  logs.
 - Provides one place for request validation, timeout control, and uniform error envelopes.
 
 ## Start
@@ -103,10 +103,11 @@ Development execution failures include detailed core diagnostics. Production
 responses retain the stable error kind but redact internal execution details;
 full diagnostics remain in protected structured logs.
 
-The Solana and Ika clients used by the shared core are currently synchronous.
-If an HTTP timeout fires after work starts, that worker may finish in the
-background; the semaphore keeps the number of such workers bounded. Migrating
-those adapters to cancellable async I/O remains separate hardening work.
+If an HTTP timeout fires, the backend cancels the request and gives its worker a
+bounded drain window. Solana RPC and Ika gRPC futures are dropped on that signal.
+The destination-chain BTC, EVM, and Zcash HTTP broadcasters are still blocking;
+a worker inside one of those calls may outlive the drain window, although the
+semaphore continues to bound total concurrency.
 
 ## Deployment model
 

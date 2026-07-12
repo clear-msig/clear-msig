@@ -116,6 +116,7 @@ impl PersistedConfig {
 
 /// Loaded runtime config used by every command handler.
 pub struct RuntimeConfig {
+    pub control: crate::control::ExecutionControl,
     pub rpc_url: String,
     pub payer: solana_keypair::Keypair,
     pub signer: Box<dyn MessageSigner>,
@@ -149,7 +150,10 @@ impl RuntimeConfig {
     }
 }
 
-pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
+pub fn load_config(
+    globals: &CliGlobals,
+    control: crate::control::ExecutionControl,
+) -> Result<RuntimeConfig> {
     let persisted = PersistedConfig::load();
 
     let rpc_url = globals.url.clone().unwrap_or(persisted.rpc_url);
@@ -249,6 +253,7 @@ pub fn load_config(globals: &CliGlobals) -> Result<RuntimeConfig> {
     };
 
     Ok(RuntimeConfig {
+        control,
         rpc_url,
         payer,
         signer,

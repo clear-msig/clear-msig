@@ -99,8 +99,8 @@ async fn list_intents(
     ensure_wallet_name(&name, "name")?;
     run_intent_command(
         &state,
-        clear_msig_cli::DirectExecutionContext::Backend,
-        clear_msig_cli::DirectCommand::IntentList { wallet: name },
+        clear_msig_command_contract::DirectExecutionContext::Backend,
+        clear_msig_command_contract::DirectCommand::IntentList { wallet: name },
         None,
     )
     .await
@@ -118,7 +118,7 @@ async fn add_intent(
     let expiry = format_expiry(body.pre_signed.expiry)?;
     let rate_key = body.pre_signed.signer_pubkey.clone();
     let context = presigned_context(body.pre_signed);
-    let command = clear_msig_cli::DirectCommand::IntentAdd {
+    let command = clear_msig_command_contract::DirectCommand::IntentAdd {
         wallet: name,
         file: Some(body.file),
         proposers: Vec::new(),
@@ -143,7 +143,7 @@ async fn remove_intent(
     let expiry = format_expiry(body.pre_signed.expiry)?;
     let rate_key = body.pre_signed.signer_pubkey.clone();
     let context = presigned_context(body.pre_signed);
-    let command = clear_msig_cli::DirectCommand::IntentRemove {
+    let command = clear_msig_command_contract::DirectCommand::IntentRemove {
         wallet: name,
         index: body.index,
         expiry: Some(expiry),
@@ -163,7 +163,7 @@ async fn update_intent(
     let expiry = format_expiry(body.pre_signed.expiry)?;
     let rate_key = body.pre_signed.signer_pubkey.clone();
     let context = presigned_context(body.pre_signed);
-    let command = clear_msig_cli::DirectCommand::IntentUpdate {
+    let command = clear_msig_command_contract::DirectCommand::IntentUpdate {
         wallet: name,
         index: body.index,
         file: Some(body.file),
@@ -200,7 +200,7 @@ async fn prepare_intent_add(
         .expiry
         .map(|value| normalize_expiry_arg(&value))
         .transpose()?;
-    let command = clear_msig_cli::DirectCommand::IntentAdd {
+    let command = clear_msig_command_contract::DirectCommand::IntentAdd {
         wallet: name,
         file: Some(body.file),
         proposers: body.proposers,
@@ -213,7 +213,7 @@ async fn prepare_intent_add(
     };
     run_intent_command(
         &state,
-        clear_msig_cli::DirectExecutionContext::DryRun { actor_pubkey: None },
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey: None },
         command,
         None,
     )
@@ -230,14 +230,14 @@ async fn prepare_intent_remove(
         .expiry
         .map(|value| normalize_expiry_arg(&value))
         .transpose()?;
-    let command = clear_msig_cli::DirectCommand::IntentRemove {
+    let command = clear_msig_command_contract::DirectCommand::IntentRemove {
         wallet: name,
         index: body.index,
         expiry,
     };
     run_intent_command(
         &state,
-        clear_msig_cli::DirectExecutionContext::DryRun { actor_pubkey: None },
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey: None },
         command,
         None,
     )
@@ -266,7 +266,7 @@ async fn prepare_intent_update(
         .expiry
         .map(|value| normalize_expiry_arg(&value))
         .transpose()?;
-    let command = clear_msig_cli::DirectCommand::IntentUpdate {
+    let command = clear_msig_command_contract::DirectCommand::IntentUpdate {
         wallet: name,
         index: body.index,
         file: Some(body.file),
@@ -280,15 +280,15 @@ async fn prepare_intent_update(
     };
     run_intent_command(
         &state,
-        clear_msig_cli::DirectExecutionContext::DryRun { actor_pubkey: None },
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey: None },
         command,
         None,
     )
     .await
 }
 
-fn presigned_context(pre_signed: PreSigned) -> clear_msig_cli::DirectExecutionContext {
-    clear_msig_cli::DirectExecutionContext::PreSigned {
+fn presigned_context(pre_signed: PreSigned) -> clear_msig_command_contract::DirectExecutionContext {
+    clear_msig_command_contract::DirectExecutionContext::PreSigned {
         signer_pubkey: pre_signed.signer_pubkey,
         signature: pre_signed.signature,
         params_data: pre_signed.params_data_hex,
@@ -299,8 +299,8 @@ fn presigned_context(pre_signed: PreSigned) -> clear_msig_cli::DirectExecutionCo
 
 async fn run_intent_command(
     state: &AppState,
-    context: clear_msig_cli::DirectExecutionContext,
-    command: clear_msig_cli::DirectCommand,
+    context: clear_msig_command_contract::DirectExecutionContext,
+    command: clear_msig_command_contract::DirectCommand,
     rate_limit_key: Option<&str>,
 ) -> Result<Json<Value>, ApiError> {
     if let Some(key) = rate_limit_key {

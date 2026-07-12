@@ -1,94 +1,7 @@
 use crate::commands::proposal::ProposalAction;
 use crate::config::CliGlobals;
 use crate::{Command, ExecutionRequest};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TypedExecutionContext {
-    Backend,
-    DryRun {
-        actor_pubkey: Option<String>,
-    },
-    PreSigned {
-        signer_pubkey: String,
-        signature: String,
-        message_flavor: Option<String>,
-        signed_message: String,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TypedProposalLifecycle {
-    Create {
-        wallet: String,
-        intent_index: u8,
-        action_kind: u8,
-        policy_commitment: String,
-        payload_hash: String,
-        envelope_hash: String,
-        action_id: String,
-        nonce: String,
-        policy_bytes_hex: Option<String>,
-        signable_text: Option<String>,
-        expiry: Option<String>,
-    },
-    Approve {
-        wallet: String,
-        proposal: String,
-    },
-    Cancel {
-        wallet: String,
-        proposal: String,
-    },
-    Execute {
-        wallet: String,
-        proposal: String,
-    },
-}
-
-impl TypedProposalLifecycle {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Create { .. } => "proposal typed-create",
-            Self::Approve { .. } => "proposal typed-approve",
-            Self::Cancel { .. } => "proposal typed-cancel",
-            Self::Execute { .. } => "proposal typed-execute",
-        }
-    }
-
-    fn validate_boundary(&self) -> Result<(), String> {
-        let values = match self {
-            Self::Create {
-                wallet,
-                policy_commitment,
-                payload_hash,
-                envelope_hash,
-                action_id,
-                nonce,
-                policy_bytes_hex,
-                signable_text,
-                expiry,
-                ..
-            } => {
-                let mut values = vec![
-                    wallet.as_str(),
-                    policy_commitment.as_str(),
-                    payload_hash.as_str(),
-                    envelope_hash.as_str(),
-                    action_id.as_str(),
-                    nonce.as_str(),
-                ];
-                values.extend(policy_bytes_hex.iter().map(String::as_str));
-                values.extend(signable_text.iter().map(String::as_str));
-                values.extend(expiry.iter().map(String::as_str));
-                values
-            }
-            Self::Approve { wallet, proposal }
-            | Self::Cancel { wallet, proposal }
-            | Self::Execute { wallet, proposal } => vec![wallet.as_str(), proposal.as_str()],
-        };
-        validate_values(values)
-    }
-}
+use clear_msig_command_contract::{TypedExecutionContext, TypedProposalLifecycle};
 
 impl From<TypedProposalLifecycle> for ProposalAction {
     fn from(value: TypedProposalLifecycle) -> Self {
@@ -137,12 +50,14 @@ pub fn prepare_typed_proposal_lifecycle(
     lifecycle: TypedProposalLifecycle,
 ) -> Result<ExecutionRequest, String> {
     lifecycle.validate_boundary()?;
+    context.validate_boundary()?;
     apply_context(&mut globals, context)?;
     Ok(ExecutionRequest {
         globals,
         command: Command::Proposal {
             action: lifecycle.into(),
         },
+        control: Default::default(),
     })
 }
 
@@ -158,7 +73,6 @@ fn apply_context(globals: &mut CliGlobals, context: TypedExecutionContext) -> Re
     match context {
         TypedExecutionContext::Backend => {}
         TypedExecutionContext::DryRun { actor_pubkey } => {
-            validate_values(actor_pubkey.iter().map(String::as_str).collect())?;
             globals.dry_run = true;
             globals.signer_pubkey = actor_pubkey;
         }
@@ -168,13 +82,6 @@ fn apply_context(globals: &mut CliGlobals, context: TypedExecutionContext) -> Re
             message_flavor,
             signed_message,
         } => {
-            let mut values = vec![
-                signer_pubkey.as_str(),
-                signature.as_str(),
-                signed_message.as_str(),
-            ];
-            values.extend(message_flavor.iter().map(String::as_str));
-            validate_values(values)?;
             globals.signer_pubkey = Some(signer_pubkey);
             globals.signature = Some(signature);
             globals.message_flavor = message_flavor;
@@ -184,34 +91,12 @@ fn apply_context(globals: &mut CliGlobals, context: TypedExecutionContext) -> Re
     Ok(())
 }
 
-fn validate_values(values: Vec<&str>) -> Result<(), String> {
-    const MAX_VALUES: usize = 256;
-    const MAX_VALUE_BYTES: usize = 16 * 1024;
-    if values.len() > MAX_VALUES {
-        return Err(format!(
-            "typed lifecycle has too many values: {}",
-            values.len()
-        ));
-    }
-    for value in values {
-        if value.len() > MAX_VALUE_BYTES {
-            return Err("typed lifecycle value exceeds the size limit".into());
-        }
-        if value.contains('\0') {
-            return Err("typed lifecycle values cannot contain NUL bytes".into());
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        apply_context, prepare_typed_proposal_lifecycle, TypedExecutionContext,
-        TypedProposalLifecycle,
-    };
+    use super::{apply_context, prepare_typed_proposal_lifecycle};
     use crate::commands::proposal::ProposalAction;
     use crate::config::CliGlobals;
+    use clear_msig_command_contract::{TypedExecutionContext, TypedProposalLifecycle};
 
     #[test]
     fn contexts_are_mutually_exclusive() {

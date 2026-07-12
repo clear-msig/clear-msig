@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 clear-msig-cli = { path = "../cli" }
+clear-msig-command-contract = { path = "../crates/clear-msig-command-contract" }
 anyhow = "1"
 axum = { version = "0.8", features = ["macros"] }
 serde = { version = "1", features = ["derive"] }

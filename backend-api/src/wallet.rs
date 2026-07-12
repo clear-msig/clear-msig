@@ -88,7 +88,7 @@ async fn create_wallet(
         return Err(ApiError::BadRequest("threshold must be >= 1".into()));
     }
 
-    let command = clear_msig_cli::DirectCommand::WalletCreate {
+    let command = clear_msig_command_contract::DirectCommand::WalletCreate {
         name: body.name,
         proposers: body.proposers,
         approvers: body.approvers,
@@ -100,7 +100,10 @@ async fn create_wallet(
     Ok(Json(
         state
             .runner
-            .run_direct(clear_msig_cli::DirectExecutionContext::Backend, command)
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                command,
+            )
             .await?,
     ))
 }
@@ -110,11 +113,14 @@ async fn show_wallet(
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    let command = clear_msig_cli::DirectCommand::WalletShow { name };
+    let command = clear_msig_command_contract::DirectCommand::WalletShow { name };
     Ok(Json(
         state
             .runner
-            .run_direct(clear_msig_cli::DirectExecutionContext::Backend, command)
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                command,
+            )
             .await?,
     ))
 }
@@ -128,14 +134,17 @@ async fn list_wallet_chains(
     if let Some(program) = &query.dwallet_program {
         ensure_non_empty(program, "dwallet_program")?;
     }
-    let command = clear_msig_cli::DirectCommand::WalletChains {
+    let command = clear_msig_command_contract::DirectCommand::WalletChains {
         wallet: name,
         dwallet_program: query.dwallet_program,
     };
     Ok(Json(
         state
             .runner
-            .run_direct(clear_msig_cli::DirectExecutionContext::Backend, command)
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                command,
+            )
             .await?,
     ))
 }
@@ -172,7 +181,7 @@ async fn add_wallet_chain(
     if let Some(value) = &body.existing_dwallet_addr {
         ensure_non_empty(value, "existing_dwallet_addr")?;
     }
-    let command = clear_msig_cli::DirectCommand::WalletAddChain {
+    let command = clear_msig_command_contract::DirectCommand::WalletAddChain {
         wallet: name,
         chain: body.chain,
         dwallet_program,
@@ -183,7 +192,10 @@ async fn add_wallet_chain(
     Ok(Json(
         state
             .runner
-            .run_direct(clear_msig_cli::DirectExecutionContext::Backend, command)
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                command,
+            )
             .await?,
     ))
 }

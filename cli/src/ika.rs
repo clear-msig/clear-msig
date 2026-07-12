@@ -2,9 +2,9 @@
 //! chain-aware `proposal execute`.
 //!
 //! This module hides the gRPC roundtrip, the dWallet program PDA derivations,
-//! and the BCS request shaping. Everything synchronous-callable; the few
-//! async pieces (gRPC roundtrips) spin a localized tokio runtime so the
-//! rest of the CLI stays sync.
+//! and the BCS request shaping. gRPC uses the caller's Tokio runtime and
+//! execution-cancellation signal; standalone CLI calls create a localized
+//! runtime only as a fallback.
 
 use crate::config::RuntimeConfig;
 use crate::error::*;
@@ -255,7 +255,7 @@ pub fn load_attestation(wallet_name: &str, chain_kind: u8) -> Result<NetworkSign
 /// the DKG attestation lives in the `DWalletAttestation` PDA, while the
 /// `network_pubkey` and `epoch` come from the dWallet account.
 pub fn load_attestation_from_chain(
-    client: &solana_client::rpc_client::RpcClient,
+    client: &crate::rpc::Client,
     dwallet_program: &Pubkey,
     dwallet: &Pubkey,
 ) -> Result<NetworkSignedAttestation> {
@@ -314,7 +314,7 @@ fn hex_decode_field(json: &serde_json::Value, field: &str) -> Result<Vec<u8>> {
 
 /// Wait for the dWallet program's coordinator PDA to be initialized.
 pub fn wait_for_coordinator(
-    client: &solana_client::rpc_client::RpcClient,
+    client: &crate::rpc::Client,
     dwallet_program: &Pubkey,
     timeout: Duration,
 ) -> Result<()> {
@@ -375,7 +375,11 @@ pub fn dkg(
         },
     };
 
-    let response = grpc_call(grpc_url, build_signed_request(&payer_pubkey, request))?;
+    let response = grpc_call(
+        config,
+        grpc_url,
+        build_signed_request(&payer_pubkey, request),
+    )?;
     match response {
         TransactionResponseData::Attestation(attestation) => {
             let versioned: VersionedDWalletDataAttestation =
@@ -415,7 +419,11 @@ pub fn presign(
         },
     };
 
-    let response = grpc_call(grpc_url, build_signed_request(&payer_pubkey, request))?;
+    let response = grpc_call(
+        config,
+        grpc_url,
+        build_signed_request(&payer_pubkey, request),
+    )?;
     match response {
         TransactionResponseData::Attestation(att) => {
             let versioned: VersionedPresignDataAttestation = bcs::from_bytes(&att.attestation_data)
@@ -461,7 +469,11 @@ pub fn sign(
         },
     };
 
-    let response = grpc_call(grpc_url, build_signed_request(&payer_pubkey, request))?;
+    let response = grpc_call(
+        config,
+        grpc_url,
+        build_signed_request(&payer_pubkey, request),
+    )?;
     match response {
         TransactionResponseData::Signature { signature } => Ok(signature),
         TransactionResponseData::Error { message } => Err(anyhow!("gRPC sign failed: {message}")),
@@ -483,9 +495,12 @@ fn build_signed_request(payer: &Pubkey, request: SignedRequestData) -> UserSigne
     }
 }
 
-/// Run a single gRPC submit_transaction call against the Ika dWallet service.
-/// Spins a localized tokio runtime so callers can stay sync.
-fn grpc_call(grpc_url: &str, request: UserSignedRequest) -> Result<TransactionResponseData> {
+/// Run a cancellable gRPC submit_transaction call against the Ika service.
+fn grpc_call(
+    config: &RuntimeConfig,
+    grpc_url: &str,
+    request: UserSignedRequest,
+) -> Result<TransactionResponseData> {
     // DEBUG: dump the protobuf-framed body so we can replay via curl.
     if std::env::var("CLEAR_MSIG_DEBUG_GRPC").is_ok() {
         use prost::Message;
@@ -502,11 +517,9 @@ fn grpc_call(grpc_url: &str, request: UserSignedRequest) -> Result<TransactionRe
             framed.len()
         );
     }
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .with_context(|| "tokio runtime build failed")?;
-    runtime.block_on(async move {
+    let control = config.control.clone();
+    let grpc_url = grpc_url.to_string();
+    let operation = async move {
         let mut client = if grpc_url.starts_with("https") {
             let tls = tonic::transport::ClientTlsConfig::new().with_native_roots();
             let channel = tonic::transport::Channel::from_shared(grpc_url.to_string())
@@ -530,14 +543,29 @@ fn grpc_call(grpc_url: &str, request: UserSignedRequest) -> Result<TransactionRe
             bcs::from_bytes(&response.into_inner().response_data)
                 .with_context(|| "BCS deserialize response")?;
         Ok(response_data)
-    })
+    };
+    let controlled = async move {
+        tokio::select! {
+            result = operation => result,
+            _ = control.cancelled() => Err(anyhow!("Ika gRPC request cancelled")),
+        }
+    };
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.block_on(controlled)
+    } else {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .with_context(|| "tokio runtime build failed")?
+            .block_on(controlled)
+    }
 }
 
 // ── On-chain polling ──
 
 /// Block until `account` exists and `check(data)` returns true, or `timeout`.
 pub fn poll_until(
-    client: &solana_client::rpc_client::RpcClient,
+    client: &crate::rpc::Client,
     account: &Pubkey,
     check: impl Fn(&[u8]) -> bool,
     timeout: Duration,
@@ -552,7 +580,7 @@ pub fn poll_until(
                 return Ok(data);
             }
         }
-        std::thread::sleep(Duration::from_millis(500));
+        client.wait(Duration::from_millis(500))?;
     }
 }
 

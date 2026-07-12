@@ -185,8 +185,8 @@ async fn resolve_wallet_id(state: &AppState, wallet_name: &str) -> Result<String
     let wallet = state
         .runner
         .run_direct(
-            clear_msig_cli::DirectExecutionContext::Backend,
-            clear_msig_cli::DirectCommand::WalletShow { name },
+            clear_msig_command_contract::DirectExecutionContext::Backend,
+            clear_msig_command_contract::DirectCommand::WalletShow { name },
         )
         .await?;
     wallet

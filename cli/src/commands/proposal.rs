@@ -10,7 +10,6 @@ use clear_wallet::utils::clearsign::{
     extract_clear_text_from_vote_message, ClearSignActionKind, ClearSignVoteKind,
 };
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
-use solana_client::rpc_client::RpcClient;
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::pubkey::Pubkey;
 
@@ -2334,7 +2333,7 @@ enum IkaOnchainSignMode {
 #[allow(clippy::too_many_arguments)]
 fn execute_via_ika(
     config: &RuntimeConfig,
-    client: &solana_client::rpc_client::RpcClient,
+    client: &crate::rpc::Client,
     _wallet_name: &str,
     wallet_pubkey: Pubkey,
     intent_pubkey: Pubkey,
@@ -2717,11 +2716,10 @@ fn execute_via_ika(
             wire_tx.extend_from_slice(onchain_sig);
             wire_tx.extend_from_slice(&sign_message_for_broadcast);
 
-            let sol_client = solana_client::rpc_client::RpcClient::new(rpc_url.to_string());
+            let sol_client = rpc::client_for_url(config, rpc_url.to_string());
             let tx: solana_sdk::transaction::Transaction = bincode::deserialize(&wire_tx)
                 .with_context(|| "failed to deserialize Solana transaction")?;
-            let tx_sig = sol_client
-                .send_and_confirm_transaction(&tx)
+            let tx_sig = rpc::send_signed_transaction(&sol_client, &tx)
                 .with_context(|| "failed to send Solana transaction")?;
             crate::progress!("✓ Broadcast solana: {tx_sig}");
             output["broadcast"] = serde_json::json!({
@@ -2975,7 +2973,7 @@ fn typed_vote_message(
 
 fn resolve_approved_typed_proposal(
     _config: &RuntimeConfig,
-    client: &RpcClient,
+    client: &crate::rpc::Client,
     wallet_name: &str,
     proposal_addr_str: &str,
 ) -> Result<(Pubkey, Pubkey, accounts::TypedProposalAccount)> {

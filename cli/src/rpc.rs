@@ -1,6 +1,5 @@
 use crate::config::RuntimeConfig;
 use crate::error::*;
-use solana_client::rpc_client::RpcClient;
 use solana_commitment_config::CommitmentConfig;
 use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
@@ -8,7 +7,40 @@ use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_signature::Signature;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
-use std::{thread, time::Duration};
+use std::{future::Future, time::Duration};
+
+pub struct Client {
+    inner: solana_client::nonblocking::rpc_client::RpcClient,
+    control: crate::ExecutionControl,
+}
+
+impl Client {
+    fn run<T, E>(&self, future: impl Future<Output = Result<T, E>>) -> Result<T>
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        let control = self.control.clone();
+        let controlled = async move {
+            tokio::select! {
+                result = future => result.map_err(anyhow::Error::from),
+                _ = control.cancelled() => Err(anyhow!("Solana RPC request cancelled")),
+            }
+        };
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.block_on(controlled)
+        } else {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .with_context(|| "tokio runtime build failed")?
+                .block_on(controlled)
+        }
+    }
+
+    pub fn wait(&self, duration: Duration) -> Result<()> {
+        self.control.wait(duration)
+    }
+}
 
 /// The default Solana compute budget is 200k CUs. The member-update
 /// flows routinely consume that ceiling during proposal signing and
@@ -18,13 +50,28 @@ const DEFAULT_COMPUTE_UNIT_LIMIT: u32 = 600_000;
 const RPC_SCAN_RETRY_ATTEMPTS: usize = 4;
 const RPC_SEND_RETRY_ATTEMPTS: usize = 4;
 
-pub fn client(config: &RuntimeConfig) -> RpcClient {
-    RpcClient::new_with_commitment(&config.rpc_url, CommitmentConfig::confirmed())
+pub fn client(config: &RuntimeConfig) -> Client {
+    client_for_url(config, config.rpc_url.clone())
 }
 
-pub fn fetch_account(rpc: &RpcClient, address: &Pubkey) -> Result<Vec<u8>> {
+pub fn client_for_url(config: &RuntimeConfig, rpc_url: String) -> Client {
+    Client {
+        inner: solana_client::nonblocking::rpc_client::RpcClient::new_with_commitment(
+            rpc_url,
+            CommitmentConfig::confirmed(),
+        ),
+        control: config.control.clone(),
+    }
+}
+
+pub fn send_signed_transaction(rpc: &Client, transaction: &Transaction) -> Result<Signature> {
+    rpc.run(rpc.inner.send_and_confirm_transaction(transaction))
+        .with_context(|| "sending signed Solana transaction")
+}
+
+pub fn fetch_account(rpc: &Client, address: &Pubkey) -> Result<Vec<u8>> {
     let account = rpc
-        .get_account(address)
+        .run(rpc.inner.get_account(address))
         .with_context(|| format!("fetching account {address}"))?;
     Ok(account.data)
 }
@@ -37,7 +84,7 @@ pub fn fetch_account(rpc: &RpcClient, address: &Pubkey) -> Result<Vec<u8>> {
 ///
 /// Returns `(wallet_pda, parsed_account)` or an error if no match.
 pub fn resolve_wallet_by_name(
-    rpc: &RpcClient,
+    rpc: &Client,
     name: &str,
 ) -> Result<(Pubkey, crate::accounts::WalletAccount)> {
     use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
@@ -64,7 +111,10 @@ pub fn resolve_wallet_by_name(
             sort_results: None,
         };
 
-        match rpc.get_program_accounts_with_config(&program_id, config) {
+        match rpc.run(
+            rpc.inner
+                .get_program_accounts_with_config(&program_id, config),
+        ) {
             Ok(accounts) => break accounts,
             Err(error) => {
                 if attempt >= RPC_SCAN_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
@@ -73,7 +123,7 @@ pub fn resolve_wallet_by_name(
                 crate::progress!(
                     "devnet RPC scan failed while resolving wallet name (attempt {attempt}/{RPC_SCAN_RETRY_ATTEMPTS}); retrying..."
                 );
-                thread::sleep(rpc_retry_delay(attempt));
+                rpc.wait(rpc_retry_delay(attempt))?;
             }
         }
         scan_attempt += 1;
@@ -119,8 +169,8 @@ fn is_retryable_rpc_error(error: &impl std::fmt::Display) -> bool {
     .any(|needle| message.contains(needle))
 }
 
-pub fn fetch_account_optional(rpc: &RpcClient, address: &Pubkey) -> Result<Option<Vec<u8>>> {
-    match rpc.get_account(address) {
+pub fn fetch_account_optional(rpc: &Client, address: &Pubkey) -> Result<Option<Vec<u8>>> {
+    match rpc.run(rpc.inner.get_account(address)) {
         Ok(account) => Ok(Some(account.data)),
         Err(e) => {
             let msg = e.to_string();
@@ -134,7 +184,7 @@ pub fn fetch_account_optional(rpc: &RpcClient, address: &Pubkey) -> Result<Optio
 }
 
 pub fn send_instruction(
-    rpc: &RpcClient,
+    rpc: &Client,
     config: &RuntimeConfig,
     instruction: Instruction,
 ) -> Result<Signature> {
@@ -143,13 +193,13 @@ pub fn send_instruction(
 
 #[allow(dead_code)]
 pub fn send_instructions(
-    rpc: &RpcClient,
+    rpc: &Client,
     config: &RuntimeConfig,
     instructions: Vec<Instruction>,
 ) -> Result<Signature> {
     let instructions = with_compute_budget(instructions);
     for attempt in 1..=RPC_SEND_RETRY_ATTEMPTS {
-        let recent_blockhash = match rpc.get_latest_blockhash() {
+        let recent_blockhash = match rpc.run(rpc.inner.get_latest_blockhash()) {
             Ok(blockhash) => blockhash,
             Err(error) => {
                 if attempt >= RPC_SEND_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
@@ -158,7 +208,7 @@ pub fn send_instructions(
                 crate::progress!(
                     "devnet RPC blockhash fetch failed (attempt {attempt}/{RPC_SEND_RETRY_ATTEMPTS}); retrying..."
                 );
-                thread::sleep(rpc_retry_delay(attempt));
+                rpc.wait(rpc_retry_delay(attempt))?;
                 continue;
             }
         };
@@ -168,7 +218,7 @@ pub fn send_instructions(
             &[&config.payer],
             recent_blockhash,
         );
-        match rpc.send_and_confirm_transaction(&transaction) {
+        match rpc.run(rpc.inner.send_and_confirm_transaction(&transaction)) {
             Ok(signature) => return Ok(signature),
             Err(error) => {
                 if attempt >= RPC_SEND_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
@@ -177,7 +227,7 @@ pub fn send_instructions(
                 crate::progress!(
                     "devnet RPC send failed (attempt {attempt}/{RPC_SEND_RETRY_ATTEMPTS}); retrying with a fresh blockhash..."
                 );
-                thread::sleep(rpc_retry_delay(attempt));
+                rpc.wait(rpc_retry_delay(attempt))?;
             }
         }
     }
@@ -234,5 +284,19 @@ mod tests {
         ] {
             assert!(!is_retryable_rpc_error(&message), "{message}");
         }
+    }
+
+    #[test]
+    fn cancelled_rpc_drops_a_pending_network_future() {
+        let control = crate::ExecutionControl::default();
+        let rpc = Client {
+            inner: solana_client::nonblocking::rpc_client::RpcClient::new(
+                "http://127.0.0.1:1".to_string(),
+            ),
+            control: control.clone(),
+        };
+        control.cancel();
+        let result = rpc.run(std::future::pending::<Result<(), std::io::Error>>());
+        assert!(result.unwrap_err().to_string().contains("cancelled"));
     }
 }

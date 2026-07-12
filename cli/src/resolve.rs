@@ -2,7 +2,6 @@ use crate::accounts::IntentAccount;
 use crate::error::*;
 use crate::rpc;
 use clear_wallet::utils::definition::*;
-use solana_client::rpc_client::RpcClient;
 use solana_instruction::AccountMeta;
 use solana_pubkey::Pubkey;
 
@@ -18,7 +17,7 @@ const SYSTEM_PROGRAM_ID: Pubkey = Pubkey::new_from_array([0u8; 32]);
 /// For custom intents, each AccountEntry is resolved in order — later entries
 /// can reference earlier ones (AccountRef seeds, HasOne).
 pub fn resolve_remaining_accounts(
-    rpc: &RpcClient,
+    rpc: &crate::rpc::Client,
     intent: &IntentAccount,
     wallet: &Pubkey,
     vault: &Pubkey,
@@ -79,7 +78,7 @@ pub fn resolve_remaining_accounts(
 }
 
 fn resolve_custom_accounts(
-    rpc: &RpcClient,
+    rpc: &crate::rpc::Client,
     intent: &IntentAccount,
     wallet: &Pubkey,
     vault: &Pubkey,
@@ -124,7 +123,7 @@ fn resolve_custom_accounts(
 }
 
 fn resolve_account_source(
-    rpc: &RpcClient,
+    rpc: &crate::rpc::Client,
     entry: &AccountEntry,
     intent: &IntentAccount,
     params_data: &[u8],

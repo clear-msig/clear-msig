@@ -7,9 +7,11 @@ macro_rules! progress {
 pub(crate) use progress;
 
 mod accounts;
+mod adapter;
 mod chains;
 pub mod commands;
 pub mod config;
+mod control;
 mod direct;
 #[cfg(test)]
 mod direct_tests;
@@ -30,11 +32,14 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
-pub use direct::{prepare_direct_command, DirectCommand, DirectExecutionContext};
-pub use execution::{prepare_typed_proposal_execution, LamportPayment, TypedProposalExecution};
-pub use lifecycle::{
-    prepare_typed_proposal_lifecycle, TypedExecutionContext, TypedProposalLifecycle,
+pub use clear_msig_command_contract::{
+    DirectCommand, DirectExecutionContext, LamportPayment, TypedExecutionContext,
+    TypedProposalExecution, TypedProposalLifecycle,
 };
+pub use control::ExecutionControl;
+pub use direct::prepare_direct_command;
+pub use execution::prepare_typed_proposal_execution;
+pub use lifecycle::prepare_typed_proposal_lifecycle;
 
 #[derive(Parser)]
 #[command(name = "clear-msig", about = "Clear-sign multisig wallet CLI")]
@@ -108,6 +113,7 @@ enum Command {
 pub struct ExecutionRequest {
     globals: config::CliGlobals,
     command: Command,
+    control: control::ExecutionControl,
 }
 
 impl From<Cli> for ExecutionRequest {
@@ -127,6 +133,7 @@ impl From<Cli> for ExecutionRequest {
                 dry_run: cli.dry_run,
             },
             command: cli.command,
+            control: control::ExecutionControl::default(),
         }
     }
 }
@@ -135,7 +142,7 @@ impl From<Cli> for ExecutionRequest {
 /// The shared contract limits command shape and size before Clap validates
 /// every option and positional argument against the complete schema.
 pub fn prepare_execution(args: &[String]) -> Result<ExecutionRequest, String> {
-    clear_msig_command_contract::validate_invocation_args(args)?;
+    adapter::validate_invocation_args(args)?;
     let argv = std::iter::once("clear-msig").chain(args.iter().map(String::as_str));
     Cli::try_parse_from(argv)
         .map(ExecutionRequest::from)
@@ -165,6 +172,12 @@ pub fn execute_request(request: ExecutionRequest) -> anyhow::Result<serde_json::
     }
 }
 
+impl ExecutionRequest {
+    pub fn cancellation_handle(&self) -> control::ExecutionControl {
+        self.control.clone()
+    }
+}
+
 /// Argument adapter retained for callers and tests that start from argv.
 pub fn execute_args(args: &[String]) -> anyhow::Result<serde_json::Value> {
     let request = prepare_execution(args).map_err(anyhow::Error::msg)?;
@@ -184,18 +197,19 @@ pub fn run_from_env() -> ExitCode {
 }
 
 fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
+    request.control.check()?;
     match request.command {
         Command::Config { action } => commands::config::handle(action),
         Command::Wallet { action } => {
-            let config = config::load_config(&request.globals)?;
+            let config = config::load_config(&request.globals, request.control.clone())?;
             commands::wallet::handle(action, &config)
         }
         Command::Intent { action } => {
-            let config = config::load_config(&request.globals)?;
+            let config = config::load_config(&request.globals, request.control.clone())?;
             commands::intent::handle(action, &config)
         }
         Command::Proposal { action } => {
-            let config = config::load_config(&request.globals)?;
+            let config = config::load_config(&request.globals, request.control.clone())?;
             commands::proposal::handle(action, &config)
         }
     }
@@ -229,15 +243,13 @@ mod tests {
         for command in cli.get_subcommands() {
             for action in command.get_subcommands() {
                 let args = vec![command.get_name().into(), action.get_name().into()];
-                clear_msig_command_contract::validate_invocation_args(&args).unwrap_or_else(
-                    |error| {
-                        panic!(
-                            "{} {} is missing from the adapter-input contract: {error}",
-                            command.get_name(),
-                            action.get_name()
-                        )
-                    },
-                );
+                crate::adapter::validate_invocation_args(&args).unwrap_or_else(|error| {
+                    panic!(
+                        "{} {} is missing from the CLI adapter allowlist: {error}",
+                        command.get_name(),
+                        action.get_name()
+                    )
+                });
             }
         }
     }

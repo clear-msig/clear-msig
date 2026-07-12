@@ -60,37 +60,13 @@ pub(super) async fn lookup_memberships(
     ensure_non_empty(&address, "address")?;
     let target_address = address.trim().to_string();
 
-    let mut rpc_url: Option<String> = None;
-    let mut i = 0usize;
-    while i + 1 < state.runner.base_args.len() {
-        if state.runner.base_args[i] == "--url" {
-            rpc_url = Some(state.runner.base_args[i + 1].clone());
-            break;
-        }
-        i += 1;
-    }
-
-    let rpc_url = rpc_url.unwrap_or_else(|| {
-        "https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH".to_string()
-    });
-
-    let program_id = state
-        .runner
-        .run_json(vec!["config".to_string(), "show".to_string()])
-        .await
-        .ok()
-        .and_then(|cfg| {
-            cfg.get("program_id")
-                .and_then(|v| v.as_str())
-                .map(ToString::to_string)
-        })
-        .or_else(|| std::env::var("CLEAR_MSIG_PROGRAM_ID").ok())
-        .unwrap_or_else(|| "53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v".to_string());
+    let rpc_url = &state.runner.rpc_url;
+    let program_id = &state.runner.program_id;
 
     let wallet_accounts =
-        fetch_program_accounts_by_disc(&rpc_url, &program_id, /* ClearWallet */ 1).await?;
+        fetch_program_accounts_by_disc(rpc_url, program_id, /* ClearWallet */ 1).await?;
     let intent_accounts =
-        fetch_program_accounts_by_disc(&rpc_url, &program_id, /* Intent */ 2).await?;
+        fetch_program_accounts_by_disc(rpc_url, program_id, /* Intent */ 2).await?;
 
     let mut wallets: std::collections::BTreeMap<String, MembershipAccumulator> =
         std::collections::BTreeMap::new();
