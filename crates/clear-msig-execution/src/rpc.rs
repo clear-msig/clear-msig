@@ -1,20 +1,50 @@
 use crate::config::RuntimeConfig;
 use crate::error::*;
+use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
+use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 use solana_commitment_config::CommitmentConfig;
 use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
+use solana_sdk::hash::Hash;
 use solana_signature::Signature;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
-use std::{future::Future, time::Duration};
+use std::{future::Future, sync::Arc, time::Duration};
 
-pub struct Client {
+pub trait SolanaRpcPort: Send + Sync {
+    fn fetch_account(&self, address: &Pubkey) -> Result<Option<Vec<u8>>>;
+    fn scan_wallet_accounts(&self, program_id: &Pubkey) -> Result<Vec<(Pubkey, Vec<u8>)>>;
+    fn latest_blockhash(&self) -> Result<Hash>;
+    fn send_and_confirm(&self, transaction: &Transaction) -> Result<Signature>;
+}
+
+pub trait SolanaRpcFactory: Send + Sync {
+    fn connect(&self, rpc_url: String, control: crate::ExecutionControl) -> Client;
+}
+
+#[derive(Default)]
+pub struct LiveSolanaRpcFactory;
+
+impl SolanaRpcFactory for LiveSolanaRpcFactory {
+    fn connect(&self, rpc_url: String, control: crate::ExecutionControl) -> Client {
+        let port = LiveSolanaRpcPort {
+            inner: solana_client::nonblocking::rpc_client::RpcClient::new_with_commitment(
+                rpc_url,
+                CommitmentConfig::confirmed(),
+            ),
+            control: control.clone(),
+        };
+        client_with_port(control, Arc::new(port))
+    }
+}
+
+struct LiveSolanaRpcPort {
     inner: solana_client::nonblocking::rpc_client::RpcClient,
     control: crate::ExecutionControl,
 }
 
-impl Client {
+impl LiveSolanaRpcPort {
     fn run<T, E>(&self, future: impl Future<Output = Result<T, E>>) -> Result<T>
     where
         E: std::error::Error + Send + Sync + 'static,
@@ -36,7 +66,57 @@ impl Client {
                 .block_on(controlled)
         }
     }
+}
 
+impl SolanaRpcPort for LiveSolanaRpcPort {
+    fn fetch_account(&self, address: &Pubkey) -> Result<Option<Vec<u8>>> {
+        match self.run(self.inner.get_account(address)) {
+            Ok(account) => Ok(Some(account.data)),
+            Err(error) if is_account_not_found(&error) => Ok(None),
+            Err(error) => Err(error).with_context(|| format!("fetching account {address}")),
+        }
+    }
+
+    fn scan_wallet_accounts(&self, program_id: &Pubkey) -> Result<Vec<(Pubkey, Vec<u8>)>> {
+        let config = RpcProgramAccountsConfig {
+            filters: Some(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+                0,
+                vec![1u8],
+            ))]),
+            account_config: RpcAccountInfoConfig {
+                encoding: None,
+                commitment: Some(CommitmentConfig::confirmed()),
+                data_slice: None,
+                min_context_slot: None,
+            },
+            with_context: None,
+            sort_results: None,
+        };
+        let accounts = self.run(
+            self.inner
+                .get_program_accounts_with_config(program_id, config),
+        )?;
+        Ok(accounts
+            .into_iter()
+            .map(|(pubkey, account)| (pubkey, account.data))
+            .collect())
+    }
+
+    fn latest_blockhash(&self) -> Result<Hash> {
+        self.run(self.inner.get_latest_blockhash())
+    }
+
+    fn send_and_confirm(&self, transaction: &Transaction) -> Result<Signature> {
+        self.run(self.inner.send_and_confirm_transaction(transaction))
+    }
+}
+
+pub struct Client {
+    port: Arc<dyn SolanaRpcPort>,
+    control: crate::ExecutionControl,
+}
+
+impl Client {
     pub fn wait(&self, duration: Duration) -> Result<()> {
         self.control.wait(duration)
     }
@@ -55,25 +135,25 @@ pub fn client(config: &RuntimeConfig) -> Client {
 }
 
 pub fn client_for_url(config: &RuntimeConfig, rpc_url: String) -> Client {
-    Client {
-        inner: solana_client::nonblocking::rpc_client::RpcClient::new_with_commitment(
-            rpc_url,
-            CommitmentConfig::confirmed(),
-        ),
-        control: config.control.clone(),
-    }
+    config
+        .solana_rpc_factory
+        .connect(rpc_url, config.control.clone())
+}
+
+pub fn client_with_port(control: crate::ExecutionControl, port: Arc<dyn SolanaRpcPort>) -> Client {
+    Client { port, control }
 }
 
 pub fn send_signed_transaction(rpc: &Client, transaction: &Transaction) -> Result<Signature> {
-    rpc.run(rpc.inner.send_and_confirm_transaction(transaction))
+    rpc.port
+        .send_and_confirm(transaction)
         .with_context(|| "sending signed Solana transaction")
 }
 
 pub fn fetch_account(rpc: &Client, address: &Pubkey) -> Result<Vec<u8>> {
-    let account = rpc
-        .run(rpc.inner.get_account(address))
-        .with_context(|| format!("fetching account {address}"))?;
-    Ok(account.data)
+    rpc.port
+        .fetch_account(address)?
+        .ok_or_else(|| anyhow!("account {address} not found"))
 }
 
 /// Resolve a wallet by its on-chain name. Post creator-scoped PDA
@@ -87,34 +167,11 @@ pub fn resolve_wallet_by_name(
     rpc: &Client,
     name: &str,
 ) -> Result<(Pubkey, crate::accounts::WalletAccount)> {
-    use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
-    use solana_client::rpc_filter::{Memcmp, RpcFilterType};
-
     let program_id = crate::instructions::program_id();
     let mut scan_attempt = 0usize;
     let accounts = loop {
         let attempt = scan_attempt + 1;
-        let config = RpcProgramAccountsConfig {
-            filters: Some(vec![
-                // Discriminator byte at offset 0 = 1 (ClearWallet).
-                RpcFilterType::Memcmp(Memcmp::new_raw_bytes(0, vec![1u8])),
-            ]),
-            account_config: RpcAccountInfoConfig {
-                // None defaults to base64 - fine for our parser. We don't
-                // pull in solana-account-decoder just to name the encoding.
-                encoding: None,
-                commitment: Some(CommitmentConfig::confirmed()),
-                data_slice: None,
-                min_context_slot: None,
-            },
-            with_context: None,
-            sort_results: None,
-        };
-
-        match rpc.run(
-            rpc.inner
-                .get_program_accounts_with_config(&program_id, config),
-        ) {
+        match rpc.port.scan_wallet_accounts(&program_id) {
             Ok(accounts) => break accounts,
             Err(error) => {
                 if attempt >= RPC_SCAN_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
@@ -129,8 +186,8 @@ pub fn resolve_wallet_by_name(
         scan_attempt += 1;
     };
 
-    for (pubkey, account) in accounts {
-        match crate::accounts::parse_wallet(&account.data) {
+    for (pubkey, data) in accounts {
+        match crate::accounts::parse_wallet(&data) {
             Ok(parsed) if parsed.name == name => return Ok((pubkey, parsed)),
             _ => continue,
         }
@@ -169,18 +226,13 @@ fn is_retryable_rpc_error(error: &impl std::fmt::Display) -> bool {
     .any(|needle| message.contains(needle))
 }
 
+fn is_account_not_found(error: &impl std::fmt::Display) -> bool {
+    let message = error.to_string();
+    message.contains("AccountNotFound") || message.contains("could not find account")
+}
+
 pub fn fetch_account_optional(rpc: &Client, address: &Pubkey) -> Result<Option<Vec<u8>>> {
-    match rpc.run(rpc.inner.get_account(address)) {
-        Ok(account) => Ok(Some(account.data)),
-        Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("AccountNotFound") || msg.contains("could not find account") {
-                Ok(None)
-            } else {
-                Err(e).with_context(|| format!("fetching account {address}"))
-            }
-        }
-    }
+    rpc.port.fetch_account(address)
 }
 
 pub fn send_instruction(
@@ -199,7 +251,7 @@ pub fn send_instructions(
 ) -> Result<Signature> {
     let instructions = with_compute_budget(instructions);
     for attempt in 1..=RPC_SEND_RETRY_ATTEMPTS {
-        let recent_blockhash = match rpc.run(rpc.inner.get_latest_blockhash()) {
+        let recent_blockhash = match rpc.port.latest_blockhash() {
             Ok(blockhash) => blockhash,
             Err(error) => {
                 if attempt >= RPC_SEND_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
@@ -218,7 +270,7 @@ pub fn send_instructions(
             &[&config.payer],
             recent_blockhash,
         );
-        match rpc.run(rpc.inner.send_and_confirm_transaction(&transaction)) {
+        match rpc.port.send_and_confirm(&transaction) {
             Ok(signature) => return Ok(signature),
             Err(error) => {
                 if attempt >= RPC_SEND_RETRY_ATTEMPTS || !is_retryable_rpc_error(&error) {
@@ -244,6 +296,28 @@ fn with_compute_budget(mut instructions: Vec<Instruction>) -> Vec<Instruction> {
 mod tests {
     use super::*;
     use solana_instruction::AccountMeta;
+
+    struct StubRpcPort {
+        account: Option<Vec<u8>>,
+    }
+
+    impl SolanaRpcPort for StubRpcPort {
+        fn fetch_account(&self, _address: &Pubkey) -> Result<Option<Vec<u8>>> {
+            Ok(self.account.clone())
+        }
+
+        fn scan_wallet_accounts(&self, _program_id: &Pubkey) -> Result<Vec<(Pubkey, Vec<u8>)>> {
+            Ok(Vec::new())
+        }
+
+        fn latest_blockhash(&self) -> Result<Hash> {
+            Ok(Hash::default())
+        }
+
+        fn send_and_confirm(&self, _transaction: &Transaction) -> Result<Signature> {
+            Ok(Signature::default())
+        }
+    }
 
     #[test]
     fn prepends_compute_budget_instruction() {
@@ -287,9 +361,33 @@ mod tests {
     }
 
     #[test]
+    fn injected_port_controls_account_reads() {
+        let address = Pubkey::new_unique();
+        let client = client_with_port(
+            crate::ExecutionControl::default(),
+            Arc::new(StubRpcPort {
+                account: Some(vec![7, 8, 9]),
+            }),
+        );
+        assert_eq!(fetch_account(&client, &address).unwrap(), vec![7, 8, 9]);
+
+        let missing = client_with_port(
+            crate::ExecutionControl::default(),
+            Arc::new(StubRpcPort { account: None }),
+        );
+        assert!(fetch_account_optional(&missing, &address)
+            .unwrap()
+            .is_none());
+        assert!(fetch_account(&missing, &address)
+            .unwrap_err()
+            .to_string()
+            .contains("not found"));
+    }
+
+    #[test]
     fn cancelled_rpc_drops_a_pending_network_future() {
         let control = crate::ExecutionControl::default();
-        let rpc = Client {
+        let rpc = LiveSolanaRpcPort {
             inner: solana_client::nonblocking::rpc_client::RpcClient::new(
                 "http://127.0.0.1:1".to_string(),
             ),

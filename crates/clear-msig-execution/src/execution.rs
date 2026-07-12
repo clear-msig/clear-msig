@@ -193,13 +193,12 @@ pub fn prepare_typed_proposal_execution(
     execution: TypedProposalExecution,
 ) -> Result<ExecutionRequest, String> {
     execution.validate_boundary()?;
-    Ok(ExecutionRequest {
+    Ok(ExecutionRequest::new(
         globals,
-        command: Command::Proposal {
+        Command::Proposal {
             action: execution.into(),
         },
-        control: Default::default(),
-    })
+    ))
 }
 
 #[cfg(test)]

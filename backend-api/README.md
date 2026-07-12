@@ -109,6 +109,9 @@ bounded drain window. Solana RPC and Ika gRPC futures are dropped on that signal
 BTC, EVM, and Zcash broadcasts use the same cancellation signal through a
 mockable destination transport port. CPU-only assembly remains synchronous and
 bounded; all current network futures are dropped when execution is cancelled.
+Solana account reads, wallet scans, blockhash reads, and transaction submission
+also pass through an injectable execution-library port; command handlers cannot
+construct an SDK RPC client directly.
 
 ## Deployment model
 

@@ -74,10 +74,19 @@ if grep -REn 'solana_client::rpc_client::RpcClient|std::thread::sleep' crates/cl
 fi
 
 grep -q 'solana_client::nonblocking::rpc_client::RpcClient' crates/clear-msig-execution/src/rpc.rs
+grep -q 'trait SolanaRpcPort' crates/clear-msig-execution/src/rpc.rs
+grep -q 'trait SolanaRpcFactory' crates/clear-msig-execution/src/rpc.rs
+grep -q 'Arc<dyn SolanaRpcPort>' crates/clear-msig-execution/src/rpc.rs
+grep -q 'with_solana_rpc_factory' crates/clear-msig-execution/src/lib.rs
+grep -q 'solana_rpc_factory: std::sync::Arc<dyn crate::rpc::SolanaRpcFactory>' crates/clear-msig-execution/src/config.rs
+if grep -REn 'solana_client::.*RpcClient' crates/clear-msig-execution/src/commands; then
+  echo "Backend architecture check failed: command handlers bypassed the Solana RPC port." >&2
+  exit 1
+fi
 grep -q 'control.cancelled()' crates/clear-msig-execution/src/rpc.rs
 grep -q 'control.cancelled()' crates/clear-msig-execution/src/ika.rs
 grep -q 'control.cancel()' backend-api/src/runner.rs
 
 bash scripts/check-execution-properties.sh
 
-echo "Backend architecture: command contracts + reusable execution library + thin CLI, with bounded cancellable I/O."
+echo "Backend architecture: command contracts + reusable execution library + thin CLI, with injected Solana and destination ports."

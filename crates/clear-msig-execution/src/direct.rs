@@ -184,11 +184,7 @@ pub fn prepare_direct_command(
             action: ProposalAction::Cleanup { proposal },
         },
     };
-    Ok(ExecutionRequest {
-        globals,
-        command,
-        control: Default::default(),
-    })
+    Ok(ExecutionRequest::new(globals, command))
 }
 
 fn apply_context(globals: &mut CliGlobals, context: DirectExecutionContext) -> Result<(), String> {

@@ -40,8 +40,10 @@ This work has started:
   and destination infrastructure without making the backend depend on a CLI.
 - `crates/clear-msig-execution/src/chains/transport.rs`: mockable,
   cancellation-aware destination HTTP port shared by BTC, EVM, and Zcash.
-- `crates/clear-msig-execution/src/rpc.rs` and `ika.rs`: cancellation-aware
-  Solana and Ika infrastructure adapters.
+- `crates/clear-msig-execution/src/rpc.rs`: narrow injectable Solana account,
+  scan, blockhash, and transaction port with a cancellation-aware live adapter.
+- `crates/clear-msig-execution/src/ika.rs`: cancellation-aware Ika adapter;
+  its client-construction port is the next infrastructure split.
 - `cli`: thin binary package that only launches `clear-msig-execution`.
 
 `backend-api/src/main.rs` should remain small: shared state, execution runner,

@@ -52,13 +52,12 @@ pub fn prepare_typed_proposal_lifecycle(
     lifecycle.validate_boundary()?;
     context.validate_boundary()?;
     apply_context(&mut globals, context)?;
-    Ok(ExecutionRequest {
+    Ok(ExecutionRequest::new(
         globals,
-        command: Command::Proposal {
+        Command::Proposal {
             action: lifecycle.into(),
         },
-        control: Default::default(),
-    })
+    ))
 }
 
 fn apply_context(globals: &mut CliGlobals, context: TypedExecutionContext) -> Result<(), String> {
