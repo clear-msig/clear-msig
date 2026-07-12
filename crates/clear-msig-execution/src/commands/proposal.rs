@@ -2735,12 +2735,15 @@ fn execute_via_ika(
 
             let result = crate::chains::broadcast_signed_tx(
                 &transport,
-                chain_kind,
-                inputs,
-                &preimage,
-                onchain_sig,
-                &dwallet_account.public_key,
-                rpc_url,
+                config.destination_receipt_store.as_ref(),
+                crate::chains::BroadcastRequest {
+                    chain_kind,
+                    inputs,
+                    preimage: &preimage,
+                    signature: onchain_sig,
+                    dwallet_pubkey_compressed: &dwallet_account.public_key,
+                    rpc_url,
+                },
             )
             .with_context(|| format!("broadcast to {rpc_url} failed"))?;
             crate::progress!("✓ Broadcast {}: {}", result.chain, result.tx_id);

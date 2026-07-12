@@ -16,6 +16,7 @@ pub(crate) struct ExecutionRunner {
     pub(crate) timeout: Duration,
     pub(crate) worker_limit: usize,
     workers: Arc<Semaphore>,
+    destination_receipt_store: Arc<dyn clear_msig_execution::DestinationReceiptStore>,
     pub(crate) default_dwallet_program: Option<String>,
     pub(crate) default_grpc_url: Option<String>,
     pub(crate) default_destination_rpc_url: Option<String>,
@@ -39,7 +40,8 @@ impl ExecutionRunner {
             ApiError::Internal(format!(
                 "backend generated an invalid typed execution: {error}"
             ))
-        })?;
+        })?
+        .with_destination_receipt_store(self.destination_receipt_store.clone());
         self.run_request(request, subcommand, false, None).await
     }
 
@@ -73,7 +75,8 @@ impl ExecutionRunner {
             ApiError::Internal(format!(
                 "backend generated an invalid typed lifecycle: {error}"
             ))
-        })?;
+        })?
+        .with_destination_receipt_store(self.destination_receipt_store.clone());
         self.run_request(request, subcommand, dry_run, actor_prefix)
             .await
     }
@@ -109,7 +112,8 @@ impl ExecutionRunner {
             ApiError::Internal(format!(
                 "backend generated an invalid direct command: {error}"
             ))
-        })?;
+        })?
+        .with_destination_receipt_store(self.destination_receipt_store.clone());
         self.run_request(request, subcommand, dry_run, actor_prefix)
             .await
     }
@@ -241,6 +245,8 @@ pub(crate) fn build_runner() -> ExecutionRunner {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let destination_receipt_store =
+        Arc::new(clear_msig_execution::FileDestinationReceiptStore::from_environment());
 
     ExecutionRunner {
         execution_globals,
@@ -249,6 +255,7 @@ pub(crate) fn build_runner() -> ExecutionRunner {
         timeout: Duration::from_secs(timeout_secs),
         worker_limit,
         workers: Arc::new(Semaphore::new(worker_limit)),
+        destination_receipt_store,
         default_dwallet_program,
         default_grpc_url,
         default_destination_rpc_url,

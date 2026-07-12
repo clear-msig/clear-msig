@@ -162,6 +162,9 @@ pub fn assemble_and_broadcast(
         raw_tx_hex: format!("0x{raw_hex}"),
         recovery_v: None,
         explorer_url: None,
+        execution_id: String::new(),
+        delivery_state: crate::chains::delivery::DeliveryState::Prepared,
+        delivery_attempts: 0,
     })
 }
 

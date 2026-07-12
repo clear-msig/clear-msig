@@ -13,6 +13,7 @@ impl HttpResponse {
 }
 
 pub trait DestinationTransport: Send + Sync {
+    fn get(&self, url: &str) -> Result<HttpResponse>;
     fn post_json(&self, url: &str, body: &serde_json::Value) -> Result<HttpResponse>;
     fn post_text(&self, url: &str, body: &str) -> Result<HttpResponse>;
     fn post_form_hex(&self, url: &str, raw_hex: &str) -> Result<HttpResponse>;
@@ -70,6 +71,10 @@ impl CancellableHttpTransport {
 }
 
 impl DestinationTransport for CancellableHttpTransport {
+    fn get(&self, url: &str) -> Result<HttpResponse> {
+        self.execute(self.client.get(url))
+    }
+
     fn post_json(&self, url: &str, body: &serde_json::Value) -> Result<HttpResponse> {
         self.execute(self.client.post(url).json(body))
     }

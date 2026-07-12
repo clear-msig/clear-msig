@@ -150,6 +150,9 @@ pub fn assemble_and_broadcast(
         raw_tx_hex,
         recovery_v: None,
         explorer_url,
+        execution_id: String::new(),
+        delivery_state: crate::chains::delivery::DeliveryState::Prepared,
+        delivery_attempts: 0,
     })
 }
 

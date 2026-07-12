@@ -64,6 +64,7 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `CLEAR_MSIG_DEFAULT_GRPC_URL` (optional default `--grpc-url` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (optional default `--rpc-url` for execute)
 - `CLEAR_MSIG_PRO_STORE_PATH` (optional Pro schedules/audit JSON store; defaults to `/data/pro-store.json` on Render when `/data` exists)
+- `CLEAR_MSIG_DELIVERY_STORE_PATH` (durable BTC/EVM/Zcash delivery receipts; production uses `/data/destination-deliveries.json`)
 - `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (production Redis REST store for notifications, agent state, and shared rate-limit paths)
 
 ## Core endpoints
@@ -109,6 +110,11 @@ bounded drain window. Solana RPC and Ika gRPC futures are dropped on that signal
 BTC, EVM, and Zcash broadcasts use the same cancellation signal through a
 mockable destination transport port. CPU-only assembly remains synchronous and
 bounded; all current network futures are dropped when execution is cancelled.
+Remote broadcasts also persist deterministic delivery receipts before network
+submission. Retries reconcile the chain-native transaction ID before deciding
+whether the exact signed bytes may be sent again. Configure
+`CLEAR_MSIG_DELIVERY_STORE_PATH`; production uses
+`/data/destination-deliveries.json` on Render's persistent disk.
 Solana account reads, wallet scans, blockhash reads, and transaction submission
 also pass through an injectable execution-library port; command handlers cannot
 construct an SDK RPC client directly.

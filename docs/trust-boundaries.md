@@ -23,8 +23,16 @@ It describes the current pre-alpha system, not the intended production system.
   PDA. Finalized proposals reject a second execution. Action IDs, nonces, and
   expiry are hash-bound and length/time validated.
 - **Idempotent recovery:** an interrupted Ika flow reuses an already-signed
-  MessageApproval instead of requesting another signature. Destination-chain
-  rebroadcast uses the same raw signed transaction.
+  MessageApproval instead of requesting another signature. BTC, EVM, and Zcash
+  execution derives a deterministic identity from the signed transaction,
+  persists the raw bytes before submission, and queries the destination chain
+  before a retry. A successful or pending lookup returns the prior receipt; a
+  not-found lookup permits rebroadcast of only the identical bytes; an
+  unavailable lookup leaves delivery `unknown` and blocks rebroadcast.
+- **Explicit delivery state:** destination results expose the execution ID,
+  attempt count, and `submitted` or `confirmed` state. Transport failures and
+  malformed responses persist `unknown`; deterministic rejection or a
+  mismatched transaction ID persists `failed` and fails closed.
 - **Replaceable relayer:** approval and policy state live on Solana. An
   unrelated fee payer can submit an approved execution; execution does not
   require proposer or approver membership. Any participant can run `clear-msig`
@@ -34,6 +42,9 @@ It describes the current pre-alpha system, not the intended production system.
 ## Production blockers
 
 1. Replace the mock Ika signer with production distributed MPC.
-2. Add multi-provider RPC verification for high-value reads and broadcasts.
+2. Add multi-provider RPC verification for high-value reads, reconciliation,
+   and broadcasts. The current receipt store is durable on the single Render
+   instance, but must move to a distributed atomic store before horizontal
+   backend scaling.
 3. Complete adversarial/property testing and commission an external audit.
 4. Put program upgrades behind reviewed, multi-party operational governance.

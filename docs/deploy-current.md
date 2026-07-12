@@ -65,6 +65,7 @@ CLEAR_MSIG_SIGNER_BASE64=<backend signer keypair>
 CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM=<Ika dWallet program>
 CLEAR_MSIG_DEFAULT_GRPC_URL=<Ika gRPC URL>
 CLEAR_MSIG_DEFAULT_DEST_RPC_URL=<destination chain RPC URL>
+CLEAR_MSIG_DELIVERY_STORE_PATH=/data/destination-deliveries.json
 ```
 
 Render deploys from the configured GitHub branch. If work is on a feature

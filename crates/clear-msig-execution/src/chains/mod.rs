@@ -15,6 +15,13 @@ use crate::error::*;
 use serde::Serialize;
 
 pub mod bitcoin;
+pub mod delivery;
+#[path = "delivery_identity.rs"]
+mod delivery_identity;
+#[path = "delivery_probe.rs"]
+mod delivery_probe;
+#[path = "delivery_store.rs"]
+mod delivery_store;
 pub mod evm;
 pub mod solana_broadcast;
 pub mod transport;
@@ -59,6 +66,15 @@ pub enum BroadcastInputs {
     },
 }
 
+pub struct BroadcastRequest<'a> {
+    pub chain_kind: u8,
+    pub inputs: BroadcastInputs,
+    pub preimage: &'a [u8],
+    pub signature: &'a [u8],
+    pub dwallet_pubkey_compressed: &'a [u8],
+    pub rpc_url: &'a str,
+}
+
 /// Result of broadcasting a signed transaction to a destination chain.
 ///
 /// Chain-agnostic shape so the CLI can emit a uniform JSON record regardless
@@ -74,6 +90,9 @@ pub struct BroadcastResult {
     pub recovery_v: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub explorer_url: Option<String>,
+    pub execution_id: String,
+    pub delivery_state: delivery::DeliveryState,
+    pub delivery_attempts: u32,
 }
 
 /// Build a signed transaction for `chain_kind` from the dwallet network's
@@ -89,13 +108,17 @@ pub struct BroadcastResult {
 /// the preimage alone — see [`BroadcastInputs`].
 pub fn broadcast_signed_tx(
     transport: &dyn transport::DestinationTransport,
-    chain_kind: u8,
-    inputs: BroadcastInputs,
-    preimage: &[u8],
-    signature: &[u8],
-    dwallet_pubkey_compressed: &[u8],
-    rpc_url: &str,
+    receipt_store: &dyn delivery::DestinationReceiptStore,
+    request: BroadcastRequest<'_>,
 ) -> Result<BroadcastResult> {
+    let BroadcastRequest {
+        chain_kind,
+        inputs,
+        preimage,
+        signature,
+        dwallet_pubkey_compressed,
+        rpc_url,
+    } = request;
     if signature.len() != 64 {
         return Err(anyhow!(
             "expected 64-byte ECDSA signature (r||s), got {} bytes",
@@ -107,7 +130,14 @@ pub fn broadcast_signed_tx(
     r.copy_from_slice(&signature[..32]);
     s.copy_from_slice(&signature[32..]);
 
-    match chain_kind {
+    let reconciled = delivery::ReconciledDestinationTransport::new(
+        transport,
+        receipt_store,
+        chain_kind,
+        rpc_url,
+    );
+
+    let mut result = match chain_kind {
         // 0 = solana — Ed25519 signed transaction.
         0 => {
             let BroadcastInputs::Solana {
@@ -133,7 +163,7 @@ pub fn broadcast_signed_tx(
                 return Err(anyhow!("EVM chain_kind requires BroadcastInputs::Evm"));
             }
             let mut result = evm::assemble_and_broadcast(
-                transport,
+                &reconciled,
                 preimage,
                 &r,
                 &s,
@@ -164,7 +194,7 @@ pub fn broadcast_signed_tx(
                 ));
             };
             bitcoin::assemble_and_broadcast(
-                transport,
+                &reconciled,
                 bitcoin::SpendInputs {
                     prev_txid,
                     prev_vout,
@@ -200,7 +230,7 @@ pub fn broadcast_signed_tx(
                 ));
             };
             zcash::assemble_and_broadcast(
-                transport,
+                &reconciled,
                 zcash::SpendInputs {
                     header,
                     version_group_id,
@@ -219,5 +249,12 @@ pub fn broadcast_signed_tx(
         }
         // 0 = solana — local CPI executor, never goes through this path.
         n => Err(anyhow!("broadcast not implemented for chain_kind {n}")),
-    }
+    }?;
+    let receipt = reconciled
+        .receipt()
+        .ok_or_else(|| anyhow!("destination broadcast completed without a delivery receipt"))?;
+    result.execution_id = receipt.execution_id;
+    result.delivery_state = receipt.state;
+    result.delivery_attempts = receipt.attempts;
+    Ok(result)
 }

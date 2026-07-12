@@ -29,6 +29,9 @@ mod signing;
 
 use clap::Subcommand;
 
+pub use chains::delivery::{
+    DeliveryState, DestinationReceipt, DestinationReceiptStore, FileDestinationReceiptStore,
+};
 pub use clear_msig_command_contract::{
     DirectCommand, DirectExecutionContext, LamportPayment, TypedExecutionContext,
     TypedProposalExecution, TypedProposalLifecycle,
@@ -74,6 +77,7 @@ pub struct ExecutionRequest {
     control: control::ExecutionControl,
     solana_rpc_factory: std::sync::Arc<dyn rpc::SolanaRpcFactory>,
     ika_grpc_port: std::sync::Arc<dyn ika::IkaGrpcPort>,
+    destination_receipt_store: std::sync::Arc<dyn chains::delivery::DestinationReceiptStore>,
 }
 
 /// Prepare a typed command for one isolated execution.
@@ -107,6 +111,9 @@ impl ExecutionRequest {
             control: control::ExecutionControl::default(),
             solana_rpc_factory: std::sync::Arc::new(rpc::LiveSolanaRpcFactory),
             ika_grpc_port: std::sync::Arc::new(ika::LiveIkaGrpcPort),
+            destination_receipt_store: std::sync::Arc::new(
+                chains::delivery::FileDestinationReceiptStore::from_environment(),
+            ),
         }
     }
 
@@ -126,12 +133,21 @@ impl ExecutionRequest {
         self.ika_grpc_port = port;
         self
     }
+
+    pub fn with_destination_receipt_store(
+        mut self,
+        store: std::sync::Arc<dyn chains::delivery::DestinationReceiptStore>,
+    ) -> Self {
+        self.destination_receipt_store = store;
+        self
+    }
 }
 
 fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
     request.control.check()?;
     let solana_rpc_factory = request.solana_rpc_factory.clone();
     let ika_grpc_port = request.ika_grpc_port.clone();
+    let destination_receipt_store = request.destination_receipt_store.clone();
     match request.command {
         Command::Config { action } => commands::config::handle(action),
         Command::Wallet { action } => {
@@ -140,6 +156,7 @@ fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
                 request.control.clone(),
                 solana_rpc_factory.clone(),
                 ika_grpc_port.clone(),
+                destination_receipt_store.clone(),
             )?;
             commands::wallet::handle(action, &config)
         }
@@ -149,6 +166,7 @@ fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
                 request.control.clone(),
                 solana_rpc_factory.clone(),
                 ika_grpc_port.clone(),
+                destination_receipt_store.clone(),
             )?;
             commands::intent::handle(action, &config)
         }
@@ -158,6 +176,7 @@ fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
                 request.control.clone(),
                 solana_rpc_factory,
                 ika_grpc_port,
+                destination_receipt_store,
             )?;
             commands::proposal::handle(action, &config)
         }
@@ -171,6 +190,7 @@ mod tests {
 
     struct TestSolanaRpcFactory;
     struct TestIkaGrpcPort;
+    struct TestDestinationReceiptStore;
 
     impl crate::rpc::SolanaRpcFactory for TestSolanaRpcFactory {
         fn connect(
@@ -190,6 +210,20 @@ mod tests {
             _control: crate::ExecutionControl,
         ) -> anyhow::Result<Vec<u8>> {
             panic!("test port should not submit for config commands")
+        }
+    }
+
+    impl crate::DestinationReceiptStore for TestDestinationReceiptStore {
+        fn execution_lock(&self, _execution_id: &str) -> Arc<std::sync::Mutex<()>> {
+            Arc::new(std::sync::Mutex::new(()))
+        }
+
+        fn load(&self, _execution_id: &str) -> anyhow::Result<Option<crate::DestinationReceipt>> {
+            Ok(None)
+        }
+
+        fn save(&self, _receipt: &crate::DestinationReceipt) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 
@@ -232,5 +266,18 @@ mod tests {
         )
         .with_ika_grpc_port(port.clone());
         assert!(Arc::ptr_eq(&request.ika_grpc_port, &port));
+    }
+
+    #[test]
+    fn execution_request_carries_the_injected_destination_receipt_store() {
+        let store: Arc<dyn crate::DestinationReceiptStore> = Arc::new(TestDestinationReceiptStore);
+        let request = prepare_command(
+            crate::config::CliGlobals::default(),
+            Command::Config {
+                action: crate::commands::config::ConfigAction::Show,
+            },
+        )
+        .with_destination_receipt_store(store.clone());
+        assert!(Arc::ptr_eq(&request.destination_receipt_store, &store));
     }
 }

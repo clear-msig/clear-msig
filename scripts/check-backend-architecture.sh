@@ -93,10 +93,17 @@ if grep -REn 'DWalletServiceClient|submit_transaction' crates/clear-msig-executi
   exit 1
 fi
 grep -q 'control.cancelled()' crates/clear-msig-execution/src/ika.rs
+grep -q 'trait DestinationReceiptStore' crates/clear-msig-execution/src/chains/delivery.rs
+grep -q 'with_destination_receipt_store' crates/clear-msig-execution/src/lib.rs
+grep -q 'with_destination_receipt_store(self.destination_receipt_store.clone())' backend-api/src/runner.rs
+grep -q 'destination_receipt_store:' crates/clear-msig-execution/src/config.rs
+grep -q 'ReconciledDestinationTransport' crates/clear-msig-execution/src/chains/delivery.rs
+grep -q 'CLEAR_MSIG_DELIVERY_STORE_PATH' render.yaml
+grep -q 'unknown_delivery_refuses_rebroadcast_when_reconciliation_is_down' crates/clear-msig-execution/src/chains/delivery.rs
 grep -q 'control.cancel()' backend-api/src/runner.rs
 grep -q 'cargo test -p clear-msig-command-contract -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api' .github/workflows/ci.yml
 grep -q 'cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-cli' .github/workflows/ci.yml
 
 bash scripts/check-execution-properties.sh
 
-echo "Backend architecture: command contracts + reusable execution library + thin CLI, with injected Solana, Ika, and destination ports."
+echo "Backend architecture: command contracts + reusable execution library + thin CLI, with injected Solana/Ika ports and durable destination reconciliation."
