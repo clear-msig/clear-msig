@@ -12,6 +12,7 @@
     "typecheck:clean": "tsc --noEmit --incremental false",
     "check:architecture": "node scripts/check-architecture.mjs",
     "check:bundles": "node scripts/check-bundle-budgets.mjs",
+    "profile:bundles": "CLEARSIG_BUNDLE_PROFILE=1 npm run build:webpack && node scripts/profile-sdk-bundles.mjs",
     "verify": "npm run check:architecture && npm run lint && npm run typecheck && npm test",
     "test": "vitest run && node --test scripts/*.test.mjs",
     "test:watch": "vitest"

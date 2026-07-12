@@ -1,6 +1,10 @@
 # clear-msig-backend-api
 
-HTTP adapter service that wraps the `clear-msig` CLI and exposes stable JSON APIs for frontend integration.
+HTTP adapter service that exposes stable JSON APIs for frontend integration.
+It currently invokes the `clear-msig` executable through a bounded subprocess
+runner. The CLI is also a reusable Rust library now, and moving typed execution
+into a smaller core called directly by both adapters remains the production
+target.
 
 This is the backend bridge between UI and your existing on-chain + CLI flows.
 
@@ -8,6 +12,8 @@ This is the backend bridge between UI and your existing on-chain + CLI flows.
 
 - Keeps frontend decoupled from CLI argument formatting.
 - Preserves your proven CLI logic instead of duplicating transaction logic.
+- Validates every generated invocation against a shared command allowlist and
+  applies execution timeouts, output caps, kill-on-drop, and structured logs.
 - Provides one place for request validation, timeout control, and uniform error envelopes.
 
 ## Start

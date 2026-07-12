@@ -362,9 +362,10 @@ Current explicit limitation:
 
 - Typed SOL escrow release/return, SPL-token milestone release/return,
   cross-chain BTC/EVM/Ika escrow release/return, and ciphertext-bound private
-  escrow release/return now have program executors. Agent trade approvals also
-  have a typed program executor, but venue order placement and bounded-session
-  execution still need dedicated program/backend integration. Full Encrypt/FHE
+  escrow release/return now have program executors. Agent session grant/revoke
+  and bounded trade-approval finalization also have typed program executors,
+  but venue order placement and settlement reconciliation still need dedicated
+  backend/program integration. Full Encrypt/FHE
   policy evaluation still needs program-side confidential enforcement before
   private policy values should be treated as fully enforced on-chain.
 
@@ -386,9 +387,7 @@ execute. The regression coverage lives in
 
 ## Next Typed Executor Order
 
-1. **Agent session grants and venue-settlement execution**
-   - Add a program-visible session grant/revocation account for bounded agent
-     execution.
+1. **Agent venue-settlement execution**
    - Connect the agent trade approval finalizer to backend venue placement
      records so order ids, fills, and reconciliation artifacts are committed
      back to ClearSign.

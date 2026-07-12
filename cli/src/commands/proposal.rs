@@ -4,7 +4,7 @@ use crate::config::RuntimeConfig;
 use crate::error::*;
 use crate::output::{print_json, print_typed_dry_run};
 use crate::signing::sign_message_with_flavor;
-use crate::{accounts, message, params, resolve, rpc};
+use crate::{accounts, ika, message, params, resolve, rpc};
 use clap::Subcommand;
 use clear_wallet::utils::clearsign::{
     extract_clear_text_from_vote_message, ClearSignActionKind, ClearSignVoteKind,
@@ -2299,6 +2299,18 @@ mod tests {
             .contains("does not match committed target"));
         assert!(committed_governance_payload(&[3], None).is_err());
     }
+
+    #[test]
+    fn interrupted_ika_execution_reuses_only_a_signed_message_approval() {
+        let mut pending = vec![0u8; ika::MA_STATUS + 1];
+        pending[ika::MA_STATUS] = 0;
+        assert!(!message_approval_is_signed(&pending));
+
+        let mut signed = pending.clone();
+        signed[ika::MA_STATUS] = ika::MA_STATUS_SIGNED;
+        assert!(message_approval_is_signed(&signed));
+        assert!(!message_approval_is_signed(&[]));
+    }
 }
 
 /// Drive a remote-chain proposal through Ika: build the destination-chain
@@ -2524,8 +2536,7 @@ fn execute_via_ika(
     // already in `signed` state from the prior successful execute.
     // Re-running gRPC presign+sign would either duplicate work or
     // get rejected by Ika; we just reuse the on-chain signature.
-    let already_signed =
-        ma_data.len() > ika::MA_STATUS && ma_data[ika::MA_STATUS] == ika::MA_STATUS_SIGNED;
+    let already_signed = message_approval_is_signed(&ma_data);
     let ma_signed: Vec<u8> = if already_signed {
         eprintln!("✓ MessageApproval already signed — reusing on-chain signature");
         ma_data
@@ -2741,6 +2752,10 @@ fn execute_via_ika(
 
     print_json(&output);
     Ok(())
+}
+
+fn message_approval_is_signed(data: &[u8]) -> bool {
+    data.len() > ika::MA_STATUS && data[ika::MA_STATUS] == ika::MA_STATUS_SIGNED
 }
 
 fn hex_lower(bytes: &[u8]) -> String {

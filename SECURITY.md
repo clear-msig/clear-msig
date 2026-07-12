@@ -2,7 +2,15 @@
 
 Honest accounting of attack surfaces in Clear today + what's mitigated, what's open, and what's deferred. Written by walking the codebase as an attacker would; updated when the model changes.
 
-The product is in pre-alpha. Some load-bearing mitigations (FHE-encrypted policies, on-chain cap enforcement) ride on the Encrypt network going live. Until then, any "encrypted" or "private" badging in the UI is forward-looking, and the in-app chips say "pre-alpha" to make that explicit.
+The product is in pre-alpha. Native-chain recipient, amount, time, velocity,
+member-allowance, approval, and cooldown controls are enforced by the deployed
+Solana program when their active policy commitment is present. Encrypt-backed
+private policy values and private escrow remain pre-alpha and must not be
+described as production confidentiality. The current Ika integration is also
+experimental and is not a production distributed signer.
+
+The component-by-component malicious trust analysis, censorship behavior, and
+operator recovery paths are maintained in [`docs/trust-boundaries.md`](docs/trust-boundaries.md).
 
 ## Attack surfaces
 

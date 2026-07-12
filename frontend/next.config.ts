@@ -1,3 +1,38 @@
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+type BundleStats = {
+  toJson(options: Record<string, boolean>): unknown;
+};
+
+type WebpackCompiler = {
+  hooks: {
+    done: {
+      tap(name: string, callback: (stats: BundleStats) => void): void;
+    };
+  };
+};
+
+class ClientBundleStatsPlugin {
+  apply(compiler: WebpackCompiler) {
+    compiler.hooks.done.tap("ClearSigClientBundleStats", (stats) => {
+      writeFileSync(
+        resolve(process.cwd(), ".next/client-bundle-stats.json"),
+        JSON.stringify(
+          stats.toJson({
+            all: false,
+            assets: true,
+            chunks: true,
+            chunkModules: true,
+            ids: true,
+            modules: true,
+          }),
+        ),
+      );
+    });
+  }
+}
+
 // Next.js config for production frontend with remote asset support.
 //
 // Security headers are applied at the platform edge to every response.
@@ -117,13 +152,26 @@ const nextConfig = {
       encoding: "./src/empty-module.ts",
     },
   },
-  webpack: (config: { externals?: unknown[] }) => {
+  webpack: (
+    config: {
+      externals?: unknown[];
+      plugins?: Array<{ apply(compiler: WebpackCompiler): void }>;
+    },
+    context: { isServer: boolean; nextRuntime?: string },
+  ) => {
     config.externals = [
       ...(config.externals ?? []),
       "pino-pretty",
       "lokijs",
       "encoding",
     ];
+    if (
+      process.env.CLEARSIG_BUNDLE_PROFILE === "1" &&
+      !context.isServer &&
+      !context.nextRuntime
+    ) {
+      config.plugins = [...(config.plugins ?? []), new ClientBundleStatsPlugin()];
+    }
     return config;
   },
   async headers() {

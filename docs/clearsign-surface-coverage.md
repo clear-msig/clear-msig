@@ -19,18 +19,20 @@ The executable source of truth is
 - BTC / ETH / Hyperliquid / Zcash / ERC-20 direct send (typed chain-send + Ika)
 - Wallet policy persistence (`set_protection` → WalletPolicy PDA)
 - Members, threshold, and timelock (`execute_typed_intent_governance`)
+- Agent session grant / revoke and bounded trade-approval finalization
 
 ## Typed approval only / local
 
-- Agent trade approval finalizer exists on-chain; venue execution is still
-  off-chain / practice
-- Agent settings / strategy / sessions remain local policy only
+- Agent strategy authoring and venue order placement remain off-chain / practice.
+  Session authority itself is on-chain: the executor checks the active session,
+  agent, policy commitment, venue, optional market, expiry, leverage, and
+  remaining notional before consuming its allowance.
 
 ## Still blocked on external networks
 
 - FHE-encrypted policy arithmetic (Encrypt mainnet + program `#[encrypt_fn]`)
 - Production distributed MPC for dWallets (Ika mainnet)
 
-Do not market agent automatic trading or encrypted policies as SOL-level
-ClearSign until their program executors and product flows match the typed
-standard end-to-end.
+Do not market live agent automatic trading or encrypted policies as SOL-level
+ClearSign until venue settlement/reconciliation and confidential policy
+evaluation match the typed standard end-to-end.

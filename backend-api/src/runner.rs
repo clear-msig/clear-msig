@@ -1,8 +1,10 @@
 use serde_json::Value;
 use std::{env, path::PathBuf, time::Duration};
-use tokio::{process::Command, time::timeout};
+use tokio::{io::AsyncReadExt, process::Command, time::timeout};
 
 use crate::ApiError;
+
+pub(crate) const MAX_CHILD_OUTPUT_BYTES: u64 = 1024 * 1024;
 
 #[derive(Clone)]
 pub(crate) struct CliRunner {
@@ -15,20 +17,58 @@ pub(crate) struct CliRunner {
 }
 
 impl CliRunner {
+    pub(crate) fn validated_invocation(&self, args: &[String]) -> Result<Vec<String>, ApiError> {
+        let invocation = self
+            .base_args
+            .iter()
+            .chain(args.iter())
+            .cloned()
+            .collect::<Vec<_>>();
+        clear_msig_command_contract::validate_invocation_args(&invocation).map_err(|error| {
+            ApiError::Internal(format!(
+                "backend generated an invalid CLI invocation: {error}"
+            ))
+        })?;
+        Ok(invocation)
+    }
+
     pub(crate) async fn run_json(&self, args: Vec<String>) -> Result<Value, ApiError> {
         let started = std::time::Instant::now();
         let subcommand = cli_subcommand_label(&args);
         let dry_run = args.iter().any(|a| a == "--dry-run");
         let actor_prefix = extract_actor_prefix(&args);
 
-        let mut command = Command::new(&self.cli_bin);
-        command.args(&self.base_args).args(&args);
+        let invocation = self.validated_invocation(&args)?;
 
-        let run_result = timeout(self.timeout, command.output()).await;
+        let mut command = Command::new(&self.cli_bin);
+        command
+            .args(&invocation)
+            .kill_on_drop(true)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        let mut child = command
+            .spawn()
+            .map_err(|error| ApiError::Internal(format!("failed to launch command: {error}")))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| ApiError::Internal("child process did not expose stdout".into()))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| ApiError::Internal("child process did not expose stderr".into()))?;
+        let stdout_task = tokio::spawn(read_bounded(stdout));
+        let stderr_task = tokio::spawn(read_bounded(stderr));
+        let run_result = timeout(self.timeout, child.wait()).await;
         let elapsed_ms = started.elapsed().as_millis() as u64;
 
-        let output = match run_result {
+        let status = match run_result {
             Err(_) => {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                stdout_task.abort();
+                stderr_task.abort();
                 tracing::warn!(
                     subcommand,
                     dry_run,
@@ -39,25 +79,29 @@ impl CliRunner {
                 );
                 return Err(ApiError::Timeout(self.timeout));
             }
-            Ok(Err(e)) => {
+            Ok(Err(error)) => {
+                stdout_task.abort();
+                stderr_task.abort();
                 tracing::error!(
                     subcommand,
                     dry_run,
                     actor = actor_prefix.as_deref().unwrap_or("-"),
                     elapsed_ms,
                     outcome = "spawn_error",
-                    error = %e,
+                    error = %error,
                     "clear-msig CLI invocation"
                 );
-                return Err(ApiError::Internal(format!("failed to launch command: {e}")));
+                return Err(ApiError::Internal(format!(
+                    "failed to wait for command: {error}"
+                )));
             }
-            Ok(Ok(output)) => output,
+            Ok(Ok(status)) => status,
         };
 
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = String::from_utf8_lossy(&join_output(stdout_task).await?).to_string();
+        let stderr = String::from_utf8_lossy(&join_output(stderr_task).await?).to_string();
 
-        if !output.status.success() {
+        if !status.success() {
             let stderr_preview = stderr.chars().take(800).collect::<String>();
             let stdout_preview = stdout.chars().take(400).collect::<String>();
             tracing::warn!(
@@ -66,13 +110,13 @@ impl CliRunner {
                 actor = actor_prefix.as_deref().unwrap_or("-"),
                 elapsed_ms,
                 outcome = "cli_error",
-                code = output.status.code(),
+                code = status.code(),
                 stderr = %stderr_preview,
                 stdout = %stdout_preview,
                 "clear-msig CLI invocation"
             );
             return Err(ApiError::CommandFailed {
-                code: output.status.code(),
+                code: status.code(),
                 stderr,
                 stdout,
             });
@@ -96,6 +140,33 @@ impl CliRunner {
 
         parsed
     }
+}
+
+async fn read_bounded<R>(reader: R) -> std::io::Result<Vec<u8>>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let mut bytes = Vec::new();
+    reader
+        .take(MAX_CHILD_OUTPUT_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .await?;
+    Ok(bytes)
+}
+
+async fn join_output(
+    task: tokio::task::JoinHandle<std::io::Result<Vec<u8>>>,
+) -> Result<Vec<u8>, ApiError> {
+    let bytes = task
+        .await
+        .map_err(|error| ApiError::Internal(format!("child output task failed: {error}")))?
+        .map_err(|error| ApiError::Internal(format!("failed to read child output: {error}")))?;
+    if bytes.len() as u64 > MAX_CHILD_OUTPUT_BYTES {
+        return Err(ApiError::InvalidOutput(format!(
+            "child output exceeded {MAX_CHILD_OUTPUT_BYTES} bytes"
+        )));
+    }
+    Ok(bytes)
 }
 
 pub(crate) fn build_runner() -> CliRunner {
@@ -197,4 +268,21 @@ fn extract_actor_prefix(args: &[String]) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{join_output, read_bounded, MAX_CHILD_OUTPUT_BYTES};
+    use tokio::io::AsyncWriteExt;
+
+    #[tokio::test]
+    async fn rejects_child_output_above_the_process_boundary_limit() {
+        let capacity = (MAX_CHILD_OUTPUT_BYTES + 1) as usize;
+        let (mut writer, reader) = tokio::io::duplex(capacity);
+        let read_task = tokio::spawn(read_bounded(reader));
+        writer.write_all(&vec![b'x'; capacity]).await.unwrap();
+        drop(writer);
+
+        assert!(join_output(read_task).await.is_err());
+    }
 }

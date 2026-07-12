@@ -8,6 +8,7 @@ name = "clear-msig"
 path = "src/main.rs"
 
 [dependencies]
+clear-msig-command-contract = { path = "../crates/clear-msig-command-contract" }
 clear-wallet-client = { path = "../programs/clear-wallet/client" }
 clear-wallet = { path = "../programs/clear-wallet", features = ["client"] }
 quasar-lang = { git = "https://github.com/blueshift-gg/quasar", branch = "fix/signer-check-and-wincode-versions" }

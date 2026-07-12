@@ -66,8 +66,19 @@ infrastructure ports at 120 lines.
 - Current bundle ceilings are regression ratchets, not performance targets. The
   checker prints the stricter 250 kB authenticated-route and 150 kB chunk targets
   until the wallet SDK graph is replaced or materially reduced.
+- `npm run profile:bundles` emits an opt-in client Webpack module graph and
+  attributes Dynamic, Ledger, Solana Web3, and Framer Motion parsed bytes to
+  each authenticated route. It is diagnostic only: parsed module bytes are not
+  gzip transfer estimates and the stats build is intentionally excluded from CI.
 - CI caches `.next/cache`, then runs the same production verification command used
   by Vercel and local releases.
+
+The 2026-07-12 profile measured the same shared baseline on authenticated
+routes: about 10.88 MB of parsed Dynamic modules, 1.09 MB of Solana Web3, and
+0.47 MB of Framer Motion. Ledger remained absent from initial route chunks
+because it is loaded only when requested. This makes replacement or isolation
+of the authenticated Dynamic runtime the primary bundle target; splitting an
+individual Agent screen cannot remove that shared baseline.
 
 ## Commands
 
@@ -76,4 +87,6 @@ infrastructure ports at 120 lines.
   budgets. This is the production release gate.
 - `npm run build:webpack`: Webpack production compilation only. Use this for build
   profiling; do not use it as a release gate.
+- `npm run profile:bundles`: rebuild with client module stats and print per-route
+  SDK attribution. This can be slow and must not replace `npm run build`.
 - `npm run typecheck:clean`: non-incremental typecheck for toolchain debugging.

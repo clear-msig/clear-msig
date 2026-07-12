@@ -2003,6 +2003,33 @@ fn test_execute_typed_escrow_release_moves_sol() {
         2,
         "typed proposal should be Executed(2)"
     );
+
+    let recipient_after_first = svm.get_account(&recipient).unwrap();
+    let vault_after_first = svm.get_account(&vault).unwrap().lamports;
+    let replay = svm.process_instruction(
+        &execute,
+        &[
+            funded_account(payer),
+            empty_wallet_policy_account(wallet),
+            empty_policy_spend_account(wallet, intent, policy_commitment),
+            empty_member_allowance_account(wallet, intent),
+            recipient_after_first,
+        ],
+    );
+    assert!(
+        replay.is_err(),
+        "executed typed send must not execute twice"
+    );
+    assert_eq!(
+        svm.get_account(&recipient).unwrap().lamports,
+        amount_lamports,
+        "duplicate execute moved recipient funds twice"
+    );
+    assert_eq!(
+        svm.get_account(&vault).unwrap().lamports,
+        vault_after_first,
+        "duplicate execute debited the vault twice"
+    );
 }
 
 #[test]
@@ -3983,6 +4010,28 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
         svm.process_instruction(&wrong_execute, &[]).is_err(),
         "agent trade executor accepted a changed risk-check artifact"
     );
+    let wrong_route_execute = build_execute_typed_agent_trade_approval_ix(
+        wallet,
+        intent,
+        proposal,
+        session_pk,
+        policy_commitment,
+        envelope_hash,
+        amount_raw.to_le_bytes(),
+        agent_id_hash,
+        venue_hash,
+        market_hash,
+        side_hash,
+        asset_id_hash,
+        max_leverage_x100,
+        session_id_hash,
+        sha256_hash(b"clearsig-agent:changed-route"),
+        risk_check_hash,
+    );
+    assert!(
+        svm.process_instruction(&wrong_route_execute, &[]).is_err(),
+        "agent trade executor accepted a changed venue route"
+    );
 
     let execute = build_execute_typed_agent_trade_approval_ix(
         wallet,
@@ -4126,6 +4175,20 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
         2,
         "typed proposal should be Executed(2)"
     );
+    let spent_after_first =
+        crate::state::AgentSession::read(&svm.get_account(&session_pk).unwrap().data)
+            .unwrap()
+            .spent_notional_raw();
+    assert_eq!(spent_after_first, amount_raw);
+    assert!(
+        svm.process_instruction(&execute, &[]).is_err(),
+        "executed agent trade approval must not consume session allowance twice"
+    );
+    let spent_after_replay =
+        crate::state::AgentSession::read(&svm.get_account(&session_pk).unwrap().data)
+            .unwrap()
+            .spent_notional_raw();
+    assert_eq!(spent_after_replay, spent_after_first);
 }
 
 #[test]

@@ -16,7 +16,7 @@ import { useSignWithWallet } from "@/features/agents/infrastructure/walletSignin
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { FormField, NativeSelect, TextInput } from "@/components/retail/FormField";
-import { useAgentTypedSessionGrant } from "@/lib/agents/useAgentTypedSessionGrant";
+import { useAgentTypedSessionGrant } from "@/features/agents/infrastructure/sessionGrantClient";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
   { value: "mock_perps", label: "Built-in practice" },

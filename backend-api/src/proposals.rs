@@ -679,17 +679,20 @@ async fn stream_execute_proposal(
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
     let args = build_execute_args(&state, name, proposal, body)?;
+    let invocation = state.runner.validated_invocation(&args)?;
 
     let (tx, rx) = tokio::sync::mpsc::channel::<Event>(32);
     let runner = state.runner.clone();
     tokio::spawn(async move {
         use std::process::Stdio;
-        use tokio::io::{AsyncBufReadExt, BufReader};
+        use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
         use tokio::process::Command;
 
+        use crate::runner::MAX_CHILD_OUTPUT_BYTES;
+
         let mut cmd = Command::new(&runner.cli_bin);
-        cmd.args(&runner.base_args)
-            .args(&args)
+        cmd.args(&invocation)
+            .kill_on_drop(true)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
@@ -722,7 +725,7 @@ async fn stream_execute_proposal(
 
         let tx_err = tx.clone();
         let stderr_task = tokio::spawn(async move {
-            let mut lines = BufReader::new(stderr).lines();
+            let mut lines = BufReader::new(stderr.take(MAX_CHILD_OUTPUT_BYTES)).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 let _ = tx_err
                     .send(
@@ -734,24 +737,59 @@ async fn stream_execute_proposal(
             }
         });
 
-        let stdout_bytes = if let Some(mut stdout) = stdout {
-            use tokio::io::AsyncReadExt;
-            let mut buf = Vec::new();
-            let _ = stdout.read_to_end(&mut buf).await;
-            buf
-        } else {
-            Vec::new()
-        };
+        let stdout_task = tokio::spawn(async move {
+            if let Some(stdout) = stdout {
+                let mut buf = Vec::new();
+                let result = stdout
+                    .take(MAX_CHILD_OUTPUT_BYTES + 1)
+                    .read_to_end(&mut buf)
+                    .await;
+                (result, buf)
+            } else {
+                (Ok(0), Vec::new())
+            }
+        });
 
         let status =
-            match child.wait().await {
-                Ok(s) => s,
-                Err(e) => {
-                    let _ =
-                        tx.send(Event::default().event("error").data(
-                            serde_json::json!({ "error": format!("wait: {e}") }).to_string(),
+            match tokio::time::timeout(runner.timeout, child.wait()).await {
+                Err(_) => {
+                    let _ = child.kill().await;
+                    let _ = child.wait().await;
+                    stdout_task.abort();
+                    stderr_task.abort();
+                    let _ = tx
+                        .send(Event::default().event("error").data(
+                            serde_json::json!({ "error": "execution timed out" }).to_string(),
                         ))
                         .await;
+                    return;
+                }
+                Ok(result) => match result {
+                    Ok(s) => s,
+                    Err(e) => {
+                        stdout_task.abort();
+                        stderr_task.abort();
+                        let _ = tx
+                            .send(Event::default().event("error").data(
+                                serde_json::json!({ "error": format!("wait: {e}") }).to_string(),
+                            ))
+                            .await;
+                        return;
+                    }
+                },
+            };
+
+        let stdout_bytes =
+            match stdout_task.await {
+                Ok((Ok(_), bytes)) if bytes.len() as u64 <= MAX_CHILD_OUTPUT_BYTES => bytes,
+                _ => {
+                    stderr_task.abort();
+                    let _ = tx
+                    .send(Event::default().event("error").data(
+                        serde_json::json!({ "error": "invalid or oversized command output" })
+                            .to_string(),
+                    ))
+                    .await;
                     return;
                 }
             };

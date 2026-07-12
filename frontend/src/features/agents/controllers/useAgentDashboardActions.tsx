@@ -7,7 +7,7 @@ import { type AgentKillSwitchHandoff, syncAgentEmergencyPause, syncAgentExecutio
 import { type AgentVenueReadiness, submitAgentVenueExecution } from "@/features/agents/infrastructure/executionClient";
 import { agentRiskSnapshot, approveAgentProposal, closeMockAgentExecution, closeOpenMockAgentExecutions, newAgentProposalId, openAgentPaperTrade, recheckAgentProposal, rejectAgentProposal, renewAgentSession, saveAgentProposal, saveAgentProposalAndExecuteIfAllowed, saveAgentSession, setAgentVaultEmergencyPause, updateAgentSessionStatus, updateAgentStatus } from "@/features/agents/infrastructure/agentStore";
 import { useAgentTypedClearSignApproval } from "@/features/agents/infrastructure/typedApprovalClient";
-import { useAgentTypedSessionGrant } from "@/lib/agents/useAgentTypedSessionGrant";
+import { useAgentTypedSessionGrant } from "@/features/agents/infrastructure/sessionGrantClient";
 import type { Dispatch, SetStateAction, TransitionStartFunction } from "react";
 
 interface DashboardActionContext {

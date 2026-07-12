@@ -1,0 +1,9 @@
+[package]
+name = "clear-msig-command-contract"
+version = "0.1.0"
+edition = "2021"
+license = "BSD-3-Clause-Clear"
+publish = false
+
+[lib]
+path = "src/lib.rs"

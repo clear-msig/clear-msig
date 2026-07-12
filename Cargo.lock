@@ -1063,6 +1063,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bs58",
+ "clear-msig-command-contract",
  "futures-core",
  "futures-util",
  "reqwest",
@@ -1090,6 +1091,7 @@ dependencies = [
  "bs58",
  "chrono",
  "clap",
+ "clear-msig-command-contract",
  "clear-wallet",
  "clear-wallet-client",
  "dialoguer 0.11.0",
@@ -1127,6 +1129,10 @@ dependencies = [
  "tonic",
  "wincode 0.4.9",
 ]
+
+[[package]]
+name = "clear-msig-command-contract"
+version = "0.1.0"
 
 [[package]]
 name = "clear-wallet"

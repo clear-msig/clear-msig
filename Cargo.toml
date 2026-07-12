@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/clear-msig-command-contract",
     "programs/clear-wallet",
     "programs/clear-wallet/client",
     "cli",

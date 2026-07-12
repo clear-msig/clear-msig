@@ -81,7 +81,7 @@ for (const file of metrics) {
           /\/features\/agents\/infrastructure\/(?:browserRuntime|localAgentRuntime)$/.test(
             importedPath,
           ) ||
-          /\/lib\/agents\/(?:client|server)/.test(importedPath) ||
+          /\/lib\/agents\//.test(importedPath) ||
           /\/lib\/(?:wallet|hooks\/useSignWithWallet)/.test(importedPath)
         );
       },

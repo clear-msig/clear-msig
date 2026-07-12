@@ -858,7 +858,8 @@ This is not ready for real capital yet. The remaining hard blockers are:
 
 - agent-state mutations still need Solana wallet/member authorization instead
   of relying on same-origin browser requests,
-- session grants and revocation state need an on-chain authority account,
+- session authority is on-chain, but live venue execution still needs a
+  settlement receipt/reconciliation path that cannot be forged by the relayer,
 - live/testnet adapters must return verified exchange order artifacts before an
   execution is marked placed,
 - Encrypt pre-alpha is wired but is not yet real confidentiality,
