@@ -15,7 +15,7 @@ jobs:
     name: architecture + fmt + backend clippy + test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -61,7 +61,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Node 24 ships with npm 11. Node 22's npm 10 trips on optional
       # peer deps (e.g. `utf-8-validate` under `ws`), reporting them as
@@ -107,7 +107,7 @@ jobs:
     name: clear-wallet (SBF .so)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system deps
         run: |
@@ -155,7 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: sbf-build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
