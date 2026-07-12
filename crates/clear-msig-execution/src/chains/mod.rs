@@ -20,6 +20,8 @@ pub mod delivery;
 mod delivery_identity;
 #[path = "delivery_probe.rs"]
 mod delivery_probe;
+#[path = "delivery_redis.rs"]
+mod delivery_redis;
 #[path = "delivery_store.rs"]
 mod delivery_store;
 pub mod evm;
@@ -73,6 +75,7 @@ pub struct BroadcastRequest<'a> {
     pub signature: &'a [u8],
     pub dwallet_pubkey_compressed: &'a [u8],
     pub rpc_url: &'a str,
+    pub control: crate::ExecutionControl,
 }
 
 /// Result of broadcasting a signed transaction to a destination chain.
@@ -118,6 +121,7 @@ pub fn broadcast_signed_tx(
         signature,
         dwallet_pubkey_compressed,
         rpc_url,
+        control,
     } = request;
     if signature.len() != 64 {
         return Err(anyhow!(
@@ -135,6 +139,7 @@ pub fn broadcast_signed_tx(
         receipt_store,
         chain_kind,
         rpc_url,
+        control,
     );
 
     let mut result = match chain_kind {

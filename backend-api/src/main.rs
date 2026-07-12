@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         .with_target(true)
         .init();
 
-    let runner = runner::build_runner();
+    let runner = runner::build_runner()?;
 
     let rate_limit_window_secs = env::var("CLEAR_MSIG_RATE_LIMIT_WINDOW_SECS")
         .ok()
@@ -57,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
     info!(
         execution_mode = runner.execution_mode(),
         execution_workers = runner.worker_limit,
+        destination_receipt_storage = runner.destination_receipt_storage,
         pro_store_path = %pro_store_path.display(),
         rate_limit_window_secs,
         rate_limit_max,

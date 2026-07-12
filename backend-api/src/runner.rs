@@ -17,6 +17,7 @@ pub(crate) struct ExecutionRunner {
     pub(crate) worker_limit: usize,
     workers: Arc<Semaphore>,
     destination_receipt_store: Arc<dyn clear_msig_execution::DestinationReceiptStore>,
+    pub(crate) destination_receipt_storage: &'static str,
     pub(crate) default_dwallet_program: Option<String>,
     pub(crate) default_grpc_url: Option<String>,
     pub(crate) default_destination_rpc_url: Option<String>,
@@ -207,7 +208,7 @@ fn validate_response_size(value: &Value) -> Result<(), ApiError> {
     Ok(())
 }
 
-pub(crate) fn build_runner() -> ExecutionRunner {
+pub(crate) fn build_runner() -> anyhow::Result<ExecutionRunner> {
     let url = non_empty_env("CLEAR_MSIG_URL");
     let keypair = non_empty_env("CLEAR_MSIG_KEYPAIR");
     let signer = non_empty_env("CLEAR_MSIG_SIGNER");
@@ -245,10 +246,23 @@ pub(crate) fn build_runner() -> ExecutionRunner {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    let destination_receipt_store =
-        Arc::new(clear_msig_execution::FileDestinationReceiptStore::from_environment());
+    let (destination_receipt_store, destination_receipt_storage): (
+        Arc<dyn clear_msig_execution::DestinationReceiptStore>,
+        &'static str,
+    ) = match clear_msig_execution::UpstashDestinationReceiptStore::from_environment()? {
+        Some(store) => (Arc::new(store), "redis"),
+        None if env::var("CLEAR_MSIG_ENV").as_deref() == Ok("production") => {
+            anyhow::bail!(
+                "production destination delivery requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN"
+            );
+        }
+        None => (
+            Arc::new(clear_msig_execution::FileDestinationReceiptStore::from_environment()),
+            "file",
+        ),
+    };
 
-    ExecutionRunner {
+    Ok(ExecutionRunner {
         execution_globals,
         rpc_url,
         program_id,
@@ -256,10 +270,11 @@ pub(crate) fn build_runner() -> ExecutionRunner {
         worker_limit,
         workers: Arc::new(Semaphore::new(worker_limit)),
         destination_receipt_store,
+        destination_receipt_storage,
         default_dwallet_program,
         default_grpc_url,
         default_destination_rpc_url,
-    }
+    })
 }
 
 fn non_empty_env(name: &str) -> Option<String> {
@@ -281,9 +296,10 @@ mod tests {
 
     #[test]
     fn exposes_typed_runtime_network_configuration() {
-        let runner = build_runner();
+        let runner = build_runner().unwrap();
         assert!(!runner.rpc_url.is_empty());
         assert!(!runner.program_id.is_empty());
         assert_eq!(runner.execution_mode(), "in_process_cancellable");
+        assert_eq!(runner.destination_receipt_storage, "file");
     }
 }

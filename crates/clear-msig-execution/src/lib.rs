@@ -30,7 +30,8 @@ mod signing;
 use clap::Subcommand;
 
 pub use chains::delivery::{
-    DeliveryState, DestinationReceipt, DestinationReceiptStore, FileDestinationReceiptStore,
+    DeliveryState, DestinationExecutionLease, DestinationReceipt, DestinationReceiptStore,
+    FileDestinationReceiptStore, UpstashDestinationReceiptStore,
 };
 pub use clear_msig_command_contract::{
     DirectCommand, DirectExecutionContext, LamportPayment, TypedExecutionContext,
@@ -218,11 +219,37 @@ mod tests {
             Arc::new(std::sync::Mutex::new(()))
         }
 
-        fn load(&self, _execution_id: &str) -> anyhow::Result<Option<crate::DestinationReceipt>> {
+        fn acquire_execution_lease(
+            &self,
+            execution_id: &str,
+            _control: &crate::ExecutionControl,
+        ) -> anyhow::Result<crate::DestinationExecutionLease> {
+            Ok(crate::DestinationExecutionLease::new(
+                execution_id.to_string(),
+                String::new(),
+            ))
+        }
+
+        fn release_execution_lease(
+            &self,
+            _lease: &crate::DestinationExecutionLease,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        fn load(
+            &self,
+            _execution_id: &str,
+            _control: &crate::ExecutionControl,
+        ) -> anyhow::Result<Option<crate::DestinationReceipt>> {
             Ok(None)
         }
 
-        fn save(&self, _receipt: &crate::DestinationReceipt) -> anyhow::Result<()> {
+        fn save(
+            &self,
+            _receipt: &crate::DestinationReceipt,
+            _control: &crate::ExecutionControl,
+        ) -> anyhow::Result<()> {
             Ok(())
         }
     }

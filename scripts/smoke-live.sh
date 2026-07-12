@@ -38,6 +38,7 @@ curl_json() {
 echo "Checking backend health: ${BACKEND_URL}/health"
 health="$(curl_json "${BACKEND_URL}/health")"
 echo "$health" | grep -q '"status":"ok"'
+echo "$health" | grep -q '"destination_receipt_storage":"redis"'
 echo "  ok"
 
 echo "Checking frontend live prices: ${FRONTEND_URL}/api/prices"

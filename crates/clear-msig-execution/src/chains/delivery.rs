@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use super::delivery_identity::{execution_id, expected_tx_id, normalize_raw_hex};
 use super::delivery_probe::{probe, ProbeState};
+pub use super::delivery_redis::UpstashDestinationReceiptStore;
 pub use super::delivery_store::FileDestinationReceiptStore;
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -30,20 +31,65 @@ pub struct DestinationReceipt {
     pub last_error: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DestinationExecutionLease {
+    execution_id: String,
+    token: String,
+}
+
+impl DestinationExecutionLease {
+    pub(crate) fn new(execution_id: String, token: String) -> Self {
+        Self {
+            execution_id,
+            token,
+        }
+    }
+
+    pub(super) fn execution_id(&self) -> &str {
+        &self.execution_id
+    }
+
+    pub(super) fn token(&self) -> &str {
+        &self.token
+    }
+}
+
 pub trait DestinationReceiptStore: Send + Sync {
     /// Returns a process-local lock shared by the same execution ID.
     fn execution_lock(&self, execution_id: &str) -> Arc<Mutex<()>>;
+
+    /// Acquires a store-wide lease before reading or mutating one execution.
+    ///
+    /// # Errors
+    /// Returns an error when another process owns the lease or the shared
+    /// store is unavailable. Callers must fail closed in either case.
+    fn acquire_execution_lease(
+        &self,
+        execution_id: &str,
+        control: &crate::ExecutionControl,
+    ) -> Result<DestinationExecutionLease>;
+
+    /// Releases a lease previously returned by `acquire_execution_lease`.
+    ///
+    /// # Errors
+    /// Returns an error when the shared store cannot verify and release the
+    /// matching lease token.
+    fn release_execution_lease(&self, lease: &DestinationExecutionLease) -> Result<()>;
 
     /// Loads a previously persisted delivery receipt.
     ///
     /// # Errors
     /// Returns an error when the durable store cannot be read or decoded.
-    fn load(&self, execution_id: &str) -> Result<Option<DestinationReceipt>>;
+    fn load(
+        &self,
+        execution_id: &str,
+        control: &crate::ExecutionControl,
+    ) -> Result<Option<DestinationReceipt>>;
     /// Durably replaces the receipt for one deterministic execution.
     ///
     /// # Errors
     /// Returns an error when the receipt cannot be persisted atomically.
-    fn save(&self, receipt: &DestinationReceipt) -> Result<()>;
+    fn save(&self, receipt: &DestinationReceipt, control: &crate::ExecutionControl) -> Result<()>;
 }
 
 pub struct ReconciledDestinationTransport<'a> {
@@ -52,6 +98,7 @@ pub struct ReconciledDestinationTransport<'a> {
     chain_kind: u8,
     rpc_url: &'a str,
     receipt: Mutex<Option<DestinationReceipt>>,
+    control: crate::ExecutionControl,
 }
 
 impl<'a> ReconciledDestinationTransport<'a> {
@@ -60,6 +107,7 @@ impl<'a> ReconciledDestinationTransport<'a> {
         store: &'a dyn DestinationReceiptStore,
         chain_kind: u8,
         rpc_url: &'a str,
+        control: crate::ExecutionControl,
     ) -> Self {
         Self {
             inner,
@@ -67,6 +115,7 @@ impl<'a> ReconciledDestinationTransport<'a> {
             chain_kind,
             rpc_url,
             receipt: Mutex::new(None),
+            control,
         }
     }
 
@@ -87,9 +136,13 @@ impl<'a> ReconciledDestinationTransport<'a> {
         let _execution_guard = execution_lock
             .lock()
             .map_err(|_| anyhow!("destination execution lock poisoned for {execution_id}"))?;
+        let lease = self
+            .store
+            .acquire_execution_lease(&execution_id, &self.control)?;
+        let _lease_guard = ExecutionLeaseGuard::new(self.store, lease);
         let mut receipt = self
             .store
-            .load(&execution_id)
+            .load(&execution_id, &self.control)
             .with_context(|| format!("load destination delivery {execution_id}"))?
             .unwrap_or_else(|| DestinationReceipt {
                 execution_id: execution_id.clone(),
@@ -259,7 +312,7 @@ impl<'a> ReconciledDestinationTransport<'a> {
 
     fn persist_and_remember(&self, receipt: DestinationReceipt) -> Result<()> {
         self.store
-            .save(&receipt)
+            .save(&receipt, &self.control)
             .with_context(|| format!("persist destination delivery {}", receipt.execution_id))?;
         self.remember(receipt);
         Ok(())
@@ -273,6 +326,30 @@ impl<'a> ReconciledDestinationTransport<'a> {
 
     fn probe(&self, tx_id: &str) -> Result<ProbeState> {
         probe(self.inner, self.chain_kind, self.rpc_url, tx_id)
+    }
+}
+
+struct ExecutionLeaseGuard<'a> {
+    store: &'a dyn DestinationReceiptStore,
+    lease: Option<DestinationExecutionLease>,
+}
+
+impl<'a> ExecutionLeaseGuard<'a> {
+    fn new(store: &'a dyn DestinationReceiptStore, lease: DestinationExecutionLease) -> Self {
+        Self {
+            store,
+            lease: Some(lease),
+        }
+    }
+}
+
+impl Drop for ExecutionLeaseGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(lease) = self.lease.take() {
+            if let Err(error) = self.store.release_execution_lease(&lease) {
+                crate::progress!("warning: destination execution lease release failed: {error:#}");
+            }
+        }
     }
 }
 
@@ -443,11 +520,34 @@ mod tests {
                 .clone()
         }
 
-        fn load(&self, execution_id: &str) -> Result<Option<DestinationReceipt>> {
+        fn acquire_execution_lease(
+            &self,
+            execution_id: &str,
+            _control: &crate::ExecutionControl,
+        ) -> Result<DestinationExecutionLease> {
+            Ok(DestinationExecutionLease::new(
+                execution_id.to_string(),
+                String::new(),
+            ))
+        }
+
+        fn release_execution_lease(&self, _lease: &DestinationExecutionLease) -> Result<()> {
+            Ok(())
+        }
+
+        fn load(
+            &self,
+            execution_id: &str,
+            _control: &crate::ExecutionControl,
+        ) -> Result<Option<DestinationReceipt>> {
             Ok(self.receipts.lock().unwrap().get(execution_id).cloned())
         }
 
-        fn save(&self, receipt: &DestinationReceipt) -> Result<()> {
+        fn save(
+            &self,
+            receipt: &DestinationReceipt,
+            _control: &crate::ExecutionControl,
+        ) -> Result<()> {
             self.receipts
                 .lock()
                 .unwrap()
@@ -461,6 +561,8 @@ mod tests {
         NotFound,
         Submitted,
         Confirmed,
+        Failed,
+        Malformed,
         Error,
     }
 
@@ -524,9 +626,18 @@ mod tests {
             if matches!(reply, ProbeReply::Error) {
                 return Err(anyhow!("status provider unavailable"));
             }
+            if matches!(reply, ProbeReply::Malformed) {
+                return Ok(HttpResponse {
+                    status: 200,
+                    body: "not-json".into(),
+                });
+            }
             let result = match (self.chain_kind, method, reply) {
                 (1 | 4 | 5, "eth_getTransactionReceipt", ProbeReply::Confirmed) => {
                     serde_json::json!({"status":"0x1","blockNumber":"0x10"})
+                }
+                (1 | 4 | 5, "eth_getTransactionReceipt", ProbeReply::Failed) => {
+                    serde_json::json!({"status":"0x0","blockNumber":"0x10"})
                 }
                 (1 | 4 | 5, "eth_getTransactionReceipt", _) => serde_json::Value::Null,
                 (1 | 4 | 5, "eth_getTransactionByHash", ProbeReply::Submitted) => {
@@ -583,8 +694,13 @@ mod tests {
         store: &MemoryStore,
         raw: &str,
     ) -> Result<DestinationReceipt> {
-        let reconciled =
-            ReconciledDestinationTransport::new(transport, store, 1, "https://evm.example");
+        let reconciled = ReconciledDestinationTransport::new(
+            transport,
+            store,
+            1,
+            "https://evm.example",
+            crate::ExecutionControl::default(),
+        );
         reconciled.post_json(
             "https://evm.example",
             &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"eth_sendRawTransaction","params":[raw]}),
@@ -644,6 +760,80 @@ mod tests {
         assert_eq!(receipt.state, DeliveryState::Submitted);
         assert_eq!(receipt.attempts, 2);
         assert_eq!(transport.broadcasts.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn timeout_after_remote_acceptance_reconciles_without_rebroadcast() {
+        let store = MemoryStore::default();
+        let transport = FakeTransport::new(1, ProbeReply::Submitted).with_failure();
+        send_evm(&transport, &store, "0x02cd").unwrap_err();
+        let receipt = send_evm(&transport, &store, "0x02cd").unwrap();
+
+        assert_eq!(receipt.state, DeliveryState::Submitted);
+        assert_eq!(receipt.attempts, 1);
+        assert_eq!(transport.broadcasts.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn malformed_status_response_keeps_delivery_unknown_and_blocks_retry() {
+        let store = MemoryStore::default();
+        let transport = FakeTransport::new(1, ProbeReply::Malformed).with_failure();
+        send_evm(&transport, &store, "0x02ce").unwrap_err();
+        let error = send_evm(&transport, &store, "0x02ce").unwrap_err();
+
+        assert!(error.to_string().contains("refusing to rebroadcast"));
+        assert_eq!(transport.broadcasts.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn failed_destination_receipt_is_terminal() {
+        let store = MemoryStore::default();
+        let transport = FakeTransport::new(1, ProbeReply::Failed);
+        send_evm(&transport, &store, "0x02cf").unwrap();
+        let error = send_evm(&transport, &store, "0x02cf").unwrap_err();
+
+        assert!(error.to_string().contains("failed on chain"));
+        assert_eq!(transport.broadcasts.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn execution_identity_binds_chain_and_exact_signed_bytes() {
+        let first_raw = normalize_raw_hex("0x02d0").unwrap();
+        let changed_raw = normalize_raw_hex("0x02d1").unwrap();
+        let evm_tx = expected_tx_id(1, &first_raw).unwrap();
+        let changed_evm_tx = expected_tx_id(1, &changed_raw).unwrap();
+        let zcash_tx = expected_tx_id(3, &first_raw).unwrap();
+
+        assert_ne!(execution_id(1, &evm_tx), execution_id(1, &changed_evm_tx));
+        assert_ne!(execution_id(1, &evm_tx), execution_id(3, &zcash_tx));
+    }
+
+    #[test]
+    fn tampered_persisted_receipt_fails_before_broadcast() {
+        let store = MemoryStore::default();
+        let transport = FakeTransport::new(1, ProbeReply::NotFound);
+        let raw = normalize_raw_hex("0x02d2").unwrap();
+        let tx_id = expected_tx_id(1, &raw).unwrap();
+        let id = execution_id(1, &tx_id);
+        store
+            .save(
+                &DestinationReceipt {
+                    execution_id: id,
+                    chain_kind: 1,
+                    tx_id,
+                    raw_tx_hex: "02ff".into(),
+                    state: DeliveryState::Unknown,
+                    attempts: 1,
+                    updated_at: now(),
+                    last_error: None,
+                },
+                &crate::ExecutionControl::default(),
+            )
+            .unwrap();
+
+        let error = send_evm(&transport, &store, "0x02d2").unwrap_err();
+        assert!(error.to_string().contains("identity collision"));
+        assert_eq!(transport.broadcasts.load(Ordering::SeqCst), 0);
     }
 
     #[test]
@@ -725,10 +915,10 @@ mod tests {
             last_error: Some("timeout".into()),
         };
         FileDestinationReceiptStore::new(path.clone())
-            .save(&receipt)
+            .save(&receipt, &crate::ExecutionControl::default())
             .unwrap();
         let loaded = FileDestinationReceiptStore::new(path.clone())
-            .load("dst_test")
+            .load("dst_test", &crate::ExecutionControl::default())
             .unwrap();
         std::fs::remove_file(path).unwrap();
 

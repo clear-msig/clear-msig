@@ -2560,6 +2560,96 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         )
         .is_err());
 
+    for (label, mutation) in [
+        (
+            "amount",
+            build_execute_typed_chain_send_ix(
+                payer,
+                wallet,
+                remote_intent,
+                typed_proposal,
+                ika_config,
+                dwallet,
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                (amount_raw + 1).to_le_bytes(),
+                recipient_hash,
+                asset_id_hash,
+                tx_template_hash,
+            ),
+        ),
+        (
+            "asset",
+            build_execute_typed_chain_send_ix(
+                payer,
+                wallet,
+                remote_intent,
+                typed_proposal,
+                ika_config,
+                dwallet,
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw.to_le_bytes(),
+                recipient_hash,
+                sha256_hash(b"BTC:mainnet"),
+                tx_template_hash,
+            ),
+        ),
+        (
+            "chain",
+            build_execute_typed_chain_send_ix(
+                payer,
+                wallet,
+                remote_intent,
+                typed_proposal,
+                ika_config,
+                dwallet,
+                policy_commitment,
+                envelope_hash,
+                3,
+                amount_raw.to_le_bytes(),
+                recipient_hash,
+                asset_id_hash,
+                tx_template_hash,
+            ),
+        ),
+        (
+            "transaction template",
+            build_execute_typed_chain_send_ix(
+                payer,
+                wallet,
+                remote_intent,
+                typed_proposal,
+                ika_config,
+                dwallet,
+                policy_commitment,
+                envelope_hash,
+                chain_kind,
+                amount_raw.to_le_bytes(),
+                recipient_hash,
+                asset_id_hash,
+                sha256_hash(b"attacker-template"),
+            ),
+        ),
+    ] {
+        assert!(
+            svm.process_instruction(
+                &mutation,
+                &[
+                    funded_account(payer),
+                    empty_wallet_policy_account(wallet),
+                    empty_policy_spend_account(wallet, remote_intent, policy_commitment),
+                    empty_member_allowance_account(wallet, remote_intent),
+                    empty_account(dwallet),
+                ],
+            )
+            .is_err(),
+            "typed remote send accepted substituted {label}"
+        );
+    }
+
     let execute = build_execute_typed_chain_send_ix(
         payer,
         wallet,

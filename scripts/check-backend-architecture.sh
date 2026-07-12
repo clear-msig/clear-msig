@@ -97,8 +97,12 @@ grep -q 'trait DestinationReceiptStore' crates/clear-msig-execution/src/chains/d
 grep -q 'with_destination_receipt_store' crates/clear-msig-execution/src/lib.rs
 grep -q 'with_destination_receipt_store(self.destination_receipt_store.clone())' backend-api/src/runner.rs
 grep -q 'destination_receipt_store:' crates/clear-msig-execution/src/config.rs
+grep -q 'struct UpstashDestinationReceiptStore' crates/clear-msig-execution/src/chains/delivery_redis.rs
+grep -q 'acquire_execution_lease' crates/clear-msig-execution/src/chains/delivery_redis.rs
+grep -q 'production destination delivery requires UPSTASH_REDIS_REST_URL' backend-api/src/runner.rs
+grep -q 'destination_receipt_storage":"redis"' scripts/smoke-live.sh
 grep -q 'ReconciledDestinationTransport' crates/clear-msig-execution/src/chains/delivery.rs
-grep -q 'CLEAR_MSIG_DELIVERY_STORE_PATH' render.yaml
+grep -q 'UPSTASH_REDIS_REST_URL' render.yaml
 grep -q 'unknown_delivery_refuses_rebroadcast_when_reconciliation_is_down' crates/clear-msig-execution/src/chains/delivery.rs
 grep -q 'control.cancel()' backend-api/src/runner.rs
 grep -q 'cargo test -p clear-msig-command-contract -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api' .github/workflows/ci.yml

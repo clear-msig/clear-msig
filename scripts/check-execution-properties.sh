@@ -27,5 +27,24 @@ fi
 
 grep -q 'trait DestinationTransport' crates/clear-msig-execution/src/chains/transport.rs
 grep -q 'control.cancelled()' crates/clear-msig-execution/src/chains/transport.rs
+grep -q 'control.cancelled()' crates/clear-msig-execution/src/chains/delivery_redis.rs
+grep -q 'timeout_after_remote_acceptance_reconciles_without_rebroadcast' \
+  crates/clear-msig-execution/src/chains/delivery.rs
+grep -q 'malformed_status_response_keeps_delivery_unknown_and_blocks_retry' \
+  crates/clear-msig-execution/src/chains/delivery.rs
+grep -q 'tampered_persisted_receipt_fails_before_broadcast' \
+  crates/clear-msig-execution/src/chains/delivery.rs
+grep -q 'distributed_lease_excludes_another_instance_and_releases_by_token' \
+  crates/clear-msig-execution/src/chains/delivery_redis.rs
+grep -q 'redis_outage_fails_closed_for_lease_and_receipts' \
+  crates/clear-msig-execution/src/chains/delivery_redis.rs
+grep -q 'signed_preimage_binds_chain_nonce_and_calldata' \
+  programs/clear-wallet/client/src/chains.rs
+grep -q 'test_execute_typed_chain_send_finalizes_verified_remote_send' \
+  programs/clear-wallet/src/tests.rs
+grep -q 'interrupted_ika_execution_reuses_only_a_signed_message_approval' \
+  crates/clear-msig-execution/src/commands/proposal.rs
+grep -q 'cancellation_drops_pending_ika_io' \
+  crates/clear-msig-execution/src/ika.rs
 
-echo "Execution properties: replaceable relayer, replay guard, cancellable destination transport."
+echo "Execution properties: replaceable relayer, replay guard, distributed delivery leases, adversarial substitution/retry coverage, and cancellable destination transport."

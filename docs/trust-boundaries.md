@@ -43,8 +43,8 @@ It describes the current pre-alpha system, not the intended production system.
 
 1. Replace the mock Ika signer with production distributed MPC.
 2. Add multi-provider RPC verification for high-value reads, reconciliation,
-   and broadcasts. The current receipt store is durable on the single Render
-   instance, but must move to a distributed atomic store before horizontal
-   backend scaling.
+   and broadcasts. Production receipts and per-execution leases use Upstash
+   Redis, so multiple backend instances share delivery state and cannot
+   concurrently broadcast the same deterministic execution.
 3. Complete adversarial/property testing and commission an external audit.
 4. Put program upgrades behind reviewed, multi-party operational governance.

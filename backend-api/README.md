@@ -64,8 +64,8 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `CLEAR_MSIG_DEFAULT_GRPC_URL` (optional default `--grpc-url` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (optional default `--rpc-url` for execute)
 - `CLEAR_MSIG_PRO_STORE_PATH` (optional Pro schedules/audit JSON store; defaults to `/data/pro-store.json` on Render when `/data` exists)
-- `CLEAR_MSIG_DELIVERY_STORE_PATH` (durable BTC/EVM/Zcash delivery receipts; production uses `/data/destination-deliveries.json`)
-- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (production Redis REST store for notifications, agent state, and shared rate-limit paths)
+- `CLEAR_MSIG_DELIVERY_STORE_PATH` (development-only BTC/EVM/Zcash receipt file)
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (required production Redis REST store for distributed delivery receipts/leases, notifications, agent state, and shared rate-limit paths)
 
 ## Core endpoints
 
@@ -113,8 +113,10 @@ bounded; all current network futures are dropped when execution is cancelled.
 Remote broadcasts also persist deterministic delivery receipts before network
 submission. Retries reconcile the chain-native transaction ID before deciding
 whether the exact signed bytes may be sent again. Configure
-`CLEAR_MSIG_DELIVERY_STORE_PATH`; production uses
-`/data/destination-deliveries.json` on Render's persistent disk.
+Upstash through `UPSTASH_REDIS_REST_URL` and
+`UPSTASH_REDIS_REST_TOKEN`. Production startup fails closed when Redis is not
+configured. Local CLI and development backend runs retain the file adapter at
+`CLEAR_MSIG_DELIVERY_STORE_PATH`.
 Solana account reads, wallet scans, blockhash reads, and transaction submission
 also pass through an injectable execution-library port; command handlers cannot
 construct an SDK RPC client directly.

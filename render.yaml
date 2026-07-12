@@ -37,8 +37,6 @@ services:
         value: /data/attestations
       - key: CLEAR_MSIG_PRO_STORE_PATH
         value: /data/pro-store.json
-      - key: CLEAR_MSIG_DELIVERY_STORE_PATH
-        value: /data/destination-deliveries.json
       - key: CLEAR_MSIG_ALLOWED_ORIGIN
         value: https://clearsig.xyz,https://www.clearsig.xyz
       - key: CLEAR_MSIG_PROGRAM_ID

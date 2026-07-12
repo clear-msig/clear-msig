@@ -526,6 +526,28 @@ pub mod evm {
             assert!(preimage.windows(20).any(|w| w == [0x42u8; 20]));
         }
 
+        #[test]
+        fn signed_preimage_binds_chain_nonce_and_calldata() {
+            let build = |chain_id, nonce, data: Vec<u8>| {
+                Tx1559 {
+                    chain_id,
+                    nonce,
+                    max_priority_fee_per_gas: 1,
+                    max_fee_per_gas: 2,
+                    gas_limit: 50_000,
+                    to: [0x42; 20],
+                    value: 0,
+                    data,
+                }
+                .rlp_preimage()
+            };
+            let approved = build(11_155_111, 7, vec![0xaa, 0xbb]);
+
+            assert_ne!(approved, build(1, 7, vec![0xaa, 0xbb]));
+            assert_ne!(approved, build(11_155_111, 6, vec![0xaa, 0xbb]));
+            assert_ne!(approved, build(11_155_111, 7, vec![0xaa, 0xbc]));
+        }
+
         /// Pinned vector: a Sepolia transfer with deterministic params.
         /// If this byte sequence ever changes without an intentional
         /// EVM-encoding update, ANY in-flight signature created against

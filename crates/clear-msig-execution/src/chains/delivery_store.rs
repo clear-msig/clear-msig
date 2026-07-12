@@ -1,4 +1,4 @@
-use super::delivery::{DestinationReceipt, DestinationReceiptStore};
+use super::delivery::{DestinationExecutionLease, DestinationReceipt, DestinationReceiptStore};
 use crate::error::*;
 use std::{
     collections::BTreeMap,
@@ -78,7 +78,26 @@ impl DestinationReceiptStore for FileDestinationReceiptStore {
         lock
     }
 
-    fn load(&self, execution_id: &str) -> Result<Option<DestinationReceipt>> {
+    fn acquire_execution_lease(
+        &self,
+        execution_id: &str,
+        _control: &crate::ExecutionControl,
+    ) -> Result<DestinationExecutionLease> {
+        Ok(DestinationExecutionLease::new(
+            execution_id.to_string(),
+            String::new(),
+        ))
+    }
+
+    fn release_execution_lease(&self, _lease: &DestinationExecutionLease) -> Result<()> {
+        Ok(())
+    }
+
+    fn load(
+        &self,
+        execution_id: &str,
+        _control: &crate::ExecutionControl,
+    ) -> Result<Option<DestinationReceipt>> {
         let _guard = self
             .lock
             .lock()
@@ -86,7 +105,7 @@ impl DestinationReceiptStore for FileDestinationReceiptStore {
         Ok(self.read_locked()?.remove(execution_id))
     }
 
-    fn save(&self, receipt: &DestinationReceipt) -> Result<()> {
+    fn save(&self, receipt: &DestinationReceipt, _control: &crate::ExecutionControl) -> Result<()> {
         let _guard = self
             .lock
             .lock()

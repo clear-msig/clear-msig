@@ -20,6 +20,7 @@ struct HealthResponse {
     status: &'static str,
     execution_mode: &'static str,
     execution_workers: usize,
+    destination_receipt_storage: &'static str,
 }
 
 #[derive(Deserialize)]
@@ -68,6 +69,7 @@ async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, A
         status: "ok",
         execution_mode: state.runner.execution_mode(),
         execution_workers: state.runner.worker_limit,
+        destination_receipt_storage: state.runner.destination_receipt_storage,
     }))
 }
 

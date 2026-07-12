@@ -2743,6 +2743,7 @@ fn execute_via_ika(
                     signature: onchain_sig,
                     dwallet_pubkey_compressed: &dwallet_account.public_key,
                     rpc_url,
+                    control: config.control.clone(),
                 },
             )
             .with_context(|| format!("broadcast to {rpc_url} failed"))?;
