@@ -34,8 +34,8 @@ const PROPOSAL_ACTIONS: &[&str] = &[
     "cleanup",
 ];
 
-/// Shared process-boundary contract used by both the HTTP backend and CLI.
-/// Values remain opaque argv entries; no shell interpolation is ever involved.
+/// Shared adapter-input contract used before arguments enter the typed core.
+/// Values remain opaque entries and are bounded before full schema parsing.
 pub fn validate_invocation_args(args: &[String]) -> Result<(), String> {
     if args.len() > MAX_ARGS {
         return Err(format!("invocation has too many arguments: {}", args.len()));

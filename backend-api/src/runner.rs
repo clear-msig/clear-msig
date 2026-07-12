@@ -23,19 +23,21 @@ impl CliRunner {
         "in_process_bounded"
     }
 
-    pub(crate) fn validated_invocation(&self, args: &[String]) -> Result<Vec<String>, ApiError> {
+    pub(crate) fn prepare_request(
+        &self,
+        args: &[String],
+    ) -> Result<clear_msig_cli::ExecutionRequest, ApiError> {
         let invocation = self
             .base_args
             .iter()
             .chain(args.iter())
             .cloned()
             .collect::<Vec<_>>();
-        clear_msig_cli::validate_invocation_args(&invocation).map_err(|error| {
+        clear_msig_cli::prepare_execution(&invocation).map_err(|error| {
             ApiError::Internal(format!(
                 "backend generated an invalid core invocation: {error}"
             ))
-        })?;
-        Ok(invocation)
+        })
     }
 
     pub(crate) async fn run_json(&self, args: Vec<String>) -> Result<Value, ApiError> {
@@ -43,7 +45,7 @@ impl CliRunner {
         let subcommand = cli_subcommand_label(&args);
         let dry_run = args.iter().any(|argument| argument == "--dry-run");
         let actor_prefix = extract_actor_prefix(&args);
-        let invocation = self.validated_invocation(&args)?;
+        let request = self.prepare_request(&args)?;
         let workers = self.workers.clone();
 
         let execution = async move {
@@ -53,7 +55,7 @@ impl CliRunner {
                 .map_err(|_| ApiError::Internal("in-process execution pool is closed".into()))?;
             tokio::task::spawn_blocking(move || {
                 let _permit = permit;
-                clear_msig_cli::execute_args(&invocation)
+                clear_msig_cli::execute_request(request)
             })
             .await
             .map_err(|error| ApiError::Internal(format!("execution worker failed: {error}")))?

@@ -90,24 +90,57 @@ enum Command {
     },
 }
 
-/// Validate the exact argv shape the CLI will execute. The shared contract
-/// rejects unsupported process-boundary commands; Clap then validates every
-/// option and positional argument against the full CLI schema.
-pub fn validate_invocation_args(args: &[String]) -> Result<(), String> {
+/// A validated, typed execution request.
+///
+/// Its fields stay private so infrastructure callers cannot construct a
+/// partially validated command or mutate one after validation.
+pub struct ExecutionRequest {
+    globals: config::CliGlobals,
+    command: Command,
+}
+
+impl From<Cli> for ExecutionRequest {
+    fn from(cli: Cli) -> Self {
+        Self {
+            globals: config::CliGlobals {
+                url: cli.url,
+                keypair: cli.keypair,
+                signer: cli.signer,
+                signer_ledger: cli.signer_ledger,
+                ledger_account: cli.ledger_account,
+                signer_pubkey: cli.signer_pubkey,
+                signature: cli.signature,
+                params_data: cli.params_data,
+                message_flavor: cli.message_flavor,
+                signed_message: cli.signed_message,
+                dry_run: cli.dry_run,
+            },
+            command: cli.command,
+        }
+    }
+}
+
+/// Validate and parse adapter arguments into the typed execution boundary.
+/// The shared contract limits command shape and size before Clap validates
+/// every option and positional argument against the complete schema.
+pub fn prepare_execution(args: &[String]) -> Result<ExecutionRequest, String> {
     clear_msig_command_contract::validate_invocation_args(args)?;
     let argv = std::iter::once("clear-msig").chain(args.iter().map(String::as_str));
     Cli::try_parse_from(argv)
-        .map(|_| ())
+        .map(ExecutionRequest::from)
         .map_err(|error| error.to_string())
 }
 
-/// Execute one CLI invocation in-process and return its single structured
-/// response. This is the shared adapter used by backend workers and tests;
-/// the binary remains a thin stdout/stderr wrapper around the same handlers.
-pub fn execute_args(args: &[String]) -> anyhow::Result<serde_json::Value> {
-    let argv = std::iter::once("clear-msig").chain(args.iter().map(String::as_str));
-    let cli = Cli::try_parse_from(argv).map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    let (result, outputs) = output::capture_json(|| execute(cli));
+/// Validate the exact adapter argument shape without executing it.
+pub fn validate_invocation_args(args: &[String]) -> Result<(), String> {
+    prepare_execution(args).map(|_| ())
+}
+
+/// Execute one previously validated request and return its single structured
+/// response. Infrastructure workers use this API so parsing and validation
+/// cannot race with queueing or execution.
+pub fn execute_request(request: ExecutionRequest) -> anyhow::Result<serde_json::Value> {
+    let (result, outputs) = output::capture_json(|| execute(request));
     result?;
     match outputs.as_slice() {
         [value] => Ok(value.clone()),
@@ -121,8 +154,14 @@ pub fn execute_args(args: &[String]) -> anyhow::Result<serde_json::Value> {
     }
 }
 
+/// Argument adapter retained for callers and tests that start from argv.
+pub fn execute_args(args: &[String]) -> anyhow::Result<serde_json::Value> {
+    let request = prepare_execution(args).map_err(anyhow::Error::msg)?;
+    execute_request(request)
+}
+
 pub fn run_from_env() -> ExitCode {
-    match execute(Cli::parse()) {
+    match execute(Cli::parse().into()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             crate::progress!("{error:?}");
@@ -133,33 +172,19 @@ pub fn run_from_env() -> ExitCode {
     }
 }
 
-fn execute(cli: Cli) -> anyhow::Result<()> {
-    let globals = config::CliGlobals {
-        url: cli.url,
-        keypair: cli.keypair,
-        signer: cli.signer,
-        signer_ledger: cli.signer_ledger,
-        ledger_account: cli.ledger_account,
-        signer_pubkey: cli.signer_pubkey,
-        signature: cli.signature,
-        params_data: cli.params_data,
-        message_flavor: cli.message_flavor,
-        signed_message: cli.signed_message,
-        dry_run: cli.dry_run,
-    };
-
-    match cli.command {
+fn execute(request: ExecutionRequest) -> anyhow::Result<()> {
+    match request.command {
         Command::Config { action } => commands::config::handle(action),
         Command::Wallet { action } => {
-            let config = config::load_config(&globals)?;
+            let config = config::load_config(&request.globals)?;
             commands::wallet::handle(action, &config)
         }
         Command::Intent { action } => {
-            let config = config::load_config(&globals)?;
+            let config = config::load_config(&request.globals)?;
             commands::intent::handle(action, &config)
         }
         Command::Proposal { action } => {
-            let config = config::load_config(&globals)?;
+            let config = config::load_config(&request.globals)?;
             commands::proposal::handle(action, &config)
         }
     }
@@ -168,7 +193,7 @@ fn execute(cli: Cli) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::Cli;
-    use super::{execute_args, validate_invocation_args};
+    use super::{execute_args, execute_request, prepare_execution, validate_invocation_args};
     use clap::CommandFactory;
 
     #[test]
@@ -183,12 +208,12 @@ mod tests {
             "execute".into(),
             "--unknown-relayer-flag".into(),
         ])
-        .expect_err("unknown flags must not reach a child process");
+        .expect_err("unknown flags must not enter the execution core");
         assert!(error.contains("unexpected argument") || error.contains("unrecognized"));
     }
 
     #[test]
-    fn process_boundary_allowlist_covers_every_cli_action() {
+    fn adapter_allowlist_covers_every_cli_action() {
         let cli = Cli::command();
         for command in cli.get_subcommands() {
             for action in command.get_subcommands() {
@@ -196,7 +221,7 @@ mod tests {
                 clear_msig_command_contract::validate_invocation_args(&args).unwrap_or_else(
                     |error| {
                         panic!(
-                            "{} {} is missing from the process-boundary contract: {error}",
+                            "{} {} is missing from the adapter-input contract: {error}",
                             command.get_name(),
                             action.get_name()
                         )
@@ -213,5 +238,12 @@ mod tests {
             .get("config_path")
             .and_then(|item| item.as_str())
             .is_some());
+    }
+
+    #[test]
+    fn prepared_request_executes_without_reparsing_arguments() {
+        let request = prepare_execution(&["config".into(), "show".into()]).unwrap();
+        let value = execute_request(request).unwrap();
+        assert!(value.get("config_path").is_some());
     }
 }
