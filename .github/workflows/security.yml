@@ -44,7 +44,7 @@ jobs:
           persist-credentials: false
 
       - name: Reject vulnerable dependency changes
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
           deny-licenses: AGPL-1.0-only, AGPL-3.0-only
