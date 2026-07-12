@@ -13,6 +13,9 @@ grep -q 'clear_msig_cli::prepare_execution' backend-api/src/runner.rs
 grep -q 'clear_msig_cli::execute_request' backend-api/src/runner.rs
 grep -q 'run_typed_proposal' backend-api/src/proposals.rs
 grep -q 'run_typed_lifecycle' backend-api/src/proposals.rs
+grep -q 'run_direct' backend-api/src/wallet.rs
+grep -q 'run_direct' backend-api/src/intents.rs
+grep -q 'run_direct' backend-api/src/proposals.rs
 grep -q 'TypedProposalExecution' backend-api/src/proposals/typed_execution.rs
 grep -q 'TypedProposalLifecycle' backend-api/src/proposals/typed_lifecycle.rs
 
@@ -31,4 +34,16 @@ if grep -En '"typed-(create|approve|cancel|execute)"\.(into|to_string)' backend-
   exit 1
 fi
 
-echo "Backend architecture: validated typed requests, bounded in-process execution, no CLI subprocess coupling."
+for module in backend-api/src/wallet.rs backend-api/src/intents.rs backend-api/src/proposals.rs; do
+  if grep -En 'run_json|&mut Vec<String>|"--[a-z]' "$module"; then
+    echo "Backend architecture check failed: $module rebuilt raw adapter arguments." >&2
+    exit 1
+  fi
+done
+
+if grep -En 'run_json|"--[a-z]' backend-api/src/clearsign.rs; then
+  echo "Backend architecture check failed: ClearSign preparation bypassed typed wallet lookup." >&2
+  exit 1
+fi
+
+echo "Backend architecture: typed route commands, bounded in-process execution, no CLI subprocess coupling."

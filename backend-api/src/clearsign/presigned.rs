@@ -72,24 +72,3 @@ impl PreSigned {
         Ok(())
     }
 }
-
-/// Append global pre-signed flags to a CLI args vec. Called by every handler
-/// that forwards a browser signature to the CLI.
-pub(crate) fn push_pre_signed_flags(args: &mut Vec<String>, ps: &PreSigned) {
-    args.push("--signer-pubkey".into());
-    args.push(ps.signer_pubkey.clone());
-    args.push("--signature".into());
-    args.push(ps.signature.clone());
-    if let Some(flavor) = &ps.message_flavor {
-        args.push("--message-flavor".into());
-        args.push(flavor.clone());
-    }
-    if let Some(hex) = &ps.params_data_hex {
-        args.push("--params-data".into());
-        args.push(hex.clone());
-    }
-    if let Some(hex) = &ps.signed_message_hex {
-        args.push("--signed-message".into());
-        args.push(hex.clone());
-    }
-}

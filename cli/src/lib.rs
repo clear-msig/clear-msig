@@ -10,6 +10,9 @@ mod accounts;
 mod chains;
 pub mod commands;
 pub mod config;
+mod direct;
+#[cfg(test)]
+mod direct_tests;
 mod error;
 mod execution;
 mod ika;
@@ -27,6 +30,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
+pub use direct::{prepare_direct_command, DirectCommand, DirectExecutionContext};
 pub use execution::{prepare_typed_proposal_execution, LamportPayment, TypedProposalExecution};
 pub use lifecycle::{
     prepare_typed_proposal_lifecycle, TypedExecutionContext, TypedProposalLifecycle,

@@ -100,6 +100,39 @@ impl CliRunner {
             .await
     }
 
+    pub(crate) async fn run_direct(
+        &self,
+        context: clear_msig_cli::DirectExecutionContext,
+        command: clear_msig_cli::DirectCommand,
+    ) -> Result<Value, ApiError> {
+        let subcommand = command.label().to_string();
+        let dry_run = matches!(
+            context,
+            clear_msig_cli::DirectExecutionContext::DryRun { .. }
+        );
+        let actor_prefix = match &context {
+            clear_msig_cli::DirectExecutionContext::DryRun { actor_pubkey } => actor_pubkey
+                .as_deref()
+                .map(|value| value.chars().take(6).collect()),
+            clear_msig_cli::DirectExecutionContext::PreSigned { signer_pubkey, .. } => {
+                Some(signer_pubkey.chars().take(6).collect())
+            }
+            clear_msig_cli::DirectExecutionContext::Backend => None,
+        };
+        let request = clear_msig_cli::prepare_direct_command(
+            self.execution_globals.clone(),
+            context,
+            command,
+        )
+        .map_err(|error| {
+            ApiError::Internal(format!(
+                "backend generated an invalid direct command: {error}"
+            ))
+        })?;
+        self.run_request(request, subcommand, dry_run, actor_prefix)
+            .await
+    }
+
     async fn run_request(
         &self,
         request: clear_msig_cli::ExecutionRequest,

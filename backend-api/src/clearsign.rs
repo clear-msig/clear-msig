@@ -10,7 +10,7 @@ mod payload;
 mod presigned;
 
 pub(crate) use expiry::{format_expiry, normalize_expiry_arg};
-pub(crate) use presigned::{push_pre_signed_flags, PreSigned};
+pub(crate) use presigned::PreSigned;
 
 use display::action_lines;
 use hash::{hash_clear_text, hash_envelope, hash_payload};
@@ -184,12 +184,10 @@ async fn resolve_wallet_id(state: &AppState, wallet_name: &str) -> Result<String
 
     let wallet = state
         .runner
-        .run_json(vec![
-            "wallet".to_string(),
-            "show".to_string(),
-            "--name".to_string(),
-            name,
-        ])
+        .run_direct(
+            clear_msig_cli::DirectExecutionContext::Backend,
+            clear_msig_cli::DirectCommand::WalletShow { name },
+        )
         .await?;
     wallet
         .get("address")
