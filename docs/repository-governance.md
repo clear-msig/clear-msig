@@ -26,6 +26,12 @@ for the Solana program, signing/execution crates, backend, Agent Vault,
 workflows, deployment definitions, and program deployment scripts. Multiple
 maintainers are listed so the author cannot satisfy their own review.
 
+Dependabot groups routine minor and patch updates once per month, with at most
+one open pull request per ecosystem. Automatic major-version PRs are disabled:
+framework, Solana, cryptography, and CI runtime majors require planned
+migration reviews. Dependabot security alerts remain enabled for explicit
+triage.
+
 ## Release evidence
 
 Every release records the commit SHA, CI run, artifact checksum, program

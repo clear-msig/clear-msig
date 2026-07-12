@@ -28,6 +28,10 @@ import {
 } from "@/lib/clearsign-v2/typedMessage";
 import type { DryRunDescriptor, TypedDryRunDescriptor } from "@/lib/api/types";
 import type { MessageFlavor } from "@/lib/msig/offchain";
+import {
+  WalletSignatureTimeoutError,
+  withWalletSignatureTimeout,
+} from "@/lib/wallet/signing";
 
 export interface SignOptions {
   /// When provided, route the sign through the signer whose pubkey
@@ -66,7 +70,8 @@ export class WalletSignError extends Error {
     | "unknown"
     | "message_mismatch"
     | "stale_request"
-    | "wallet_signed_wrong_bytes";
+    | "wallet_signed_wrong_bytes"
+    | "timeout";
   /// Set when `code === "message_mismatch"` - the bytes the backend
   /// asked us to sign did not match the bytes the frontend rebuilt
   /// from chain state. Includes both for debugging.
@@ -130,7 +135,9 @@ export function useSignWithWallet() {
       const effectiveSigner = options?.preferSigner ?? publicKey;
       let sig: Uint8Array;
       try {
-        sig = await signMessage(messageBytes, options?.preferSigner);
+        sig = await withWalletSignatureTimeout(
+          signMessage(messageBytes, options?.preferSigner),
+        );
       } catch (err) {
         // Distinguish real user rejections from device/transport
         // errors. Treating everything as "rejected" was telling
@@ -345,6 +352,12 @@ function ensureDescriptorFresh(descriptor: { expiry: number }) {
 /// their own codes so `friendlyError` can show "open the Solana app"
 /// instead of "you cancelled".
 function classifySignError(err: unknown): WalletSignError {
+  if (err instanceof WalletSignatureTimeoutError) {
+    return new WalletSignError(
+      "timeout",
+      "Your wallet did not open the signing request. Return to the app and try again, or reconnect the wallet.",
+    );
+  }
   if (err instanceof LedgerError) {
     switch (err.code) {
       case "rejected":

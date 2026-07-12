@@ -7,8 +7,9 @@ import { Button } from "@/components/retail/Button";
 import { FormField, TextInput } from "@/components/retail/FormField";
 import { useToast } from "@/components/ui/Toast";
 import { type AgentVaultPolicy, type TradingVenue } from "@/features/agents/domain/runtime";
-import { syncAgentVaultPolicy } from "@/features/agents/infrastructure/stateClient";
-import { getAgentVaultPolicy, listAgentSessions, saveAgentVaultPolicy } from "@/features/agents/infrastructure/agentStore";
+import { syncAgentSession, syncAgentVaultPolicy } from "@/features/agents/infrastructure/stateClient";
+import { getAgentVaultPolicy, listAgentSessions, saveAgentSession, saveAgentVaultPolicy } from "@/features/agents/infrastructure/agentStore";
+import { useAgentTypedRiskPolicy } from "@/features/agents/infrastructure/riskPolicyClient";
 import { decryptAgentVaultPolicy, encryptAgentVaultPolicy } from "@/features/agents/infrastructure/vaultCrypto";
 import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -34,6 +35,7 @@ export default function AgentPolicyPage() {
       return raw;
     }
   }, [params?.name]);
+  const applyTypedRiskPolicy = useAgentTypedRiskPolicy(name);
   const display = toDisplayName(name);
   const requestedVenue = venueFromSearch(search.get("venue"));
   const requestedAgent = search.get("agent")?.trim() ?? "";
@@ -82,6 +84,7 @@ export default function AgentPolicyPage() {
         dailyLossCapUsd: normalizePositiveText(policy.dailyLossCapUsd, "100"),
         updatedAt: now,
       };
+      let savedLocally = false;
       try {
         const encrypted = await encryptAgentVaultPolicy(cleaned);
         const sessionsNeedRenewal =
@@ -91,30 +94,48 @@ export default function AgentPolicyPage() {
               session.status === "active" && session.expiresAt > Date.now(),
           );
         saveAgentVaultPolicy(encrypted);
+        savedLocally = true;
         const synced = await syncAgentVaultPolicy(encrypted);
-        if (synced.ok) {
+        const governedSessions = listAgentSessions(name).filter(
+          (session) =>
+            session.status === "active" &&
+            session.expiresAt > Date.now() &&
+            session.onchain?.status === "executed",
+        );
+        let awaitingRiskApprovals = 0;
+        for (const session of governedSessions) {
+          const governed = await applyTypedRiskPolicy(session, encrypted);
+          const savedSession = saveAgentSession(governed);
+          await syncAgentSession(savedSession);
+          if (governed.riskOnchain?.status !== "executed") {
+            awaitingRiskApprovals += 1;
+          }
+        }
+        if (!synced.ok) {
+          toast.info("Safety rules saved on this device for now", {
+            details: synced.message,
+          });
+        } else if (awaitingRiskApprovals > 0) {
+          toast.info("Max-loss rules are waiting for on-chain approval");
+        } else {
           toast.success(
             sessionsNeedRenewal
-              ? "Max-loss rules saved. Review current budgets."
-              : "Safety rules saved",
-          );
-        } else {
-          toast.info(
-            sessionsNeedRenewal
-              ? "Max-loss rules saved here. Review current budgets."
-              : "Safety rules saved on this device for now",
-            {
-              details: synced.message,
-            },
+              ? "Max-loss rules are on chain. Renew current budgets."
+              : "Safety rules are on chain",
           );
         }
         router.push(
           `/app/wallet/${encodeURIComponent(name)}/agents/start?agent=${encodeURIComponent(requestedAgent)}&venue=${encodeURIComponent(requestedVenue ?? "mock_perps")}`,
         );
       } catch (err) {
-        toast.error("Could not save safety rules", {
-          details: err instanceof Error ? err.message : String(err),
-        });
+        const details = err instanceof Error ? err.message : String(err);
+        if (savedLocally) {
+          toast.info("Safety rules were saved, but on-chain protection needs retry", {
+            details,
+          });
+        } else {
+          toast.error("Could not save safety rules", { details });
+        }
       }
     });
   };
