@@ -13,6 +13,8 @@ use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestatio
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::pubkey::Pubkey;
 
+mod agent_risk;
+
 #[derive(Subcommand)]
 pub enum ProposalAction {
     /// Create a new proposal for a custom intent
@@ -308,6 +310,44 @@ pub enum ProposalAction {
         expires_at: i64,
         #[arg(long)]
         status: u8,
+    },
+    /// Configure or pause the on-chain loss/oracle policy for an agent session.
+    TypedAgentRiskPolicy {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        session_id_hash: String,
+        #[arg(long)]
+        oracle_policy_hash: String,
+        #[arg(long)]
+        max_loss_raw: u128,
+        #[arg(long)]
+        status: u8,
+    },
+    /// Apply an owner-approved, artifact-bound settlement to agent accounting.
+    TypedAgentTradeSettlement {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        session_id_hash: String,
+        #[arg(long)]
+        execution_id_hash: String,
+        #[arg(long)]
+        settlement_artifact_hash: String,
+        #[arg(long)]
+        oracle_policy_hash: String,
+        #[arg(long)]
+        closed_notional_raw: u128,
+        #[arg(long)]
+        outcome: u8,
+        #[arg(long)]
+        pnl_abs_raw: u128,
+        #[arg(long)]
+        settlement_sequence: u64,
     },
     /// Execute an approved typed escrow unwind / return.
     ///
@@ -1528,11 +1568,13 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
             let route_hash = decode_hex_32(&route_hash, "route_hash")?;
             let risk_check_hash = decode_hex_32(&risk_check_hash, "risk_check_hash")?;
             let session_pubkey = agent_session_pubkey(wallet_pubkey, session_id_hash);
+            let risk_ledger_pubkey = agent_risk::risk_pubkey(wallet_pubkey, session_id_hash);
             let ix = crate::instructions::execute_typed_agent_trade_approval(
                 wallet_pubkey,
                 intent_pubkey,
                 proposal_pubkey,
                 session_pubkey,
+                risk_ledger_pubkey,
                 proposal_account.policy_commitment,
                 proposal_account.envelope_hash,
                 amount_raw.to_le_bytes(),
@@ -1563,6 +1605,7 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "route_hash": crate::output::hex_of(&route_hash),
                 "risk_check_hash": crate::output::hex_of(&risk_check_hash),
                 "session": session_pubkey.to_string(),
+                "risk_ledger": risk_ledger_pubkey.to_string(),
             }));
         }
 
@@ -1629,6 +1672,52 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 "session": session.to_string(),
             }));
         }
+
+        ProposalAction::TypedAgentRiskPolicy {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            session_id_hash,
+            oracle_policy_hash,
+            max_loss_raw,
+            status,
+        } => agent_risk::execute_risk_policy(
+            config,
+            agent_risk::RiskPolicyExecution {
+                wallet: wallet_name,
+                proposal: proposal_addr_str,
+                session_id_hash,
+                oracle_policy_hash,
+                max_loss_raw,
+                status,
+            },
+        )?,
+
+        ProposalAction::TypedAgentTradeSettlement {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            session_id_hash,
+            execution_id_hash,
+            settlement_artifact_hash,
+            oracle_policy_hash,
+            closed_notional_raw,
+            outcome,
+            pnl_abs_raw,
+            settlement_sequence,
+        } => agent_risk::execute_settlement(
+            config,
+            agent_risk::SettlementExecution {
+                wallet: wallet_name,
+                proposal: proposal_addr_str,
+                session_id_hash,
+                execution_id_hash,
+                settlement_artifact_hash,
+                oracle_policy_hash,
+                closed_notional_raw,
+                outcome,
+                pnl_abs_raw,
+                settlement_sequence,
+            },
+        )?,
 
         ProposalAction::TypedEscrowReturn {
             wallet: wallet_name,

@@ -341,7 +341,7 @@ pub(super) fn execute_typed_agent_session_grant(
     })
 }
 
-fn ensure_wallet_proposal(name: &str, proposal: &str) -> Result<(), ApiError> {
+pub(super) fn ensure_wallet_proposal(name: &str, proposal: &str) -> Result<(), ApiError> {
     ensure_wallet_name(name, "name")?;
     ensure_base58(proposal, "proposal", 32, 88)?;
     Ok(())
@@ -416,7 +416,7 @@ fn ensure_bounded_rows(len: usize, field: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-fn parse_positive_u128(value: &str, field: &str) -> Result<u128, ApiError> {
+pub(super) fn parse_positive_u128(value: &str, field: &str) -> Result<u128, ApiError> {
     let parsed = value
         .trim()
         .parse::<u128>()
@@ -434,7 +434,7 @@ fn validated_base58(value: String, field: &str) -> Result<String, ApiError> {
     Ok(value)
 }
 
-fn validated_hash(value: String, field: &str) -> Result<String, ApiError> {
+pub(super) fn validated_hash(value: String, field: &str) -> Result<String, ApiError> {
     ensure_hex_exact_len(&value, field, 32)?;
     Ok(value.trim().to_lowercase())
 }

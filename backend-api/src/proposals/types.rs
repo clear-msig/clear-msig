@@ -177,3 +177,25 @@ pub(super) struct ExecuteTypedAgentSessionGrantRequest {
     pub(super) expires_at: i64,
     pub(super) status: u8,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedAgentRiskPolicyRequest {
+    pub(super) session_id_hash: String,
+    pub(super) oracle_policy_hash: String,
+    pub(super) max_loss_raw: String,
+    pub(super) status: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedAgentTradeSettlementRequest {
+    pub(super) session_id_hash: String,
+    pub(super) execution_id_hash: String,
+    pub(super) settlement_artifact_hash: String,
+    pub(super) oracle_policy_hash: String,
+    pub(super) closed_notional_raw: String,
+    pub(super) outcome: u8,
+    pub(super) pnl_abs_raw: String,
+    pub(super) settlement_sequence: u64,
+}

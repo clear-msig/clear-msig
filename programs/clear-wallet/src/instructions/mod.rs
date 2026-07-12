@@ -22,6 +22,8 @@ pub mod typed_private_escrow;
 pub use typed_private_escrow::*;
 pub mod typed_agent;
 pub use typed_agent::*;
+pub mod typed_agent_risk;
+pub use typed_agent_risk::*;
 pub mod typed_chain_send;
 pub use typed_chain_send::*;
 pub mod typed_chain_sign;

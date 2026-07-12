@@ -5,7 +5,8 @@ use {
     crate::clear_wallet::cpi::*,
     crate::state::ika_config::{IKA_CONFIG_DISCRIMINATOR, IKA_CONFIG_LEN},
     crate::utils::clearsign::{
-        hash_agent_session_grant_payload, hash_agent_trade_approval_payload,
+        hash_agent_risk_policy_payload, hash_agent_session_grant_payload,
+        hash_agent_trade_approval_payload, hash_agent_trade_settlement_payload,
         hash_batch_send_sol_payload_iter, hash_clear_text, hash_cross_chain_escrow_release_payload,
         hash_cross_chain_escrow_return_payload, hash_envelope, hash_policy_commitment,
         hash_private_escrow_release_payload, hash_private_escrow_return_payload,
@@ -21,9 +22,10 @@ use {
         intent_builder::IntentBuilder,
         intents,
         pda::{
-            compute_name_hash, find_agent_session_address, find_intent_address,
-            find_policy_spend_address, find_proposal_address, find_typed_proposal_address,
-            find_vault_address, find_wallet_address, find_wallet_policy_address,
+            compute_name_hash, find_agent_risk_address, find_agent_session_address,
+            find_agent_settlement_receipt_address, find_intent_address, find_policy_spend_address,
+            find_proposal_address, find_typed_proposal_address, find_vault_address,
+            find_wallet_address, find_wallet_policy_address,
         },
     },
     ed25519_dalek::Signer as DalekSigner,
@@ -715,6 +717,7 @@ fn build_execute_typed_agent_trade_approval_ix(
     intent: Pubkey,
     proposal: Pubkey,
     session: Pubkey,
+    risk_ledger: Pubkey,
     policy_commitment: [u8; 32],
     envelope_hash: [u8; 32],
     amount_raw_le: [u8; 16],
@@ -749,6 +752,7 @@ fn build_execute_typed_agent_trade_approval_ix(
             AccountMeta::new(intent, false),
             AccountMeta::new(proposal, false),
             AccountMeta::new(session, false),
+            AccountMeta::new(risk_ledger, false),
         ],
         data,
     }
@@ -797,6 +801,90 @@ fn build_execute_typed_agent_session_grant_ix(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_agent_risk_policy_ix(
+    payer: Pubkey,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    session: Pubkey,
+    risk_ledger: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    session_id_hash: [u8; 32],
+    oracle_policy_hash: [u8; 32],
+    max_loss_raw: u128,
+    status: u8,
+) -> Instruction {
+    let mut data = vec![29u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &session_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &oracle_policy_hash).unwrap();
+    wincode::serialize_into(&mut data, &max_loss_raw.to_le_bytes()).unwrap();
+    wincode::serialize_into(&mut data, &status).unwrap();
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(session, false),
+            AccountMeta::new(risk_ledger, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_execute_typed_agent_trade_settlement_ix(
+    payer: Pubkey,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    session: Pubkey,
+    risk_ledger: Pubkey,
+    receipt: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    session_id_hash: [u8; 32],
+    execution_id_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+    oracle_policy_hash: [u8; 32],
+    closed_notional_raw: u128,
+    outcome: u8,
+    pnl_abs_raw: u128,
+    settlement_sequence: u64,
+) -> Instruction {
+    let mut data = vec![30u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &session_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &execution_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+    wincode::serialize_into(&mut data, &oracle_policy_hash).unwrap();
+    wincode::serialize_into(&mut data, &closed_notional_raw.to_le_bytes()).unwrap();
+    wincode::serialize_into(&mut data, &outcome).unwrap();
+    wincode::serialize_into(&mut data, &pnl_abs_raw.to_le_bytes()).unwrap();
+    wincode::serialize_into(&mut data, &settlement_sequence).unwrap();
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new(session, false),
+            AccountMeta::new(risk_ledger, false),
+            AccountMeta::new(receipt, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+        ],
+        data,
+    }
+}
+
 fn active_agent_session_account(
     wallet: Pubkey,
     session_id_hash: [u8; 32],
@@ -837,6 +925,41 @@ fn active_agent_session_account(
     data[offset] = bump;
     Account {
         address: session,
+        lamports: 1_000_000,
+        data,
+        owner: crate::ID,
+        executable: false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn active_agent_risk_account(
+    wallet: Pubkey,
+    session_id_hash: [u8; 32],
+    oracle_policy_hash: [u8; 32],
+    max_loss_raw: u128,
+    realized_loss_raw: u128,
+    open_notional_raw: u128,
+    next_settlement_sequence: u64,
+    status: u8,
+) -> Account {
+    let (risk, bump) = find_agent_risk_address(&wallet, &session_id_hash, &crate::ID);
+    let mut data = vec![0u8; crate::state::AGENT_RISK_LEDGER_LEN];
+    let ledger = crate::state::AgentRiskLedger {
+        wallet: solana_address::Address::new_from_array(wallet.to_bytes()),
+        session_id_hash,
+        oracle_policy_hash,
+        max_loss_raw_le: max_loss_raw.to_le_bytes(),
+        realized_loss_raw_le: realized_loss_raw.to_le_bytes(),
+        open_notional_raw_le: open_notional_raw.to_le_bytes(),
+        next_settlement_sequence,
+        last_settlement_artifact_hash: [0u8; 32],
+        status,
+        bump,
+    };
+    unsafe { ledger.write(data.as_mut_ptr()) };
+    Account {
+        address: risk,
         lamports: 1_000_000,
         data,
         owner: crate::ID,
@@ -1542,6 +1665,82 @@ fn propose_typed_agent_session(
             &[funded_account(payer), empty_account(proposal)]
         )
         .is_ok());
+    (proposal, envelope_hash)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn propose_typed_agent_action(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    policy_commitment: [u8; 32],
+    action_kind: ClearSignActionKind,
+    payload_hash: [u8; 32],
+) -> (Pubkey, [u8; 32]) {
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let action_id = sha256_hash(
+        &[
+            b"agent-risk-action:".as_slice(),
+            &[action_kind.code()],
+            &proposal_index.to_le_bytes(),
+        ]
+        .concat(),
+    );
+    let nonce = sha256_hash(
+        &[
+            b"agent-risk-nonce:".as_slice(),
+            &proposal_index.to_le_bytes(),
+        ]
+        .concat(),
+    );
+    let expiry = typed_test_expiry();
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: action_kind,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
+    });
+    let instruction = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: action_kind.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(proposer),
+        signature: sign_typed_vote(
+            proposer,
+            ClearSignVoteKind::Propose,
+            wallet_name,
+            proposal_index,
+            envelope_hash,
+        ),
+        clear_text: TEST_CLEAR_TEXT.to_vec(),
+        policy_bytes: Vec::new(),
+        action_id,
+        nonce,
+    });
+    let result = svm.process_instruction(
+        &instruction,
+        &[funded_account(payer), empty_account(proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "typed agent risk proposal failed: {:?}",
+        result.raw_result
+    );
     (proposal, envelope_hash)
 }
 
@@ -3968,6 +4167,364 @@ fn test_execute_typed_agent_session_grant_binds_status_and_revokes() {
 }
 
 #[test]
+fn test_execute_typed_agent_risk_policy_creates_bound_ledger() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-agent-risk";
+    let session_id_hash = sha256_hash(b"session:risk-policy");
+    let agent_id_hash = sha256_hash(b"agent:risk-policy");
+    let venue_hash = sha256_hash(b"hyperliquid:testnet");
+    let market_hash = sha256_hash(b"BTC-PERP");
+    let oracle_policy_hash = sha256_hash(b"oracle:hyperliquid-account-state:v1");
+    let max_loss_raw = 75_000_000u128;
+    let policy_commitment = hash_policy_commitment(&[b"agent:risk-policy:v1"]);
+
+    let (create, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&create, &accounts).is_ok());
+    let wallet = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    )
+    .0;
+    let intent = find_intent_address(&wallet, 0, &crate::ID).0;
+    let session_account = active_agent_session_account(
+        wallet,
+        session_id_hash,
+        agent_id_hash,
+        venue_hash,
+        market_hash,
+        policy_commitment,
+        1_000_000_000,
+        200,
+        typed_test_expiry() + 3_600,
+    );
+    let session = session_account.address;
+    svm.set_account(session_account);
+    let risk = find_agent_risk_address(&wallet, &session_id_hash, &crate::ID).0;
+    let payload_hash = hash_agent_risk_policy_payload(
+        &session_id_hash,
+        &oracle_policy_hash,
+        max_loss_raw,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
+    );
+    let (proposal, envelope_hash) = propose_typed_agent_action(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        0,
+        &proposer,
+        policy_commitment,
+        ClearSignActionKind::AgentRiskPolicy,
+        payload_hash,
+    );
+    let changed_oracle = build_execute_typed_agent_risk_policy_ix(
+        payer,
+        wallet,
+        intent,
+        proposal,
+        session,
+        risk,
+        policy_commitment,
+        envelope_hash,
+        session_id_hash,
+        sha256_hash(b"oracle:compromised-adapter"),
+        max_loss_raw,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
+    );
+    assert!(
+        svm.process_instruction(
+            &changed_oracle,
+            &[funded_account(payer), empty_account(risk)]
+        )
+        .is_err(),
+        "risk policy accepted a substituted oracle commitment"
+    );
+    let execute = build_execute_typed_agent_risk_policy_ix(
+        payer,
+        wallet,
+        intent,
+        proposal,
+        session,
+        risk,
+        policy_commitment,
+        envelope_hash,
+        session_id_hash,
+        oracle_policy_hash,
+        max_loss_raw,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
+    );
+    let result = svm.process_instruction(&execute, &[funded_account(payer), empty_account(risk)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(result.is_ok(), "risk policy execution failed");
+    let ledger =
+        crate::state::AgentRiskLedger::read(&svm.get_account(&risk).unwrap().data).unwrap();
+    assert!(ledger.is_active());
+    assert_eq!(ledger.max_loss_raw(), max_loss_raw);
+    assert_eq!(ledger.oracle_policy_hash, oracle_policy_hash);
+    assert_eq!(ledger.realized_loss_raw(), 0);
+    assert_eq!(ledger.open_notional_raw(), 0);
+}
+
+#[test]
+fn test_agent_settlement_binds_artifact_replays_and_loss_cap() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-agent-settlement";
+    let session_id_hash = sha256_hash(b"session:settlement");
+    let agent_id_hash = sha256_hash(b"agent:settlement");
+    let venue_hash = sha256_hash(b"hyperliquid:testnet");
+    let market_hash = sha256_hash(b"BTC-PERP");
+    let oracle_policy_hash = sha256_hash(b"oracle:hyperliquid-account-state:v1");
+    let policy_commitment = hash_policy_commitment(&[b"agent:settlement:v1"]);
+
+    let (create, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&create, &accounts).is_ok());
+    let wallet = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    )
+    .0;
+    let intent = find_intent_address(&wallet, 0, &crate::ID).0;
+    let session_account = active_agent_session_account(
+        wallet,
+        session_id_hash,
+        agent_id_hash,
+        venue_hash,
+        market_hash,
+        policy_commitment,
+        1_000_000_000,
+        200,
+        typed_test_expiry() + 3_600,
+    );
+    let session = session_account.address;
+    svm.set_account(session_account);
+    let risk_account = active_agent_risk_account(
+        wallet,
+        session_id_hash,
+        oracle_policy_hash,
+        100,
+        0,
+        500,
+        0,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
+    );
+    let risk = risk_account.address;
+    svm.set_account(risk_account);
+
+    let first_execution = sha256_hash(b"execution:first");
+    let first_artifact = sha256_hash(b"venue-receipt:first");
+    let first_payload = hash_agent_trade_settlement_payload(
+        &session_id_hash,
+        &first_execution,
+        &first_artifact,
+        &oracle_policy_hash,
+        250,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
+        60,
+        0,
+    );
+    let (first_proposal, first_envelope) = propose_typed_agent_action(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        0,
+        &proposer,
+        policy_commitment,
+        ClearSignActionKind::AgentTradeSettlement,
+        first_payload,
+    );
+    let first_receipt =
+        find_agent_settlement_receipt_address(&wallet, &first_artifact, &crate::ID).0;
+    let changed_artifact = build_execute_typed_agent_trade_settlement_ix(
+        payer,
+        wallet,
+        intent,
+        first_proposal,
+        session,
+        risk,
+        first_receipt,
+        policy_commitment,
+        first_envelope,
+        session_id_hash,
+        first_execution,
+        sha256_hash(b"venue-receipt:forged"),
+        oracle_policy_hash,
+        250,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
+        60,
+        0,
+    );
+    assert!(
+        svm.process_instruction(
+            &changed_artifact,
+            &[funded_account(payer), empty_account(first_receipt)]
+        )
+        .is_err(),
+        "settlement accepted a compromised adapter artifact"
+    );
+    let first = build_execute_typed_agent_trade_settlement_ix(
+        payer,
+        wallet,
+        intent,
+        first_proposal,
+        session,
+        risk,
+        first_receipt,
+        policy_commitment,
+        first_envelope,
+        session_id_hash,
+        first_execution,
+        first_artifact,
+        oracle_policy_hash,
+        250,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
+        60,
+        0,
+    );
+    assert!(svm
+        .process_instruction(
+            &first,
+            &[funded_account(payer), empty_account(first_receipt)]
+        )
+        .is_ok());
+    let after_first =
+        crate::state::AgentRiskLedger::read(&svm.get_account(&risk).unwrap().data).unwrap();
+    assert_eq!(after_first.open_notional_raw(), 250);
+    assert_eq!(after_first.realized_loss_raw(), 60);
+    assert_eq!(after_first.next_settlement_sequence, 1);
+    assert!(svm.get_account(&first_receipt).is_some());
+
+    let replay_payload = hash_agent_trade_settlement_payload(
+        &session_id_hash,
+        &sha256_hash(b"execution:replay"),
+        &first_artifact,
+        &oracle_policy_hash,
+        100,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_PROFIT,
+        1,
+        1,
+    );
+    let (replay_proposal, replay_envelope) = propose_typed_agent_action(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        1,
+        &proposer,
+        policy_commitment,
+        ClearSignActionKind::AgentTradeSettlement,
+        replay_payload,
+    );
+    let replay = build_execute_typed_agent_trade_settlement_ix(
+        payer,
+        wallet,
+        intent,
+        replay_proposal,
+        session,
+        risk,
+        first_receipt,
+        policy_commitment,
+        replay_envelope,
+        session_id_hash,
+        sha256_hash(b"execution:replay"),
+        first_artifact,
+        oracle_policy_hash,
+        100,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_PROFIT,
+        1,
+        1,
+    );
+    assert!(
+        svm.process_instruction(&replay, &[funded_account(payer)])
+            .is_err(),
+        "settlement artifact receipt was replayed"
+    );
+
+    let second_execution = sha256_hash(b"execution:second");
+    let second_artifact = sha256_hash(b"venue-receipt:second");
+    let second_payload = hash_agent_trade_settlement_payload(
+        &session_id_hash,
+        &second_execution,
+        &second_artifact,
+        &oracle_policy_hash,
+        250,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
+        50,
+        1,
+    );
+    let (second_proposal, second_envelope) = propose_typed_agent_action(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        2,
+        &proposer,
+        policy_commitment,
+        ClearSignActionKind::AgentTradeSettlement,
+        second_payload,
+    );
+    let second_receipt =
+        find_agent_settlement_receipt_address(&wallet, &second_artifact, &crate::ID).0;
+    let second = build_execute_typed_agent_trade_settlement_ix(
+        payer,
+        wallet,
+        intent,
+        second_proposal,
+        session,
+        risk,
+        second_receipt,
+        policy_commitment,
+        second_envelope,
+        session_id_hash,
+        second_execution,
+        second_artifact,
+        oracle_policy_hash,
+        250,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
+        50,
+        1,
+    );
+    assert!(svm
+        .process_instruction(
+            &second,
+            &[funded_account(payer), empty_account(second_receipt)]
+        )
+        .is_ok());
+    let final_risk =
+        crate::state::AgentRiskLedger::read(&svm.get_account(&risk).unwrap().data).unwrap();
+    let final_session =
+        crate::state::AgentSession::read(&svm.get_account(&session).unwrap().data).unwrap();
+    assert_eq!(final_risk.open_notional_raw(), 0);
+    assert_eq!(final_risk.realized_loss_raw(), 110);
+    assert!(!final_risk.is_active());
+    assert!(!final_session.is_active());
+}
+
+#[test]
 fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
     let mut svm = setup();
     let payer = Pubkey::new_unique();
@@ -3982,6 +4539,7 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
     let session_id_hash = sha256_hash(b"agent-session:morning-risk-pass");
     let route_hash = sha256_hash(b"clearsig-agent:hyperliquid:testnet:limit");
     let risk_check_hash = sha256_hash(b"risk-ok:cap-velocity-thesis-stoploss-v1");
+    let oracle_policy_hash = sha256_hash(b"oracle:hyperliquid-testnet:account-state-v1");
     let wrong_risk_check_hash = sha256_hash(b"risk-skipped:wrong-artifact");
     let action_id = sha256_hash(b"agent-trade-action-1");
     let nonce = sha256_hash(b"agent-trade-nonce-1");
@@ -4077,12 +4635,49 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
     );
     let session_pk = session_account.address;
     svm.set_account(session_account.clone());
+    let risk_pk = find_agent_risk_address(&wallet, &session_id_hash, &crate::ID).0;
+    let missing_risk_execute = build_execute_typed_agent_trade_approval_ix(
+        wallet,
+        intent,
+        proposal,
+        session_pk,
+        risk_pk,
+        policy_commitment,
+        envelope_hash,
+        amount_raw.to_le_bytes(),
+        agent_id_hash,
+        venue_hash,
+        market_hash,
+        side_hash,
+        asset_id_hash,
+        max_leverage_x100,
+        session_id_hash,
+        route_hash,
+        risk_check_hash,
+    );
+    assert!(
+        svm.process_instruction(&missing_risk_execute, &[]).is_err(),
+        "agent trade executed without a program-owned risk ledger"
+    );
+    let risk_account = active_agent_risk_account(
+        wallet,
+        session_id_hash,
+        oracle_policy_hash,
+        100_000_000,
+        0,
+        0,
+        0,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
+    );
+    assert_eq!(risk_pk, risk_account.address);
+    svm.set_account(risk_account);
 
     let wrong_execute = build_execute_typed_agent_trade_approval_ix(
         wallet,
         intent,
         proposal,
         session_pk,
+        risk_pk,
         policy_commitment,
         envelope_hash,
         amount_raw.to_le_bytes(),
@@ -4105,6 +4700,7 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
         intent,
         proposal,
         session_pk,
+        risk_pk,
         policy_commitment,
         envelope_hash,
         amount_raw.to_le_bytes(),
@@ -4128,6 +4724,7 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
         intent,
         proposal,
         session_pk,
+        risk_pk,
         policy_commitment,
         envelope_hash,
         amount_raw.to_le_bytes(),
@@ -4250,6 +4847,44 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
         );
     }
     svm.set_account(session_account);
+    svm.set_account(active_agent_risk_account(
+        wallet,
+        session_id_hash,
+        oracle_policy_hash,
+        100_000_000,
+        0,
+        1_000_000_000 - amount_raw + 1,
+        0,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
+    ));
+    assert!(
+        svm.process_instruction(&execute, &[]).is_err(),
+        "aggregate open exposure exceeded the session notional cap"
+    );
+    svm.set_account(active_agent_risk_account(
+        wallet,
+        session_id_hash,
+        oracle_policy_hash,
+        100_000_000,
+        100_000_000,
+        0,
+        0,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
+    ));
+    assert!(
+        svm.process_instruction(&execute, &[]).is_err(),
+        "trade executed after realized loss exhausted the risk cap"
+    );
+    svm.set_account(active_agent_risk_account(
+        wallet,
+        session_id_hash,
+        oracle_policy_hash,
+        100_000_000,
+        0,
+        0,
+        0,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
+    ));
 
     let result = svm.process_instruction(&execute, &[]);
     if result.is_err() {
@@ -4270,6 +4905,9 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
             .unwrap()
             .spent_notional_raw();
     assert_eq!(spent_after_first, amount_raw);
+    let risk_after_first =
+        crate::state::AgentRiskLedger::read(&svm.get_account(&risk_pk).unwrap().data).unwrap();
+    assert_eq!(risk_after_first.open_notional_raw(), amount_raw);
     assert!(
         svm.process_instruction(&execute, &[]).is_err(),
         "executed agent trade approval must not consume session allowance twice"
@@ -4279,6 +4917,9 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
             .unwrap()
             .spent_notional_raw();
     assert_eq!(spent_after_replay, spent_after_first);
+    let risk_after_replay =
+        crate::state::AgentRiskLedger::read(&svm.get_account(&risk_pk).unwrap().data).unwrap();
+    assert_eq!(risk_after_replay.open_notional_raw(), amount_raw);
 }
 
 #[test]

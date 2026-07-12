@@ -21,6 +21,8 @@ pub enum ClearSignActionKind {
     RecoveryAction = 10,
     SwapIntent = 11,
     AgentSessionGrant = 12,
+    AgentRiskPolicy = 13,
+    AgentTradeSettlement = 14,
 }
 
 impl ClearSignActionKind {
@@ -38,6 +40,8 @@ impl ClearSignActionKind {
             10 => Some(Self::RecoveryAction),
             11 => Some(Self::SwapIntent),
             12 => Some(Self::AgentSessionGrant),
+            13 => Some(Self::AgentRiskPolicy),
+            14 => Some(Self::AgentTradeSettlement),
             _ => None,
         }
     }
@@ -60,6 +64,8 @@ impl ClearSignActionKind {
             Self::RecoveryAction => "Approve recovery",
             Self::SwapIntent => "Approve swap",
             Self::AgentSessionGrant => "Grant agent session",
+            Self::AgentRiskPolicy => "Set agent risk policy",
+            Self::AgentTradeSettlement => "Settle agent trade",
         }
     }
 }
@@ -532,6 +538,48 @@ pub fn hash_agent_session_grant_payload(
     finish_hash(hasher)
 }
 
+/// Governed loss policy for one agent session.
+pub fn hash_agent_risk_policy_payload(
+    session_id_hash: &[u8; 32],
+    oracle_policy_hash: &[u8; 32],
+    max_loss_raw: u128,
+    status: u8,
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::AgentRiskPolicy);
+    update_bytes(&mut hasher, b"agent_risk_policy");
+    hasher.update(session_id_hash);
+    hasher.update(oracle_policy_hash);
+    hasher.update(max_loss_raw.to_le_bytes());
+    hasher.update([status]);
+    finish_hash(hasher)
+}
+
+/// Owner-approved settlement binds accounting to an immutable venue/oracle
+/// artifact and a strictly increasing session sequence.
+#[allow(clippy::too_many_arguments)]
+pub fn hash_agent_trade_settlement_payload(
+    session_id_hash: &[u8; 32],
+    execution_id_hash: &[u8; 32],
+    settlement_artifact_hash: &[u8; 32],
+    oracle_policy_hash: &[u8; 32],
+    closed_notional_raw: u128,
+    outcome: u8,
+    pnl_abs_raw: u128,
+    settlement_sequence: u64,
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::AgentTradeSettlement);
+    update_bytes(&mut hasher, b"agent_trade_settlement");
+    hasher.update(session_id_hash);
+    hasher.update(execution_id_hash);
+    hasher.update(settlement_artifact_hash);
+    hasher.update(oracle_policy_hash);
+    hasher.update(closed_notional_raw.to_le_bytes());
+    hasher.update([outcome]);
+    hasher.update(pnl_abs_raw.to_le_bytes());
+    hasher.update(settlement_sequence.to_le_bytes());
+    finish_hash(hasher)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn hash_agent_trade_approval_payload(
     agent_id_hash: &[u8],
@@ -674,6 +722,8 @@ mod tests {
         assert_eq!(ClearSignActionKind::Send.code(), 1);
         assert_eq!(ClearSignActionKind::ReturnEscrowFunds.code(), 8);
         assert_eq!(ClearSignActionKind::SwapIntent.code(), 11);
+        assert_eq!(ClearSignActionKind::AgentRiskPolicy.code(), 13);
+        assert_eq!(ClearSignActionKind::AgentTradeSettlement.code(), 14);
         assert_eq!(
             ClearSignActionKind::from_code(9),
             Some(ClearSignActionKind::AgentTradeApproval)

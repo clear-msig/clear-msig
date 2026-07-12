@@ -115,8 +115,8 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
     id: "agent-trade-approval",
     label: "Agent trade approval",
     status: "typed_onchain",
-    signedPath: "typed proposal -> agent session PDA notional debit",
-    notes: "Program gates trade finalizer on an active AgentSession (expiry, venue/market, leverage, remaining notional).",
+    signedPath: "typed proposal -> session debit + risk-ledger exposure reserve",
+    notes: "Program requires active AgentSession and AgentRiskLedger PDAs, then atomically accounts cumulative notional and open exposure.",
   },
   {
     id: "agent-session-grant",
@@ -124,6 +124,20 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
     status: "typed_onchain",
     signedPath: "typed proposal -> execute_typed_agent_session_grant",
     notes: "Creates or revokes program-owned AgentSession PDA bound by ClearSign AgentSessionGrant payload.",
+  },
+  {
+    id: "agent-risk-policy",
+    label: "Agent loss and oracle policy",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> execute_typed_agent_risk_policy",
+    notes: "Threshold owners bind maximum realized loss and an oracle-policy commitment without resetting existing accounting.",
+  },
+  {
+    id: "agent-trade-settlement",
+    label: "Agent trade settlement",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> risk ledger + immutable artifact receipt PDA",
+    notes: "Owner-approved settlement closes exposure, records loss, advances a strict sequence, and prevents artifact replay. Native venue attestation verification remains pending.",
   },
   {
     id: "member-allowances",

@@ -18,6 +18,10 @@ grep -q 'run_direct' backend-api/src/intents.rs
 grep -q 'run_direct' backend-api/src/proposals.rs
 grep -q 'TypedProposalExecution' backend-api/src/proposals/typed_execution.rs
 grep -q 'TypedProposalLifecycle' backend-api/src/proposals/typed_lifecycle.rs
+grep -q 'TypedProposalExecution::AgentRiskPolicy' backend-api/src/proposals/typed_agent_risk.rs
+grep -q 'TypedProposalExecution::AgentTradeSettlement' backend-api/src/proposals/typed_agent_risk.rs
+grep -q 'typed-agent-risk-policy' backend-api/src/proposals.rs
+grep -q 'typed-agent-trade-settlement' backend-api/src/proposals.rs
 
 if grep -REn 'clear_msig_execution::(DirectCommand|DirectExecutionContext|TypedProposalExecution|TypedExecutionContext|TypedProposalLifecycle|LamportPayment)' backend-api/src; then
   echo "Backend architecture check failed: backend domain types leaked into the execution infrastructure crate." >&2

@@ -14,7 +14,9 @@ export type ClearSignActionKind =
   | "agent_trade_approval"
   | "recovery_action"
   | "swap_intent"
-  | "agent_session_grant";
+  | "agent_session_grant"
+  | "agent_risk_policy"
+  | "agent_trade_settlement";
 
 export interface ClearSignEnvelope<TPayload extends ClearSignPayload> {
   version: 2;
@@ -38,6 +40,8 @@ export type ClearSignPayload =
   | EscrowReturnPayload
   | AgentTradePayload
   | AgentSessionGrantPayload
+  | AgentRiskPolicyPayload
+  | AgentTradeSettlementPayload
   | RecoveryPayload
   | SwapPayload;
 
@@ -125,6 +129,24 @@ export interface AgentSessionGrantPayload {
   maxLeverage: string;
   expiresAt: number;
   status: "active" | "revoked";
+}
+
+export interface AgentRiskPolicyPayload {
+  sessionId: string;
+  oraclePolicyHash: string;
+  maxLossRaw: string;
+  status: "active" | "paused";
+}
+
+export interface AgentTradeSettlementPayload {
+  sessionId: string;
+  executionId: string;
+  settlementArtifactHash: string;
+  oraclePolicyHash: string;
+  closedNotionalRaw: string;
+  outcome: "profit" | "loss" | "flat";
+  pnlAbsRaw: string;
+  settlementSequence: number;
 }
 
 export interface RecoveryPayload {
@@ -260,6 +282,10 @@ export function clearSignActionKindCode(kind: ClearSignActionKind): number {
       return 11;
     case "agent_session_grant":
       return 12;
+    case "agent_risk_policy":
+      return 13;
+    case "agent_trade_settlement":
+      return 14;
   }
 }
 
@@ -333,6 +359,23 @@ function actionLines(envelope: ClearSignEnvelope<ClearSignPayload>): string[] {
         `${payload.status === "revoked" ? "Revoke" : "Grant"} agent session for ${payload.agentId}`,
         `${payload.market} on ${payload.venue} up to $${payload.maxNotionalUsd}`,
         `Max leverage ${payload.maxLeverage}`,
+      ];
+    }
+    case "agent_risk_policy": {
+      const payload = envelope.payload as AgentRiskPolicyPayload;
+      return [
+        `${payload.status === "paused" ? "Pause" : "Set"} agent risk policy for ${payload.sessionId}`,
+        `Maximum realized loss ${payload.maxLossRaw} raw units`,
+        `Oracle policy ${payload.oraclePolicyHash}`,
+      ];
+    }
+    case "agent_trade_settlement": {
+      const payload = envelope.payload as AgentTradeSettlementPayload;
+      return [
+        `Settle agent execution ${payload.executionId}`,
+        `Close ${payload.closedNotionalRaw} raw notional as ${payload.outcome}`,
+        `Absolute P/L ${payload.pnlAbsRaw} raw units, sequence ${payload.settlementSequence}`,
+        `Settlement artifact ${payload.settlementArtifactHash}`,
       ];
     }
     case "recovery_action": {
@@ -438,6 +481,28 @@ function normalizePayload(
         status: row.status,
       };
     }
+    case "agent_risk_policy": {
+      const row = payload as AgentRiskPolicyPayload;
+      return {
+        sessionId: normalizeText(row.sessionId),
+        oraclePolicyHash: normalizeHash(row.oraclePolicyHash),
+        maxLossRaw: normalizeRawInteger(row.maxLossRaw),
+        status: row.status,
+      };
+    }
+    case "agent_trade_settlement": {
+      const row = payload as AgentTradeSettlementPayload;
+      return {
+        sessionId: normalizeText(row.sessionId),
+        executionId: normalizeText(row.executionId),
+        settlementArtifactHash: normalizeHash(row.settlementArtifactHash),
+        oraclePolicyHash: normalizeHash(row.oraclePolicyHash),
+        closedNotionalRaw: normalizeRawInteger(row.closedNotionalRaw),
+        outcome: row.outcome,
+        pnlAbsRaw: normalizeRawInteger(row.pnlAbsRaw),
+        settlementSequence: normalizeSettlementSequence(row.settlementSequence),
+      };
+    }
     case "recovery_action":
       return {
         recoveryAction: normalizeText((payload as RecoveryPayload).recoveryAction),
@@ -523,6 +588,41 @@ function canonicalPayloadBytes(
       out.pushU32(leverageToX100(row.maxLeverage));
       out.pushI64(BigInt(Math.trunc(row.expiresAt)));
       out.pushU8(row.status === "active" ? 1 : 2);
+      break;
+    }
+    case "agent_risk_policy": {
+      const row = normalizePayload(kind, payload) as AgentRiskPolicyPayload;
+      const maxLossRaw = BigInt(row.maxLossRaw);
+      if (row.status === "active" && maxLossRaw === 0n) {
+        throw new Error("Active agent risk policy requires positive maxLossRaw.");
+      }
+      out.pushBytes("agent_risk_policy");
+      out.pushRaw(textCommitment(row.sessionId));
+      out.pushRaw(hash32FromHex(row.oraclePolicyHash, "oraclePolicyHash"));
+      out.pushU128(maxLossRaw);
+      out.pushU8(row.status === "active" ? 1 : 2);
+      break;
+    }
+    case "agent_trade_settlement": {
+      const row = normalizePayload(kind, payload) as AgentTradeSettlementPayload;
+      const closedNotionalRaw = BigInt(row.closedNotionalRaw);
+      const pnlAbsRaw = BigInt(row.pnlAbsRaw);
+      if (
+        closedNotionalRaw === 0n ||
+        (row.outcome === "flat" && pnlAbsRaw !== 0n) ||
+        (row.outcome !== "flat" && pnlAbsRaw === 0n)
+      ) {
+        throw new Error("Agent settlement amount or outcome is invalid.");
+      }
+      out.pushBytes("agent_trade_settlement");
+      out.pushRaw(textCommitment(row.sessionId));
+      out.pushRaw(textCommitment(row.executionId));
+      out.pushRaw(hash32FromHex(row.settlementArtifactHash, "settlementArtifactHash"));
+      out.pushRaw(hash32FromHex(row.oraclePolicyHash, "oraclePolicyHash"));
+      out.pushU128(closedNotionalRaw);
+      out.pushU8(row.outcome === "profit" ? 1 : row.outcome === "loss" ? 2 : 3);
+      out.pushU128(pnlAbsRaw);
+      out.pushU64(BigInt(row.settlementSequence));
       break;
     }
     case "set_protection": {
@@ -658,6 +758,15 @@ function normalizeText(value: string): string {
   return value.trim();
 }
 
+function normalizeRawInteger(value: string): string {
+  const normalized = normalizeText(value);
+  const parsed = BigInt(normalized);
+  if (parsed < 0n || parsed > (1n << 128n) - 1n) {
+    throw new Error("Raw integer is outside the u128 range.");
+  }
+  return parsed.toString();
+}
+
 function normalizeOptional(value: string | undefined): string {
   return value?.trim() ?? "";
 }
@@ -668,6 +777,13 @@ function normalizeHash(value: string): string {
 
 function normalizeNumber(value: number): number {
   return Number.isFinite(value) ? Number(value) : 0;
+}
+
+function normalizeSettlementSequence(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error("Settlement sequence must be a non-negative safe integer.");
+  }
+  return value;
 }
 
 function normalizeOptionalNumber(value: number | undefined): number | undefined {
@@ -687,9 +803,13 @@ function textCommitment(value: string): Uint8Array {
 }
 
 function hashBytesFromHex(value: string): Uint8Array {
+  return hash32FromHex(value, "riskCheckHash");
+}
+
+function hash32FromHex(value: string, field: string): Uint8Array {
   const normalized = normalizeHash(value);
   if (!/^[0-9a-f]{64}$/.test(normalized)) {
-    throw new Error("Agent trade riskCheckHash must be a 32-byte hex hash.");
+    throw new Error(`${field} must be a 32-byte hex hash.`);
   }
   return fromHex(normalized);
 }

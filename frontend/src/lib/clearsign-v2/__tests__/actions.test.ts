@@ -6,7 +6,9 @@ import {
   clearSignVoteMessage,
   summarizeClearSignAction,
   type AgentSessionGrantPayload,
+  type AgentRiskPolicyPayload,
   type AgentTradePayload,
+  type AgentTradeSettlementPayload,
   type ClearSignEnvelope,
   type EscrowReturnPayload,
   type SendPayload,
@@ -188,6 +190,8 @@ describe("ClearSign v2 actions", () => {
     expect(clearSignActionKindCode("return_escrow_funds")).toBe(8);
     expect(clearSignActionKindCode("swap_intent")).toBe(11);
     expect(clearSignActionKindCode("agent_session_grant")).toBe(12);
+    expect(clearSignActionKindCode("agent_risk_policy")).toBe(13);
+    expect(clearSignActionKindCode("agent_trade_settlement")).toBe(14);
   });
 
   it("binds agent session status and limits into the payload hash", () => {
@@ -279,6 +283,77 @@ describe("ClearSign v2 actions", () => {
     expect(() => clearSignPayloadHash(envelope)).toThrow(
       /requires agentId, venue, assetId, sessionId, route, and riskCheckHash/,
     );
+  });
+
+  it("binds agent loss policy and oracle assumptions", () => {
+    const envelope: ClearSignEnvelope<AgentRiskPolicyPayload> = {
+      ...base,
+      kind: "agent_risk_policy",
+      payload: {
+        sessionId: "session-1",
+        oraclePolicyHash: "11".repeat(32),
+        maxLossRaw: "100000000",
+        status: "active",
+      },
+    };
+
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: { ...envelope.payload, maxLossRaw: "100000001" },
+      }),
+    );
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: { ...envelope.payload, oraclePolicyHash: "22".repeat(32) },
+      }),
+    );
+  });
+
+  it("binds agent settlement artifact, accounting, and sequence", () => {
+    const envelope: ClearSignEnvelope<AgentTradeSettlementPayload> = {
+      ...base,
+      kind: "agent_trade_settlement",
+      payload: {
+        sessionId: "session-1",
+        executionId: "execution-1",
+        settlementArtifactHash: "33".repeat(32),
+        oraclePolicyHash: "11".repeat(32),
+        closedNotionalRaw: "250000000",
+        outcome: "loss",
+        pnlAbsRaw: "50000000",
+        settlementSequence: 4,
+      },
+    };
+
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: { ...envelope.payload, settlementSequence: 5 },
+      }),
+    );
+    expect(clearSignPayloadHash(envelope)).not.toBe(
+      clearSignPayloadHash({
+        ...envelope,
+        payload: { ...envelope.payload, settlementArtifactHash: "44".repeat(32) },
+      }),
+    );
+    expect(() =>
+      clearSignPayloadHash({
+        ...envelope,
+        payload: {
+          ...envelope.payload,
+          settlementSequence: Number.MAX_SAFE_INTEGER + 1,
+        },
+      }),
+    ).toThrow(/non-negative safe integer/);
+    expect(() =>
+      clearSignPayloadHash({
+        ...envelope,
+        payload: { ...envelope.payload, settlementArtifactHash: "abcd" },
+      }),
+    ).toThrow(/settlementArtifactHash must be a 32-byte hex hash/);
   });
 
   it("binds envelope hash to replay fields", () => {

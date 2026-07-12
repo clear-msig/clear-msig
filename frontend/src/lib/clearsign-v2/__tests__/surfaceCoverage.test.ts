@@ -23,6 +23,8 @@ describe("ClearSign surface coverage", () => {
       "members-policy",
       "agent-trade-approval",
       "agent-session-grant",
+      "agent-risk-policy",
+      "agent-trade-settlement",
       "member-allowances",
       "agent-settings",
     ]);

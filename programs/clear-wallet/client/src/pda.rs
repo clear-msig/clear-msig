@@ -50,6 +50,32 @@ pub fn find_agent_session_address(
     )
 }
 
+pub fn find_agent_risk_address(
+    wallet: &Address,
+    session_id_hash: &[u8; 32],
+    program_id: &Address,
+) -> (Address, u8) {
+    Address::find_program_address(
+        &[b"agent_risk", wallet.as_ref(), session_id_hash.as_ref()],
+        program_id,
+    )
+}
+
+pub fn find_agent_settlement_receipt_address(
+    wallet: &Address,
+    settlement_artifact_hash: &[u8; 32],
+    program_id: &Address,
+) -> (Address, u8) {
+    Address::find_program_address(
+        &[
+            b"agent_settlement",
+            wallet.as_ref(),
+            settlement_artifact_hash.as_ref(),
+        ],
+        program_id,
+    )
+}
+
 pub fn find_wallet_policy_address(wallet: &Address, program_id: &Address) -> (Address, u8) {
     Address::find_program_address(&[b"wallet_policy", wallet.as_ref()], program_id)
 }

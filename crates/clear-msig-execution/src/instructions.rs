@@ -748,6 +748,7 @@ pub fn execute_typed_agent_trade_approval(
     intent: Pubkey,
     proposal: Pubkey,
     session: Pubkey,
+    risk_ledger: Pubkey,
     policy_commitment: [u8; 32],
     envelope_hash: [u8; 32],
     amount_raw_le: [u8; 16],
@@ -766,6 +767,7 @@ pub fn execute_typed_agent_trade_approval(
         AccountMeta::new(intent, false),
         AccountMeta::new(proposal, false),
         AccountMeta::new(session, false),
+        AccountMeta::new(risk_ledger, false),
     ];
 
     let mut data = vec![23u8];
@@ -782,6 +784,94 @@ pub fn execute_typed_agent_trade_approval(
     wincode::serialize_into(&mut data, &route_hash).unwrap();
     wincode::serialize_into(&mut data, &risk_check_hash).unwrap();
 
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_agent_risk_policy instruction (discriminator 29).
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_agent_risk_policy(
+    payer: Pubkey,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    session: Pubkey,
+    risk_ledger: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    session_id_hash: [u8; 32],
+    oracle_policy_hash: [u8; 32],
+    max_loss_raw_le: [u8; 16],
+    status: u8,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(session, false),
+        AccountMeta::new(risk_ledger, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+    let mut data = vec![29u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &session_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &oracle_policy_hash).unwrap();
+    wincode::serialize_into(&mut data, &max_loss_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &status).unwrap();
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
+/// Build execute_typed_agent_trade_settlement instruction (discriminator 30).
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_agent_trade_settlement(
+    payer: Pubkey,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    session: Pubkey,
+    risk_ledger: Pubkey,
+    settlement_receipt: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    session_id_hash: [u8; 32],
+    execution_id_hash: [u8; 32],
+    settlement_artifact_hash: [u8; 32],
+    oracle_policy_hash: [u8; 32],
+    closed_notional_raw_le: [u8; 16],
+    outcome: u8,
+    pnl_abs_raw_le: [u8; 16],
+    settlement_sequence: u64,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new(session, false),
+        AccountMeta::new(risk_ledger, false),
+        AccountMeta::new(settlement_receipt, false),
+        AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+    ];
+    let mut data = vec![30u8];
+    wincode::serialize_into(&mut data, &policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &session_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &execution_id_hash).unwrap();
+    wincode::serialize_into(&mut data, &settlement_artifact_hash).unwrap();
+    wincode::serialize_into(&mut data, &oracle_policy_hash).unwrap();
+    wincode::serialize_into(&mut data, &closed_notional_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &outcome).unwrap();
+    wincode::serialize_into(&mut data, &pnl_abs_raw_le).unwrap();
+    wincode::serialize_into(&mut data, &settlement_sequence).unwrap();
     Instruction {
         program_id: program_id(),
         accounts,
@@ -1447,6 +1537,7 @@ mod tests {
             key(2),
             key(3),
             key(4),
+            key(5),
             [5; 32],
             [6; 32],
             100_000_000u128.to_le_bytes(),
@@ -1463,11 +1554,58 @@ mod tests {
 
         assert_eq!(trade.data[0], 23);
         assert_eq!(trade.data.len(), 341);
-        assert_eq!(trade.accounts.len(), 4);
+        assert_eq!(trade.accounts.len(), 5);
         assert!(!trade.accounts[0].is_writable);
         assert!(trade.accounts[1].is_writable);
         assert!(trade.accounts[2].is_writable);
         assert!(trade.accounts[3].is_writable);
+        assert!(trade.accounts[4].is_writable);
+    }
+
+    #[test]
+    fn typed_agent_risk_and_settlement_use_program_owned_ledgers() {
+        let risk = execute_typed_agent_risk_policy(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            key(6),
+            [7; 32],
+            [8; 32],
+            [9; 32],
+            [10; 32],
+            100u128.to_le_bytes(),
+            1,
+        );
+        assert_eq!(risk.data[0], 29);
+        assert_eq!(risk.accounts.len(), 7);
+        assert!(risk.accounts[5].is_writable);
+
+        let settlement = execute_typed_agent_trade_settlement(
+            key(1),
+            key(2),
+            key(3),
+            key(4),
+            key(5),
+            key(6),
+            key(7),
+            [8; 32],
+            [9; 32],
+            [10; 32],
+            [11; 32],
+            [12; 32],
+            [13; 32],
+            250u128.to_le_bytes(),
+            2,
+            50u128.to_le_bytes(),
+            0,
+        );
+        assert_eq!(settlement.data[0], 30);
+        assert_eq!(settlement.accounts.len(), 8);
+        assert!(settlement.accounts[4].is_writable);
+        assert!(settlement.accounts[5].is_writable);
+        assert!(settlement.accounts[6].is_writable);
     }
 
     #[test]

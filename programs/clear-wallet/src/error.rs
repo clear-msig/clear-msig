@@ -74,4 +74,8 @@ pub enum WalletError {
     AgentSessionInactive,
     /// Agent trade exceeds the remaining session notional or leverage bound.
     AgentSessionLimitExceeded,
+    /// Agent risk policy is missing, paused, exhausted, or does not match.
+    AgentRiskPolicyDenied,
+    /// Agent settlement sequence or artifact does not match current state.
+    AgentSettlementInvalid,
 }

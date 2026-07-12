@@ -10,11 +10,16 @@ use crate::{
     ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
 };
 
+mod typed_agent_risk;
 mod typed_execution;
 mod typed_lifecycle;
 mod types;
 mod validation;
 
+use typed_agent_risk::{
+    execute_typed_agent_risk_policy as build_typed_agent_risk_policy,
+    execute_typed_agent_trade_settlement as build_typed_agent_trade_settlement,
+};
 use typed_execution::{
     execute_typed_agent_session_grant as build_typed_agent_session_grant,
     execute_typed_agent_trade_approval as build_typed_agent_trade_approval,
@@ -27,8 +32,9 @@ use typed_execution::{
     execute_typed_wallet_policy_update as build_typed_wallet_policy_update,
 };
 use types::{
-    ExecuteProposalRequest, ExecuteTypedAgentSessionGrantRequest,
-    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
+    ExecuteProposalRequest, ExecuteTypedAgentRiskPolicyRequest,
+    ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
+    ExecuteTypedAgentTradeSettlementRequest, ExecuteTypedChainSendRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
     ExecuteTypedIntentGovernanceRequest, ExecuteTypedSolBatchSendRequest,
     ExecuteTypedSolSendRequest, ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
@@ -104,6 +110,14 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-agent-session-grant",
             post(execute_typed_agent_session_grant),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-agent-risk-policy",
+            post(execute_typed_agent_risk_policy),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-agent-trade-settlement",
+            post(execute_typed_agent_trade_settlement),
         )
         .route("/proposals/{proposal}", get(show_proposal))
         .route("/proposals/{proposal}/cleanup", post(cleanup_proposal))
@@ -565,6 +579,32 @@ async fn execute_typed_agent_session_grant(
         .check(&format!("execute:agent-session:{name}"))
         .await?;
     let execution = build_typed_agent_session_grant(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_agent_risk_policy(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedAgentRiskPolicyRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:agent-risk:{name}"))
+        .await?;
+    let execution = build_typed_agent_risk_policy(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_agent_trade_settlement(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedAgentTradeSettlementRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:agent-settlement:{name}"))
+        .await?;
+    let execution = build_typed_agent_trade_settlement(name, proposal, body)?;
     Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 

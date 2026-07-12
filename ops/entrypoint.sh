@@ -39,6 +39,14 @@ if [[ ! -f "${CLEAR_MSIG_SIGNER:-}" ]]; then
   exit 1
 fi
 
+if [[ "${CLEAR_MSIG_ENV:-}" == "production" ]]; then
+  if [[ -z "${UPSTASH_REDIS_REST_URL:-}" || -z "${UPSTASH_REDIS_REST_TOKEN:-}" ]]; then
+    echo "FATAL: production destination delivery requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN." >&2
+    echo "FATAL: configure both secrets on the Render clear-msig-backend service before deploying." >&2
+    exit 1
+  fi
+fi
+
 # Persist DKG attestations across redeploys. The CLI saves them to
 # `CLEAR_MSIG_ATTESTATION_DIR` (set to a path on the mounted persistent
 # disk/volume) and re-reads them on every `proposal execute`.
@@ -56,5 +64,10 @@ echo "  signer:       $CLEAR_MSIG_SIGNER"
 echo "  rpc:          ${CLEAR_MSIG_URL:-https://api.devnet.solana.com}"
 echo "  bind:         ${BACKEND_API_BIND:-0.0.0.0:8080}"
 echo "  attestations: ${CLEAR_MSIG_ATTESTATION_DIR:-<host default>}"
+RECEIPT_MODE="file"
+if [[ -n "${UPSTASH_REDIS_REST_URL:-}" ]]; then
+  RECEIPT_MODE="redis"
+fi
+echo "  receipts:     $RECEIPT_MODE"
 
 exec /usr/local/bin/clear-msig-backend-api

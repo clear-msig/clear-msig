@@ -67,6 +67,11 @@ CLEAR_MSIG_DEFAULT_GRPC_URL=<Ika gRPC URL>
 CLEAR_MSIG_DEFAULT_DEST_RPC_URL=<destination chain RPC URL>
 ```
 
+The container exits before binding a port when either Upstash variable is
+missing in production. Render then reports a port-scan timeout as a secondary
+symptom. The entrypoint prints the missing Redis configuration explicitly;
+do not work around it by allowing file-backed production receipts.
+
 Render deploys from the configured GitHub branch. If work is on a feature
 branch, merge/rebase it into the Render branch before expecting production to
 move.

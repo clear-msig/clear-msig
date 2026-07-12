@@ -11,6 +11,8 @@ experimental and is not a production distributed signer.
 
 The component-by-component malicious trust analysis, censorship behavior, and
 operator recovery paths are maintained in [`docs/trust-boundaries.md`](docs/trust-boundaries.md).
+Agent session, loss, exposure, and settlement controls are documented in
+[`docs/agent-vault-security.md`](docs/agent-vault-security.md).
 
 ## Attack surfaces
 
@@ -256,4 +258,18 @@ What's deferred to post-MVP:
 - Inline passkey prompt at wallet-create time for high-value wallets (see K). Today the prompt lives behind one button on `/security`; it's wired but opt-in.
 - Flipping nonce-based CSP from report-only to enforcing (see D). Needs a few days of observed violation reports on production traffic to confirm Dynamic's runtime + framer-motion don't trip on the strict policy.
 
-If you find an issue not in this list, file it with [INSERT REPORTING CHANNEL] before disclosing publicly.
+If you find an issue not in this list, use the private reporting process below
+before disclosing publicly.
+
+## Reporting a vulnerability
+
+Do not open a public issue for suspected vulnerabilities. Use GitHub's private
+vulnerability reporting for this repository so maintainers can investigate
+without exposing users or signing infrastructure.
+
+Include the affected commit, component, reproduction steps, impact, and any
+suggested remediation. Do not access funds, keys, accounts, or data that you do
+not own while validating a report.
+
+Only the current `main` branch is supported during pre-alpha. Security fixes
+are released from reviewed commits after required CI and code-owner approval.

@@ -46,5 +46,15 @@ grep -q 'interrupted_ika_execution_reuses_only_a_signed_message_approval' \
   crates/clear-msig-execution/src/commands/proposal.rs
 grep -q 'cancellation_drops_pending_ika_io' \
   crates/clear-msig-execution/src/ika.rs
+grep -q 'struct AgentRiskLedger' programs/clear-wallet/src/state/agent_risk.rs
+grep -q 'AGENT_SETTLEMENT_RECEIPT_SEED' programs/clear-wallet/src/state/agent_risk.rs
+grep -q 'test_execute_typed_agent_risk_policy_creates_bound_ledger' \
+  programs/clear-wallet/src/tests.rs
+grep -q 'test_agent_settlement_binds_artifact_replays_and_loss_cap' \
+  programs/clear-wallet/src/tests.rs
+grep -q 'aggregate open exposure exceeded the session notional cap' \
+  programs/clear-wallet/src/tests.rs
+grep -q 'agent trade executed without a program-owned risk ledger' \
+  programs/clear-wallet/src/tests.rs
 
-echo "Execution properties: replaceable relayer, replay guard, distributed delivery leases, adversarial substitution/retry coverage, and cancellable destination transport."
+echo "Execution properties: replaceable relayer, replay guard, distributed delivery leases, adversarial substitution/retry coverage, Agent Vault risk accounting, and cancellable destination transport."

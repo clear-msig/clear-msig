@@ -126,6 +126,51 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
                 payload_text(&envelope.payload, "maxLeverage")?
             ),
         ]),
+        ClearSignActionKind::AgentRiskPolicy => Ok(vec![
+            format!(
+                "{} agent risk policy for {}",
+                if payload_text(&envelope.payload, "status")? == "paused" {
+                    "Pause"
+                } else {
+                    "Set"
+                },
+                payload_text(&envelope.payload, "sessionId")?
+            ),
+            format!(
+                "Maximum realized loss {} raw units",
+                payload_text(&envelope.payload, "maxLossRaw")?
+            ),
+            format!(
+                "Oracle policy {}",
+                payload_text(&envelope.payload, "oraclePolicyHash")?
+            ),
+        ]),
+        ClearSignActionKind::AgentTradeSettlement => Ok(vec![
+            format!(
+                "Settle agent execution {}",
+                payload_text(&envelope.payload, "executionId")?
+            ),
+            format!(
+                "Close {} raw notional as {}",
+                payload_text(&envelope.payload, "closedNotionalRaw")?,
+                payload_text(&envelope.payload, "outcome")?
+            ),
+            format!(
+                "Absolute P/L {} raw units, sequence {}",
+                payload_text(&envelope.payload, "pnlAbsRaw")?,
+                envelope
+                    .payload
+                    .get("settlementSequence")
+                    .and_then(Value::as_u64)
+                    .ok_or_else(|| ApiError::BadRequest(
+                        "payload.settlementSequence must be an integer".into()
+                    ))?
+            ),
+            format!(
+                "Settlement artifact {}",
+                payload_text(&envelope.payload, "settlementArtifactHash")?
+            ),
+        ]),
         ClearSignActionKind::AddMember => Ok(vec![format!(
             "Add {} as {} to {}",
             payload_text(&envelope.payload, "member")?,

@@ -99,6 +99,26 @@ pub enum TypedProposalExecution {
         expires_at: i64,
         status: u8,
     },
+    AgentRiskPolicy {
+        wallet: String,
+        proposal: String,
+        session_id_hash: String,
+        oracle_policy_hash: String,
+        max_loss_raw: u128,
+        status: u8,
+    },
+    AgentTradeSettlement {
+        wallet: String,
+        proposal: String,
+        session_id_hash: String,
+        execution_id_hash: String,
+        settlement_artifact_hash: String,
+        oracle_policy_hash: String,
+        closed_notional_raw: u128,
+        outcome: u8,
+        pnl_abs_raw: u128,
+        settlement_sequence: u64,
+    },
 }
 
 impl TypedProposalExecution {
@@ -114,6 +134,8 @@ impl TypedProposalExecution {
             Self::SolBatchSend { .. } => "proposal typed-sol-batch-send",
             Self::AgentTradeApproval { .. } => "proposal typed-agent-trade-approval",
             Self::AgentSessionGrant { .. } => "proposal typed-agent-session-grant",
+            Self::AgentRiskPolicy { .. } => "proposal typed-agent-risk-policy",
+            Self::AgentTradeSettlement { .. } => "proposal typed-agent-trade-settlement",
         }
     }
 
@@ -255,6 +277,34 @@ impl TypedProposalExecution {
                 agent_id_hash.as_str(),
                 venue_hash.as_str(),
                 market_hash.as_str(),
+            ]),
+            Self::AgentRiskPolicy {
+                wallet,
+                proposal,
+                session_id_hash,
+                oracle_policy_hash,
+                ..
+            } => values.extend([
+                wallet.as_str(),
+                proposal.as_str(),
+                session_id_hash.as_str(),
+                oracle_policy_hash.as_str(),
+            ]),
+            Self::AgentTradeSettlement {
+                wallet,
+                proposal,
+                session_id_hash,
+                execution_id_hash,
+                settlement_artifact_hash,
+                oracle_policy_hash,
+                ..
+            } => values.extend([
+                wallet.as_str(),
+                proposal.as_str(),
+                session_id_hash.as_str(),
+                execution_id_hash.as_str(),
+                settlement_artifact_hash.as_str(),
+                oracle_policy_hash.as_str(),
             ]),
         }
         validate_values("typed execution", values)

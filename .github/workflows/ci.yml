@@ -41,7 +41,9 @@ jobs:
       # only cover the off-chain pieces.
 
       - name: Backend architecture
-        run: bash scripts/check-backend-architecture.sh
+        run: |
+          bash scripts/check-repository-governance.sh
+          bash scripts/check-backend-architecture.sh
 
       - name: Rust formatting
         run: cargo fmt --all -- --check

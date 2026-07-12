@@ -13,6 +13,8 @@ export {
   summarizeClearSignAction,
   type AgentTradePayload,
   type AgentSessionGrantPayload,
+  type AgentRiskPolicyPayload,
+  type AgentTradeSettlementPayload,
   type BatchSendPayload,
   type ClearSignActionKind,
   type ClearSignEnvelope,
