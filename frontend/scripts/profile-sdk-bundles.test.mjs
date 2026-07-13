@@ -38,4 +38,11 @@ test("attributes SDK leaf modules to each route chunk without counting container
 });
 
 const EMBEDDED_KEY =
-  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/DynamicProviderTree";
+  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/EmbeddedDynamicProviderTree";
+
+test("fails when runtime measurement metadata is stale", () => {
+  assert.throws(
+    () => profileSdkModules({ chunks: [], modules: [] }, { pages: {} }, {}),
+    /could not find wallet runtime/,
+  );
+});

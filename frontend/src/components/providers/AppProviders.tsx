@@ -2,12 +2,14 @@
 
 // App providers: query cache, Dynamic auth + wallet, global toast.
 //
-// Dynamic replaces the old @solana/wallet-adapter setup. It handles
-// both onboarding paths in one provider:
+// Dynamic replaces the old @solana/wallet-adapter setup. Connector
+// families are kept in separate authenticated runtimes:
 //   - Email / social signup mints a TSS-MPC embedded Solana wallet
 //     on the fly (the retail story).
 //   - External wallets (Phantom / Solflare / Backpack) auto-discover
 //     via Dynamic's wallet-standard support.
+// The /connect surface intentionally loads both; product routes load
+// only the family selected during authentication.
 //
 // The 30+ files that imported from @solana/wallet-adapter-react now
 // import from @/lib/wallet, a thin shim that exposes useWallet()
@@ -22,8 +24,9 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { needsWalletRuntime } from "@/features/wallet-runtime/domain/routePolicy";
 import { ConfigGapBanner, WalletRuntimeLoading } from "@/features/wallet-runtime/ui/RuntimeStates";
 import {
+  type AuthenticatedWalletRuntime,
   EXTERNAL_WALLET_RUNTIME_EVENT,
-  EXTERNAL_WALLET_RUNTIME_KEY,
+  readAuthenticatedWalletRuntime,
 } from "@/features/wallet-runtime/domain/runtimePreference";
 import { validateConfig } from "@/lib/config";
 import { applyTheme, getStoredTheme, watchSystemTheme } from "@/lib/security/theme";
@@ -32,8 +35,22 @@ type Props = {
   children: React.ReactNode;
 };
 
-const LazyDynamicProviderTree = dynamic(
-  () => import("@/features/wallet-runtime/infrastructure/DynamicProviderTree"),
+const LazyEmbeddedDynamicProviderTree = dynamic(
+  () =>
+    import(
+      "@/features/wallet-runtime/infrastructure/EmbeddedDynamicProviderTree"
+    ),
+  {
+    ssr: false,
+    loading: () => <WalletRuntimeLoading />,
+  },
+);
+
+const LazyConnectDynamicProviderTree = dynamic(
+  () =>
+    import(
+      "@/features/wallet-runtime/infrastructure/ConnectDynamicProviderTree"
+    ),
   {
     ssr: false,
     loading: () => <WalletRuntimeLoading />,
@@ -85,7 +102,8 @@ function needsPublicAuthRedirect(pathname: string | null): boolean {
 export function AppProviders({ children }: Props) {
   const configGaps = validateConfig();
   const pathname = usePathname();
-  const [externalWalletRuntime, setExternalWalletRuntime] = useState(false);
+  const [authenticatedWalletRuntime, setAuthenticatedWalletRuntime] =
+    useState<AuthenticatedWalletRuntime | null>(null);
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -131,21 +149,9 @@ export function AppProviders({ children }: Props) {
 
   useEffect(() => {
     const refresh = () => {
-      const injected = window as typeof window & {
-        backpack?: unknown;
-        phantom?: { solana?: unknown };
-        solana?: unknown;
-        solflare?: unknown;
-      };
-      const stored =
-        window.localStorage.getItem(EXTERNAL_WALLET_RUNTIME_KEY) === "1";
-      const hasInjectedWallet = Boolean(
-        injected.backpack ||
-          injected.phantom?.solana ||
-          injected.solana ||
-          injected.solflare,
+      setAuthenticatedWalletRuntime(
+        readAuthenticatedWalletRuntime(window.localStorage),
       );
-      setExternalWalletRuntime(stored || hasInjectedWallet);
     };
     refresh();
     window.addEventListener(EXTERNAL_WALLET_RUNTIME_EVENT, refresh);
@@ -175,10 +181,27 @@ export function AppProviders({ children }: Props) {
   }
 
   const publicAuthRedirect = needsPublicAuthRedirect(pathname);
+  const runtimeRequired = publicAuthRedirect || needsWalletRuntime(pathname);
+  if (
+    runtimeRequired &&
+    pathname !== "/connect" &&
+    authenticatedWalletRuntime === null
+  ) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <WalletRuntimeLoading />
+        </ToastProvider>
+      </QueryClientProvider>
+    );
+  }
+
   const WalletProvider =
-    pathname === "/connect" || externalWalletRuntime
-      ? LazyExternalDynamicProviderTree
-      : LazyDynamicProviderTree;
+    pathname === "/connect"
+      ? LazyConnectDynamicProviderTree
+      : authenticatedWalletRuntime === "external"
+        ? LazyExternalDynamicProviderTree
+        : LazyEmbeddedDynamicProviderTree;
 
   const content = publicAuthRedirect ? (
     <QueryClientProvider client={queryClient}>

@@ -154,6 +154,7 @@ const nextConfig = {
   },
   webpack: (
     config: {
+      cache?: unknown;
       externals?: unknown[];
       plugins?: Array<{ apply(compiler: WebpackCompiler): void }>;
     },
@@ -170,6 +171,11 @@ const nextConfig = {
       !context.isServer &&
       !context.nextRuntime
     ) {
+      // Cached production modules are emitted as opaque summary rows in
+      // Webpack stats, which makes SDK attribution read as 0 kB. Profiling
+      // trades build speed for complete module ownership; normal builds keep
+      // Next's filesystem cache.
+      config.cache = false;
       config.plugins = [...(config.plugins ?? []), new ClientBundleStatsPlugin()];
     }
     return config;

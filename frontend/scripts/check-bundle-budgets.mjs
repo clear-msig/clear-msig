@@ -6,12 +6,12 @@ const IMMEDIATE_RUNTIME_RULES = [
   {
     routePrefix: "/app/",
     loadableKey:
-      "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/DynamicProviderTree",
+      "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/EmbeddedDynamicProviderTree",
   },
   {
     route: "/connect/page",
     loadableKey:
-      "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/ExternalDynamicProviderTree",
+      "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/ConnectDynamicProviderTree",
   },
 ];
 
