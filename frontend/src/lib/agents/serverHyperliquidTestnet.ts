@@ -50,7 +50,24 @@ export interface HyperliquidTestnetOrderArtifact {
   status: "accepted" | "resting" | "filled";
   market: string;
   side: "long" | "short";
+  filledSize?: string;
+  averagePriceUsd?: string;
   submittedAt: number;
+}
+
+export interface HyperliquidTestnetSettlementArtifact {
+  exchange: "hyperliquid_testnet";
+  network: "testnet";
+  serverRequestId: string;
+  openingOrderId: string;
+  closingOrderId: string;
+  market: string;
+  side: "long" | "short";
+  closedSize: string;
+  reservedNotionalUsd: string;
+  realizedPnlUsd: string;
+  fillHashes: string[];
+  settledAt: number;
 }
 
 export interface HyperliquidTestnetKillSwitchArtifact {
@@ -80,6 +97,18 @@ export interface HyperliquidTestnetKillSwitchRequest {
   agentWalletAddress: string;
   walletName: string;
   reason: string;
+}
+
+export interface HyperliquidTestnetSettlementRequest {
+  schemaVersion: 1;
+  network: "testnet";
+  idempotencyKey: string;
+  accountAddress: string;
+  agentWalletAddress: string;
+  serverRequestId: string;
+  intent: AgentServerExecutionRequest;
+  openingArtifact: HyperliquidTestnetOrderArtifact;
+  controls: { maxSlippageBps: number };
 }
 
 export async function probeHyperliquidTestnetAccount({
@@ -286,6 +315,35 @@ export function buildHyperliquidTestnetKillSwitchRequest({
   };
 }
 
+export function buildHyperliquidTestnetSettlementRequest({
+  serverRequestId,
+  request,
+  openingArtifact,
+  config,
+}: {
+  serverRequestId: string;
+  request: AgentServerExecutionRequest;
+  openingArtifact: HyperliquidTestnetOrderArtifact;
+  config: HyperliquidTestnetExecutorConfig;
+}): HyperliquidTestnetSettlementRequest {
+  if (!openingArtifact.filledSize) {
+    throw new Error("Opening venue artifact has no verified filled size.");
+  }
+  return {
+    schemaVersion: 1,
+    network: "testnet",
+    idempotencyKey: createHash("sha256")
+      .update(`${serverRequestId}:${openingArtifact.orderId}:settlement:v1`)
+      .digest("hex"),
+    accountAddress: config.accountAddress,
+    agentWalletAddress: config.agentWalletAddress,
+    serverRequestId,
+    intent: request,
+    openingArtifact,
+    controls: { maxSlippageBps: 50 },
+  };
+}
+
 export async function submitHyperliquidTestnetOrder({
   request,
   config,
@@ -366,6 +424,54 @@ export async function submitHyperliquidTestnetKillSwitch({
   return normalizeHyperliquidTestnetKillSwitchArtifact(body);
 }
 
+export async function submitHyperliquidTestnetSettlement({
+  serverRequestId,
+  request,
+  openingArtifact,
+  config,
+  fetchImpl = fetch,
+}: {
+  serverRequestId: string;
+  request: AgentServerExecutionRequest;
+  openingArtifact: HyperliquidTestnetOrderArtifact;
+  config: HyperliquidTestnetExecutorConfig;
+  fetchImpl?: typeof fetch;
+}): Promise<HyperliquidTestnetSettlementArtifact> {
+  const response = await fetchImpl(
+    `${config.executorUrl}/v1/hyperliquid/testnet/settlements`,
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${config.executorToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(buildHyperliquidTestnetSettlementRequest({
+        serverRequestId,
+        request,
+        openingArtifact,
+        config,
+      })),
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      body && typeof body === "object" &&
+      typeof (body as Record<string, unknown>).error === "string"
+        ? String((body as Record<string, unknown>).error)
+        : `HTTP ${response.status}`;
+    throw new Error(`Hyperliquid testnet executor rejected settlement: ${message}`);
+  }
+  return normalizeHyperliquidTestnetSettlementArtifact(body, {
+    serverRequestId,
+    request,
+    openingArtifact,
+  });
+}
+
 export function normalizeHyperliquidTestnetOrderArtifact(
   input: unknown,
   request: AgentServerExecutionRequest,
@@ -383,6 +489,8 @@ export function normalizeHyperliquidTestnetOrderArtifact(
   const market = stringValue(record.market).toUpperCase();
   const side = stringValue(record.side);
   const submittedAt = numberValue(record.submittedAt);
+  const filledSize = optionalDecimalString(record.filledSize);
+  const averagePriceUsd = optionalDecimalString(record.averagePriceUsd);
   if (
     record.exchange !== "hyperliquid_testnet" ||
     !orderId ||
@@ -400,8 +508,56 @@ export function normalizeHyperliquidTestnetOrderArtifact(
     status: status as HyperliquidTestnetOrderArtifact["status"],
     market,
     side: side as HyperliquidTestnetOrderArtifact["side"],
+    filledSize,
+    averagePriceUsd,
     submittedAt,
   };
+}
+
+export function normalizeHyperliquidTestnetSettlementArtifact(
+  input: unknown,
+  expected: {
+    serverRequestId: string;
+    request: AgentServerExecutionRequest;
+    openingArtifact: HyperliquidTestnetOrderArtifact;
+  },
+): HyperliquidTestnetSettlementArtifact {
+  const source = input && typeof input === "object" && !Array.isArray(input)
+    ? ((input as Record<string, unknown>).artifact ?? input)
+    : null;
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    throw new Error("Hyperliquid testnet executor returned no settlement artifact.");
+  }
+  const row = source as Record<string, unknown>;
+  const artifact: HyperliquidTestnetSettlementArtifact = {
+    exchange: "hyperliquid_testnet",
+    network: "testnet",
+    serverRequestId: stringValue(row.serverRequestId),
+    openingOrderId: stringValue(row.openingOrderId),
+    closingOrderId: stringValue(row.closingOrderId),
+    market: stringValue(row.market).toUpperCase(),
+    side: stringValue(row.side) as "long" | "short",
+    closedSize: requiredDecimalString(row.closedSize, "closed size"),
+    reservedNotionalUsd: requiredDecimalString(row.reservedNotionalUsd, "reserved notional"),
+    realizedPnlUsd: signedDecimalString(row.realizedPnlUsd, "realized P/L"),
+    fillHashes: Array.isArray(row.fillHashes)
+      ? row.fillHashes.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+      : [],
+    settledAt: numberValue(row.settledAt),
+  };
+  if (
+    row.exchange !== artifact.exchange || row.network !== artifact.network ||
+    artifact.serverRequestId !== expected.serverRequestId ||
+    artifact.openingOrderId !== expected.openingArtifact.orderId ||
+    artifact.market !== expected.request.market.toUpperCase() ||
+    artifact.side !== expected.request.side ||
+    !artifact.closingOrderId || artifact.fillHashes.length === 0 ||
+    !Number.isFinite(artifact.settledAt) || artifact.settledAt <= 0 ||
+    artifact.reservedNotionalUsd !== normalizeDecimal(expected.request.notionalUsd)
+  ) {
+    throw new Error("Hyperliquid testnet executor returned an invalid settlement artifact.");
+  }
+  return artifact;
 }
 
 export function normalizeHyperliquidTestnetKillSwitchArtifact(
@@ -459,6 +615,29 @@ function decimalString(value: unknown): string | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
   const raw = String(value).trim();
   return raw && Number.isFinite(Number(raw)) ? raw : null;
+}
+
+function optionalDecimalString(value: unknown): string | undefined {
+  const parsed = decimalString(value);
+  return parsed != null && Number(parsed) > 0 ? normalizeDecimal(parsed) : undefined;
+}
+
+function requiredDecimalString(value: unknown, label: string): string {
+  const parsed = optionalDecimalString(value);
+  if (!parsed) throw new Error(`Hyperliquid settlement ${label} is invalid.`);
+  return parsed;
+}
+
+function signedDecimalString(value: unknown, label: string): string {
+  const parsed = decimalString(value);
+  if (parsed == null) throw new Error(`Hyperliquid settlement ${label} is invalid.`);
+  return normalizeDecimal(parsed);
+}
+
+function normalizeDecimal(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return formatDecimal(parsed);
 }
 
 function parseHyperliquidPositions(

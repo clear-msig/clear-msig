@@ -30,6 +30,8 @@ export function TradingControlRoom({
   onPauseAll,
   onCloseOne,
   onCloseAll,
+  onSettleConnected,
+  settlementBusyId,
 }: {
   agent: AgentProfile | null;
   venue: TradingLaunchVenue;
@@ -53,6 +55,8 @@ export function TradingControlRoom({
   onPauseAll: () => void;
   onCloseOne: (id: string, pnlUsd: string) => void;
   onCloseAll: () => void;
+  onSettleConnected: (requestId: string) => void;
+  settlementBusyId: string | null;
 }) {
   const agentPaused = agent?.status === "paused";
   const live = Boolean(agent && allowance && !policyPaused && !agentPaused);
@@ -262,6 +266,8 @@ export function TradingControlRoom({
                     key={request.id ?? `${request.request.proposalId}:${index}`}
                     request={request}
                     accountSnapshot={accountSnapshot}
+                    onSettle={request.id ? () => onSettleConnected(request.id!) : undefined}
+                    settling={settlementBusyId === request.id}
                   />
                 ))
               ) : (

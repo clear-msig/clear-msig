@@ -3,6 +3,7 @@ import {
   hashAgentServerExecutionArtifact,
   listAgentServerExecutionRequests,
   recordAgentServerExecutionRequest,
+  recordAgentServerExecutionSettlement,
 } from "@/lib/agents/serverExecutionRequests";
 import type {
   AgentServerExecutionReadiness,
@@ -162,5 +163,51 @@ describe("server execution request ledger", () => {
 
     expect(first).toMatch(/^[a-f0-9]{64}$/);
     expect(second).toBe(first);
+  });
+
+  it("stores one immutable settlement artifact for a submitted request", async () => {
+    const submitted = await recordAgentServerExecutionRequest({
+      request: { ...request, walletName: "vault-settlement", proposalId: "proposal-settlement" },
+      readiness: { ...readiness, state: "ready", canSubmit: true, missingEnvVars: [] },
+      status: "submitted",
+      artifact: {
+        exchange: "hyperliquid_testnet",
+        orderId: "123",
+        status: "filled",
+        market: "BTC-PERP",
+        side: "long",
+        filledSize: "0.0037",
+        submittedAt: 1_780_000_000_000,
+      },
+    });
+    const artifact = {
+      exchange: "hyperliquid_testnet" as const,
+      network: "testnet" as const,
+      serverRequestId: submitted.record.id,
+      openingOrderId: "123",
+      closingOrderId: "456",
+      market: "BTC-PERP",
+      side: "long" as const,
+      closedSize: "0.0037",
+      reservedNotionalUsd: "250",
+      realizedPnlUsd: "-1.25",
+      fillHashes: ["0xabc"],
+      settledAt: 1_780_000_001_000,
+    };
+    const first = await recordAgentServerExecutionSettlement({
+      walletName: "vault-settlement",
+      agentId: request.agentId,
+      requestId: submitted.record.id,
+      artifact,
+    });
+    const duplicate = await recordAgentServerExecutionSettlement({
+      walletName: "vault-settlement",
+      agentId: request.agentId,
+      requestId: submitted.record.id,
+      artifact: { ...artifact, realizedPnlUsd: "999" },
+    });
+    expect(first.record.settlementArtifactHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(duplicate.duplicate).toBe(true);
+    expect(duplicate.record.settlementArtifact?.realizedPnlUsd).toBe("-1.25");
   });
 });

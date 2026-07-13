@@ -1,5 +1,7 @@
 export type ClearSignSurfaceStatus =
   | "typed_onchain"
+  | "typed_onchain_owner_attested"
+  | "program_only"
   | "typed_approval_only"
   | "legacy_custom_pending_typed_executor"
   | "local_policy_only";
@@ -37,23 +39,23 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "spl-escrow",
     label: "SPL-token escrow release / return",
-    status: "typed_onchain",
+    status: "program_only",
     signedPath: "typed proposal -> typed SPL escrow execute",
-    notes: "Covered at program/CLI level; product UI wiring must keep using typed escrow paths.",
+    notes: "The typed program and CLI executor exist, but no verified product UI currently drives this path.",
   },
   {
     id: "cross-chain-escrow",
     label: "BTC / EVM / Ika escrow release / return",
-    status: "typed_onchain",
+    status: "program_only",
     signedPath: "typed proposal -> typed cross-chain escrow execute",
-    notes: "Finalizes verified cross-chain artifacts through program-verified typed execution.",
+    notes: "Program verification exists, but the product UI does not currently collect and execute this artifact flow end to end.",
   },
   {
     id: "private-escrow",
     label: "Encrypted/private escrow release / return",
-    status: "typed_onchain",
+    status: "program_only",
     signedPath: "typed proposal -> typed private escrow execute",
-    notes: "Ciphertext/artifact commitments are bound by typed private escrow executors.",
+    notes: "Program commitments exist; production confidential settlement and a verified product UI remain unwired.",
   },
   {
     id: "typed-approve-cancel",
@@ -135,9 +137,9 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
   {
     id: "agent-trade-settlement",
     label: "Agent trade settlement",
-    status: "typed_onchain",
+    status: "typed_onchain_owner_attested",
     signedPath: "typed proposal -> risk ledger + immutable artifact receipt PDA",
-    notes: "Owner-approved settlement closes exposure, records loss, advances a strict sequence, and prevents artifact replay. Native venue attestation verification remains pending.",
+    notes: "The UI now closes through the isolated testnet executor, hashes its server-owned fill artifact, reads sequence and exposure from the AgentRiskLedger, and creates/resumes threshold-approved settlement. The program does not verify a native venue signature.",
   },
   {
     id: "member-allowances",

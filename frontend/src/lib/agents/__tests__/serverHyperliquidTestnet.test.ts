@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   buildHyperliquidTestnetKillSwitchRequest,
   buildHyperliquidTestnetExecutorRequest,
+  buildHyperliquidTestnetSettlementRequest,
   fetchHyperliquidTestnetAccountSnapshot,
   normalizeHyperliquidTestnetKillSwitchArtifact,
   normalizeHyperliquidTestnetOrderArtifact,
+  normalizeHyperliquidTestnetSettlementArtifact,
   probeHyperliquidTestnetAccount,
   probeHyperliquidTestnetExecutor,
   submitHyperliquidTestnetKillSwitch,
   submitHyperliquidTestnetOrder,
+  submitHyperliquidTestnetSettlement,
 } from "@/lib/agents/serverHyperliquidTestnet";
 import { readHyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
 import type { AgentServerExecutionRequest } from "@/lib/agents";
@@ -232,6 +235,58 @@ describe("Hyperliquid testnet server boundary", () => {
     });
 
     expect(artifact.status).toBe("cancelled");
+  });
+
+  it("binds and validates a venue settlement artifact", async () => {
+    const openingArtifact = {
+      exchange: "hyperliquid_testnet" as const,
+      orderId: "123456",
+      status: "filled" as const,
+      market: "BTC-PERP",
+      side: "long" as const,
+      filledSize: "0.0037",
+      averagePriceUsd: "67500",
+      submittedAt: 1_780_000_001_000,
+    };
+    const built = buildHyperliquidTestnetSettlementRequest({
+      serverRequestId: "request-1",
+      request,
+      openingArtifact,
+      config,
+    });
+    expect(built.idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(built.openingArtifact.orderId).toBe("123456");
+
+    const artifact = await submitHyperliquidTestnetSettlement({
+      serverRequestId: "request-1",
+      request,
+      openingArtifact,
+      config,
+      fetchImpl: async (url, init) => {
+        expect(url).toBe("http://127.0.0.1:4010/v1/hyperliquid/testnet/settlements");
+        expect(JSON.parse(String(init?.body)).serverRequestId).toBe("request-1");
+        return new Response(JSON.stringify({ artifact: {
+          exchange: "hyperliquid_testnet",
+          network: "testnet",
+          serverRequestId: "request-1",
+          openingOrderId: "123456",
+          closingOrderId: "654321",
+          market: "BTC-PERP",
+          side: "long",
+          closedSize: "0.0037",
+          reservedNotionalUsd: "250",
+          realizedPnlUsd: "-1.25",
+          fillHashes: ["0xabc"],
+          settledAt: 1_780_000_002_000,
+        } }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    });
+    expect(artifact.realizedPnlUsd).toBe("-1.25");
+
+    expect(() => normalizeHyperliquidTestnetSettlementArtifact(
+      { ...artifact, openingOrderId: "fabricated" },
+      { serverRequestId: "request-1", request, openingArtifact },
+    )).toThrow(/invalid settlement artifact/);
   });
 
   it("rejects mismatched or fabricated exchange artifacts", () => {

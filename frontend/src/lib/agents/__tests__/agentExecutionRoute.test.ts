@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { POST as submitVenueExecution } from "@/app/api/agent-execution/[venue]/route";
+import { POST as settleVenueExecution } from "@/app/api/agent-settlement/[venue]/route";
 import { ownerApprovalSignableText } from "@/lib/agents/ownerApproval";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
 import {
@@ -34,6 +35,24 @@ afterEach(() => {
 });
 
 describe("agent execution route owner authority", () => {
+  it("rejects browser settlement requests without wallet-signed close authority", async () => {
+    const response = await settleVenueExecution(
+      new NextRequest("http://localhost/api/agent-settlement/hyperliquid_testnet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Host: "localhost", Origin: "http://localhost" },
+        body: JSON.stringify({
+          walletName: "route-settlement-no-approval",
+          agentId: "agent-alpha",
+          requestId: "server-request-1",
+          settlementArtifactHash: "fabricated-browser-value",
+        }),
+      }),
+      { params: Promise.resolve({ venue: "hyperliquid_testnet" }) },
+    );
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain("wallet approval");
+  });
+
   it("rejects venue handoffs without a wallet-signed owner approval", async () => {
     const response = await submitVenueExecution(
       request("route-handoff-no-approval", "proposal-1"),

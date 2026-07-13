@@ -8,15 +8,20 @@ import { STEP_BUTTON_CLASS, StepLink, formatUsd, venueRequestStatusLabel } from 
 export function VenueRequestRow({
   request,
   accountSnapshot,
+  onSettle,
+  settling = false,
 }: {
   request: NonNullable<AgentVenueReadiness["requests"]>[number];
   accountSnapshot: AgentVenueReadiness["accountSnapshot"] | null;
+  onSettle?: () => void;
+  settling?: boolean;
 }) {
   const submitted = request.status === "submitted";
   const rejected = request.status === "rejected" || request.status === "adapter_error";
   const reconciliation = reconcileAgentVenueRequest(request, accountSnapshot);
   const market = request.request.market ?? "Trade";
   const size = request.request.notionalUsd ? formatUsd(request.request.notionalUsd) : "Size unknown";
+  const settled = request.settlementProposalStatus === "executed";
   return (
     <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -68,6 +73,22 @@ export function VenueRequestRow({
         <p className="mt-1 text-[11px] text-text-muted">
           {new Date(request.updatedAt).toLocaleString()}
         </p>
+      ) : null}
+      {submitted && onSettle ? (
+        <button
+          type="button"
+          disabled={settling || settled}
+          onClick={onSettle}
+          className={`${STEP_BUTTON_CLASS} mt-2`}
+        >
+          {settled
+            ? "Settled on chain"
+            : request.settlementProposalAddress
+              ? "Continue settlement"
+              : settling
+                ? "Settling..."
+                : "Close and settle"}
+        </button>
       ) : null}
     </div>
   );

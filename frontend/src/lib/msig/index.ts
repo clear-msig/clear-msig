@@ -82,6 +82,7 @@ export {
   findTypedProposalAddress,
   findIkaConfigAddress,
   findWalletPolicyAddress,
+  findAgentRiskAddress,
   findDwalletOwnershipAddress,
   findCpiAuthority,
   deriveWalletPdas,

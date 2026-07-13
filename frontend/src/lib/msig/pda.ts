@@ -18,6 +18,7 @@ const SEED_PROPOSAL = new TextEncoder().encode("proposal");
 const SEED_TYPED_PROPOSAL = new TextEncoder().encode("typed_proposal");
 const SEED_IKA_CONFIG = new TextEncoder().encode("ika_config");
 const SEED_WALLET_POLICY = new TextEncoder().encode("wallet_policy");
+const SEED_AGENT_RISK = new TextEncoder().encode("agent_risk");
 const SEED_DWALLET_OWNERSHIP = new TextEncoder().encode("dwallet_owner");
 const SEED_CPI_AUTHORITY = new TextEncoder().encode("__ika_cpi_authority");
 
@@ -128,6 +129,20 @@ export function findWalletPolicyAddress(
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [SEED_WALLET_POLICY, wallet.toBytes()],
+    programId,
+  );
+}
+
+export function findAgentRiskAddress(
+  wallet: PublicKey,
+  sessionIdHash: Uint8Array,
+  programId: PublicKey,
+): [PublicKey, number] {
+  if (sessionIdHash.length !== 32) {
+    throw new Error("findAgentRiskAddress: session hash must be 32 bytes");
+  }
+  return PublicKey.findProgramAddressSync(
+    [SEED_AGENT_RISK, wallet.toBytes(), sessionIdHash],
     programId,
   );
 }
