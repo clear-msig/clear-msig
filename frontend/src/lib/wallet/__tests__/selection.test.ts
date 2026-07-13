@@ -65,6 +65,24 @@ describe("selectSolanaWallet", () => {
     expect(connectedWalletRuntime(google, [google, phantom])).toBe("embedded");
   });
 
+  it("classifies a Dynamic V3 WaaS Solana wallet as embedded", () => {
+    const waas = {
+      id: "dynamic-waas-solana",
+      solana: true,
+      connector: { overrideKey: "dynamicwaas" },
+    };
+    const phantom = {
+      id: "phantom",
+      solana: true,
+      connector: { key: "phantom" },
+    };
+
+    expect(selectSolanaWallet(waas, [waas, phantom], isSolana, "embedded")).toBe(
+      waas,
+    );
+    expect(connectedWalletRuntime(waas, [waas, phantom])).toBe("embedded");
+  });
+
   it("selects the native signer when the authenticated runtime is external", () => {
     const google = {
       id: "embedded-solana",
