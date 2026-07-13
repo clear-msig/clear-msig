@@ -24,7 +24,7 @@
 // removals) pass `warning` to surface a one-line caveat the user
 // should consciously absorb before signing.
 
-import { Eye } from "lucide-react";
+import { ChevronDown, Eye } from "lucide-react";
 
 export interface SignPayloadDetail {
   label: string;
@@ -58,13 +58,12 @@ export function SignPayloadPreview({
   technicalNote,
   collapsibleDetails = false,
 }: SignPayloadPreviewProps) {
-  const hasDetails = !!details && details.length > 0;
-  // Transaction decisions must not hide amount, recipient, network,
-  // fees, or approval requirements behind a hover/tap disclosure.
-  // Keep the legacy prop for call-site compatibility while all send
-  // pages migrate to the explicit review contract.
-  void collapsibleDetails;
-  const showInline = hasDetails;
+  const primaryDetails = collapsibleDetails
+    ? details?.filter((detail) => !isTechnicalDetail(detail))
+    : details;
+  const technicalDetails = collapsibleDetails
+    ? details?.filter(isTechnicalDetail)
+    : [];
   return (
     <section
       aria-label="Review transaction"
@@ -98,9 +97,9 @@ export function SignPayloadPreview({
         </div>
       </header>
 
-      {showInline && (
+      {!!primaryDetails?.length && (
         <dl className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          {details!.map((d) => (
+          {primaryDetails.map((d) => (
             <div
               key={d.label}
               // Stacked label-over-value so long values ("Just you
@@ -132,6 +131,33 @@ export function SignPayloadPreview({
         </dl>
       )}
 
+      {!!technicalDetails?.length && (
+        <details className="group mt-3 border-t border-border-soft pt-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-medium text-text-soft hover:text-text-strong">
+            Technical details
+            <ChevronDown
+              className="h-4 w-4 transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <dl className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {technicalDetails.map((detail) => (
+              <div
+                key={detail.label}
+                className="clear-receipt-row flex flex-col gap-0.5 rounded-soft bg-canvas px-2.5 py-1.5"
+              >
+                <dt className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
+                  {reviewLabel(detail.label)}
+                </dt>
+                <dd className="break-all font-mono text-xs leading-snug text-text-strong">
+                  {detail.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      )}
+
       {warning && (
         <p className="mt-3 rounded-soft bg-warning/10 px-2.5 py-1.5 text-[11px] leading-snug text-text-strong">
           <span className="font-medium text-warning">Heads up.</span> {warning}
@@ -145,6 +171,17 @@ export function SignPayloadPreview({
         </p>
       )}
     </section>
+  );
+}
+
+function isTechnicalDetail(detail: SignPayloadDetail): boolean {
+  const label = detail.label.toLowerCase();
+  return (
+    label.includes("contract") ||
+    label.includes("hash") ||
+    label.includes("payload") ||
+    label.includes("transaction id") ||
+    label === "from address"
   );
 }
 

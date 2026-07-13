@@ -91,6 +91,7 @@ import {
   SEND_NOTE_MAX_LENGTH,
   SEND_NOTE_PLACEHOLDER,
 } from "@/lib/sendFields";
+import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
 import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
@@ -530,10 +531,11 @@ function BitcoinSendPage() {
         payload: {
           recipient: committedRecipient,
           recipientEncoding: "sha256_text",
-          amount: sendAmountSats.toString(),
+          amount: amountBtc.trim(),
           asset: "BTC",
           assetEncoding: "sha256_text",
           note: note.trim() || undefined,
+          estimatedUsd: liveUsdEstimate(amountBtc, "BTC"),
         },
       };
       const summary = await prepareClearSignAction(envelope, {
@@ -552,7 +554,14 @@ function BitcoinSendPage() {
         expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
-      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
+      const signed = await signTypedDescriptor(dry, {
+        preferSigner: proposerPk,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
+      });
       const submitted = await backendApi.submit.createTypedProposal(name, {
         ...signed,
         expiry: dry.expiry,

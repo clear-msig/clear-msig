@@ -27,11 +27,12 @@ describe("transaction review contract", () => {
     expect(page).toMatch(/label: "(Network fee|Gas reserve)"/);
   });
 
-  it("keeps review details visible at the signing decision", () => {
+  it("keeps decision fields visible and puts only technical fields behind disclosure", () => {
     const review = source("src/components/retail/SignPayloadPreview.tsx");
     expect(review).toContain('aria-label="Review transaction"');
-    expect(review).toContain("const showInline = hasDetails");
-    expect(review).not.toContain("showInTip");
+    expect(review).toContain("primaryDetails.map");
+    expect(review).toContain("Technical details");
+    expect(review).toContain("isTechnicalDetail");
   });
 
   it("does not call created approval requests sent", () => {

@@ -75,6 +75,11 @@ export function usePersistPersonalWalletPolicy() {
       });
       const signed = await signTypedDescriptor(dry, {
         preferSigner: input.proposerPk,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
       });
       const submitted = await backendApi.submit.createTypedProposal(
         input.walletName,

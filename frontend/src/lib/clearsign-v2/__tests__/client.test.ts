@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { prepareClearSignAction } from "@/lib/clearsign-v2/client";
-import type { ClearSignEnvelope, SendPayload } from "@/lib/clearsign-v2";
+import {
+  summarizeClearSignAction,
+  type ClearSignEnvelope,
+  type SendPayload,
+} from "@/lib/clearsign-v2";
 
 const envelope: ClearSignEnvelope<SendPayload> = {
   version: 2,
@@ -26,6 +30,7 @@ describe("prepareClearSignAction", () => {
   });
 
   it("uses the backend prepare response when available", async () => {
+    const local = summarizeClearSignAction(envelope);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -34,13 +39,7 @@ describe("prepareClearSignAction", () => {
             version: 2,
             kind: "send",
             actionKindCode: 1,
-            headline: "Send 2.5 SOL from Team to Sarah",
-            lines: ["Send 2.5 SOL from Team to Sarah"],
-            payloadHash:
-              "2222222222222222222222222222222222222222222222222222222222222222",
-            envelopeHash:
-              "3333333333333333333333333333333333333333333333333333333333333333",
-            signableText: "Send 2.5 SOL from Team to Sarah",
+            ...local,
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
@@ -50,7 +49,30 @@ describe("prepareClearSignAction", () => {
     const summary = await prepareClearSignAction(envelope);
 
     expect(summary.source).toBe("backend");
-    expect(summary.payloadHash).toMatch(/^2{64}$/);
+    expect(summary.payloadHash).toBe(local.payloadHash);
+  });
+
+  it("rejects a backend summary that changes readable transaction details", async () => {
+    const local = summarizeClearSignAction(envelope);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            version: 2,
+            kind: "send",
+            actionKindCode: 1,
+            ...local,
+            headline: "Send 25 SOL from Team to Sarah",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+
+    await expect(prepareClearSignAction(envelope)).rejects.toThrow(
+      "backend prepared different transaction details",
+    );
   });
 
   it("requires explicit opt-in before falling back to local summary", async () => {

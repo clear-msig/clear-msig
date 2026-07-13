@@ -110,6 +110,7 @@ import {
   SEND_NOTE_MAX_LENGTH,
   SEND_NOTE_PLACEHOLDER,
 } from "@/lib/sendFields";
+import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
 
 type Stage = "compose" | "sending" | "sent";
 
@@ -455,10 +456,11 @@ function SendEthPage() {
         payload: {
           recipient: recipientForClearSign,
           recipientEncoding: "sha256_text",
-          amount: amountWei.toString(),
+          amount: amount.trim(),
           asset: EVM_TICKER,
           assetEncoding: "sha256_text",
           note: note.trim() || undefined,
+          estimatedUsd: liveUsdEstimate(amount, EVM_TICKER),
         },
       };
       const summary = await prepareClearSignAction(envelope, {
@@ -480,7 +482,14 @@ function SendEthPage() {
 
       // 3. Sign on Solana. Proves to the program that this user is
       //    a proposer + counts as their approval.
-      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
+      const signed = await signTypedDescriptor(dry, {
+        preferSigner: proposerPk,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
+      });
 
       // 4. Submit. Lands the proposal Approved on chain (program's
       //    auto-approve when proposer-in-approvers).
@@ -913,6 +922,9 @@ function ComposeStage({
       value: `${amount.trim()} ${ticker}`,
       emphasis: "amount",
     });
+  }
+  if (note.trim()) {
+    previewDetails.push({ label: "Reason", value: note.trim() });
   }
 
   return (

@@ -102,10 +102,7 @@ fn prepare_clearsign_v2_response(
     let payload_hex = to_hex(&payload_hash);
     let context = [
         format!("Wallet {}", envelope.wallet_name),
-        format!("Action {}", envelope.action_id),
-        format!("Nonce {}", envelope.nonce),
         format!("Expires {}", format_expiry(envelope.expires_at)?),
-        format!("Payload {}", payload_hex),
     ];
     let signable_text = lines
         .iter()
@@ -401,10 +398,40 @@ mod tests {
 
         assert!(propose.starts_with("ClearSign v2 propose\nWallet Team\nProposal 7\nEnvelope "));
         assert!(propose.contains("\nSend 2.5 SOL from Team to Sarah\n"));
-        assert!(propose.contains("\nPayload "));
+        assert!(!propose.contains("\nPayload "));
         assert!(propose.ends_with(&response.signable_text));
         assert_ne!(vote_messages.propose, vote_messages.approve);
         assert_ne!(vote_messages.approve, vote_messages.cancel);
+    }
+
+    #[test]
+    fn send_prepare_uses_human_amount_token_decimals_and_signed_reason() {
+        let mut req = send_envelope("1.5", "nonce-1");
+        req.payload = serde_json::json!({
+            "recipient": "0xabc",
+            "recipientEncoding": "sha256_text",
+            "amount": "1.5",
+            "asset": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "assetEncoding": "sha256_text",
+            "decimals": 6,
+            "displayAsset": "USDC",
+            "note": "July contractor payment"
+        });
+
+        let Json(response) = prepare_clearsign_v2_response(
+            ClearSignPrepareRequest {
+                envelope: req,
+                vote: None,
+            },
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(response.headline, "Send 1.5 USDC from Team to 0xabc");
+        assert!(response
+            .signable_text
+            .contains("Reason: July contractor payment"));
+        assert!(!response.signable_text.contains("Payload "));
     }
 
     #[test]

@@ -46,9 +46,15 @@ export type ClearSignPayload =
   | SwapPayload;
 
 export interface MoneyAmount {
+  /** Human decimal amount. Never pass wei, satoshis, zatoshis, or token base units. */
   amount: string;
+  /** Executable asset identity (ticker for native assets, contract for ERC-20). */
   asset: string;
   assetEncoding?: "text" | "sha256_text";
+  /** Required for assets whose precision cannot be inferred from the ticker. */
+  decimals?: number;
+  /** Human label when `asset` is an executable identifier such as a contract. */
+  displayAsset?: string;
 }
 
 export interface RecipientAmount extends MoneyAmount {
@@ -58,6 +64,8 @@ export interface RecipientAmount extends MoneyAmount {
 
 export interface SendPayload extends RecipientAmount {
   note?: string;
+  /** Live USD snapshot shown to the signer; informational, not an oracle assertion. */
+  estimatedUsd?: string;
 }
 
 export interface BatchSendPayload {
@@ -182,11 +190,9 @@ export function summarizeClearSignAction(
   const expires = `Expires ${formatTimestamp(envelope.expiresAt)}`;
   const context = [
     `Wallet ${envelope.walletName}`,
-    `Action ${envelope.actionId}`,
-    `Nonce ${envelope.nonce}`,
     expires,
   ];
-  const signableLines = [...lines, ...context, `Payload ${payloadHash}`];
+  const signableLines = [...lines, ...context];
   const signableText = signableLines.join("\n");
   const envelopeHash = clearSignEnvelopeHash(envelope, signableText);
   return {
@@ -225,14 +231,10 @@ export function clearSignEnvelopeHash(
 }
 
 function summarizeSignableText(envelope: ClearSignEnvelope<ClearSignPayload>): string {
-  const payloadHash = clearSignPayloadHash(envelope);
   const lines = actionLines(envelope);
   const context = [
     `Wallet ${envelope.walletName}`,
-    `Action ${envelope.actionId}`,
-    `Nonce ${envelope.nonce}`,
     `Expires ${formatTimestamp(envelope.expiresAt)}`,
-    `Payload ${payloadHash}`,
   ];
   return [...lines, ...context].join("\n");
 }
@@ -294,10 +296,17 @@ function actionLines(envelope: ClearSignEnvelope<ClearSignPayload>): string[] {
   switch (envelope.kind) {
     case "send": {
       const payload = envelope.payload as SendPayload;
-      return [
+      const lines = [
         `Send ${formatMoney(payload)} from ${wallet} to ${payload.recipient}`,
         "Requires wallet approval",
       ];
+      const note = normalizeText(payload.note ?? "");
+      if (note) lines.push(`Reason: ${note}`);
+      const estimatedUsd = normalizeOptional(payload.estimatedUsd);
+      if (estimatedUsd) {
+        lines.push(`Estimated value at review: $${normalizeDecimal(estimatedUsd)} USD (informational)`);
+      }
+      return lines;
     }
     case "batch_send": {
       const payload = envelope.payload as BatchSendPayload;
@@ -717,8 +726,10 @@ function normalizeRecipientAmount(row: RecipientAmount): RecipientAmount {
 function normalizeMoney(row: MoneyAmount): MoneyAmount {
   return {
     amount: normalizeDecimal(row.amount),
-    asset: normalizeText(row.asset).toUpperCase(),
+    asset: normalizeAssetIdentity(row.asset),
     assetEncoding: row.assetEncoding ?? "text",
+    decimals: normalizeAssetDecimals(row.decimals),
+    displayAsset: normalizeOptional(row.displayAsset)?.toUpperCase(),
   };
 }
 
@@ -751,7 +762,17 @@ function isAgentTradeApprovalV2(row: AgentTradePayload): row is AgentTradePayloa
 }
 
 function formatMoney(row: MoneyAmount): string {
-  return `${normalizeDecimal(row.amount)} ${normalizeText(row.asset).toUpperCase()}`;
+  const asset = row.displayAsset
+    ? normalizeText(row.displayAsset).toUpperCase()
+    : normalizeAssetIdentity(row.asset);
+  return `${normalizeDecimal(row.amount)} ${asset}`;
+}
+
+function normalizeAssetIdentity(value: string): string {
+  const asset = normalizeText(value);
+  return /^0x[0-9a-fA-F]{40}$/.test(asset)
+    ? asset.toLowerCase()
+    : asset.toUpperCase();
 }
 
 function normalizeText(value: string): string {
@@ -815,8 +836,20 @@ function hash32FromHex(value: string, field: string): Uint8Array {
 }
 
 function normalizeDecimal(value: string): string {
-  const parsed = Number(value.trim());
-  return Number.isFinite(parsed) ? String(parsed) : value.trim();
+  const trimmed = value.trim();
+  if (!/^\d+(\.\d*)?$/.test(trimmed)) return trimmed;
+  const [rawWhole, rawFraction = ""] = trimmed.split(".");
+  const whole = rawWhole.replace(/^0+(?=\d)/, "") || "0";
+  const fraction = rawFraction.replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole;
+}
+
+function normalizeAssetDecimals(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value < 0 || value > 36) {
+    throw new Error("Asset decimals must be an integer between 0 and 36.");
+  }
+  return value;
 }
 
 function assetDecimals(asset: string): number {
@@ -837,10 +870,14 @@ function assetDecimals(asset: string): number {
   }
 }
 
-function decimalToRawAmount(value: string, asset: string): bigint {
+function decimalToRawAmount(
+  value: string,
+  asset: string,
+  explicitDecimals?: number,
+): bigint {
   const normalized = normalizeDecimal(value);
   if (!/^\d+(\.\d+)?$/.test(normalized)) return 0n;
-  const decimals = assetDecimals(asset);
+  const decimals = normalizeAssetDecimals(explicitDecimals) ?? assetDecimals(asset);
   const [whole, frac = ""] = normalized.split(".");
   const padded = `${frac.slice(0, decimals)}${"0".repeat(decimals)}`.slice(
     0,
@@ -874,9 +911,9 @@ class ByteWriter {
   }
 
   pushAmount(row: MoneyAmount) {
-    const asset = normalizeText(row.asset).toUpperCase();
+    const asset = normalizeAssetIdentity(row.asset);
     this.pushBytes(row.assetEncoding === "sha256_text" ? textCommitment(asset) : asset);
-    this.pushU128(decimalToRawAmount(row.amount, row.asset));
+    this.pushU128(decimalToRawAmount(row.amount, row.asset, row.decimals));
   }
 
   pushU8(value: number) {

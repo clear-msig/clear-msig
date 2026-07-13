@@ -34,6 +34,7 @@ export async function prepareClearSignAction(
     fallback?: boolean;
   },
 ): Promise<BackendClearSignSummary> {
+  const local = summarizeClearSignAction(envelope);
   try {
     const response = await apiRequest<
       Omit<BackendClearSignSummary, "source">,
@@ -47,12 +48,12 @@ export async function prepareClearSignAction(
       { envelope, vote: options?.vote },
       { timeoutMs: 10_000, signal: options?.signal },
     );
+    assertBackendSummaryMatchesLocal(response, local, envelope);
     return { ...response, source: "backend" };
   } catch (error) {
     if (options?.fallback !== true) {
       throw error;
     }
-    const local = summarizeClearSignAction(envelope);
     return {
       ...local,
       version: 2,
@@ -60,5 +61,29 @@ export async function prepareClearSignAction(
       actionKindCode: clearSignActionKindCode(envelope.kind),
       source: "local",
     };
+  }
+}
+
+function assertBackendSummaryMatchesLocal(
+  response: Omit<BackendClearSignSummary, "source">,
+  local: ClearSignSummary,
+  envelope: ClearSignEnvelope<ClearSignPayload>,
+): void {
+  const sameLines =
+    response.lines.length === local.lines.length &&
+    response.lines.every((line, index) => line === local.lines[index]);
+  if (
+    response.version !== 2 ||
+    response.kind !== envelope.kind ||
+    response.actionKindCode !== clearSignActionKindCode(envelope.kind) ||
+    response.headline !== local.headline ||
+    !sameLines ||
+    response.payloadHash.toLowerCase() !== local.payloadHash ||
+    response.envelopeHash.toLowerCase() !== local.envelopeHash ||
+    response.signableText !== local.signableText
+  ) {
+    throw new Error(
+      "ClearSign verification failed: the backend prepared different transaction details.",
+    );
   }
 }

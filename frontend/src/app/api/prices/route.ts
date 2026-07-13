@@ -13,6 +13,7 @@ const COINGECKO_IDS = [
   "zcash",
   "hyperliquid",
   "usd-coin",
+  "tether",
 ] as const;
 const COINGECKO_URL =
   "https://api.coingecko.com/api/v3/simple/price?" +
@@ -25,6 +26,7 @@ const FALLBACK_PRICES_USD: Record<string, number> = {
   ZEC: 30,
   HYPE: 100,
   USDC: 1,
+  USDT: 1,
 };
 
 interface CoinGeckoResponse {
@@ -57,6 +59,7 @@ export async function GET() {
       zcash: "ZEC",
       hyperliquid: "HYPE",
       "usd-coin": "USDC",
+      tether: "USDT",
     })) {
       const usd = json[coinId]?.usd;
       if (typeof usd === "number" && Number.isFinite(usd) && usd > 0) {

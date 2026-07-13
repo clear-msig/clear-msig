@@ -25,6 +25,7 @@ import { LedgerError } from "@/lib/wallet/ledger";
 import {
   TypedClearSignMessageVerificationError,
   verifiedTypedClearSignMessageBytes,
+  type ExpectedTypedClearSignMessage,
 } from "@/lib/clearsign-v2/typedMessage";
 import type { DryRunDescriptor, TypedDryRunDescriptor } from "@/lib/api/types";
 import type { MessageFlavor } from "@/lib/msig/offchain";
@@ -40,6 +41,8 @@ export interface SignOptions {
   /// pubkey but the user has since connected a Ledger). Resolve via
   /// `useWallet().pickSigner(approvers)`.
   preferSigner?: PublicKey | null;
+  /** Browser-rebuilt transaction binding required for typed proposal creation. */
+  expectedTyped?: ExpectedTypedClearSignMessage;
 }
 
 export interface SignedPayload {
@@ -310,9 +313,15 @@ export function useSignWithWallet() {
     options?: SignOptions,
   ): Promise<SignedPayload> {
     ensureDescriptorFresh(descriptor);
+    if (descriptor.action === "proposal_typed_create" && !options?.expectedTyped) {
+      throw new WalletSignError(
+        "message_mismatch",
+        "Typed proposal signing requires the transaction details rebuilt in this browser.",
+      );
+    }
     let bytes: Uint8Array;
     try {
-      bytes = verifiedTypedClearSignMessageBytes(descriptor);
+      bytes = verifiedTypedClearSignMessageBytes(descriptor, options?.expectedTyped);
     } catch (err) {
       if (err instanceof TypedClearSignMessageVerificationError) {
         throw new WalletSignError("message_mismatch", err.message);

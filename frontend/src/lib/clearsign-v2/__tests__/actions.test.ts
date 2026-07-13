@@ -46,9 +46,80 @@ describe("ClearSign v2 actions", () => {
       "Requires wallet approval",
     ]);
     expect(summary.signableText).toContain("Wallet Team");
-    expect(summary.signableText).toContain("Payload ");
+    expect(summary.signableText).not.toContain("Payload ");
     expect(summary.payloadHash).toMatch(/^[0-9a-f]{64}$/);
     expect(summary.envelopeHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("uses human native amounts while committing the executor base units", () => {
+    const human: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2",
+        asset: "ETH",
+        assetEncoding: "sha256_text",
+        recipient: "0xabc",
+        recipientEncoding: "sha256_text",
+      },
+    };
+    const mistakenRawDisplay: ClearSignEnvelope<SendPayload> = {
+      ...human,
+      payload: { ...human.payload, amount: "2000000000000000000" },
+    };
+
+    expect(summarizeClearSignAction(human).headline).toContain("Send 2 ETH");
+    expect(clearSignPayloadHash(human)).not.toBe(
+      clearSignPayloadHash(mistakenRawDisplay),
+    );
+  });
+
+  it("uses token decimals for readable ERC-20 amounts", () => {
+    const token: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "1.5",
+        asset: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        assetEncoding: "sha256_text",
+        decimals: 6,
+        displayAsset: "USDC",
+        recipient: "0xabc",
+        recipientEncoding: "sha256_text",
+      },
+    };
+    const wrongDecimals: ClearSignEnvelope<SendPayload> = {
+      ...token,
+      payload: { ...token.payload, decimals: 18 },
+    };
+
+    expect(summarizeClearSignAction(token).headline).toContain("Send 1.5 USDC");
+    expect(clearSignPayloadHash(token)).not.toBe(clearSignPayloadHash(wrongDecimals));
+    expect(clearSignPayloadHash(token)).toBe(
+      clearSignPayloadHash({
+        ...token,
+        payload: { ...token.payload, asset: token.payload.asset.toUpperCase().replace("0X", "0x") },
+      }),
+    );
+  });
+
+  it("stores the sender reason in signed clear text and the envelope commitment", () => {
+    const withoutReason: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: { amount: "2.5", asset: "SOL", recipient: "Sarah" },
+    };
+    const withReason: ClearSignEnvelope<SendPayload> = {
+      ...withoutReason,
+      payload: { ...withoutReason.payload, note: "July contractor payment" },
+    };
+    const summary = summarizeClearSignAction(withReason);
+
+    expect(summary.signableText).toContain("Reason: July contractor payment");
+    expect(clearSignPayloadHash(withReason)).toBe(clearSignPayloadHash(withoutReason));
+    expect(summary.envelopeHash).not.toBe(
+      summarizeClearSignAction(withoutReason).envelopeHash,
+    );
   });
 
   it("summarizes escrow return with each recipient visible", () => {
@@ -414,7 +485,7 @@ describe("ClearSign v2 actions", () => {
     expect(propose).toContain("ClearSign v2 propose\nWallet Team\nProposal 7\nEnvelope ");
     expect(propose).toContain("\n\nSend 2.5 SOL from Team to Sarah");
     expect(propose).toContain("Requires wallet approval");
-    expect(propose).toContain(`Payload ${clearSignPayloadHash(envelope)}`);
+    expect(propose).not.toContain("Payload ");
   });
 });
 

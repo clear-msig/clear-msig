@@ -1,5 +1,6 @@
 import type { TypedDryRunDescriptor } from "@/lib/api/types";
 import { fromHex } from "@/lib/msig";
+import { formatTimestamp } from "@/lib/msig/datetime";
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -12,6 +13,12 @@ export class TypedClearSignMessageVerificationError extends Error {
 
 type VoteVerb = "propose" | "approve" | "cancel";
 
+export interface ExpectedTypedClearSignMessage {
+  envelopeHash: string;
+  payloadHash: string;
+  signableText: string;
+}
+
 const ACTION_TO_VOTE_VERB: Record<string, VoteVerb> = {
   proposal_typed_create: "propose",
   proposal_typed_approve: "approve",
@@ -23,6 +30,7 @@ const ACTION_TO_VOTE_VERB: Record<string, VoteVerb> = {
 
 export function verifiedTypedClearSignMessageBytes(
   descriptor: TypedDryRunDescriptor,
+  expected?: ExpectedTypedClearSignMessage,
 ): Uint8Array {
   if (descriptor.message_flavor !== "clearsign_v2_text") {
     throw new TypedClearSignMessageVerificationError(
@@ -47,7 +55,28 @@ export function verifiedTypedClearSignMessageBytes(
   }
 
   verifyTypedClearSignMessageText(descriptor, text);
+  if (expected) {
+    verifyExpectedTypedClearSignMessage(descriptor, text, expected);
+  }
   return bytes;
+}
+
+function verifyExpectedTypedClearSignMessage(
+  descriptor: TypedDryRunDescriptor,
+  text: string,
+  expected: ExpectedTypedClearSignMessage,
+): void {
+  const split = text.indexOf("\n\n");
+  const body = split < 0 ? "" : text.slice(split + 2);
+  if (
+    normalizeHex(descriptor.envelope_hash_hex) !== normalizeHex(expected.envelopeHash) ||
+    normalizeHex(descriptor.payload_hash_hex) !== normalizeHex(expected.payloadHash) ||
+    body !== expected.signableText
+  ) {
+    throw new TypedClearSignMessageVerificationError(
+      "Typed ClearSign request does not match the transaction reviewed in this browser.",
+    );
+  }
 }
 
 export function verifyTypedClearSignMessageText(
@@ -80,9 +109,7 @@ export function verifyTypedClearSignMessageText(
 
   const requiredBodyParts = [
     `Wallet ${descriptor.wallet_name}`,
-    `Action ${descriptor.action_id}`,
-    `Nonce ${descriptor.nonce}`,
-    `Payload ${normalizeHex(descriptor.payload_hash_hex)}`,
+    `Expires ${formatTimestamp(descriptor.expiry)}`,
   ];
   for (const part of requiredBodyParts) {
     if (!body.includes(part)) {

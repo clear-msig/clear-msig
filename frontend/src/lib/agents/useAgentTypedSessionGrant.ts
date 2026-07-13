@@ -105,7 +105,14 @@ export function useAgentTypedSessionGrant(walletName: string) {
         expiry: formatUnixSigningExpiry(binding.envelope.expiresAt),
         actor_pubkey: proposer.toBase58(),
       });
-      const signed = await signTypedDescriptor(dry, { preferSigner: proposer });
+      const signed = await signTypedDescriptor(dry, {
+        preferSigner: proposer,
+        expectedTyped: {
+          envelopeHash: prepared.envelopeHash,
+          payloadHash: prepared.payloadHash,
+          signableText: prepared.signableText,
+        },
+      });
       const submitted = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,
         expiry: dry.expiry,
