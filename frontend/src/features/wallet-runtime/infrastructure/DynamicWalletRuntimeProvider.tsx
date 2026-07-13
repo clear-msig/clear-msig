@@ -53,7 +53,10 @@ import {
   signMessageWithInjectedProvider,
   signTransactionWithInjectedProvider,
 } from "@/lib/wallet/injectedSolana";
-import { signDynamicSolanaMessage } from "@/features/wallet-runtime/infrastructure/dynamicSolanaMessageSigner";
+import {
+  activateDynamicSolanaWallet,
+  signDynamicSolanaMessage,
+} from "@/features/wallet-runtime/infrastructure/dynamicSolanaMessageSigner";
 
 type SolanaTransaction = Transaction | VersionedTransaction;
 
@@ -211,20 +214,22 @@ function useDynamicWalletValue(
         if (!solanaWallet) {
           throw new Error("Connect a wallet before signing");
         }
-        // Sign through the selected Solana wallet directly. Changing
-        // Dynamic's primary wallet here can remount its modal state between
-        // the click and the embedded Turnkey prompt, leaving the caller
-        // waiting on a signature UI that was just discarded.
         // Prefer a matching injected provider for external wallets. This
         // keeps the signing request attached to the wallet's native mobile
         // handoff and preserves the readable UTF-8 display hint. Embedded
-        // wallets have no matching injected provider and continue below.
+        // wallets have no matching injected provider and continue through
+        // Dynamic after their Solana wallet becomes the active primary.
         const injected = await signMessageWithInjectedProvider({
           connectorKey: walletConnectorKey,
           expectedPublicKey: dynamicPublicKey,
           bytes,
         });
         if (injected) return injected;
+        await activateDynamicSolanaWallet(
+          solanaWallet,
+          primaryWallet,
+          setPrimaryWallet,
+        );
         return signDynamicSolanaMessage(solanaWallet, bytes);
       }
       throw new Error(
@@ -237,6 +242,8 @@ function useDynamicWalletValue(
       ledgerPublicKey,
       dynamicPublicKey,
       walletConnectorKey,
+      primaryWallet,
+      setPrimaryWallet,
     ],
   );
 

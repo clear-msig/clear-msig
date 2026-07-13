@@ -9,13 +9,40 @@ interface BytePreservingConnectorLike {
 }
 
 export interface DynamicSolanaWalletLike {
+  id?: string;
   connector?: BytePreservingConnectorLike;
   signUint8ArrayMessage?: (bytes: Uint8Array) => Promise<Uint8Array>;
   getSigner?: () => Promise<DynamicSolanaSignerLike | undefined>;
 }
 
+interface DynamicPrimaryWalletLike {
+  id?: string;
+}
+
 /**
- * Signs exact Solana message bytes without changing Dynamic's primary wallet.
+ * Makes the selected Solana wallet active before Dynamic opens its signing UI.
+ * Social login commonly creates EVM and Solana wallets, with EVM remaining the
+ * primary wallet. Dynamic binds embedded signing prompts to that primary wallet.
+ */
+export async function activateDynamicSolanaWallet(
+  walletValue: unknown,
+  primaryWalletValue: unknown,
+  setPrimaryWallet?: (walletId: string) => Promise<void>,
+): Promise<void> {
+  const walletId = (walletValue as DynamicSolanaWalletLike | null)?.id;
+  const primaryWalletId = (primaryWalletValue as DynamicPrimaryWalletLike | null)
+    ?.id;
+  if (
+    walletId &&
+    walletId !== primaryWalletId &&
+    typeof setPrimaryWallet === "function"
+  ) {
+    await setPrimaryWallet(walletId);
+  }
+}
+
+/**
+ * Signs exact Solana message bytes through the selected Dynamic wallet.
  *
  * Turnkey-backed social wallets expose their byte-preserving method on the
  * connector, not the Wallet wrapper. Calling Wallet.getSigner() first adds a

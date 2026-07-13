@@ -198,6 +198,7 @@ export default function DynamicProviderTree({
       walletConnectors,
       initialAuthenticationMode: "connect-and-sign",
       deviceRegistrationModal: { enabled: false },
+      transactionConfirmation: { required: true },
       cssOverrides: DYNAMIC_BRAND_CSS,
     }),
     [environmentId, walletConnectors],

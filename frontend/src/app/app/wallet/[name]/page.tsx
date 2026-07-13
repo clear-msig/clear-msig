@@ -54,6 +54,7 @@ import {
 } from "@/lib/retail/walletAppearance";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { useConnection } from "@/lib/wallet";
+import { useWalletActionWarmup } from "@/features/wallet/controllers/useWalletActionWarmup";
 
 const WalletTourModal = dynamic(
   () =>
@@ -137,6 +138,7 @@ export default function WalletDetailPage() {
   );
   const productSurface = useWalletProductSurface(name);
   const portfolio = useWalletPortfolio(name);
+  useWalletActionWarmup(name);
 
   const walletQuery = useQuery({
     queryKey: ["wallet", name],

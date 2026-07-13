@@ -26,7 +26,7 @@ import {
   ShieldCheck,
   Usb,
 } from "lucide-react";
-import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import {
   useWalletGate,
   type ProductWalletSelection,
@@ -219,17 +219,10 @@ function ConnectPage() {
                       : "Use your email, your phone, or a wallet you already have. We will set the rest up for you."}
                   </p>
 
-                  {/* Replace Dynamic's default outline CTA with a
-                      neon-cta primary so it matches the rest of the
-                      brand. setShowAuthFlow opens the same modal
-                      DynamicWidget uses internally; we still mount
-                      <DynamicWidget /> hidden so the modal/portal
-                      stays wired up. */}
+                  {/* setShowAuthFlow opens the provider-owned Dynamic auth
+                      modal directly; no hidden widget is required. */}
                   <div className="mt-7 w-full">
                     <ConnectCta />
-                    <div className="hidden">
-                      <DynamicWidget />
-                    </div>
                   </div>
 
                   <div className="w-full">

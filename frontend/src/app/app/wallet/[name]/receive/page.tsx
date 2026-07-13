@@ -13,14 +13,14 @@
 // The "no raw addresses on screen by default" rule is deliberately
 // broken here - to add money, you need the address.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { Check, Copy, Download, RefreshCw } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { findVaultAddress } from "@/lib/msig";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
@@ -38,6 +38,19 @@ import {
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { downloadBrandedQr } from "@/lib/retail/qrDownload";
 import { useToast } from "@/components/ui/Toast";
+
+const ReceiveQrCode = dynamic(
+  () =>
+    import("@/features/wallet/ui/ReceiveQrCode").then(
+      (module) => module.ReceiveQrCode,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[184px] w-[184px] animate-pulse bg-black/10" />
+    ),
+  },
+);
 
 interface ReceiveOption {
   chain: ChainMeta;
@@ -62,6 +75,7 @@ export default function ReceivePage() {
   const wallet = useWallet();
   const toast = useToast();
   const qrRef = useRef<SVGSVGElement | null>(null);
+  const [qrReady, setQrReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   // Solana side: derive the vault PDA locally from the wallet name.
@@ -144,6 +158,8 @@ export default function ReceivePage() {
   // address, fresh "Copy" affordance.
   useEffect(() => {
     setCopied(false);
+    qrRef.current = null;
+    setQrReady(false);
   }, [selectedKind]);
 
   const handleCopy = async () => {
@@ -176,6 +192,10 @@ export default function ReceivePage() {
       setDownloading(false);
     }
   };
+  const handleQrNode = useCallback((node: SVGSVGElement | null) => {
+    qrRef.current = node;
+    setQrReady(node !== null);
+  }, []);
 
   const motionProps = reduce
     ? {}
@@ -290,14 +310,11 @@ export default function ReceivePage() {
             </div>
             <div className="mt-4 flex justify-center">
               <div className="rounded-soft bg-white p-3 shadow-card-rest sm:p-4">
-                <QRCodeSVG
+                <ReceiveQrCode
                   key={selected.chain.kind}
-                  ref={qrRef}
                   value={selected.address}
-                  size={184}
-                  level="M"
-                  marginSize={0}
-                  aria-label={`QR code for ${selected.chain.name} address`}
+                  label={`QR code for ${selected.chain.name} address`}
+                  onNode={handleQrNode}
                 />
               </div>
             </div>
@@ -336,7 +353,7 @@ export default function ReceivePage() {
               <button
                 type="button"
                 onClick={handleDownload}
-                disabled={downloading}
+                disabled={downloading || !qrReady}
                 aria-label="Download QR code as PNG"
                 className={clsx(
                   "group flex w-full min-h-tap items-center justify-center gap-2 rounded-soft border border-border-soft bg-canvas px-4 text-sm font-medium text-text-strong",
