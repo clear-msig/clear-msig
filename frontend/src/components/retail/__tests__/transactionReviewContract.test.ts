@@ -6,25 +6,43 @@ function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf8");
 }
 
-const sendPages = [
-  "src/features/send/routes/SolanaSendPage.tsx",
-  "src/features/send/routes/EthSendPage.tsx",
-  "src/features/send/routes/Erc20SendPage.tsx",
-  "src/features/send/routes/BtcSendPage.tsx",
-  "src/features/send/routes/ZecSendPage.tsx",
-  "src/features/send/routes/BatchSendPage.tsx",
-];
+const sendReviewOwners = [
+  [
+    "src/features/send/routes/SolanaSendPage.tsx",
+    "src/features/send/ui/solana/solanaSendPreview.ts",
+  ],
+  [
+    "src/features/send/routes/EthSendPage.tsx",
+    "src/features/send/routes/EthSendPage.tsx",
+  ],
+  [
+    "src/features/send/routes/Erc20SendPage.tsx",
+    "src/features/send/routes/Erc20SendPage.tsx",
+  ],
+  [
+    "src/features/send/routes/BtcSendPage.tsx",
+    "src/features/send/ui/bitcoin/bitcoinPreview.ts",
+  ],
+  [
+    "src/features/send/routes/ZecSendPage.tsx",
+    "src/features/send/routes/ZecSendPage.tsx",
+  ],
+  [
+    "src/features/send/routes/BatchSendPage.tsx",
+    "src/features/send/routes/BatchSendPage.tsx",
+  ],
+] as const;
 
 describe("transaction review contract", () => {
-  it.each(sendPages)("shows quorum and timing on %s", (path) => {
-    const page = source(path);
-    expect(page).toContain('label: "Approval threshold"');
-    expect(page).toContain('label: "Timelock"');
+  it.each(sendReviewOwners)("shows quorum and timing on %s", (_route, owner) => {
+    const review = source(owner);
+    expect(review).toContain('label: "Approval threshold"');
+    expect(review).toContain('label: "Timelock"');
   });
 
-  it.each(sendPages)("shows network fee information on %s", (path) => {
-    const page = source(path);
-    expect(page).toMatch(/label: "(Network fee|Gas reserve)"/);
+  it.each(sendReviewOwners)("shows network fee information on %s", (_route, owner) => {
+    const review = source(owner);
+    expect(review).toMatch(/label: "(Network fee|Gas reserve)"/);
   });
 
   it("keeps decision fields visible and puts only technical fields behind disclosure", () => {

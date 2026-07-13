@@ -19,12 +19,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  Copy,
-  Loader2,
-  Users,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
@@ -35,15 +30,12 @@ import {
 } from "@/lib/msig";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
-import { PublicKey } from "@solana/web3.js";
 import { fetchWalletByName } from "@/lib/chain/wallets";
-import { fetchProposal } from "@/lib/chain/proposals";
 import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   isValidSolanaAddress,
   shortAddress,
-  type Contact,
 } from "@/lib/retail/contacts";
 import { useContacts } from "@/lib/hooks/useContacts";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
@@ -51,33 +43,19 @@ import { useToast } from "@/components/ui/Toast";
 import { evaluatePolicy, PolicyViolationError } from "@/lib/retail/policyEvaluation";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
-import { Button } from "@/components/retail/Button";
 import { SendProgressStage } from "@/features/send/ui/SendProgressStage";
-import {
-  SignPayloadPreview,
-  type SignPayloadDetail,
-} from "@/components/retail/SignPayloadPreview";
-import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { RouteSkeleton } from "@/components/retail/RouteSkeleton";
-import { UsdHint } from "@/components/retail/UsdHint";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
 import { resolveSnsName, looksLikeSnsName } from "@/lib/chain/sns";
-import { QrScanButton } from "@/components/retail/QrScanButton";
-import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
-import { SendAmountField } from "@/components/retail/SendAmountField";
-import { ChainBadge } from "@/components/retail/ChainBadge";
-import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
-import { chainByKind } from "@/lib/retail/chains";
-import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
+import { quotePerWhole } from "@/lib/retail/priceConversion";
 import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
 import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
-import { SEND_NOTE_MAX_LENGTH, SEND_NOTE_PLACEHOLDER } from "@/lib/sendFields";
 import {
   prepareClearSignAction,
   type ClearSignEnvelope,
@@ -86,147 +64,27 @@ import {
 import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
 import {
   formatAmount,
-  formatLamports,
   lamportsToSafeNumber,
-  parseSolanaRecipientFromQr,
   policyCommitmentHex,
   randomActionLabel,
   readExecuteFailureProposal,
   type ResolvedSolanaRecipient,
   tagExecuteFailure,
 } from "@/features/send/domain/solanaSend";
+import { SentStage } from "@/features/send/ui/solana/SolanaSendCompletion";
+import { ComposeStage } from "@/features/send/ui/solana/SolanaComposeStage";
 import {
-  RecipientStatus,
-  SolanaSendField as Field,
-} from "@/features/send/ui/solana/SolanaRecipientFields";
+  SOLANA_SEND_PHASE_LABEL,
+  type SolanaSendingPhase,
+} from "@/features/send/domain/solanaSendProgress";
 import {
-  BudgetHint,
-  SentStage,
-} from "@/features/send/ui/solana/SolanaSendCompletion";
+  isProposalNotApprovedError,
+  waitForSolanaProposalStatus,
+} from "@/features/send/infrastructure/solanaProposalStatus";
 
 type ResolvedRecipient = ResolvedSolanaRecipient;
 
 type Stage = "compose" | "sending" | "sent";
-const STAGE_TRANSITION = {
-  duration: 0.4,
-  ease: [0.22, 1, 0.36, 1] as const,
-};
-
-interface SendPreviewArgs {
-  walletName: string;
-  amount: string;
-  amountValid: boolean;
-  resolved: ResolvedRecipient;
-  pendingUsd: number;
-  budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
-  approvalThreshold: number;
-  timelockSeconds: number;
-  feeReserveLamports: bigint;
-}
-
-function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetail[] {
-  const { walletName, amount, amountValid, resolved, pendingUsd, budgetUsage } = args;
-  const details: SignPayloadDetail[] = [
-    { label: "From wallet", value: toDisplayName(walletName) || "your wallet" },
-    { label: "Chain", value: "Solana" },
-    {
-      label: "Approval threshold",
-      value: `${args.approvalThreshold} ${args.approvalThreshold === 1 ? "approval" : "approvals"}`,
-    },
-    {
-      label: "Timelock",
-      value:
-        args.timelockSeconds > 0
-          ? `${args.timelockSeconds} seconds after approval`
-          : "Immediately after approval",
-    },
-    {
-      label: "Network fee",
-      value: `${formatAmount(String(Number(args.feeReserveLamports) / 1_000_000_000))} SOL reserved`,
-    },
-  ];
-  // Always surface the destination address - even for contact-resolved
-  // sends. Without this, an attacker who tampers localStorage to swap
-  // a contact's address (XSS, malicious extension, shared device) can
-  // trick the user into signing "Send 5 SOL to Sarah" while the bytes
-  // route to attacker. Showing the abbreviated address gives the user
-  // a chance to spot the mismatch before signing.
-  if (
-    resolved.kind === "address" ||
-    resolved.kind === "contact" ||
-    resolved.kind === "sns"
-  ) {
-    const addr =
-      resolved.kind === "contact"
-        ? resolved.contact.address
-        : resolved.address;
-    details.push({
-      label: "Recipient address",
-      value: shortAddress(addr),
-      emphasis: "mono",
-    });
-    if (resolved.kind === "sns") {
-      details.push({ label: "SNS name", value: resolved.name });
-    }
-  }
-  if (amountValid) {
-    details.push({
-      label: "Amount",
-      value: `${formatAmount(amount)} SOL`,
-      emphasis: "amount",
-    });
-  }
-
-  // Policy-impact rows. Only render when the user has set the cap
-  // they affect; otherwise the detail row would be noise.
-  const sol = budgetUsage.perChain.find((c) => c.ticker === "SOL");
-  if (amountValid && sol && sol.cap !== null && pendingUsd > 0) {
-    const after = sol.spentUsd + pendingUsd;
-    details.push({
-      label: "Solana / week",
-      value: `${formatUsd(after)} of ${formatUsd(sol.cap)}`,
-    });
-  }
-  const cap = budgetUsage.budget?.weeklyUsd ?? null;
-  if (amountValid && cap !== null && cap > 0 && pendingUsd > 0) {
-    const after = budgetUsage.spentUsd + pendingUsd;
-    details.push({
-      label: "Wallet / week",
-      value: `${formatUsd(after)} of ${formatUsd(cap)}`,
-    });
-  }
-  return details;
-}
-
-function buildSendPreviewWarning(args: {
-  resolved: ResolvedRecipient;
-  pendingUsd: number;
-  budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
-}): string | undefined {
-  const { resolved, pendingUsd, budgetUsage } = args;
-
-  // Policy breach warnings take priority over recipient warnings;
-  // they're more consequential.
-  const sol = budgetUsage.perChain.find((c) => c.ticker === "SOL");
-  if (sol && sol.cap !== null && sol.spentUsd + pendingUsd > sol.cap) {
-    const over = sol.spentUsd + pendingUsd - sol.cap;
-    return `This send pushes Solana ${formatUsd(over)} over its ${formatUsd(sol.cap)} weekly cap. Friends still need to approve; the cap is a guide today.`;
-  }
-  const cap = budgetUsage.budget?.weeklyUsd ?? null;
-  if (cap !== null && cap > 0 && budgetUsage.spentUsd + pendingUsd > cap) {
-    const over = budgetUsage.spentUsd + pendingUsd - cap;
-    return `This send pushes ${budgetUsage.budget ? toDisplayName(budgetUsage.budget.walletName) : "the wallet"} ${formatUsd(over)} over its ${formatUsd(cap)} weekly cap.`;
-  }
-  if (budgetUsage.velocityHit) {
-    return `You have already sent ${budgetUsage.sendsLast24h} times in the last 24 hours, at the per-day limit. This send would go above it.`;
-  }
-
-  // Recipient warning - last priority.
-  if (resolved.kind === "address") {
-    return "You are sending to a raw address (no contact match). Money sent to the wrong address cannot be reversed.";
-  }
-  return undefined;
-}
 
 export default function SendPageWrapper() {
   return (
@@ -322,7 +180,7 @@ function SendPage() {
   // Substep state inside the "sending" stage. Tells the user which
   // step is in flight so a slow Solana RPC doesn't read as a frozen
   // app. Each step in the mutation pushes to this ref via setPhase.
-  const [phase, setPhase] = useState<SendingPhase>("preparing");
+  const [phase, setPhase] = useState<SolanaSendingPhase>("preparing");
   // Initialise amount/recipient/note from URL params so the QuickAction
   // input on /app/wallet/[name] can route here with the form already
   // filled in. Subsequent edits override; we never re-read after mount.
@@ -664,7 +522,7 @@ function SendPage() {
       let needsOwnApprove =
         userIsApprover && decision.needsApproveSignature;
       if (userIsApprover && decision.status === null) {
-        const observedStatus = await waitForProposalStatus(
+        const observedStatus = await waitForSolanaProposalStatus(
           connection,
           proposal,
         );
@@ -769,7 +627,7 @@ function SendPage() {
       //    old/new program versions, RPC lag, policy-added approvers,
       //    and explicit approve retries can all make local counting
       //    wrong. The chain account is the source of truth.
-      const statusBeforeExecute = await waitForProposalStatus(
+      const statusBeforeExecute = await waitForSolanaProposalStatus(
         connection,
         proposal,
       );
@@ -1078,9 +936,9 @@ function SendPage() {
           )}
           {stage === "sending" && (
             <SendProgressStage
-              primary={`${PHASE_LABEL[phase].primary}...`}
-              hint={PHASE_LABEL[phase].hint}
-              loaderLabel={PHASE_LABEL[phase].primary}
+              primary={`${SOLANA_SEND_PHASE_LABEL[phase].primary}...`}
+              hint={SOLANA_SEND_PHASE_LABEL[phase].hint}
+              loaderLabel={SOLANA_SEND_PHASE_LABEL[phase].primary}
               reduceMotion={!!reduce}
             />
           )}
@@ -1101,454 +959,6 @@ function SendPage() {
 
 // ─── Stage 1: compose ──────────────────────────────────────────────
 
-interface ComposeStageProps {
-  walletName: string;
-  amount: string;
-  setAmount: (s: string) => void;
-  recipientText: string;
-  setRecipientText: (s: string) => void;
-  note: string;
-  setNote: (s: string) => void;
-  resolved: ResolvedRecipient;
-  savedNewContact: boolean;
-  onSaveNewContact: (name: string, address: string) => void;
-  canSubmit: boolean;
-  onSubmit: () => void;
-  waitingForRule: boolean;
-  budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
-  pendingUsd: number;
-  contactNames: string[];
-  vaultBalanceLamports: bigint | null;
-  balanceLoading: boolean;
-  insufficientBalance: boolean;
-  signerBlocked: boolean;
-  feeReserveLamports: bigint;
-  approvalThreshold: number;
-  timelockSeconds: number;
-  onQuickFill: (parsed: {
-    recipientText?: string;
-    amountSol?: number;
-    note?: string;
-  }) => void;
-  reduce: boolean;
-}
-
-function ComposeStage({
-  walletName,
-  amount,
-  setAmount,
-  recipientText,
-  setRecipientText,
-  note,
-  setNote,
-  resolved,
-  savedNewContact,
-  onSaveNewContact,
-  canSubmit,
-  onSubmit,
-  waitingForRule,
-  budgetUsage,
-  pendingUsd,
-  contactNames,
-  vaultBalanceLamports,
-  balanceLoading,
-  insufficientBalance,
-  signerBlocked,
-  feeReserveLamports,
-  approvalThreshold,
-  timelockSeconds,
-  onQuickFill,
-  reduce,
-}: ComposeStageProps) {
-  const walletDisplay = toDisplayName(walletName);
-  const motionProps = reduce
-    ? { initial: false as const, animate: { opacity: 1 } }
-    : {
-        initial: { opacity: 0, y: 16 },
-        animate: { opacity: 1, y: 0 },
-      };
-
-  const display = useMemo(() => formatAmount(amount), [amount]);
-  const amountValid = useMemo(() => {
-    const n = parseFloat(amount);
-    return !isNaN(n) && n > 0;
-  }, [amount]);
-
-  const solMeta = chainByKind(0);
-
-  return (
-    <motion.section
-      {...motionProps}
-      transition={STAGE_TRANSITION}
-      className="flex flex-col gap-4"
-    >
-      {/* Compact left-aligned header. Chain badge sits inline with
-          the title so the network identity is unmistakable without
-          eating a full hero block. Matches the rest of the redesigned
-          app (Home / Activity / Settings / Account). */}
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex items-center gap-3">
-          {solMeta ? <ChainBadge chain={solMeta} size="md" /> : null}
-          <div className="flex flex-col gap-0.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Send
-              </p>
-              <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
-                Send SOL
-              </h1>
-          </div>
-        </div>
-        <p className="text-xs text-text-soft sm:text-sm">
-          <span className="font-medium text-text-strong">{walletDisplay}</span>
-        </p>
-      </header>
-
-      {/* Quick-send shortcut - type a sentence, the form fills. */}
-      <QuickSendInput contactNames={contactNames} onParsed={onQuickFill} />
-
-      {signerBlocked ? (
-        <UnsupportedSignerBanner
-          title="This sign-in cannot finish SOL ClearSign yet"
-          compact
-        />
-      ) : null}
-
-      {/* Compose grid - Amount + Recipient sit side-by-side on lg+
-          so desktop users see both inputs at once. Stacks single-
-          column on smaller screens. `items-start` keeps the cards
-          at their natural heights instead of stretching to match.
-
-          Mobile: the wrapper itself becomes the bordered card so
-          Amount + Recipient read as one merged form, not two
-          stacked cards. lg+: the wrapper sheds its card styling and
-          each region restores its own card chrome (the original
-          two-card desktop layout). */}
-      <div
-        className={
-          "flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
-          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 " +
-          "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
-        }
-      >
-
-      {/* Amount card. Balance + Max live with the input so the
-          number, asset, and available balance stay visually scoped. */}
-      <section
-        className={
-          "flex flex-col gap-3 " +
-          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
-        }
-      >
-        <SendAmountField
-          id="send-amount-input"
-          ticker="SOL"
-          value={amount}
-          onChange={(e) => {
-            const raw = e.target.value.replace(/[^\d.]/g, "");
-            const [wholeRaw = "", frac] = raw.split(".");
-            const whole = wholeRaw.slice(0, 12);
-            const next =
-              frac === undefined ? whole : `${whole}.${frac.slice(0, 4)}`;
-            setAmount(next);
-          }}
-          autoFocus
-          maxLength={20}
-          action={
-            typeof vaultBalanceLamports === "bigint" &&
-            vaultBalanceLamports > 0n ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  const max =
-                    vaultBalanceLamports > feeReserveLamports
-                      ? vaultBalanceLamports - feeReserveLamports
-                      : 0n;
-                  setAmount(formatLamports(max, 4));
-                }}
-                className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
-              >
-                Use max
-              </button>
-            ) : null
-          }
-          footer={
-            <>
-              <span>Wallet has </span>
-              <span className="font-numerals font-medium text-text-strong tabular-nums">
-                {balanceLoading
-                  ? "..."
-                  : typeof vaultBalanceLamports === "bigint"
-                    ? formatLamports(vaultBalanceLamports)
-                    : "-"}
-              </span>
-              <span> SOL</span>
-              {typeof vaultBalanceLamports === "bigint" && (
-                <UsdHint
-                  amount={vaultBalanceLamports}
-                  smallestPerWhole={1_000_000_000n}
-                  ticker="SOL"
-                />
-              )}
-              {amount && (
-                <>
-                  <span aria-hidden="true" className="mx-1.5">
-                    ·
-                  </span>
-                  <span>{display} SOL to send</span>
-                </>
-              )}
-            </>
-          }
-          warning={
-            insufficientBalance && typeof vaultBalanceLamports === "bigint" ? (
-              <>
-              <span className="font-medium">Insufficient balance.</span>{" "}
-              {walletDisplay} has {formatLamports(vaultBalanceLamports)} SOL
-              <UsdHint
-                amount={vaultBalanceLamports}
-                smallestPerWhole={1_000_000_000n}
-                ticker="SOL"
-              />
-              {" "}- top up before sending.
-              </>
-            ) : null
-          }
-        />
-      </section>
-
-      {/* Recipient + Note card. Same merged-on-mobile / split-on-lg+
-          treatment as the Amount section above. */}
-      <section
-        className={
-          "flex flex-col gap-3 " +
-          "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
-        }
-      >
-        <div className="flex items-stretch gap-2">
-          <div className="min-w-0 flex-1">
-            <Field
-              label="To"
-              value={recipientText}
-              onChange={setRecipientText}
-              placeholder="Sarah, or paste a wallet address"
-              maxLength={64}
-            />
-          </div>
-          <QrScanButton
-            ariaLabel="Scan recipient QR"
-            title="Scan a recipient QR"
-            onResult={(v) => setRecipientText(parseSolanaRecipientFromQr(v))}
-          />
-        </div>
-
-        {/* Recents - Cash-App-style stacked list of recent recipients
-            on this wallet+chain. The component subscribes to txLog
-            updates and self-hides when empty. */}
-        <RecentRecipientsChips
-          walletName={walletName}
-          chainKind={0}
-          onPick={setRecipientText}
-        />
-
-        <RecipientStatus
-          resolved={resolved}
-          savedNewContact={savedNewContact}
-          onSaveContact={onSaveNewContact}
-        />
-
-        <Field
-          label="Note"
-          value={note}
-          onChange={setNote}
-          placeholder={SEND_NOTE_PLACEHOLDER}
-          optional
-          maxLength={SEND_NOTE_MAX_LENGTH}
-        />
-      </section>
-
-      </div>{/* end Amount + Recipient wrapper (merged-card mobile, split lg+) */}
-
-      <BudgetHint
-        budgetUsage={budgetUsage}
-        pendingUsd={pendingUsd}
-        walletName={walletName}
-      />
-
-      {/* Preview + popup narration. Lives just above the CTA so the
-          user reads the action they're about to authorize before
-          they click Send. Both blocks render in their compact
-          "details behind an info icon" mode - the headline + warning
-          stay visible, secondary context is one hover/tap away. */}
-      <div className="flex flex-col gap-2">
-        <SignPayloadPreview
-          action={
-            amountValid &&
-            (resolved.kind === "contact" ||
-              resolved.kind === "address" ||
-              resolved.kind === "sns")
-              ? `Send ${formatAmount(amount)} SOL to ${
-                  resolved.kind === "contact"
-                    ? resolved.contact.name
-                    : resolved.kind === "sns"
-                      ? resolved.name
-                      : shortAddress(resolved.address)
-                }`
-              : "Fill in the amount and recipient above"
-          }
-          details={buildSendPreviewDetails({
-            walletName,
-            amount,
-            amountValid,
-            resolved,
-            pendingUsd,
-            budgetUsage,
-            approvalThreshold,
-            timelockSeconds,
-            feeReserveLamports,
-          })}
-          warning={buildSendPreviewWarning({
-            resolved,
-            pendingUsd,
-            budgetUsage,
-          })}
-          technicalNote="Your wallet will sign readable ClearSign text for this request. Verify the amount, recipient, wallet, and expiry before approving."
-          collapsibleDetails
-        />
-      </div>
-
-      {/* Action footer - primary Send CTA + secondary "Send to many"
-          link. Sticky on mobile (bottom of viewport, clears safe
-          area + BottomNav); inline on sm+ where the page scrolls
-          inside the workspace shell. */}
-      <div className="flex flex-col gap-2 pt-1">
-        <div
-          className={
-            "-mx-3 sm:mx-0 px-3 sm:px-0 " +
-            "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
-            "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
-          }
-        >
-          <Button
-            size="lg"
-            fullWidth
-            disabled={!canSubmit || waitingForRule || signerBlocked}
-            onClick={onSubmit}
-          >
-            {waitingForRule ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Loading wallet…
-              </>
-            ) : (
-              <>
-                Send request
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </>
-            )}
-          </Button>
-        </div>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(walletName)}/send/batch`}
-          className={
-            "inline-flex min-h-tap items-center justify-center gap-2 self-center rounded-full border border-border-soft " +
-            "bg-canvas px-4 py-2 text-xs font-medium text-text-soft " +
-            "transition-colors duration-base ease-out-soft hover:text-accent " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          }
-        >
-          <Users className="h-3.5 w-3.5" aria-hidden="true" />
-          Send to many at once
-        </Link>
-      </div>
-    </motion.section>
-  );
-}
 
 
 // ─── Stage 2: sending ──────────────────────────────────────────────
-
-/// Substep within the "sending" stage. Each value maps to a status
-/// line in <SendProgressStage>; the mutation in handleSubmit pushes to it
-/// at each step so the user sees progress instead of a frozen spinner
-/// during slow Solana RPC round-trips.
-type SendingPhase =
-  | "preparing"
-  | "signing"
-  | "submitting"
-  | "approving"
-  | "cooldown"
-  | "executing";
-
-const PHASE_LABEL: Record<SendingPhase, { primary: string; hint: string }> = {
-  preparing: {
-    primary: "Building your request",
-    hint: "Pulling the latest wallet state from Solana.",
-  },
-  signing: {
-    primary: "Waiting for your signature",
-    hint: "Approve the message in your wallet or on your Ledger.",
-  },
-  submitting: {
-    primary: "Sending to Solana",
-    hint: "This usually takes 2-5 seconds.",
-  },
-  approving: {
-    primary: "Approving the request",
-    hint: "Approve the second prompt in your wallet to flip your bit.",
-  },
-  cooldown: {
-    primary: "Waiting for the wallet rule",
-    hint: "This rule adds extra wait time before the transfer can finish.",
-  },
-  executing: {
-    primary: "Releasing the funds",
-    hint: "Enough approvals collected. Finishing the send.",
-  },
-};
-
-async function waitForProposalStatus(
-  connection: import("@solana/web3.js").Connection,
-  proposalPda: string,
-): Promise<ProposalStatus | null> {
-  let pubkey: PublicKey;
-  try {
-    pubkey = new PublicKey(proposalPda);
-  } catch {
-    return null;
-  }
-
-  for (let i = 0; i < 6; i++) {
-    try {
-      const account = await fetchProposal(connection, pubkey);
-      if (account) return account.status;
-    } catch {
-      // Public RPC can lag or briefly reject reads around a fresh
-      // write. Retry instead of converting transient read trouble
-      // into a failed send.
-    }
-    await new Promise((r) => setTimeout(r, 500 + i * 250));
-  }
-  return null;
-}
-
-function isProposalNotApprovedError(err: unknown): boolean {
-  const parts = [
-    err instanceof Error ? err.message : "",
-    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.error,
-    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.stderr,
-    (err as { payload?: { error?: string; stderr?: string; stdout?: string } })?.payload?.stdout,
-  ]
-    .filter(Boolean)
-    .join("\n")
-    .toLowerCase();
-
-  return (
-    parts.includes("proposalnotapproved") ||
-    parts.includes("proposal is not in an approved state") ||
-    // WalletError::ProposalNotApproved = 6005 = 0x1775.
-    parts.includes("custom program error: 0x1775")
-  );
-}
-
-// ─── Stage 3: sent ─────────────────────────────────────────────────

@@ -89,6 +89,50 @@ for (const file of metrics) {
     );
   }
   if (
+    /\/features\/send\/routes\/(?:Btc|Solana)SendPage\.tsx$/.test(file.path) &&
+    file.lines > 1_100
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; BTC and Solana send routes are capped at 1,100`,
+    );
+  }
+  if (file.path.includes("/features/send/ui/") && file.lines > 450) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; send UI modules are capped at 450`,
+    );
+  }
+  if (file.path.includes("/features/send/infrastructure/") && file.lines > 250) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; send infrastructure modules are capped at 250`,
+    );
+  }
+  if (file.path.includes("/features/send/ui/")) {
+    const importsInfrastructure = importStatements(file.source).some((statement) =>
+      resolveImport(file.path, statement).includes("/features/send/infrastructure/"),
+    );
+    if (importsInfrastructure) {
+      failures.push(`${label(file.path)} imports send infrastructure from render-only UI`);
+    }
+  }
+  if (file.path.includes("/features/send/domain/")) {
+    const importsPresentationOrRuntime = importStatements(file.source).some(
+      (statement) => {
+        const importedPath = resolveImport(file.path, statement);
+        return (
+          importedPath === "react" ||
+          importedPath === "next" ||
+          importedPath.startsWith("next/") ||
+          importedPath.includes("/components/") ||
+          importedPath.includes("/features/send/ui/") ||
+          importedPath.includes("/features/send/infrastructure/")
+        );
+      },
+    );
+    if (importsPresentationOrRuntime) {
+      failures.push(`${label(file.path)} mixes send domain logic with UI or infrastructure`);
+    }
+  }
+  if (
     file.path.includes("/features/wallet-runtime/infrastructure/") &&
     file.lines > 500
   ) {
