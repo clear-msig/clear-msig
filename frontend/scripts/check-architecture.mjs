@@ -199,7 +199,7 @@ for (const file of metrics) {
       ),
   );
   const isWalletRuntimeEntry =
-    /\/features\/wallet-runtime\/infrastructure\/(?:Connect|Embedded|External)DynamicProviderTree\.tsx$/.test(
+    /\/features\/wallet-runtime\/infrastructure\/(?:Connect|Waas|Turnkey|External)DynamicProviderTree\.tsx$/.test(
       file.path,
     );
   if (importsWalletRuntimeBase && !isWalletRuntimeEntry) {

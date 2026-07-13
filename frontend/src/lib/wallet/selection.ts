@@ -28,9 +28,12 @@ export function isExternalWallet(wallet: unknown): boolean {
 export function connectedWalletRuntime(
   primaryWallet: unknown,
   allWallets: readonly unknown[],
-): "embedded" | "external" {
-  if (walletConnectorId(primaryWallet)) {
-    return isExternalWallet(primaryWallet) ? "external" : "embedded";
+): "embedded-waas" | "embedded-turnkey" | "external" {
+  const primaryConnectorId = walletConnectorId(primaryWallet);
+  if (primaryConnectorId) {
+    if (isExternalWallet(primaryWallet)) return "external";
+    const embeddedRuntime = embeddedRuntimeForConnector(primaryConnectorId);
+    if (embeddedRuntime) return embeddedRuntime;
   }
   const identifiedWallets = allWallets.filter((wallet) => walletConnectorId(wallet));
   if (
@@ -39,7 +42,20 @@ export function connectedWalletRuntime(
   ) {
     return "external";
   }
-  return "embedded";
+  for (const wallet of identifiedWallets) {
+    const runtime = embeddedRuntimeForConnector(walletConnectorId(wallet));
+    if (runtime) return runtime;
+  }
+  return "embedded-waas";
+}
+
+function embeddedRuntimeForConnector(
+  connectorId: string,
+): "embedded-waas" | "embedded-turnkey" | null {
+  if (/(dynamicwaas|waas)/.test(connectorId)) return "embedded-waas";
+  if (/(turnkey|embedded)/.test(connectorId)) return "embedded-turnkey";
+  if (/(email|google|social|auth)/.test(connectorId)) return "embedded-waas";
+  return null;
 }
 
 export function selectSolanaWallet<T>(

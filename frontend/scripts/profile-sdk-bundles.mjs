@@ -10,8 +10,10 @@ const SDK_FAMILIES = [
   { name: "Framer Motion", pattern: /node_modules\/framer-motion(?:\/|\\)/ },
 ];
 
-const EMBEDDED_RUNTIME_KEY =
-  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/EmbeddedDynamicProviderTree";
+const WAAS_RUNTIME_KEY =
+  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/WaasDynamicProviderTree";
+const TURNKEY_RUNTIME_KEY =
+  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/TurnkeyDynamicProviderTree";
 const EXTERNAL_RUNTIME_KEY =
   "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/ExternalDynamicProviderTree";
 
@@ -19,7 +21,7 @@ export function profileSdkModules(
   stats,
   manifest,
   loadableManifest,
-  runtimeKey = EMBEDDED_RUNTIME_KEY,
+  runtimeKey = WAAS_RUNTIME_KEY,
 ) {
   if (!loadableManifest[runtimeKey]) {
     throw new Error(`Bundle profile could not find wallet runtime: ${runtimeKey}`);
@@ -88,7 +90,8 @@ function run() {
   const manifest = JSON.parse(readFileSync(paths.manifest, "utf8"));
   const loadableManifest = JSON.parse(readFileSync(paths.loadable, "utf8"));
   for (const [label, runtimeKey] of [
-    ["Embedded", EMBEDDED_RUNTIME_KEY],
+    ["WaaS", WAAS_RUNTIME_KEY],
+    ["Legacy Turnkey", TURNKEY_RUNTIME_KEY],
     ["External", EXTERNAL_RUNTIME_KEY],
   ]) {
     const rows = profileSdkModules(

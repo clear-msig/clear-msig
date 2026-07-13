@@ -6,6 +6,8 @@
 // families are kept in separate authenticated runtimes:
 //   - Email / social signup mints a TSS-MPC embedded Solana wallet
 //     on the fly (the retail story).
+//   - Current WaaS and legacy Turnkey sessions load separate connector
+//     entries after login.
 //   - External wallets (Phantom / Solflare / Backpack) auto-discover
 //     via Dynamic's wallet-standard support.
 // The /connect surface intentionally loads both; product routes load
@@ -35,10 +37,21 @@ type Props = {
   children: React.ReactNode;
 };
 
-const LazyEmbeddedDynamicProviderTree = dynamic(
+const LazyWaasDynamicProviderTree = dynamic(
   () =>
     import(
-      "@/features/wallet-runtime/infrastructure/EmbeddedDynamicProviderTree"
+      "@/features/wallet-runtime/infrastructure/WaasDynamicProviderTree"
+    ),
+  {
+    ssr: false,
+    loading: () => <WalletRuntimeLoading />,
+  },
+);
+
+const LazyTurnkeyDynamicProviderTree = dynamic(
+  () =>
+    import(
+      "@/features/wallet-runtime/infrastructure/TurnkeyDynamicProviderTree"
     ),
   {
     ssr: false,
@@ -200,7 +213,9 @@ export function AppProviders({ children }: Props) {
       ? LazyConnectDynamicProviderTree
       : authenticatedWalletRuntime === "external"
         ? LazyExternalDynamicProviderTree
-        : LazyEmbeddedDynamicProviderTree;
+        : authenticatedWalletRuntime === "embedded-turnkey"
+          ? LazyTurnkeyDynamicProviderTree
+          : LazyWaasDynamicProviderTree;
 
   const content = publicAuthRedirect ? (
     <QueryClientProvider client={queryClient}>

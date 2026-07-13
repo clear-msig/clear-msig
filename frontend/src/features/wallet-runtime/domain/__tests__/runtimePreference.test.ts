@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  EMBEDDED_WALLET_RUNTIME_KEY,
   EXTERNAL_WALLET_RUNTIME_KEY,
   readAuthenticatedWalletRuntime,
   storeAuthenticatedWalletRuntime,
@@ -15,23 +16,39 @@ function memoryStorage(initial?: Record<string, string>) {
 }
 
 describe("authenticated wallet runtime preference", () => {
-  it("defaults to the embedded runtime", () => {
-    expect(readAuthenticatedWalletRuntime(memoryStorage())).toBe("embedded");
+  it("defaults to the current WaaS embedded runtime", () => {
+    expect(readAuthenticatedWalletRuntime(memoryStorage())).toBe(
+      "embedded-waas",
+    );
   });
 
-  it("persists external selection and clears it for social sign-in", () => {
+  it("persists external selection and the exact social wallet runtime", () => {
     const storage = memoryStorage();
 
     expect(storeAuthenticatedWalletRuntime(storage, "external")).toBe(true);
     expect(readAuthenticatedWalletRuntime(storage)).toBe("external");
     expect(storeAuthenticatedWalletRuntime(storage, "external")).toBe(false);
 
-    expect(storeAuthenticatedWalletRuntime(storage, "embedded")).toBe(true);
-    expect(readAuthenticatedWalletRuntime(storage)).toBe("embedded");
+    expect(storeAuthenticatedWalletRuntime(storage, "embedded-turnkey")).toBe(
+      true,
+    );
+    expect(readAuthenticatedWalletRuntime(storage)).toBe("embedded-turnkey");
+
+    expect(storeAuthenticatedWalletRuntime(storage, "embedded-waas")).toBe(
+      true,
+    );
+    expect(readAuthenticatedWalletRuntime(storage)).toBe("embedded-waas");
   });
 
   it("reads the previous external runtime key without migration", () => {
     const storage = memoryStorage({ [EXTERNAL_WALLET_RUNTIME_KEY]: "1" });
     expect(readAuthenticatedWalletRuntime(storage)).toBe("external");
+  });
+
+  it("reads a persisted legacy Turnkey session without loading WaaS", () => {
+    const storage = memoryStorage({
+      [EMBEDDED_WALLET_RUNTIME_KEY]: "turnkey",
+    });
+    expect(readAuthenticatedWalletRuntime(storage)).toBe("embedded-turnkey");
   });
 });

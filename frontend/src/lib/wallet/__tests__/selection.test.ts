@@ -62,7 +62,9 @@ describe("selectSolanaWallet", () => {
     expect(
       selectSolanaWallet(google, [google, phantom], isSolana, "embedded"),
     ).toBe(google);
-    expect(connectedWalletRuntime(google, [google, phantom])).toBe("embedded");
+    expect(connectedWalletRuntime(google, [google, phantom])).toBe(
+      "embedded-turnkey",
+    );
   });
 
   it("classifies a Dynamic V3 WaaS Solana wallet as embedded", () => {
@@ -80,7 +82,9 @@ describe("selectSolanaWallet", () => {
     expect(selectSolanaWallet(waas, [waas, phantom], isSolana, "embedded")).toBe(
       waas,
     );
-    expect(connectedWalletRuntime(waas, [waas, phantom])).toBe("embedded");
+    expect(connectedWalletRuntime(waas, [waas, phantom])).toBe(
+      "embedded-waas",
+    );
   });
 
   it("selects the native signer when the authenticated runtime is external", () => {

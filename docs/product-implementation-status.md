@@ -40,3 +40,20 @@ adapter.
 - Ika integration remains experimental. Production distributed MPC, native
   venue/oracle attestation, permissionless execution, property/fuzz coverage,
   and an external Solana/Rust audit remain release blockers for real capital.
+
+## Send verification levels
+
+- `npm run test:send-matrix` verifies exact readable approval bytes for Google
+  WaaS, Phantom, Solflare, and legacy Turnkey across SOL, BTC, ZEC, ETH, and
+  Sepolia USDC. It also fails when one of those routes loses typed proposal
+  preparation or its expected typed executor.
+- That deterministic matrix proves signer-adapter and route contracts; it does
+  not claim that a real browser wallet popup opened or that destination-chain
+  delivery occurred. Interactive wallet confirmation cannot run unattended in
+  CI.
+- Live BTC/ZEC two-signer delivery remains a separate funded-fixture smoke via
+  `scripts/smoke-btc-zec-two-signer.sh`. A passing unit suite must never be
+  reported as a fresh testnet broadcast.
+- Sepolia USDT is intentionally absent because no issuer-published deployment
+  is configured. The app must not invent a token address to make the matrix
+  appear complete.

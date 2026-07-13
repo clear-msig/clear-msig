@@ -30,15 +30,15 @@ test("attributes SDK leaf modules to each route chunk without counting container
       ],
     },
     { pages: { "/app/a/page": ["static/a.js"] } },
-    { [EMBEDDED_KEY]: { files: ["static/wallet.js"] } },
+    { [WAAS_KEY]: { files: ["static/wallet.js"] } },
   );
 
   assert.equal(rows[0].families["Solana Web3"], 120);
   assert.equal(rows[0].families.Dynamic, 80);
 });
 
-const EMBEDDED_KEY =
-  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/EmbeddedDynamicProviderTree";
+const WAAS_KEY =
+  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/WaasDynamicProviderTree";
 
 test("fails when runtime measurement metadata is stale", () => {
   assert.throws(
