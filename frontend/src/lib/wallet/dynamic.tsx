@@ -47,6 +47,7 @@ import {
   isCompatibleEmbeddedWallet,
   selectSolanaWallet,
   walletConnectorId,
+  type WalletSelectionPreference,
 } from "@/lib/wallet/selection";
 import {
   signMessageWithInjectedProvider,
@@ -80,7 +81,9 @@ type BytePreservingSolanaWallet = {
 /// signing through the device is what earns the "clear signing"
 /// claim - the Solana app on the Ledger renders the offchain message
 /// body as text on the device screen rather than hex in a popup.
-function useDynamicWalletValue(): WalletValue {
+function useDynamicWalletValue(
+  walletPreference: WalletSelectionPreference,
+): WalletValue {
   const dynamicContext = useDynamicContext();
   const { primaryWallet, handleLogOut, sdkHasLoaded } = dynamicContext;
   const setPrimaryWallet = (
@@ -95,8 +98,13 @@ function useDynamicWalletValue(): WalletValue {
   // Solana wallet the user has minted (e.g. they logged in via email,
   // primary is EVM, but a Solana embedded wallet was also minted).
   const solanaWallet = useMemo(() => {
-    return selectSolanaWallet(primaryWallet, allWallets, isSolanaWallet);
-  }, [primaryWallet, allWallets]);
+    return selectSolanaWallet(
+      primaryWallet,
+      allWallets,
+      isSolanaWallet,
+      walletPreference,
+    );
+  }, [primaryWallet, allWallets, walletPreference]);
 
   const dynamicPublicKey = useMemo(() => {
     if (!solanaWallet?.address) return null;
@@ -215,6 +223,15 @@ function useDynamicWalletValue(): WalletValue {
         if (!solanaWallet) {
           throw new Error("Connect a wallet before signing");
         }
+        const solanaWalletId = (solanaWallet as { id?: string })?.id;
+        const primaryWalletId = (primaryWallet as { id?: string } | null)?.id;
+        if (
+          solanaWalletId &&
+          primaryWalletId !== solanaWalletId &&
+          typeof setPrimaryWallet === "function"
+        ) {
+          await setPrimaryWallet(solanaWalletId);
+        }
         // Prefer a matching injected provider for external wallets. This
         // keeps the signing request attached to the wallet's native mobile
         // handoff and preserves the readable UTF-8 display hint. Embedded
@@ -257,6 +274,8 @@ function useDynamicWalletValue(): WalletValue {
       ledgerPublicKey,
       dynamicPublicKey,
       walletConnectorKey,
+      primaryWallet,
+      setPrimaryWallet,
     ],
   );
 
@@ -424,10 +443,12 @@ function useDynamicWalletValue(): WalletValue {
 
 export function DynamicWalletRuntimeProvider({
   children,
+  walletPreference,
 }: {
   children: React.ReactNode;
+  walletPreference: WalletSelectionPreference;
 }) {
-  const value = useDynamicWalletValue();
+  const value = useDynamicWalletValue(walletPreference);
   return (
     <WalletRuntimeProvider value={value}>{children}</WalletRuntimeProvider>
   );

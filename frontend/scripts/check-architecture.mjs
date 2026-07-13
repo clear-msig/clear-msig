@@ -119,6 +119,22 @@ for (const file of metrics) {
     }
   }
 
+  const importsWalletRuntimeBase = importStatements(file.source).some(
+    (statement) =>
+      resolveImport(file.path, statement).endsWith(
+        "/features/wallet-runtime/infrastructure/DynamicProviderTree",
+      ),
+  );
+  const isWalletRuntimeEntry =
+    /\/features\/wallet-runtime\/infrastructure\/(?:Connect|Embedded|External)DynamicProviderTree\.tsx$/.test(
+      file.path,
+    );
+  if (importsWalletRuntimeBase && !isWalletRuntimeEntry) {
+    failures.push(
+      `${label(file.path)} bypasses the explicit wallet runtime entry points`,
+    );
+  }
+
   const layer = featureLayer(file.path);
   if (layer?.name !== "agents" && layer?.layer === "ui") {
     const importsInfrastructure = importStatements(file.source).some((statement) => {

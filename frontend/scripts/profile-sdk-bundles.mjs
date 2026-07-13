@@ -11,11 +11,21 @@ const SDK_FAMILIES = [
 ];
 
 const EMBEDDED_RUNTIME_KEY =
-  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/DynamicProviderTree";
+  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/EmbeddedDynamicProviderTree";
+const EXTERNAL_RUNTIME_KEY =
+  "components/providers/AppProviders.tsx -> @/features/wallet-runtime/infrastructure/ExternalDynamicProviderTree";
 
-export function profileSdkModules(stats, manifest, loadableManifest) {
+export function profileSdkModules(
+  stats,
+  manifest,
+  loadableManifest,
+  runtimeKey = EMBEDDED_RUNTIME_KEY,
+) {
+  if (!loadableManifest[runtimeKey]) {
+    throw new Error(`Bundle profile could not find wallet runtime: ${runtimeKey}`);
+  }
   const profiledManifest = includeImmediateRuntimeChunks(manifest, loadableManifest, [
-    { routePrefix: "/app/", loadableKey: EMBEDDED_RUNTIME_KEY },
+    { routePrefix: "/app/", loadableKey: runtimeKey },
   ]);
   const fileChunks = new Map();
   for (const chunk of stats.chunks ?? []) {
@@ -74,24 +84,35 @@ function run() {
     }
   }
 
-  const rows = profileSdkModules(
-    JSON.parse(readFileSync(paths.stats, "utf8")),
-    JSON.parse(readFileSync(paths.manifest, "utf8")),
-    JSON.parse(readFileSync(paths.loadable, "utf8")),
-  )
-    .filter((row) => row.route.startsWith("/app/"))
-    .sort(
-      (left, right) =>
-        Object.values(right.families).reduce((sum, bytes) => sum + bytes, 0) -
-        Object.values(left.families).reduce((sum, bytes) => sum + bytes, 0),
-    );
+  const stats = JSON.parse(readFileSync(paths.stats, "utf8"));
+  const manifest = JSON.parse(readFileSync(paths.manifest, "utf8"));
+  const loadableManifest = JSON.parse(readFileSync(paths.loadable, "utf8"));
+  for (const [label, runtimeKey] of [
+    ["Embedded", EMBEDDED_RUNTIME_KEY],
+    ["External", EXTERNAL_RUNTIME_KEY],
+  ]) {
+    const rows = profileSdkModules(
+      stats,
+      manifest,
+      loadableManifest,
+      runtimeKey,
+    )
+      .filter((row) => row.route.startsWith("/app/"))
+      .sort(
+        (left, right) =>
+          Object.values(right.families).reduce((sum, bytes) => sum + bytes, 0) -
+          Object.values(left.families).reduce((sum, bytes) => sum + bytes, 0),
+      );
 
-  console.log("Authenticated route SDK modules (parsed bytes, not gzip estimates):");
-  for (const row of rows.slice(0, 20)) {
-    const values = Object.entries(row.families)
-      .map(([name, bytes]) => `${name} ${(bytes / 1024).toFixed(1)} kB`)
-      .join(", ");
-    console.log(`- ${row.route}: ${values}`);
+    console.log(
+      `${label} authenticated route SDK modules (parsed bytes, not gzip estimates):`,
+    );
+    for (const row of rows.slice(0, 20)) {
+      const values = Object.entries(row.families)
+        .map(([name, bytes]) => `${name} ${(bytes / 1024).toFixed(1)} kB`)
+        .join(", ");
+      console.log(`- ${row.route}: ${values}`);
+    }
   }
 }
 

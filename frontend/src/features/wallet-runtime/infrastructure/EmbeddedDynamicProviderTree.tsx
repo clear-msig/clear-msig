@@ -1,11 +1,11 @@
 "use client";
 
-import { SolanaWalletConnectors } from "@dynamic-labs/solana";
+import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
 import DynamicProviderTree from "@/features/wallet-runtime/infrastructure/DynamicProviderTree";
 
-const EXTERNAL_WALLET_CONNECTORS = [SolanaWalletConnectors];
+const EMBEDDED_WALLET_CONNECTORS = [TurnkeySolanaWalletConnectors];
 
-export default function ExternalDynamicProviderTree({
+export default function EmbeddedDynamicProviderTree({
   environmentId,
   children,
 }: {
@@ -15,8 +15,8 @@ export default function ExternalDynamicProviderTree({
   return (
     <DynamicProviderTree
       environmentId={environmentId}
-      walletConnectors={EXTERNAL_WALLET_CONNECTORS}
-      walletPreference="external"
+      walletConnectors={EMBEDDED_WALLET_CONNECTORS}
+      walletPreference="embedded"
     >
       {children}
     </DynamicProviderTree>
