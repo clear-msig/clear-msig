@@ -73,7 +73,7 @@ jobs:
       # MODULE_NOT_FOUND: promise-retry, so we just pick the Node that
       # bundles the right npm to begin with.)
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
