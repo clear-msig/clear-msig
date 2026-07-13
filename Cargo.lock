@@ -1123,7 +1123,7 @@ dependencies = [
  "solana-address 2.6.0",
  "solana-client",
  "solana-commitment-config",
- "solana-derivation-path",
+ "solana-derivation-path 3.0.0",
  "solana-instruction 2.3.3",
  "solana-instruction 3.4.0",
  "solana-keypair",
@@ -5296,6 +5296,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-derivation-path"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff71743072690fdbdfcdc37700ae1cb77485aaad49019473a81aee099b1e0b8c"
+dependencies = [
+ "derivation-path",
+ "qstring",
+ "uriparse",
+]
+
+[[package]]
 name = "solana-ed25519-program"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5696,7 +5707,7 @@ dependencies = [
  "ed25519-dalek-bip32",
  "five8 0.2.1",
  "rand 0.7.3",
- "solana-derivation-path",
+ "solana-derivation-path 2.2.1",
  "solana-pubkey 2.4.0",
  "solana-seed-derivable",
  "solana-seed-phrase",
@@ -6491,7 +6502,7 @@ dependencies = [
  "parking_lot",
  "qstring",
  "semver",
- "solana-derivation-path",
+ "solana-derivation-path 2.2.1",
  "solana-offchain-message",
  "solana-pubkey 2.4.0",
  "solana-signature 2.3.0",
@@ -6728,7 +6739,7 @@ dependencies = [
  "solana-commitment-config",
  "solana-compute-budget-interface",
  "solana-decode-error",
- "solana-derivation-path",
+ "solana-derivation-path 2.2.1",
  "solana-ed25519-program",
  "solana-epoch-info",
  "solana-epoch-rewards-hasher",
@@ -6884,7 +6895,7 @@ version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3beb82b5adb266c6ea90e5cf3967235644848eac476c5a1f2f9283a143b7c97f"
 dependencies = [
- "solana-derivation-path",
+ "solana-derivation-path 2.2.1",
 ]
 
 [[package]]

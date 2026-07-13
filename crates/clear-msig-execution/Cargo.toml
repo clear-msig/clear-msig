@@ -23,7 +23,7 @@ solana-commitment-config = "2"
 solana-client = "2"
 solana-remote-wallet = "2"
 solana-sdk-ids = "2"
-solana-derivation-path = "2"
+solana-derivation-path = "3"
 solana-address = { version = "2", features = ["curve25519"] }
 # Umbrella crate kept for the session work that uses solana_sdk::{system_program,
 # pubkey::Pubkey, signer::Signer, instruction::*}. Upstream's "Cli using actual
