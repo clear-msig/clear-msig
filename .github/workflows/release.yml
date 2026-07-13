@@ -63,7 +63,7 @@ jobs:
           tar -czf ${{ matrix.archive }} -C dist .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.archive }}
           path: ${{ matrix.archive }}
