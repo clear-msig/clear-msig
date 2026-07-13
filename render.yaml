@@ -19,7 +19,10 @@ services:
     dockerContext: .
     healthCheckPath: /health
     numInstances: 1
-    autoDeployTrigger: checksPass
+    # main is protected by required CI before merge. Render's checksPass mode
+    # waits for every check on the commit, including unrelated Dependabot update
+    # jobs, so one failed dependency refresh can indefinitely block production.
+    autoDeployTrigger: commit
     disk:
       name: clear-msig-data
       mountPath: /data

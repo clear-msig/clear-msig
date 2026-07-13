@@ -76,6 +76,12 @@ Render deploys from the configured GitHub branch. If work is on a feature
 branch, merge/rebase it into the Render branch before expecting production to
 move.
 
+Render uses `autoDeployTrigger: commit`. The `main` branch protection is the
+release gate: required CI must pass before a change can merge. Do not switch the
+service to `checksPass`; Render waits for every check attached to the commit,
+including unrelated Dependabot update jobs, so a failed dependency refresh can
+block an otherwise green backend release indefinitely.
+
 ## Frontend deploy
 
 Vercel builds `frontend/` with `frontend/vercel.json`.
