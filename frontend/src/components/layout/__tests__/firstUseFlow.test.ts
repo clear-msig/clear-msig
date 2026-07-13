@@ -27,9 +27,9 @@ describe("first-use wallet creation", () => {
     expect(newWallet).not.toContain("function ProductChoiceCard");
   });
 
-  it("retires the standalone product chooser", () => {
-    expect(chooser).toContain('redirect("/app/wallet/new")');
-    expect(chooser).not.toContain("ProductChooserPage");
+  it("renders the public product chooser before sign-in", () => {
+    expect(chooser).toContain("<ProductChooser />");
+    expect(chooser).not.toContain("redirect(");
   });
 
   it("keeps wallet creation available in desktop wallet-scoped navigation", () => {

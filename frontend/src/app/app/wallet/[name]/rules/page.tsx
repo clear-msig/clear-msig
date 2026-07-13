@@ -378,10 +378,16 @@ function TimelockEditModal({
   const [customText, setCustomText] = useState(String(currentSeconds));
   const update = useUpdateTimelock();
   const toast = useToast();
+  const [backdropArmed, setBackdropArmed] = useState(false);
   // Freeze the page underneath so iOS Safari doesn't scroll the
   // Rules page behind the dialog while the user is interacting
   // with timelock presets.
   useBodyScrollLock(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setBackdropArmed(true), 350);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // Pick a preset if the current value matches one. Otherwise let
   // the user fall through to custom-seconds input.
@@ -428,7 +434,9 @@ function TimelockEditModal({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.18 }}
         className="fixed inset-0 z-[200] bg-text-strong/40 backdrop-blur-sm"
-        onPointerDown={() => !update.isPending && onClose()}
+        onPointerDown={() => {
+          if (backdropArmed && !update.isPending) onClose();
+        }}
         aria-hidden="true"
       />
       <motion.div

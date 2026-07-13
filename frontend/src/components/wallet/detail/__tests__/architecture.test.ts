@@ -58,8 +58,8 @@ describe("wallet detail architecture", () => {
   });
 
   it("does not let the opening click dismiss the timelock dialog", () => {
-    expect(rulesSource).toContain(
-      "onPointerDown={() => !update.isPending && onClose()}",
-    );
+    expect(rulesSource).toContain("const [backdropArmed, setBackdropArmed]");
+    expect(rulesSource).toContain("setBackdropArmed(true), 350");
+    expect(rulesSource).toContain("if (backdropArmed && !update.isPending) onClose()");
   });
 });

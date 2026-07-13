@@ -46,6 +46,7 @@ import {
   useProSchedules,
   type ProSchedule,
 } from "@/lib/pro/treasury";
+import { useProAuditEvents } from "@/lib/pro/audit";
 
 export interface ProTreasuryPanelProps {
   name: string;
@@ -88,6 +89,7 @@ function ProOperationsPanel({
   const encoded = encodeURIComponent(name);
   const runtime = useMemo(() => getProTreasuryRuntime(), []);
   const schedules = useProSchedules(name);
+  const auditEvents = useProAuditEvents(name);
   const budgetUsage = useWalletBudgetUsage(name);
   const [activePanel, setActivePanel] = useState<ProPanelKey | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState({
@@ -315,8 +317,9 @@ function ProOperationsPanel({
 
       {activePanel === "audit" ? (
         <ProAuditCard
-          activityCount={activityRows.length}
+          activityCount={activityRows.length + (auditEvents.data?.length ?? 0)}
           lastReceipt={lastReceipt}
+          latestBackendEvent={auditEvents.data?.[0]?.title ?? null}
           onExport={exportAudit}
           onExportAccounting={exportAccounting}
           activityHref={`/app/wallet/${encoded}/activity`}
@@ -621,6 +624,7 @@ function formatScheduleAddress(address: string): string {
 function ProAuditCard({
   activityCount,
   lastReceipt,
+  latestBackendEvent,
   onExport,
   onExportAccounting,
   activityHref,
@@ -629,6 +633,7 @@ function ProAuditCard({
 }: {
   activityCount: number;
   lastReceipt: TxAttempt | null;
+  latestBackendEvent: string | null;
   onExport: () => void;
   onExportAccounting: () => void;
   activityHref: string;
@@ -637,7 +642,7 @@ function ProAuditCard({
 }) {
   const receiptCopy = lastReceipt
     ? humanReceipt(lastReceipt)
-    : "Receipts appear after sends and approvals.";
+    : latestBackendEvent ?? "Receipts appear after sends and approvals.";
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">

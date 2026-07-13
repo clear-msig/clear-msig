@@ -84,7 +84,6 @@ const LazyPublicAuthRedirectBoundary = dynamic(
 function needsPublicAuthRedirect(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
-    pathname === "/choose" ||
     pathname === "/personal" ||
     pathname === "/pro" ||
     pathname === "/agent" ||

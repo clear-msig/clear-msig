@@ -17,7 +17,7 @@ import {
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
 import { DynamicWalletRuntimeProvider } from "@/lib/wallet/dynamic";
 import {
@@ -28,6 +28,7 @@ import {
   connectedWalletRuntime,
   type WalletSelectionPreference,
 } from "@/lib/wallet/selection";
+import { initialAuthFlowDecision } from "@/features/wallet-runtime/domain/initialAuthFlow";
 
 interface Props {
   environmentId: string;
@@ -227,18 +228,20 @@ function DynamicPostConnectModalGuard({
   const { primaryWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow } =
     useDynamicContext();
   const wallets = useUserWallets();
+  const initialAuthFlowHandled = useRef(false);
 
   const hasUsableWallet =
     !!primaryWallet || wallets.some((wallet) => wallet && isSolanaWallet(wallet));
 
   useEffect(() => {
-    if (!sdkHasLoaded || !showAuthFlow || !hasUsableWallet) return;
-    setShowAuthFlow(false);
-    // Mobile webviews can re-open Dynamic's auth portal one tick after
-    // wallet hydration. Close it once immediately, then once more after
-    // the SDK has finished its post-connect bookkeeping.
-    const closeAgain = window.setTimeout(() => setShowAuthFlow(false), 250);
-    return () => window.clearTimeout(closeAgain);
+    const decision = initialAuthFlowDecision({
+      sdkHasLoaded,
+      hasUsableWallet,
+      alreadyHandled: initialAuthFlowHandled.current,
+      showAuthFlow,
+    });
+    initialAuthFlowHandled.current = decision.handled;
+    if (decision.dismiss) setShowAuthFlow(false);
   }, [hasUsableWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow]);
 
   useEffect(() => {

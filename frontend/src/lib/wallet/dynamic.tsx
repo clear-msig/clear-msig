@@ -223,15 +223,10 @@ function useDynamicWalletValue(
         if (!solanaWallet) {
           throw new Error("Connect a wallet before signing");
         }
-        const solanaWalletId = (solanaWallet as { id?: string })?.id;
-        const primaryWalletId = (primaryWallet as { id?: string } | null)?.id;
-        if (
-          solanaWalletId &&
-          primaryWalletId !== solanaWalletId &&
-          typeof setPrimaryWallet === "function"
-        ) {
-          await setPrimaryWallet(solanaWalletId);
-        }
+        // Sign through the selected Solana wallet directly. Changing
+        // Dynamic's primary wallet here can remount its modal state between
+        // the click and the embedded Turnkey prompt, leaving the caller
+        // waiting on a signature UI that was just discarded.
         // Prefer a matching injected provider for external wallets. This
         // keeps the signing request attached to the wallet's native mobile
         // handoff and preserves the readable UTF-8 display hint. Embedded
@@ -274,8 +269,6 @@ function useDynamicWalletValue(
       ledgerPublicKey,
       dynamicPublicKey,
       walletConnectorKey,
-      primaryWallet,
-      setPrimaryWallet,
     ],
   );
 

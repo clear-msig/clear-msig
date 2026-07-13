@@ -15,10 +15,19 @@
 // no obvious entry point to add a second chain.
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Plus } from "lucide-react";
 import { useSendChains } from "@/lib/hooks/useSendChains";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainSendSubtitle } from "@/lib/chain/send-support";
+
+const HeldAssetPicker = dynamic(
+  () =>
+    import("@/components/retail/HeldAssetPicker").then(
+      (module) => module.HeldAssetPicker,
+    ),
+  { ssr: false, loading: () => null },
+);
 
 export function SendChainPicker({
   walletName,
@@ -48,10 +57,7 @@ export function SendChainPicker({
   // hidden affordance.
   const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add?autostart=1`;
   return (
-    <nav
-      aria-label="Choose what to send"
-      className="mb-4"
-    >
+    <nav aria-label="Choose what to send" className="mb-4">
       <div className="flex items-center gap-2 overflow-x-auto rounded-card border border-border-soft bg-surface-raised/80 p-1.5 shadow-card-rest backdrop-blur md:pb-1.5">
         {visible.map((opt) => {
           const isActive = opt.chain.kind === activeKind;
@@ -120,6 +126,7 @@ export function SendChainPicker({
           <span className="sr-only">Turn on another asset</span>
         </Link>
       </div>
+      <HeldAssetPicker walletName={walletName} activeKind={activeKind} />
     </nav>
   );
 }
