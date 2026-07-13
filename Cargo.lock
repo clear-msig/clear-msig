@@ -668,6 +668,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bcs"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "350f2b5fa7b76b498158ec1079dc0ea842c5b622b6b3f675005fddd889f2c9a7"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
 name = "bech32"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1094,7 +1103,7 @@ name = "clear-msig-execution"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bcs",
+ "bcs 0.2.1",
  "bech32",
  "bincode",
  "blake2b_simd",
@@ -1745,7 +1754,7 @@ name = "e2e-clear-msig-ika"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bcs",
+ "bcs 0.2.1",
  "bs58",
  "clear-wallet",
  "clear-wallet-client",
@@ -2767,7 +2776,7 @@ name = "ika-dwallet-types"
 version = "0.1.0"
 source = "git+https://github.com/dwallet-labs/ika-pre-alpha.git?rev=3bd7945e012950e54fb4d0057b72a7d466556fc1#3bd7945e012950e54fb4d0057b72a7d466556fc1"
 dependencies = [
- "bcs",
+ "bcs 0.1.6",
  "serde",
 ]
 

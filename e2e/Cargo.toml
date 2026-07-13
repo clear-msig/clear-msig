@@ -41,7 +41,7 @@ prost = "0.14"
 # Same pin as cli/Cargo.toml — 3bd7945e (2026-04-17). See that file for why.
 ika-grpc = { git = "https://github.com/dwallet-labs/ika-pre-alpha.git", rev = "3bd7945e012950e54fb4d0057b72a7d466556fc1", package = "ika-grpc" }
 ika-dwallet-types = { git = "https://github.com/dwallet-labs/ika-pre-alpha.git", rev = "3bd7945e012950e54fb4d0057b72a7d466556fc1", package = "ika-dwallet-types" }
-bcs = "0.1"
+bcs = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"

@@ -67,7 +67,7 @@ prost = "0.14"
 # compile against the current Ika integration code.
 ika-grpc = { git = "https://github.com/dwallet-labs/ika-pre-alpha.git", rev = "3bd7945e012950e54fb4d0057b72a7d466556fc1", package = "ika-grpc" }
 ika-dwallet-types = { git = "https://github.com/dwallet-labs/ika-pre-alpha.git", rev = "3bd7945e012950e54fb4d0057b72a7d466556fc1", package = "ika-dwallet-types" }
-bcs = "0.1"
+bcs = "0.2"
 
 # BLAKE2b for Zcash transparent sighash computation (ZIP-243).
 blake2b_simd = "1"
