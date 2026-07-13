@@ -8,7 +8,9 @@ import type {
   HyperliquidTestnetAccountSnapshot,
   HyperliquidTestnetExecutorProbe,
   HyperliquidTestnetOrderArtifact,
+  HyperliquidTestnetSettlementArtifact,
 } from "@/lib/agents/serverHyperliquidTestnet";
+import type { TrustedAgentSettlementInput } from "@/lib/agents/settlementClearSign";
 
 export type AgentVenueReadiness = AgentServerExecutionReadiness & {
   accountProbe?: HyperliquidTestnetAccountProbe | null;
@@ -22,6 +24,11 @@ export type AgentVenueReadiness = AgentServerExecutionReadiness & {
     readinessState?: string;
     artifact?: HyperliquidTestnetOrderArtifact;
     artifactHash?: string;
+    settlementArtifact?: HyperliquidTestnetSettlementArtifact;
+    settlementArtifactHash?: string;
+    settlementProposalAddress?: string;
+    settlementProposalStatus?: "created" | "approved" | "executed";
+    settlementTxid?: string;
     createdAt?: number;
     updatedAt?: number;
     request: {
@@ -63,6 +70,15 @@ export interface AgentServerExecutionResult {
     status: string;
     message: string;
   };
+  duplicate?: boolean;
+}
+
+export interface AgentVenueSettlementResult {
+  ok: boolean;
+  message: string;
+  status: number;
+  settlement?: TrustedAgentSettlementInput;
+  serverRequest?: AgentVenueRequestRecord;
   duplicate?: boolean;
 }
 
@@ -241,6 +257,64 @@ export async function submitAgentVenueExecution(
         : undefined,
     duplicate: body.duplicate === true,
   };
+}
+
+export async function settleAgentVenueExecution({
+  walletName,
+  agentId,
+  requestId,
+}: {
+  walletName: string;
+  agentId: string;
+  requestId: string;
+}): Promise<AgentVenueSettlementResult> {
+  const response = await fetch("/api/agent-settlement/hyperliquid_testnet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ walletName, agentId, requestId }),
+  });
+  const body = await response.json().catch(() => ({})) as {
+    error?: unknown;
+    settlement?: TrustedAgentSettlementInput;
+    serverRequest?: AgentVenueRequestRecord;
+    duplicate?: unknown;
+  };
+  return {
+    ok: response.ok && Boolean(body.settlement),
+    message: typeof body.error === "string"
+      ? body.error
+      : response.ok ? "Venue settlement artifact is ready." : response.statusText,
+    status: response.status,
+    settlement: body.settlement,
+    serverRequest: body.serverRequest,
+    duplicate: body.duplicate === true,
+  };
+}
+
+export async function saveAgentVenueSettlementProposal({
+  walletName,
+  agentId,
+  requestId,
+  proposalAddress,
+  status,
+  txid,
+}: {
+  walletName: string;
+  agentId: string;
+  requestId: string;
+  proposalAddress: string;
+  status: "created" | "approved" | "executed";
+  txid?: string;
+}): Promise<void> {
+  const response = await fetch("/api/agent-settlement/hyperliquid_testnet", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ walletName, agentId, requestId, proposalAddress, status, txid }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: unknown };
+    throw new Error(typeof body.error === "string" ? body.error : "Settlement proposal state did not persist.");
+  }
 }
 
 function apiPath(

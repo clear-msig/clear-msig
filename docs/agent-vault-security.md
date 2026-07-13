@@ -45,12 +45,19 @@ pauses the risk ledger and revokes the agent session atomically.
 
 ## Honest limitations
 
-Settlement is currently **owner-attested**, not trustless. ClearSign proves
-that the wallet threshold approved the exact settlement artifact and
-accounting fields. The program does not yet verify a native Hyperliquid,
-exchange, or independent oracle signature. A compromised adapter cannot alter
-approved fields, but it can present false source data to owners before they
-approve it.
+Settlement is **product-wired but owner-attested**, not trustless. The protected
+Hyperliquid testnet executor closes the recorded filled size, queries the
+closing fills, and returns order ids, fill hashes, closed size, and realized
+P/L. The Next server normalizes and persists that artifact in Redis. The
+frontend reads sequence, oracle commitment, and open exposure from the
+program-owned risk ledger before creating or resuming threshold approval.
+
+ClearSign proves that the wallet threshold approved the exact artifact and
+accounting fields. The program does not verify a native Hyperliquid, exchange,
+or independent oracle signature. A compromised adapter cannot alter fields
+after approval, but it can present false source data before owners approve it.
+The executor's own idempotency cache is process-local, so an ambiguous response
+across an executor restart remains a pre-alpha operational risk.
 
 Production use still requires native venue/oracle attestation verification,
 distributed Ika MPC, independent adapter review, monitoring, and an external

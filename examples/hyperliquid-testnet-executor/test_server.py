@@ -7,8 +7,10 @@ from server import (
     ExchangeError,
     ValidationError,
     artifact_from_order_result,
+    artifact_from_settlement_fills,
     rounded_size,
     validate_executor_request,
+    validate_settlement_request,
 )
 
 
@@ -63,12 +65,62 @@ class ExecutorTests(unittest.TestCase):
         artifact = artifact_from_order_result(
             {
                 "status": "ok",
-                "response": {"data": {"statuses": [{"filled": {"oid": 123}}]}},
+                "response": {
+                    "data": {
+                        "statuses": [
+                            {"filled": {"oid": 123, "totalSz": "0.0037", "avgPx": "67500"}}
+                        ]
+                    }
+                },
             },
             request()["intent"],
         )
         self.assertEqual(artifact["orderId"], "123")
         self.assertEqual(artifact["status"], "filled")
+        self.assertEqual(artifact["filledSize"], "0.0037")
+
+    def test_settlement_binds_stored_opening_artifact(self):
+        body = request()
+        body.update({
+            "serverRequestId": "server-request-1",
+            "openingArtifact": {
+                "exchange": "hyperliquid_testnet",
+                "orderId": "123",
+                "market": "BTC-PERP",
+                "side": "long",
+                "filledSize": "0.0037",
+            },
+        })
+        validated = validate_settlement_request(body, SETTINGS)
+        self.assertEqual(validated["serverRequestId"], "server-request-1")
+
+        body["openingArtifact"]["market"] = "ETH-PERP"
+        with self.assertRaisesRegex(ValidationError, "market"):
+            validate_settlement_request(body, SETTINGS)
+
+    def test_settlement_artifact_uses_venue_pnl_and_fill_hashes(self):
+        body = request()
+        body.update({
+            "serverRequestId": "server-request-1",
+            "openingArtifact": {
+                "exchange": "hyperliquid_testnet",
+                "orderId": "123",
+                "market": "BTC-PERP",
+                "side": "long",
+                "filledSize": "0.0037",
+            },
+        })
+        artifact = artifact_from_settlement_fills(
+            body,
+            {"orderId": "456"},
+            [
+                {"sz": "0.002", "closedPnl": "-1.25", "hash": "0xabc"},
+                {"sz": "0.0017", "closedPnl": "0.25", "hash": "0xdef"},
+            ],
+        )
+        self.assertEqual(artifact["realizedPnlUsd"], "-1")
+        self.assertEqual(artifact["closedSize"], "0.0037")
+        self.assertEqual(artifact["fillHashes"], ["0xabc", "0xdef"])
 
     def test_rejects_exchange_errors(self):
         with self.assertRaises(ExchangeError):

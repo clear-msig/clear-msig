@@ -157,6 +157,8 @@ export function StartTradingScreen({ controller }: { controller: ReturnType<type
     setupSettings,
     setAgentId,
     setVenue,
+    settleConnectedTrade,
+    settlementBusyId,
     steps,
     submittedVenueRequests,
     tradeLifecycles,
@@ -365,6 +367,8 @@ export function StartTradingScreen({ controller }: { controller: ReturnType<type
         onPauseAll={pauseAllTrading}
         onCloseOne={closeOnePracticeTrade}
         onCloseAll={closeAllPracticeTrades}
+        onSettleConnected={settleConnectedTrade}
+        settlementBusyId={settlementBusyId}
       />
 
       {venue === "hyperliquid_testnet" ? (

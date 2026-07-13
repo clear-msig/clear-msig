@@ -19,6 +19,7 @@ export type {
   AgentVenueRequestReconciliation,
 } from "@/lib/agents/clientExecution";
 export type { AgentInboxSummary } from "@/lib/agents/clientInbox";
+export type { AgentOwnerApprovalInput } from "@/lib/agents/ownerApproval";
 export type { HyperliquidTestnetAccountSnapshot } from "@/lib/agents/serverHyperliquidTestnet";
 
 export { agentSessionPolicyBindingStatus } from "@/lib/agents/policyHash";

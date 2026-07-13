@@ -35,5 +35,7 @@ it does not mean the production system is generally secure.
 - Raw-pointer account serializers are now explicit `unsafe fn` APIs with
   documented buffer requirements and explicit unsafe call sites.
 - Agent Vault remains a pre-alpha governed-capital product direction. On-chain
-  sessions are real; verified venue settlement, production MPC, and audited
-  real-capital autonomy are not complete.
+  sessions, risk accounting, exposure reservation, and owner-attested connected
+  settlement are product-wired. Native venue-attested settlement, durable
+  executor idempotency, production MPC, and audited real-capital autonomy are
+  not complete.
