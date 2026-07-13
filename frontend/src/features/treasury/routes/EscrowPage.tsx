@@ -559,6 +559,11 @@ function EscrowProjectCard({
     try {
       const signed = await signTypedDescriptor(prepared.dry, {
         preferSigner: proposerPk,
+        expectedTyped: {
+          envelopeHash: prepared.summary.envelopeHash,
+          payloadHash: prepared.summary.payloadHash,
+          signableText: prepared.summary.signableText,
+        },
       });
       const created = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,

@@ -27,11 +27,12 @@ import { _setLivePrice } from "./priceConversion";
 
 const PRICES_API_URL = "/api/prices";
 
-interface CoinGeckoResponse {
-  [coinId: string]: { usd?: number };
+interface PriceFeedResult {
+  prices: Record<string, number>;
+  source: "live" | "fallback";
 }
 
-async function fetchPricesFromCoinGecko(): Promise<Record<string, number>> {
+async function fetchPricesFromCoinGecko(): Promise<PriceFeedResult> {
   const resp = await fetch(PRICES_API_URL, {
     method: "GET",
     credentials: "omit",
@@ -40,7 +41,13 @@ async function fetchPricesFromCoinGecko(): Promise<Record<string, number>> {
   if (!resp.ok) {
     throw new Error(`Prices API HTTP ${resp.status}`);
   }
-  return (await resp.json()) as Record<string, number>;
+  return {
+    prices: (await resp.json()) as Record<string, number>,
+    source:
+      resp.headers.get("x-clearsig-price-source") === "fallback"
+        ? "fallback"
+        : "live",
+  };
 }
 
 /// React-Query-backed live-price subscription. Mount once at the app
@@ -48,7 +55,7 @@ async function fetchPricesFromCoinGecko(): Promise<Record<string, number>> {
 /// the tab is visible; stale-while-revalidate on focus so a returning
 /// user sees fresh numbers without waiting.
 export function useLivePrices() {
-  const query = useQuery<Record<string, number>>({
+  const query = useQuery<PriceFeedResult>({
     queryKey: ["live-prices-coingecko-v1"],
     queryFn: fetchPricesFromCoinGecko,
     staleTime: 60_000,
@@ -61,8 +68,8 @@ export function useLivePrices() {
   });
 
   useEffect(() => {
-    if (!query.data) return;
-    for (const [ticker, usd] of Object.entries(query.data)) {
+    if (!query.data || query.data.source !== "live") return;
+    for (const [ticker, usd] of Object.entries(query.data.prices)) {
       _setLivePrice(ticker, usd);
     }
   }, [query.data]);

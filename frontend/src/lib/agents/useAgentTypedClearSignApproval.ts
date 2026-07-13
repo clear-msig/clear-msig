@@ -107,6 +107,11 @@ export function useAgentTypedClearSignApproval(walletName: string) {
       });
       const signed = await signTypedDescriptor(dry, {
         preferSigner: proposer,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
       });
       const submitted = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,

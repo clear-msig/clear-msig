@@ -40,6 +40,18 @@ describe("typed ClearSign message verification", () => {
       "not readable UTF-8",
     );
   });
+
+  it("rejects a backend message that differs from the browser-reviewed transaction", () => {
+    const descriptor = typedDescriptor();
+
+    expect(() =>
+      verifiedTypedClearSignMessageBytes(descriptor, {
+        envelopeHash,
+        payloadHash,
+        signableText: descriptorText().split("\n\n")[1]!.replace("Send 1 SOL", "Send 2 SOL"),
+      }),
+    ).toThrow("does not match the transaction reviewed in this browser");
+  });
 });
 
 function typedDescriptor(
@@ -81,10 +93,7 @@ function descriptorText(
     "Send 1 SOL from Team treasury#5qxnc7 to 886vDaZFUheowbYv4j7mU54QSvzATKr8Lb7ySuoTVXKp",
     "Requires wallet approval",
     "Wallet Team treasury#5qxnc7",
-    "Action sol-send:0xe75e86c6f1d6af5ded17d784182b7078dd84b9d58310c75ed8160e53fe9d0334",
-    "Nonce nonce:0x1e67383e73f8a5157177cb25846b0b7da30fc3aedaa306eba0651b0e6b1f163f",
-    "Expires 2026-07-08 03:35:31",
-    `Payload ${payloadHash}`,
+    "Expires 2026-07-07 12:15:31",
   ].join("\n");
 }
 

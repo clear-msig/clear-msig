@@ -198,6 +198,11 @@ export function useBatchSend() {
         });
         const signed = await signTypedDescriptor(dry, {
           preferSigner: proposerPk,
+          expectedTyped: {
+            envelopeHash: summary.envelopeHash,
+            payloadHash: summary.payloadHash,
+            signableText: summary.signableText,
+          },
         });
         const submitted = await backendApi.submit.createTypedProposal(walletName, {
           ...signed,

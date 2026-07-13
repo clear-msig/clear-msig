@@ -76,6 +76,7 @@ import {
   SEND_NOTE_MAX_LENGTH,
   SEND_NOTE_PLACEHOLDER,
 } from "@/lib/sendFields";
+import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
 
 const ZEC_TEMPLATE = "examples/intents/zcash_transfer.json";
 const ZEC_CHAIN_KIND = 3;
@@ -401,10 +402,11 @@ export default function ZcashSendPage() {
         payload: {
           recipient: committedRecipient,
           recipientEncoding: "sha256_text",
-          amount: amountZats.toString(),
+          amount: amount.trim(),
           asset: "ZEC",
           assetEncoding: "sha256_text",
           note: note.trim() || undefined,
+          estimatedUsd: liveUsdEstimate(amount, "ZEC"),
         },
       };
       const summary = await prepareClearSignAction(envelope, {
@@ -423,7 +425,14 @@ export default function ZcashSendPage() {
         expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
-      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
+      const signed = await signTypedDescriptor(dry, {
+        preferSigner: proposerPk,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
+      });
       const submitted = await backendApi.submit.createTypedProposal(name, {
         ...signed,
         expiry: dry.expiry,

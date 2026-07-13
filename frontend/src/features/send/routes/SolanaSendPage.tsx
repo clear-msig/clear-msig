@@ -94,6 +94,7 @@ import {
   type ClearSignEnvelope,
   type SendPayload,
 } from "@/lib/clearsign-v2";
+import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
 
 type Stage = "compose" | "sending" | "sent";
 const STAGE_TRANSITION = {
@@ -688,6 +689,7 @@ function SendPage() {
           amount,
           asset: "SOL",
           note: note.trim() || undefined,
+          estimatedUsd: liveUsdEstimate(amount, "SOL"),
         },
       };
       const summary = await prepareClearSignAction(envelope, {
@@ -711,6 +713,11 @@ function SendPage() {
       setPhase("signing");
       const signed = await signTypedDescriptor(dry, {
         preferSigner: proposerPk,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
       });
 
       // 3. Submit typed proposal. The program auto-approves when

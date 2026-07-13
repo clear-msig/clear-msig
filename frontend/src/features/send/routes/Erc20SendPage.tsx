@@ -102,6 +102,8 @@ import {
   SEND_NOTE_MAX_LENGTH,
   SEND_NOTE_PLACEHOLDER,
 } from "@/lib/sendFields";
+import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
+import { ETHEREUM_SEPOLIA_USDC } from "@/lib/chain/stablecoins";
 
 const ERC20_CHAIN_KIND = 4;
 const ETH_CHAIN_KIND = 1;
@@ -196,7 +198,7 @@ function SendErc20Page() {
 
   const [stage, setStage] = useState<Stage>("compose");
   const [tokenContract, setTokenContract] = useState(
-    () => params?.get("token")?.trim() ?? "",
+    () => params?.get("token")?.trim() || ETHEREUM_SEPOLIA_USDC.address,
   );
   const [amount, setAmount] = useState(
     () => params?.get("amount")?.trim() ?? "",
@@ -364,10 +366,13 @@ function SendErc20Page() {
         payload: {
           recipient: recipientForClearSign,
           recipientEncoding: "sha256_text",
-          amount: amountBase.toString(),
+          amount: amount.trim(),
           asset: tokenForClearSign,
           assetEncoding: "sha256_text",
+          decimals: meta.decimals,
+          displayAsset: meta.symbol,
           note: note.trim() || undefined,
+          estimatedUsd: liveUsdEstimate(amount, meta.symbol),
         },
       };
       const summary = await prepareClearSignAction(envelope, { fallback: false });
@@ -385,7 +390,14 @@ function SendErc20Page() {
         actor_pubkey: proposerPk.toBase58(),
       });
 
-      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
+      const signed = await signTypedDescriptor(dry, {
+        preferSigner: proposerPk,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
+      });
 
       const submitted = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,
@@ -789,6 +801,9 @@ function ComposeStage({
       value: `${amount.trim()} ${metadata.symbol}`,
       emphasis: "amount",
     });
+  }
+  if (note.trim()) {
+    previewDetails.push({ label: "Reason", value: note.trim() });
   }
 
   return (
