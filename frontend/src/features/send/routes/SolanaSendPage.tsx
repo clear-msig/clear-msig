@@ -21,12 +21,8 @@ import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
-  Check,
   Copy,
-  List as ListIcon,
   Loader2,
-  ShieldAlert,
-  UserPlus,
   Users,
 } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
@@ -35,8 +31,6 @@ import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import {
   IntentType,
   ProposalStatus,
-  sha256,
-  toHex,
   findVaultAddress,
 } from "@/lib/msig";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -58,15 +52,11 @@ import { evaluatePolicy, PolicyViolationError } from "@/lib/retail/policyEvaluat
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { Button } from "@/components/retail/Button";
-import { BrandLoader } from "@/components/retail/BrandLoader";
+import { SendProgressStage } from "@/features/send/ui/SendProgressStage";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
 } from "@/components/retail/SignPayloadPreview";
-import {
-  SendReceipt,
-  type ReceiptDetail,
-} from "@/components/retail/SendReceipt";
 import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { RouteSkeleton } from "@/components/retail/RouteSkeleton";
 import { UsdHint } from "@/components/retail/UsdHint";
@@ -79,7 +69,6 @@ import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { SendAmountField } from "@/components/retail/SendAmountField";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { FormField, TextInput } from "@/components/retail/FormField";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import { chainByKind } from "@/lib/retail/chains";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
@@ -95,6 +84,27 @@ import {
   type SendPayload,
 } from "@/lib/clearsign-v2";
 import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
+import {
+  formatAmount,
+  formatLamports,
+  lamportsToSafeNumber,
+  parseSolanaRecipientFromQr,
+  policyCommitmentHex,
+  randomActionLabel,
+  readExecuteFailureProposal,
+  type ResolvedSolanaRecipient,
+  tagExecuteFailure,
+} from "@/features/send/domain/solanaSend";
+import {
+  RecipientStatus,
+  SolanaSendField as Field,
+} from "@/features/send/ui/solana/SolanaRecipientFields";
+import {
+  BudgetHint,
+  SentStage,
+} from "@/features/send/ui/solana/SolanaSendCompletion";
+
+type ResolvedRecipient = ResolvedSolanaRecipient;
 
 type Stage = "compose" | "sending" | "sent";
 const STAGE_TRANSITION = {
@@ -102,111 +112,6 @@ const STAGE_TRANSITION = {
   ease: [0.22, 1, 0.36, 1] as const,
 };
 
-// Cosmetic formatter for the typed SOL amount - locale-grouped with
-// up to four decimals (matches Solana's catalog `displayDecimals`).
-function formatAmount(raw: string): string {
-  const n = parseFloat(raw);
-  if (isNaN(n) || n <= 0) return "0";
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  });
-}
-
-// Lamports (bigint) → SOL string, byte-accurate. Used for wallet
-// balance display and for the Max button (which needs to round-trip
-// through the amount input). 1 SOL = 1e9 lamports.
-function formatLamports(lamports: bigint, displayDecimals = 4): string {
-  if (lamports === 0n) return "0";
-  const negative = lamports < 0n;
-  const abs = negative ? -lamports : lamports;
-  const whole = abs / 1_000_000_000n;
-  const frac = abs % 1_000_000_000n;
-  if (frac === 0n) return `${negative ? "-" : ""}${whole}`;
-  let fracStr = frac.toString().padStart(9, "0");
-  fracStr = fracStr.replace(/0+$/, "").slice(0, displayDecimals);
-  return `${negative ? "-" : ""}${whole}${fracStr ? "." + fracStr : ""}`;
-}
-
-// 32 random bytes as a 0x-prefixed hex string. Each proposal needs a
-// fresh nonce so the message hash never repeats.
-// Tag/read helpers for the "execute failed after propose succeeded"
-// case. We mark the thrown error with the proposal address so the
-// onError handler can render a "retry from the proposal page" CTA
-// without inspecting opaque error strings.
-const EXECUTE_FAIL_KEY = "__clearMsigExecuteFailedProposal";
-
-function tagExecuteFailure(err: unknown, proposalPda: string): void {
-  if (err && typeof err === "object") {
-    (err as Record<string, unknown>)[EXECUTE_FAIL_KEY] = proposalPda;
-  }
-}
-
-function readExecuteFailureProposal(err: unknown): string | null {
-  if (!err || typeof err !== "object") return null;
-  const v = (err as Record<string, unknown>)[EXECUTE_FAIL_KEY];
-  return typeof v === "string" && v.length > 0 ? v : null;
-}
-
-// Strip a Solana wallet-scheme prefix from a scanned QR. Phantom +
-// most Solana QR sources emit `solana:<address>?amount=…&memo=…`;
-// we keep just the address. Anything we can't parse passes through
-// unchanged so users can also scan plain base58.
-function parseSolanaRecipientFromQr(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  const m = trimmed.match(/^solana:([1-9A-HJ-NP-Za-km-z]{32,44})/);
-  if (m) return m[1];
-  return trimmed;
-}
-
-function generateNonceHex(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return "0x" + toHex(bytes);
-}
-
-function randomActionLabel(prefix: string): string {
-  return `${prefix}:${generateNonceHex()}`;
-}
-
-function policyCommitmentHex(parts: string[]): string {
-  const writer = new TinyByteWriter();
-  writer.pushBytes("clearsig:policy-engine:v2:policy");
-  writer.pushU32(parts.length);
-  parts.forEach((part) => writer.pushBytes(part));
-  return toHex(sha256(writer.bytes()));
-}
-
-function lamportsToSafeNumber(value: bigint): number {
-  if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error("Amount is too large for this browser.");
-  }
-  return Number(value);
-}
-
-class TinyByteWriter {
-  private chunks: number[] = [];
-
-  pushBytes(value: string | Uint8Array) {
-    const bytes =
-      typeof value === "string" ? new TextEncoder().encode(value) : value;
-    this.pushU32(bytes.length);
-    bytes.forEach((byte) => this.chunks.push(byte));
-  }
-
-  pushU32(value: number) {
-    for (let i = 0; i < 4; i++) this.chunks.push((value >> (8 * i)) & 0xff);
-  }
-
-  bytes(): Uint8Array {
-    return new Uint8Array(this.chunks);
-  }
-}
-
-// Build the SignPayloadPreview detail rows for /send. Stays a pure
-// function so it can render the policy impact (per-chain + wallet-
-// wide) without dragging hook plumbing into the JSX.
 interface SendPreviewArgs {
   walletName: string;
   amount: string;
@@ -1172,7 +1077,12 @@ function SendPage() {
             />
           )}
           {stage === "sending" && (
-            <SendingStage reduce={!!reduce} phase={phase} />
+            <SendProgressStage
+              primary={`${PHASE_LABEL[phase].primary}...`}
+              hint={PHASE_LABEL[phase].hint}
+              loaderLabel={PHASE_LABEL[phase].primary}
+              reduceMotion={!!reduce}
+            />
           )}
           {stage === "sent" && (
             <SentStage
@@ -1190,14 +1100,6 @@ function SendPage() {
 }
 
 // ─── Stage 1: compose ──────────────────────────────────────────────
-
-type ResolvedRecipient =
-  | { kind: "empty" }
-  | { kind: "contact"; contact: Contact }
-  | { kind: "address"; address: string }
-  | { kind: "sns"; name: string; address: string }
-  | { kind: "resolving"; name: string }
-  | { kind: "unknown" };
 
 interface ComposeStageProps {
   walletName: string;
@@ -1563,190 +1465,11 @@ function ComposeStage({
   );
 }
 
-// ─── Recipient status row ──────────────────────────────────────────
-
-function RecipientStatus({
-  resolved,
-  savedNewContact,
-  onSaveContact,
-}: {
-  resolved: ResolvedRecipient;
-  savedNewContact: boolean;
-  onSaveContact: (name: string, address: string) => void;
-}) {
-  if (resolved.kind === "empty") {
-    // Empty-state hint moved into the To field's info icon. Rendering
-    // it inline used to nudge the layout every time the user cleared
-    // the field, and on a quiet send view it pulled focus the wrong
-    // way. Keep the row hidden so the page stays still when there's
-    // nothing to say.
-    return null;
-  }
-  if (resolved.kind === "resolving") {
-    return (
-      <p className="-mt-1 inline-flex items-center gap-1.5 text-xs text-text-soft">
-        Resolving {resolved.name}…
-      </p>
-    );
-  }
-  if (resolved.kind === "unknown") {
-    return (
-      <p className="-mt-1 text-xs text-warning">
-        That doesn&rsquo;t look like a contact name, a .sol domain,
-        or a valid wallet address.
-      </p>
-    );
-  }
-  if (resolved.kind === "contact") {
-    return (
-      <p className="-mt-1 inline-flex items-center gap-1.5 text-xs text-accent">
-        <Check className="h-3.5 w-3.5" strokeWidth={3} />
-        Sending to {resolved.contact.name} ·{" "}
-        <span className="font-mono text-text-soft">
-          {shortAddress(resolved.contact.address)}
-        </span>
-      </p>
-    );
-  }
-  if (resolved.kind === "sns") {
-    return (
-      <p className="-mt-1 inline-flex items-center gap-1.5 text-xs text-accent">
-        <Check className="h-3.5 w-3.5" strokeWidth={3} />
-        Resolved {resolved.name} ·{" "}
-        <span className="font-mono text-text-soft">
-          {shortAddress(resolved.address)}
-        </span>
-      </p>
-    );
-  }
-  // Pasted address - warn explicitly and offer to save as a contact.
-  return (
-    <PastedAddressNotice
-      address={resolved.address}
-      savedNewContact={savedNewContact}
-      onSaveContact={onSaveContact}
-    />
-  );
-}
-
-function PastedAddressNotice({
-  address,
-  savedNewContact,
-  onSaveContact,
-}: {
-  address: string;
-  savedNewContact: boolean;
-  onSaveContact: (name: string, address: string) => void;
-}) {
-  const [showSave, setShowSave] = useState(false);
-  const [name, setName] = useState("");
-
-  return (
-    <div className="-mt-1 flex flex-col gap-2 rounded-soft border border-warning/30 bg-warning/5 p-3">
-      <p className="inline-flex items-start gap-1.5 text-xs text-text-strong">
-        <ShieldAlert
-          className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning"
-          aria-hidden="true"
-        />
-        <span>
-          New address.{" "}
-          <span className="font-mono text-text-soft">
-            {shortAddress(address)}
-          </span>
-          . Make sure this is correct. Money sent to the wrong address
-          can&rsquo;t be reversed.
-        </span>
-      </p>
-      {!savedNewContact && (
-        <div>
-          {!showSave ? (
-            <button
-              type="button"
-              onClick={() => setShowSave(true)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
-            >
-              <UserPlus className="h-3 w-3" aria-hidden="true" />
-              Save as contact
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <TextInput
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Name (e.g. Sarah)"
-                autoFocus
-                maxLength={40}
-                className="flex-1 text-xs"
-              />
-              <button
-                type="button"
-                disabled={name.trim().length < 2}
-                onClick={() => {
-                  onSaveContact(name.trim(), address);
-                  setShowSave(false);
-                  setName("");
-                }}
-                className={
-                  "inline-flex min-h-tap items-center justify-center rounded-soft bg-accent px-4 py-2 text-xs font-semibold text-text-on-accent " +
-                  "transition-colors duration-base ease-out-soft hover:bg-accent-hover " +
-                  "disabled:cursor-not-allowed disabled:opacity-40"
-                }
-              >
-                Save
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      {savedNewContact && (
-        <p className="inline-flex items-center gap-1.5 text-xs text-accent">
-          <Check className="h-3 w-3" strokeWidth={3} />
-          Saved to contacts
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── Field row (used for To + Note) ─────────────────────────────────
-
-interface FieldProps {
-  label: string;
-  value: string;
-  onChange: (s: string) => void;
-  placeholder?: string;
-  optional?: boolean;
-  autoFocus?: boolean;
-  maxLength?: number;
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  optional,
-  autoFocus,
-  maxLength,
-}: FieldProps) {
-  return (
-    <FormField label={optional ? `${label} (optional)` : label}>
-      <TextInput
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        maxLength={maxLength}
-        spellCheck={false}
-      />
-    </FormField>
-  );
-}
 
 // ─── Stage 2: sending ──────────────────────────────────────────────
 
 /// Substep within the "sending" stage. Each value maps to a status
-/// line in <SendingStage>; the mutation in handleSubmit pushes to it
+/// line in <SendProgressStage>; the mutation in handleSubmit pushes to it
 /// at each step so the user sees progress instead of a frozen spinner
 /// during slow Solana RPC round-trips.
 type SendingPhase =
@@ -1783,32 +1506,6 @@ const PHASE_LABEL: Record<SendingPhase, { primary: string; hint: string }> = {
     hint: "Enough approvals collected. Finishing the send.",
   },
 };
-
-function SendingStage({
-  reduce,
-  phase,
-}: {
-  reduce: boolean;
-  phase: SendingPhase;
-}) {
-  const motionProps = reduce
-    ? { initial: false as const, animate: { opacity: 1 } }
-    : { initial: { opacity: 0 }, animate: { opacity: 1 } };
-  const { primary, hint } = PHASE_LABEL[phase];
-  return (
-    <motion.section
-      {...motionProps}
-      transition={{ duration: 0.2 }}
-      className="flex flex-col items-center text-center"
-    >
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-        <BrandLoader size={32} label={primary} />
-      </div>
-      <p className="mt-5 text-base text-text-strong">{primary}…</p>
-      <p className="mt-1 text-xs text-text-soft">{hint}</p>
-    </motion.section>
-  );
-}
 
 async function waitForProposalStatus(
   connection: import("@solana/web3.js").Connection,
@@ -1855,126 +1552,3 @@ function isProposalNotApprovedError(err: unknown): boolean {
 }
 
 // ─── Stage 3: sent ─────────────────────────────────────────────────
-
-interface SentStageProps {
-  amountDisplay: string;
-  recipientDisplay: string;
-  walletName: string;
-  walletDisplay: string;
-  /// Solana tx signature when the proposal was executed inline
-  /// (auto-approve or sole-approver path). When null, the proposal
-  /// is on chain awaiting other signers - the receipt's status pill
-  /// + copy reflect the distinction so users don't think their
-  /// friends already moved money when they didn't.
-  executedTxid: string | null;
-  reduce: boolean;
-}
-
-function SentStage({
-  amountDisplay,
-  recipientDisplay,
-  walletName,
-  walletDisplay,
-  executedTxid,
-  reduce,
-}: SentStageProps) {
-  const details: ReceiptDetail[] = [
-    { label: "From", value: walletDisplay },
-    { label: "Network", value: "Solana" },
-  ];
-  if (executedTxid) {
-    details.push({
-      label: "Reference",
-      value: shortAddress(executedTxid),
-      mono: true,
-      copyText: executedTxid,
-    });
-  }
-  return (
-    <SendReceipt
-      status={executedTxid ? "confirmed" : "pending"}
-      statusLabel={
-        executedTxid
-          ? "Broadcast on Solana"
-          : `Awaiting approvals in ${walletDisplay}`
-      }
-      amount={amountDisplay}
-      ticker="SOL"
-      recipientLabel={recipientDisplay}
-      details={details}
-      explorerHref={executedTxid ? solanaTxUrl(executedTxid) : null}
-      explorerLabel="Solana Explorer"
-      actions={[
-        {
-          label: "Send another",
-          hint: "Same wallet, different recipient.",
-          href: `/app/wallet/${encodeURIComponent(walletName)}/send`,
-          primary: true,
-          icon: ArrowRight,
-        },
-        {
-          label: "View activity",
-          hint: "See approvals coming in.",
-          href: `/app/wallet/${encodeURIComponent(walletName)}`,
-          icon: ListIcon,
-        },
-      ]}
-      reduce={reduce}
-    />
-  );
-}
-
-// ─── Budget hint (cross-chain spending limit nudge) ────────────────
-//
-// Sits above the wallet-popup narration on /send. Three states:
-//   1. No budget set - silent (don't pile a CTA on top of the
-//      send flow's existing surface area).
-//   2. Send fits - green "fits within $X left this week".
-//   3. Send overshoots - warning "would push {wallet} $X over its
-//      weekly cap. Friends still need to approve, this is a heads-up".
-//
-// Today's a heads-up; the wallet's approval rule still gates every
-// send. When the program enforces the cap on chain, the warning
-// becomes a hard stop and this component grows a "request override"
-// button instead of just narrating.
-
-function BudgetHint({
-  budgetUsage,
-  pendingUsd,
-  walletName,
-}: {
-  budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
-  pendingUsd: number;
-  walletName: string;
-}) {
-  const walletDisplay = toDisplayName(walletName);
-  const cap = budgetUsage.budget?.weeklyUsd ?? null;
-  if (cap === null || cap === undefined) return null;
-  if (pendingUsd <= 0) return null;
-
-  const remaining = cap - budgetUsage.spentUsd;
-  const wouldExceed = pendingUsd > remaining;
-  if (!wouldExceed) {
-    return null;
-  }
-  const overage = pendingUsd - Math.max(0, remaining);
-  return (
-    <div className="mt-4 rounded-card border border-warning/30 bg-warning/5 p-3 text-left text-xs text-text-soft">
-      <p className="font-medium text-text-strong">
-        Heads up: this send would push {walletDisplay} {formatUsd(overage)}{" "}
-        over its weekly cap.
-      </p>
-      <p className="mt-1 leading-snug">
-        Friends still need to approve. The cap is a guide today, not a
-        hard stop. Lower the amount or update the cap on{" "}
-        <Link
-          href={`/app/wallet/${encodeURIComponent(walletName)}/budget`}
-          className="text-accent underline-offset-2 hover:underline"
-        >
-          {walletDisplay}&rsquo;s budget page
-        </Link>
-        .
-      </p>
-    </div>
-  );
-}

@@ -8,14 +8,17 @@ function source(path: string): string {
 
 describe("first-use wallet creation", () => {
   const walletHome = source("src/features/wallet/routes/WalletHomePage.tsx");
+  const walletDashboard = source(
+    "src/features/wallet/ui/home/WalletDashboardSections.tsx",
+  );
   const newWallet = source("src/app/app/wallet/new/page.tsx");
   const chooser = source("src/app/choose/page.tsx");
   const sidebar = source("src/components/layout/WorkspaceSidebar.tsx");
 
   it("opens wallet creation directly from the empty state", () => {
-    expect(walletHome).toContain("Create your first wallet");
-    expect(walletHome).toContain('href="/app/wallet/new"');
-    expect(walletHome).not.toContain("Choose your ClearSig product");
+    expect(walletDashboard).toContain("Create your first wallet");
+    expect(walletDashboard).toContain('href="/app/wallet/new"');
+    expect(walletDashboard).not.toContain("Choose your ClearSig product");
   });
 
   it("defaults creation to Personal and keeps advanced purposes inline", () => {

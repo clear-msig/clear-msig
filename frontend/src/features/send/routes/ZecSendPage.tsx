@@ -25,7 +25,7 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { BrandLoader } from "@/components/retail/BrandLoader";
+import { SendProgressStage } from "@/features/send/ui/SendProgressStage";
 import {
   SignPayloadPreview,
   type SignPayloadDetail,
@@ -671,7 +671,13 @@ export default function ZcashSendPage() {
               onSubmit={() => send.mutate()}
             />
           )}
-          {send.isPending && <SendingStage />}
+          {send.isPending && (
+            <SendProgressStage
+              primary="Talking to Zcash..."
+              hint="Finishing the send on Zcash."
+              loaderLabel="Sending Zcash request"
+            />
+          )}
           {sentLabel && (
             <SentStage
               walletName={name}
@@ -941,25 +947,6 @@ function Field({
     <FormField label={label} error={hint} as="div">
       {children}
     </FormField>
-  );
-}
-
-function SendingStage() {
-  return (
-    <motion.section
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.2 }}
-      className="flex flex-col items-center text-center"
-    >
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-        <BrandLoader size={32} label="Sending Zcash request" />
-      </div>
-      <p className="mt-5 text-base text-text-strong">Talking to Zcash…</p>
-      <p className="mt-1 text-xs text-text-soft">
-        Finishing the send on Zcash.
-      </p>
-    </motion.section>
   );
 }
 

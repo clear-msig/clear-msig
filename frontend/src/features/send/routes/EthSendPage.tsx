@@ -88,7 +88,7 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
-import { BrandLoader } from "@/components/retail/BrandLoader";
+import { SendProgressStage } from "@/features/send/ui/SendProgressStage";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { SendAmountField } from "@/components/retail/SendAmountField";
@@ -786,7 +786,12 @@ function SendEthPage() {
             />
           )}
           {stage === "sending" && (
-            <SendingStage reduce={!!reduce} label={EVM_LABEL} />
+            <SendProgressStage
+              primary={`Talking to ${EVM_LABEL}...`}
+              hint={`Finishing the send on ${EVM_LABEL}.`}
+              loaderLabel={`Sending ${EVM_LABEL} request`}
+              reduceMotion={!!reduce}
+            />
           )}
           {stage === "sent" && sentLabel && (
             <SentStage
@@ -1183,35 +1188,6 @@ function Field({ label, hint, children }: FieldProps) {
     <FormField label={label} error={hint} as="div">
       {children}
     </FormField>
-  );
-}
-
-// ─── Sending + sent stages ────────────────────────────────────────
-
-function SendingStage({
-  reduce,
-  label,
-}: {
-  reduce: boolean;
-  label: string;
-}) {
-  const motionProps = reduce
-    ? { initial: false as const, animate: { opacity: 1 } }
-    : { initial: { opacity: 0 }, animate: { opacity: 1 } };
-  return (
-    <motion.section
-      {...motionProps}
-      transition={{ duration: 0.2 }}
-      className="flex flex-col items-center text-center"
-    >
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-        <BrandLoader size={32} label={`Sending ${label} request`} />
-      </div>
-      <p className="mt-5 text-base text-text-strong">Talking to {label}…</p>
-      <p className="mt-1 text-xs text-text-soft">
-        Finishing the send on {label}.
-      </p>
-    </motion.section>
   );
 }
 

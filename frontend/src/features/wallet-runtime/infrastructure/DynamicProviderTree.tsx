@@ -19,7 +19,7 @@ import {
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { useEffect, useMemo, useRef } from "react";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
-import { DynamicWalletRuntimeProvider } from "@/lib/wallet/dynamic";
+import { DynamicWalletRuntimeProvider } from "@/features/wallet-runtime/infrastructure/DynamicWalletRuntimeProvider";
 import {
   EXTERNAL_WALLET_RUNTIME_EVENT,
   storeAuthenticatedWalletRuntime,

@@ -53,21 +53,9 @@ import {
   signMessageWithInjectedProvider,
   signTransactionWithInjectedProvider,
 } from "@/lib/wallet/injectedSolana";
+import { signDynamicSolanaMessage } from "@/features/wallet-runtime/infrastructure/dynamicSolanaMessageSigner";
 
 type SolanaTransaction = Transaction | VersionedTransaction;
-
-type SolanaMessageSignature =
-  | Uint8Array
-  | { signature?: Uint8Array };
-
-type SolanaSignerLike = {
-  signMessage: (b: Uint8Array) => Promise<SolanaMessageSignature>;
-};
-
-type BytePreservingSolanaWallet = {
-  signUint8ArrayMessage?: (encodedMessage: Uint8Array) => Promise<Uint8Array>;
-  getSigner?: () => Promise<SolanaSignerLike | undefined>;
-};
 
 /// Drop-in replacement for `useWallet()` from @solana/wallet-adapter-react.
 /// Returns a Solana wallet view derived from Dynamic's primary wallet,
@@ -237,27 +225,7 @@ function useDynamicWalletValue(
           bytes,
         });
         if (injected) return injected;
-        const bytePreservingWallet =
-          solanaWallet as unknown as BytePreservingSolanaWallet;
-        if (typeof bytePreservingWallet.signUint8ArrayMessage === "function") {
-          return bytePreservingWallet.signUint8ArrayMessage(bytes);
-        }
-
-        const signer = await bytePreservingWallet.getSigner?.();
-        if (!signer || typeof signer.signMessage !== "function") {
-          throw new Error(
-            "This Solana wallet connector does not expose signMessage",
-          );
-        }
-        const result = await signer.signMessage(bytes);
-        // Dynamic returns either Uint8Array directly or {signature: ...}
-        // depending on connector version; normalise.
-        if (result instanceof Uint8Array) return result;
-        const sig = (result as { signature?: Uint8Array })?.signature;
-        if (!(sig instanceof Uint8Array)) {
-          throw new Error("Wallet returned an unexpected signMessage shape");
-        }
-        return sig;
+        return signDynamicSolanaMessage(solanaWallet, bytes);
       }
       throw new Error(
         "No signer available. Connect a Ledger or sign in to a wallet.",

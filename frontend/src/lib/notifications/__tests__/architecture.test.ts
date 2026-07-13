@@ -22,7 +22,9 @@ describe("notification architecture", () => {
 
   it("uses the Dynamic access token without persisting it", () => {
     const client = source("lib/notifications/client.ts");
-    const walletRuntime = source("lib/wallet/dynamic.tsx");
+    const walletRuntime = source(
+      "features/wallet-runtime/infrastructure/DynamicWalletRuntimeProvider.tsx",
+    );
     const auth = source("lib/notifications/dynamicAuth.ts");
     expect(client).toContain("getNotificationAuthToken()");
     expect(walletRuntime).toContain("configureNotificationTokenGetter(getAuthToken)");

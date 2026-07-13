@@ -62,7 +62,7 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
-import { BrandLoader } from "@/components/retail/BrandLoader";
+import { SendProgressStage } from "@/features/send/ui/SendProgressStage";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { SendAmountField } from "@/components/retail/SendAmountField";
@@ -670,7 +670,14 @@ function SendErc20Page() {
               reduce={!!reduce}
             />
           )}
-          {stage === "sending" && <SendingStage reduce={!!reduce} />}
+          {stage === "sending" && (
+            <SendProgressStage
+              primary="Sending token request..."
+              hint="Finishing the send on Sepolia."
+              loaderLabel="Sending token request"
+              reduceMotion={!!reduce}
+            />
+          )}
           {stage === "sent" && sentLabel && (
             <SentStage
               amount={sentLabel.amount}
@@ -1022,29 +1029,6 @@ function Field({
     <FormField label={label} error={hint} as="div">
       {children}
     </FormField>
-  );
-}
-
-// ─── Sending stage ────────────────────────────────────────────────
-
-function SendingStage({ reduce }: { reduce: boolean }) {
-  const motionProps = reduce
-    ? { initial: false as const, animate: { opacity: 1 } }
-    : { initial: { opacity: 0 }, animate: { opacity: 1 } };
-  return (
-    <motion.section
-      {...motionProps}
-      transition={{ duration: 0.2 }}
-      className="flex flex-col items-center text-center"
-    >
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-raised shadow-card-rest">
-        <BrandLoader size={32} label="Sending token request" />
-      </div>
-      <p className="mt-5 text-base text-text-strong">Sending token request…</p>
-      <p className="mt-1 text-xs text-text-soft">
-        Finishing the send on Sepolia.
-      </p>
-    </motion.section>
   );
 }
 

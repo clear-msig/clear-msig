@@ -67,6 +67,35 @@ for (const file of metrics) {
       failures.push(`${label(file.path)} has ${file.lines} lines; split infrastructure ports above 120`);
     }
   }
+  if (
+    file.path.endsWith("/features/settings/routes/AppSettingsPage.tsx") &&
+    file.lines > 700
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; Settings composition is capped at 700`,
+    );
+  }
+  if (
+    file.path.endsWith("/features/wallet/routes/WalletHomePage.tsx") &&
+    file.lines > 1_100
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; wallet home is capped at 1,100`,
+    );
+  }
+  if (file.path.includes("/features/send/routes/") && file.lines > 1_600) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; send routes are capped at 1,600`,
+    );
+  }
+  if (
+    file.path.includes("/features/wallet-runtime/infrastructure/") &&
+    file.lines > 500
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; wallet runtime infrastructure is capped at 500`,
+    );
+  }
 
   const isAgentBoundary =
     file.path.includes("/features/agents/routes/") ||
