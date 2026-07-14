@@ -47,6 +47,22 @@ After deploy:
 ./scripts/smoke-live.sh --address GpTfW9LiJb8pM2xmi7oENuUiV1e4LurPu9rzcPfhaJCM
 ```
 
+If `solana program deploy` reports that `ExtendProgram` requires at least
+10,240 additional bytes, extend the existing program account by that minimum
+and rerun the helper:
+
+```bash
+solana program extend \
+  53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v \
+  10240 \
+  --url https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH \
+  --keypair target/deploy/clear_wallet-keypair.json
+```
+
+Record the extension transaction and recheck the program authority before the
+retry. A failed atomic allocation does not necessarily create the displayed
+intermediate account; query it before attempting a close.
+
 ## Backend deploy
 
 Render is configured by `render.yaml`.

@@ -8,8 +8,9 @@ use clear_wallet::utils::clearsign::{
     MAX_CLEARSIGN_VOTE_MESSAGE_BYTES,
 };
 use clear_wallet_client::pda::{
-    compute_name_hash, find_intent_address, find_policy_spend_address, find_typed_proposal_address,
-    find_vault_address, find_wallet_address,
+    compute_name_hash, find_intent_address, find_member_allowance_address,
+    find_policy_spend_address, find_typed_proposal_address, find_vault_address,
+    find_wallet_address, find_wallet_policy_address,
 };
 use quasar_lang::client::{DynBytes, DynVec, TailBytes};
 use sha2::{Digest, Sha256};
@@ -17,6 +18,7 @@ use solana_address::Address;
 use solana_rpc_client::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signature},
@@ -29,6 +31,7 @@ const SEND_LAMPORTS: u64 = 1_000_000;
 const ESCROW_RELEASE_LAMPORTS: u64 = 1_000_000;
 const ESCROW_RETURN_A_LAMPORTS: u64 = 1_000_000;
 const ESCROW_RETURN_B_LAMPORTS: u64 = 1_000_000;
+const E2E_COMPUTE_UNIT_LIMIT: u32 = 600_000;
 const VAULT_FUND_LAMPORTS: u64 = 5_000_000;
 
 fn main() -> anyhow::Result<()> {
@@ -565,20 +568,25 @@ fn build_execute_typed_sol_send_ix(
     wincode::serialize_into(&mut data, &policy_commitment).unwrap();
     wincode::serialize_into(&mut data, &envelope_hash).unwrap();
     wincode::serialize_into(&mut data, &amount_lamports).unwrap();
+    let wallet_address = Address::new_from_array(wallet.to_bytes());
+    let intent_address = Address::new_from_array(intent.to_bytes());
+    let wallet_policy = pubkey_from_address(
+        find_wallet_policy_address(&wallet_address, &clear_wallet_client::ID).0,
+    );
     let policy_spend = pubkey_from_address(
-        find_policy_spend_address(
-            &Address::new_from_array(wallet.to_bytes()),
-            &Address::new_from_array(intent.to_bytes()),
-            &clear_wallet_client::ID,
-        )
-        .0,
+        find_policy_spend_address(&wallet_address, &intent_address, &clear_wallet_client::ID).0,
+    );
+    let member_allowance = pubkey_from_address(
+        find_member_allowance_address(&wallet_address, &intent_address, &clear_wallet_client::ID).0,
     );
     Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new(payer, true),
             AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(wallet_policy, false),
             AccountMeta::new(policy_spend, false),
+            AccountMeta::new(member_allowance, false),
             AccountMeta::new(vault, false),
             AccountMeta::new(intent, false),
             AccountMeta::new(proposal, false),
@@ -662,8 +670,12 @@ fn build_execute_typed_escrow_return_ix(
 fn send_ix(
     client: &RpcClient,
     payer: &Keypair,
-    ixs: Vec<Instruction>,
+    mut ixs: Vec<Instruction>,
 ) -> anyhow::Result<Signature> {
+    ixs.insert(
+        0,
+        ComputeBudgetInstruction::set_compute_unit_limit(E2E_COMPUTE_UNIT_LIMIT),
+    );
     let blockhash = client.get_latest_blockhash()?;
     let tx = Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[payer], blockhash);
     let sig = client.send_and_confirm_transaction(&tx)?;
