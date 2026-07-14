@@ -188,17 +188,18 @@ const nextConfig = {
       },
     ];
   },
-  // Local-dev proxy for the deployed backend on Render. The browser
+  // Local-dev proxy for the deployed backend on Railway. The browser
   // sees a same-origin /backend/* request, Next.js forwards it to
-  // the Render backend, and CORS never enters the picture.
+  // the Railway backend, and CORS never enters the picture.
   // Activated by setting NEXT_PUBLIC_BACKEND_API_URL=/backend in
   // .env.local. In production NEXT_PUBLIC_BACKEND_API_URL points
-  // straight at the Render service and this rewrite is unused.
+  // straight at the Railway service and this rewrite is unused.
   async rewrites() {
     return [
       {
         source: "/backend/:path*",
-        destination: "https://clear-msig-backend.onrender.com/:path*",
+        destination:
+          "https://clear-msig-backend-production.up.railway.app/:path*",
       },
     ];
   },

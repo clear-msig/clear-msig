@@ -8,13 +8,13 @@
 #   - Optional backend membership lookup when an address is supplied
 #
 # Usage:
-#   BACKEND_URL=https://clear-msig-backend.onrender.com \
+#   BACKEND_URL=https://clear-msig-backend-production.up.railway.app \
 #   FRONTEND_URL=https://clearsig.xyz \
 #   ./scripts/smoke-live.sh [--address <solana-pubkey>]
 
 set -euo pipefail
 
-BACKEND_URL="${BACKEND_URL:-https://clear-msig-backend.onrender.com}"
+BACKEND_URL="${BACKEND_URL:-https://clear-msig-backend-production.up.railway.app}"
 FRONTEND_URL="${FRONTEND_URL:-https://clearsig.xyz}"
 ADDRESS=""
 

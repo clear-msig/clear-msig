@@ -102,7 +102,7 @@ Vercel builds `frontend/` with `frontend/vercel.json`.
 Required Vercel environment:
 
 ```text
-NEXT_PUBLIC_BACKEND_API_URL=https://<railway-domain>
+NEXT_PUBLIC_BACKEND_API_URL=https://clear-msig-backend-production.up.railway.app
 NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
 NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
 UPSTASH_REDIS_REST_URL=<Upstash Redis REST URL>
