@@ -84,7 +84,7 @@ import {
   textCommitmentHex,
   type ClearSignEnvelope,
   type SendPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import {
   SendReceipt,
   type ReceiptDetail,
@@ -102,7 +102,7 @@ import {
   SEND_NOTE_MAX_LENGTH,
   SEND_NOTE_PLACEHOLDER,
 } from "@/lib/sendFields";
-import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
+import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
 import { ETHEREUM_SEPOLIA_USDC } from "@/lib/chain/stablecoins";
 import { ComposeStage } from "@/features/send/ui/evm/Erc20SendStages";
 import { PreFlightCard, SentStage } from "@/features/send/ui/evm/Erc20SendResults";
@@ -357,7 +357,7 @@ function SendErc20Page() {
           `approvers:${erc20Intent.account.approvers.join(",")}`,
         ]);
       const envelope: ClearSignEnvelope<SendPayload> = {
-        version: 2,
+        version: 3,
         kind: "send",
         walletName,
         walletId: walletQuery.data?.pda.toBase58(),

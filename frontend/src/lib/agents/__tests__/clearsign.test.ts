@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentTradeClearSignV2 } from "@/lib/agents/clearsign";
+import { buildAgentTradeClearSign } from "@/lib/agents/clearsign";
 import type { AgentTradeProposal } from "@/lib/agents/types";
 
 const baseProposal: AgentTradeProposal = {
@@ -27,9 +27,9 @@ const baseProposal: AgentTradeProposal = {
   version: 1,
 };
 
-describe("agent ClearSign v2 binding", () => {
+describe("agent ClearSign binding", () => {
   it("builds executor fields for typed agent approval", () => {
-    const binding = buildAgentTradeClearSignV2(baseProposal, {
+    const binding = buildAgentTradeClearSign(baseProposal, {
       walletId: "WalletPda111",
     });
 
@@ -59,8 +59,8 @@ describe("agent ClearSign v2 binding", () => {
   });
 
   it("changes the payload hash when risk fields change", () => {
-    const first = buildAgentTradeClearSignV2(baseProposal);
-    const second = buildAgentTradeClearSignV2({
+    const first = buildAgentTradeClearSign(baseProposal);
+    const second = buildAgentTradeClearSign({
       ...baseProposal,
       stopLossPrice: "61000",
     });

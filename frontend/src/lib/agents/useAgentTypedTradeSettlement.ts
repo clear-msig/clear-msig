@@ -10,7 +10,7 @@ import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { listIntents } from "@/lib/chain/intents";
 import { waitForProposalApproval, waitForProposalStatus } from "@/lib/chain/proposals";
 import { fetchWalletByName } from "@/lib/chain/wallets";
-import { prepareClearSignAction } from "@/lib/clearsign-v2";
+import { prepareClearSignAction } from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType, ProposalStatus } from "@/lib/msig";
 import { useConnection, useWallet } from "@/lib/wallet";

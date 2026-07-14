@@ -62,7 +62,11 @@ export type PreSignedPayload = {
   signature: string;
   /// Exact byte layout that was signed. Software wallets use plain_v2;
   /// Ledger uses offchain_v1 so the device can display the message.
-  message_flavor?: "offchain_v1" | "plain_v2" | "clearsign_v2_text";
+  message_flavor?:
+    | "offchain_v1"
+    | "plain_v2"
+    | "clearsign_v2_text"
+    | "clearsign_v3_document";
   /// Hex-encoded exact readable ClearSign typed vote bytes that were signed.
   signed_message_hex?: string;
   /// Hex-encoded `params_data` bytes the caller serialised for the CLI to
@@ -100,6 +104,10 @@ export type TypedDryRunDescriptor = {
   intent_pubkey: string;
   proposal_pubkey: string;
   proposal_index: number;
+  signer_pubkey: string;
+  approval_requirement: number;
+  approval_count_after: number;
+  approval_kind: "approvals" | "cancellations";
   action_kind: number;
   policy_commitment_hex: string;
   payload_hash_hex: string;
@@ -107,7 +115,7 @@ export type TypedDryRunDescriptor = {
   action_id: string;
   nonce: string;
   message_hex: string;
-  message_flavor: "clearsign_v2_text";
+  message_flavor: "clearsign_v3_document" | "clearsign_v2_text";
   expiry: number;
 };
 

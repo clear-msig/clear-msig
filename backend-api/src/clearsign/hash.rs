@@ -7,7 +7,7 @@ use super::{
         json_string, leverage_to_x100, payload_text, payload_u32, recipient_amount,
         update_recipient_amount, AssetEncoding, Money,
     },
-    NormalizedEnvelope, CLEARSIGN_V2_DOMAIN, CLEARSIGN_V2_PAYLOAD_DOMAIN, CLEARSIGN_V2_VERSION,
+    NormalizedEnvelope, CLEARSIGN_PAYLOAD_DOMAIN, CLEARSIGN_V3_DOMAIN, CLEARSIGN_V3_VERSION,
 };
 use crate::ApiError;
 
@@ -326,8 +326,8 @@ pub(super) fn hash_envelope(
     clear_text_hash: [u8; 32],
 ) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    update_bytes(&mut hasher, CLEARSIGN_V2_DOMAIN);
-    hasher.update([CLEARSIGN_V2_VERSION]);
+    update_bytes(&mut hasher, CLEARSIGN_V3_DOMAIN);
+    hasher.update([CLEARSIGN_V3_VERSION]);
     hasher.update([envelope.kind.code()]);
     hasher.update(envelope.expires_at.to_le_bytes());
     update_bytes(&mut hasher, envelope.wallet_name.as_bytes());
@@ -342,7 +342,7 @@ pub(super) fn hash_envelope(
 
 fn payload_hasher(kind: ClearSignActionKind) -> Sha256 {
     let mut hasher = Sha256::new();
-    update_bytes(&mut hasher, CLEARSIGN_V2_PAYLOAD_DOMAIN);
+    update_bytes(&mut hasher, CLEARSIGN_PAYLOAD_DOMAIN);
     hasher.update([kind.code()]);
     hasher
 }
@@ -728,8 +728,8 @@ mod tests {
         clear_text_hash: [u8; 32],
     ) -> [u8; 32] {
         let mut hasher = Sha256::new();
-        update_bytes(&mut hasher, CLEARSIGN_V2_DOMAIN);
-        hasher.update([CLEARSIGN_V2_VERSION]);
+        update_bytes(&mut hasher, CLEARSIGN_V3_DOMAIN);
+        hasher.update([CLEARSIGN_V3_VERSION]);
         hasher.update([envelope.kind.code()]);
         hasher.update(envelope.expires_at.to_le_bytes());
         update_bytes(&mut hasher, envelope.wallet_name.as_bytes());

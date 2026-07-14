@@ -62,7 +62,7 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
     label: "Typed proposal approve / cancel",
     status: "typed_onchain",
     signedPath: "typed readable vote message",
-    notes: "Approve/cancel signatures are over readable ClearSign v2 text, not vote hashes.",
+    notes: "Approve/cancel signatures are over readable ClearSign v3 documents, not vote hashes.",
   },
   {
     id: "btc-send",

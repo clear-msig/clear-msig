@@ -23,7 +23,7 @@ pub(crate) struct PreSigned {
     /// for approve/cancel; required for propose / intent add / update.
     #[serde(default)]
     pub(crate) params_data_hex: Option<String>,
-    /// Hex-encoded exact readable ClearSign v2 typed vote bytes the
+    /// Hex-encoded exact readable ClearSign typed approval document the
     /// browser wallet signed. Required by typed proposal submit paths.
     #[serde(default)]
     pub(crate) signed_message_hex: Option<String>,
@@ -41,10 +41,10 @@ impl PreSigned {
         ensure_hex_exact_len(&self.signature, "signature", 64)?;
         if let Some(flavor) = &self.message_flavor {
             match flavor.as_str() {
-                "offchain_v1" | "plain_v2" | "clearsign_v2_text" => {}
+                "offchain_v1" | "plain_v2" | "clearsign_v2_text" | "clearsign_v3_document" => {}
                 other => {
                     return Err(ApiError::BadRequest(format!(
-                        "message_flavor must be offchain_v1, plain_v2, or clearsign_v2_text, got {other}"
+                        "message_flavor must be offchain_v1, plain_v2, clearsign_v2_text, or clearsign_v3_document, got {other}"
                     )));
                 }
             }

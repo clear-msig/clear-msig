@@ -213,7 +213,7 @@ pub struct ProposeTypedArgs<'a> {
     pub clear_text: &'a [u8],
 }
 
-/// Build propose_typed instruction (ClearSign v2 discriminator 8).
+/// Build propose_typed instruction (typed proposal discriminator 8).
 #[allow(dead_code)]
 pub fn propose_typed(args: ProposeTypedArgs) -> Instruction {
     let accounts = vec![
@@ -245,7 +245,7 @@ pub fn propose_typed(args: ProposeTypedArgs) -> Instruction {
     }
 }
 
-/// Build approve_typed instruction (ClearSign v2 discriminator 9).
+/// Build approve_typed instruction (typed proposal discriminator 9).
 #[allow(dead_code)]
 pub fn approve_typed(
     wallet: Pubkey,
@@ -270,7 +270,7 @@ pub fn approve_typed(
     }
 }
 
-/// Build cancel_typed instruction (ClearSign v2 discriminator 10).
+/// Build cancel_typed instruction (typed proposal discriminator 10).
 #[allow(dead_code)]
 pub fn cancel_typed(
     wallet: Pubkey,
@@ -295,7 +295,7 @@ pub fn cancel_typed(
     }
 }
 
-/// Build execute_typed instruction (ClearSign v2 discriminator 11).
+/// Build execute_typed instruction (typed proposal discriminator 11).
 #[allow(dead_code)]
 pub fn execute_typed(
     wallet: Pubkey,
@@ -324,7 +324,7 @@ pub fn execute_typed(
     }
 }
 
-/// Build execute_typed_escrow_release instruction (ClearSign v2 discriminator 12).
+/// Build execute_typed_escrow_release instruction (typed proposal discriminator 12).
 #[allow(dead_code)]
 pub fn execute_typed_escrow_release(
     wallet: Pubkey,
@@ -360,7 +360,7 @@ pub fn execute_typed_escrow_release(
     }
 }
 
-/// Build execute_typed_spl_escrow_release instruction (ClearSign v2 discriminator 17).
+/// Build execute_typed_spl_escrow_release instruction (typed proposal discriminator 17).
 #[allow(dead_code)]
 pub fn execute_typed_spl_escrow_release(
     wallet: Pubkey,
@@ -402,7 +402,7 @@ pub fn execute_typed_spl_escrow_release(
     }
 }
 
-/// Build execute_typed_spl_escrow_return instruction (ClearSign v2 discriminator 18).
+/// Build execute_typed_spl_escrow_return instruction (typed proposal discriminator 18).
 #[allow(dead_code)]
 pub fn execute_typed_spl_escrow_return(
     wallet: Pubkey,
@@ -441,7 +441,7 @@ pub fn execute_typed_spl_escrow_return(
     }
 }
 
-/// Build execute_typed_cross_chain_escrow_release instruction (ClearSign v2 discriminator 19).
+/// Build execute_typed_cross_chain_escrow_release instruction (typed proposal discriminator 19).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_typed_cross_chain_escrow_release(
@@ -490,7 +490,7 @@ pub fn execute_typed_cross_chain_escrow_release(
     }
 }
 
-/// Build execute_typed_cross_chain_escrow_return instruction (ClearSign v2 discriminator 20).
+/// Build execute_typed_cross_chain_escrow_return instruction (typed proposal discriminator 20).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_typed_cross_chain_escrow_return(
@@ -537,7 +537,7 @@ pub fn execute_typed_cross_chain_escrow_return(
     }
 }
 
-/// Build execute_typed_chain_send instruction (ClearSign v2 discriminator 24).
+/// Build execute_typed_chain_send instruction (typed proposal discriminator 24).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_typed_chain_send(
@@ -587,7 +587,7 @@ pub fn execute_typed_chain_send(
     }
 }
 
-/// Build ika_sign_typed_chain_send instruction (ClearSign v2 discriminator 25).
+/// Build ika_sign_typed_chain_send instruction (typed proposal discriminator 25).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn ika_sign_typed_chain_send(
@@ -656,7 +656,7 @@ pub fn ika_sign_typed_chain_send(
     }
 }
 
-/// Build execute_typed_private_escrow_release instruction (ClearSign v2 discriminator 21).
+/// Build execute_typed_private_escrow_release instruction (typed proposal discriminator 21).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_typed_private_escrow_release(
@@ -699,7 +699,7 @@ pub fn execute_typed_private_escrow_release(
     }
 }
 
-/// Build execute_typed_private_escrow_return instruction (ClearSign v2 discriminator 22).
+/// Build execute_typed_private_escrow_return instruction (typed proposal discriminator 22).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_typed_private_escrow_return(
@@ -740,7 +740,7 @@ pub fn execute_typed_private_escrow_return(
     }
 }
 
-/// Build execute_typed_agent_trade_approval instruction (ClearSign v2 discriminator 23).
+/// Build execute_typed_agent_trade_approval instruction (typed proposal discriminator 23).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_typed_agent_trade_approval(
@@ -879,7 +879,7 @@ pub fn execute_typed_agent_trade_settlement(
     }
 }
 
-/// Build execute_typed_agent_session_grant instruction (ClearSign v2 discriminator 28).
+/// Build execute_typed_agent_session_grant instruction (typed proposal discriminator 28).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_typed_agent_session_grant(
@@ -925,7 +925,7 @@ pub fn execute_typed_agent_session_grant(
     }
 }
 
-/// Build execute_typed_escrow_return instruction (ClearSign v2 discriminator 13).
+/// Build execute_typed_escrow_return instruction (typed proposal discriminator 13).
 #[allow(dead_code)]
 pub fn execute_typed_escrow_return(
     wallet: Pubkey,
@@ -960,7 +960,7 @@ pub fn execute_typed_escrow_return(
     }
 }
 
-/// Build execute_typed_wallet_policy_update instruction (ClearSign v2 discriminator 26).
+/// Build execute_typed_wallet_policy_update instruction (typed proposal discriminator 26).
 #[allow(dead_code)]
 pub fn execute_typed_wallet_policy_update(
     payer: Pubkey,
@@ -999,7 +999,7 @@ pub fn execute_typed_wallet_policy_update(
     }
 }
 
-/// Build execute_typed_intent_governance instruction (ClearSign v2 discriminator 27).
+/// Build execute_typed_intent_governance instruction (typed proposal discriminator 27).
 #[allow(dead_code)]
 pub fn execute_typed_intent_governance(
     payer: Pubkey,
@@ -1040,7 +1040,7 @@ pub fn execute_typed_intent_governance(
     }
 }
 
-/// Build execute_typed_sol_send instruction (ClearSign v2 discriminator 14).
+/// Build execute_typed_sol_send instruction (typed proposal discriminator 14).
 #[allow(dead_code)]
 pub fn execute_typed_sol_send(
     payer: Pubkey,
@@ -1080,7 +1080,7 @@ pub fn execute_typed_sol_send(
     }
 }
 
-/// Build execute_typed_sol_batch_send instruction (ClearSign v2 discriminator 15).
+/// Build execute_typed_sol_batch_send instruction (typed proposal discriminator 15).
 #[allow(dead_code)]
 pub fn execute_typed_sol_batch_send(
     payer: Pubkey,

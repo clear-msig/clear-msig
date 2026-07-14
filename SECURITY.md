@@ -193,9 +193,9 @@ while a signed-in browser is active; this is not background push. Adding a
 chain indexer or worker would allow notifications to arrive while every client
 is offline.
 
-### O. ClearSign v2 typed proposals
+### O. ClearSign v3 typed proposals
 
-**Vector.** The product now creates typed v2 approval records for escrow and
+**Vector.** The product creates typed v3 approval records for escrow and
 future protected actions. A bad implementation could let a signer approve one
 human-readable action while the program records or executes a different action,
 or could let the same signature be replayed against another proposal/wallet.
@@ -208,19 +208,26 @@ or could let the same signature be replayed against another proposal/wallet.
 - The program recomputes the envelope hash from action kind, wallet name,
   wallet PDA, action id, nonce, expiry, policy commitment, and payload hash
   before storing a typed proposal.
+- The signed v3 document has ordered `ACTION`, `DETAILS`, `POLICY`, `RISK`, and
+  `PURPOSE` sections. The approval wrapper binds the signer, proposal index,
+  threshold, resulting approval count, exact UTC expiry, and full envelope hash.
+- New v2 proposals are rejected. Existing v2 records retain a narrow
+  approve/cancel compatibility path so migration does not strand funds.
 - The program rejects expired typed proposals and caps action lifetime.
 - Execute rechecks action kind, policy commitment, payload hash, envelope hash,
   status, expiry, and timelock before marking a typed proposal executed.
 - Typed SOL escrow release and return-to-funder executors recompute the payload
   hash from the actual destination account(s), amount(s), escrow id, and
   milestone id before moving lamports from the wallet vault.
-- Frontend typed proposal parsing and PDA derivation now have regression tests,
-  so v2 proposal inbox/detail UI does not silently drift from program layout.
+- Frontend typed proposal parsing and PDA derivation have regression tests, so
+  the proposal inbox/detail UI does not silently drift from program layout.
 
-**What this does NOT mitigate yet.** Typed SOL escrow release and
-return-to-funder unwind are covered by program executors. SPL-token escrow,
-BTC/EVM/Ika escrow, and encrypted private escrow still need asset-specific
-typed executors before they should be treated as cryptographically enforced.
+**What this does NOT mitigate yet.** The program binds the exact signed text,
+payload hash, policy commitment, and execution inputs, but does not derive every
+human sentence from the raw payload. Until action-specific onchain document
+renderers or approved template identifiers exist, the trusted preparation
+clients remain responsible for truthful prose. Device-specific compact hardware
+templates are also not active yet.
 
 ## Posture summary
 
@@ -240,7 +247,7 @@ What's solid today:
 - One-click passkey enrollment for embedded-wallet users on /security; soft passkey nudge after wallet create
 - SMTP body sanitization + tight invite limits
 - Replay protection via signed nonce in messages
-- ClearSign v2 typed proposal hashes/signatures for escrow, sends, wallet policy, and **intent governance** (members/threshold/timelock)
+- ClearSign v3 typed proposal documents and hashes/signatures for escrow, sends, wallet policy, and **intent governance** (members/threshold/timelock)
 - TSS-MPC keys via Dynamic (single-host compromise resistant)
 - Pre-alpha caveat on every "encrypted" / "private" chip
 - 0 critical npm vulns; high-severity remainders are transitive + non-reachable

@@ -236,7 +236,7 @@ pub(super) fn leverage_to_x100(value: &str) -> Result<u32, ApiError> {
 }
 
 pub(super) fn normalize_text(value: &str) -> String {
-    value.trim().to_string()
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 pub(super) fn normalize_decimal(value: &str) -> Result<String, ApiError> {

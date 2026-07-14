@@ -60,8 +60,8 @@ import {
   prepareClearSignAction,
   type ClearSignEnvelope,
   type SendPayload,
-} from "@/lib/clearsign-v2";
-import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
+} from "@/lib/clearsign";
+import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
 import {
   formatAmount,
   lamportsToSafeNumber,
@@ -420,7 +420,7 @@ function SendPage() {
       // SOL → lamports. Solana's smallest unit, 1 SOL = 1e9 lamports.
       const lamports = Math.round(numericAmount * 1_000_000_000);
       const lamportsBigint = BigInt(lamports);
-      // 1. Prepare a typed ClearSign v2 proposal. This binds the
+      // 1. Prepare a typed ClearSign proposal. This binds the
       // exact recipient account + lamports to the message the user
       // signs, and the Solana program recomputes those bytes before
       // moving funds from the vault.
@@ -438,7 +438,7 @@ function SendPage() {
           `approvers:${firstIntent.account.approvers.join(",")}`,
         ]);
       const envelope: ClearSignEnvelope<SendPayload> = {
-        version: 2,
+        version: 3,
         kind: "send",
         walletName,
         walletId: walletPda.toBase58(),

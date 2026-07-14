@@ -5,7 +5,10 @@ the signed bytes, the on-chain typed proposal, and the executor inputs all bind
 to the same payload.
 
 The executable source of truth is
-`frontend/src/lib/clearsign-v2/surfaceCoverage.ts`.
+`frontend/src/lib/clearsign/surfaceCoverage.ts`.
+
+New typed proposals use the ClearSign v3 financial-approval document. Existing
+v2 proposals retain approval/cancellation compatibility only.
 
 ## Typed on-chain today
 

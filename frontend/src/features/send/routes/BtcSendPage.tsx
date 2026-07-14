@@ -71,7 +71,7 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { appConfig } from "@/lib/config";
-import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
+import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
 import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
@@ -87,7 +87,7 @@ import {
   textCommitmentHex,
   type ClearSignEnvelope,
   type SendPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import {
   BTC_SEND_FEE_RESERVE_SATS,
   DEFAULT_BITCOIN_NETWORK,
@@ -496,7 +496,7 @@ function BitcoinSendPage() {
           `approvers:${btcIntent.approvers.join(",")}`,
         ]);
       const envelope: ClearSignEnvelope<SendPayload> = {
-        version: 2,
+        version: 3,
         kind: "send",
         walletName: name,
         walletId: walletQuery.data?.pda.toBase58(),

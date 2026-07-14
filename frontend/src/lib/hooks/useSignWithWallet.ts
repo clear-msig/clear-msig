@@ -26,7 +26,7 @@ import {
   TypedClearSignMessageVerificationError,
   verifiedTypedClearSignMessageBytes,
   type ExpectedTypedClearSignMessage,
-} from "@/lib/clearsign-v2/typedMessage";
+} from "@/lib/clearsign/typedMessage";
 import type { DryRunDescriptor, TypedDryRunDescriptor } from "@/lib/api/types";
 import type { MessageFlavor } from "@/lib/msig/offchain";
 import {
@@ -54,7 +54,11 @@ export interface SignedPayload {
   /// Byte layout that was signed. The backend forwards this to the CLI
   /// so pre-signed verification uses the same layout instead of
   /// guessing via fallback.
-  message_flavor?: "offchain_v1" | "plain_v2" | "clearsign_v2_text";
+  message_flavor?:
+    | "offchain_v1"
+    | "plain_v2"
+    | "clearsign_v2_text"
+    | "clearsign_v3_document";
   /// Hex-encoded exact message bytes the user signed. Typed ClearSign
   /// votes submit this so the program verifies the readable text.
   signed_message_hex?: string;
@@ -335,10 +339,16 @@ export function useSignWithWallet() {
       );
     }
     const signed = await signBytes(bytes, options);
+    if (signed.signer_pubkey !== descriptor.signer_pubkey) {
+      throw new WalletSignError(
+        "message_mismatch",
+        "The wallet that signed does not match the signer named in this approval document.",
+      );
+    }
     ensureDescriptorFresh(descriptor);
     return {
       ...signed,
-      message_flavor: "clearsign_v2_text",
+      message_flavor: descriptor.message_flavor,
       signed_message_hex: descriptor.message_hex,
     };
   }

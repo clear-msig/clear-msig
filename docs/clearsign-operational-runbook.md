@@ -20,10 +20,10 @@ start from the same baseline.
 SOL send is the current verified baseline for the typed ClearSign path:
 
 1. Frontend asks the backend to prepare the typed proposal.
-2. Backend builds canonical ClearSign v2 readable text and envelope hash.
+2. Backend builds the canonical ClearSign v3 approval document and envelope hash.
 3. Frontend verifies the readable action locally before opening the wallet
    signer.
-4. Wallet signs the ClearSign v2 text bytes.
+4. Wallet signs the complete ClearSign v3 document bytes.
 5. Backend submits the signed bytes.
 6. On-chain program verifies the ClearSign envelope before executing.
 
@@ -31,7 +31,7 @@ Regression checks:
 
 ```bash
 cargo test -p clear-msig-backend-api clearsign
-npm test -- --run src/lib/clearsign-v2/__tests__/actions.test.ts src/lib/api/__tests__/errors.test.ts
+npx vitest run src/lib/clearsign/__tests__ src/lib/api/__tests__/errors.test.ts
 npm run typecheck
 ```
 
@@ -69,7 +69,7 @@ Usually `InvalidClearSignEnvelope`. Check hash parity between:
 
 - `programs/clear-wallet/src/utils/clearsign.rs`
 - `backend-api/src/clearsign/hash.rs`
-- `frontend/src/lib/clearsign-v2/actions.ts`
+- `frontend/src/lib/clearsign/actions.ts`
 
 This can also happen when Render or Vercel is still serving old code, or when
 the user retries an old proposal created before the latest deploy.
@@ -100,7 +100,7 @@ Before deploy:
 
 ```bash
 cargo test -p clear-msig-backend-api clearsign
-npm test -- --run src/lib/clearsign-v2/__tests__/actions.test.ts src/lib/balances/__tests__/index.test.ts
+npx vitest run src/lib/clearsign/__tests__ src/lib/balances/__tests__/index.test.ts
 npm run typecheck
 ```
 
@@ -124,16 +124,26 @@ After deploy:
 - BTC balance and explorer links must stay network-specific. Testnet/signet
   links must not point users to mainnet mempool.
 
-## What Still Needs The Typed Standard
+## V3 Migration Rule
 
-The product standard is SOL typed ClearSign for every money-moving action.
-These surfaces still need the same typed, no-hidden-hash treatment:
+- New typed proposals must use a canonical v3 document. The upgraded program
+  rejects new v2 proposal creation.
+- Existing on-chain v2 proposals remain approvable and cancellable through the
+  legacy verifier. This compatibility path must not be used for new proposals.
+- V3 approval documents bind the signer pubkey, required threshold, and status
+  if accepted. A signer or threshold mismatch must fail before submission and
+  again during program signature verification.
+- Program, backend, and frontend must deploy in that order. Creating a v3
+  proposal before the program upgrade, or creating a v2 proposal after it, is
+  expected to fail closed.
 
-- ERC-20 send
-- Hyperliquid trade flows outside the typed native HYPE send
-- Agent-created proposals
-- Policy/member/admin changes
-- Escrow creation, approval, release, cancel, and cleanup
+## Remaining Trust Boundary
 
-Until each surface is typed end to end, the UI should label it conservatively
-and avoid implying the same assurance level as verified SOL typed send.
+The v3 envelope binds the readable document hash, canonical payload hash,
+policy commitment, replay fields, wallet, and expiry. Action-specific executors
+recompute the payload and policy commitments before execution. The program does
+not yet derive every human-readable sentence from raw structured proposal data;
+therefore frontend/backend parity and wallet byte verification remain trusted
+client controls. Do not claim that every displayed sentence is independently
+rendered by the program until a future schema stores and validates structured
+display fields onchain.

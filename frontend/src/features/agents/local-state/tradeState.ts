@@ -3,7 +3,7 @@ import {
   canOpenLocalAgentExecution,
   executionModeForVenue,
 } from "@/lib/agents/executionAdapters";
-import { buildAgentTradeClearSignV2 } from "@/lib/agents/clearsign";
+import { buildAgentTradeClearSign } from "@/lib/agents/clearsign";
 import { defaultAgentVaultPolicy, evaluateAgentTradeProposal } from "@/lib/agents/policy";
 import { bindAgentExecutionPolicyHash, bindAgentProposalPolicyHash, bindAgentSessionPolicyHash, bindAgentVaultPolicyHash } from "@/lib/agents/policyHash";
 import { blankAgentScorecard, scorecardForClosedExecution, scorecardForNewProposal, scorecardForStatusChange } from "@/features/agents/domain/scorecardState";
@@ -109,10 +109,10 @@ export function currentPolicyForShape(
   );
 }
 
-export function bindProposalClearSignV2(proposal: AgentTradeProposal): AgentTradeProposal {
+export function bindProposalClearSign(proposal: AgentTradeProposal): AgentTradeProposal {
   return {
     ...proposal,
-    clearSignV2: buildAgentTradeClearSignV2(proposal),
+    clearSignV2: buildAgentTradeClearSign(proposal),
   };
 }
 

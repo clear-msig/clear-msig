@@ -205,7 +205,7 @@ Current local slice:
   signals, paper trades, scorecard, and audit log,
 - audit events are recorded locally,
 - scorecards update from proposal/action transitions and closed paper trades.
-- agent trade approval has a ClearSign v2 typed program finalizer for the
+- agent trade approval has a typed ClearSign program finalizer for the
   approved decision digest. It is not yet a direct venue order executor.
 - external agents can submit signals into `/api/agent-signals/[wallet]/[agent]`
   after the UI registers the agent signal key.

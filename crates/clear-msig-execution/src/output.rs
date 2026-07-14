@@ -117,13 +117,17 @@ pub struct TypedDryRunDescriptor<'a> {
     pub intent_pubkey: String,
     pub proposal_pubkey: String,
     pub proposal_index: u64,
+    pub signer_pubkey: String,
+    pub approval_requirement: u8,
+    pub approval_count_after: u8,
+    pub approval_kind: &'a str,
     pub action_kind: u8,
     pub policy_commitment_hex: String,
     pub payload_hash_hex: String,
     pub envelope_hash_hex: String,
     pub action_id: String,
     pub nonce: String,
-    /// Exact readable ClearSign v2 vote message bytes to sign.
+    /// Exact readable ClearSign proposal document bytes to sign.
     pub message_hex: String,
     pub message_flavor: &'a str,
     pub expiry: i64,

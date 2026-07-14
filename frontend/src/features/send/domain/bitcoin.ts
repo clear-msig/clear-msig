@@ -1,6 +1,6 @@
 import { decodeSegwitAddress } from "@/lib/chain/btc";
 import { BTC_CHAIN_KIND, bitcoinSendReady } from "@/lib/chain/btcIntentReadiness";
-import { pkhClearSignRecipient } from "@/lib/clearsign-v2";
+import { pkhClearSignRecipient } from "@/lib/clearsign";
 import { fromHex, parseIntent } from "@/lib/msig";
 
 export function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {

@@ -14,26 +14,28 @@ pub(crate) use presigned::PreSigned;
 
 use display::action_lines;
 use hash::{hash_clear_text, hash_envelope, hash_payload};
-use kinds::{ClearSignActionKind, ClearSignVoteKind};
+use kinds::ClearSignActionKind;
 use payload::normalize_text;
 
 use crate::{current_unix_timestamp, ensure_hex_exact_len, ApiError, AppState};
 
-const CLEARSIGN_V2_VERSION: u8 = 2;
-const CLEARSIGN_V2_DOMAIN: &[u8] = b"clearsig:policy-engine:v2";
-const CLEARSIGN_V2_PAYLOAD_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:payload";
+const CLEARSIGN_V3_VERSION: u8 = 3;
+const CLEARSIGN_V3_DOMAIN: &[u8] = b"clearsig:policy-engine:v3";
+// Payload canonicalization remains byte-compatible with the deployed
+// execution adapters. V3 separation is provided by the envelope domain and
+// the signed document hash.
+const CLEARSIGN_PAYLOAD_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:payload";
 const MAX_ACTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
+const MAX_CLEARSIGN_DOCUMENT_BYTES: usize = 2048;
 
 pub(crate) fn router() -> Router<AppState> {
-    Router::new().route("/v2/prepare", post(prepare_clearsign_v2))
+    Router::new().route("/v3/prepare", post(prepare_clearsign_v3))
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ClearSignPrepareRequest {
     envelope: ClearSignEnvelopeRequest,
-    #[serde(default)]
-    vote: Option<ClearSignVoteRequest>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,13 +53,6 @@ struct ClearSignEnvelopeRequest {
     payload: Value,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ClearSignVoteRequest {
-    wallet_id: String,
-    proposal_index: u64,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ClearSignPrepareResponse {
@@ -69,27 +64,17 @@ struct ClearSignPrepareResponse {
     payload_hash: String,
     envelope_hash: String,
     signable_text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    vote_messages: Option<ClearSignVoteMessages>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClearSignVoteMessages {
-    propose: String,
-    approve: String,
-    cancel: String,
-}
-
-async fn prepare_clearsign_v2(
+async fn prepare_clearsign_v3(
     State(state): State<AppState>,
     Json(req): Json<ClearSignPrepareRequest>,
 ) -> Result<Json<ClearSignPrepareResponse>, ApiError> {
     let wallet_id = resolve_wallet_id(&state, &req.envelope.wallet_name).await?;
-    prepare_clearsign_v2_response(req, Some(wallet_id))
+    prepare_clearsign_v3_response(req, Some(wallet_id))
 }
 
-fn prepare_clearsign_v2_response(
+fn prepare_clearsign_v3_response(
     mut req: ClearSignPrepareRequest,
     wallet_id_override: Option<String>,
 ) -> Result<Json<ClearSignPrepareResponse>, ApiError> {
@@ -100,65 +85,13 @@ fn prepare_clearsign_v2_response(
     let payload_hash = hash_payload(envelope.kind, &envelope.payload)?;
     let lines = action_lines(&envelope)?;
     let payload_hex = to_hex(&payload_hash);
-    let context = [
-        format!("Wallet {}", envelope.wallet_name),
-        format!("Expires {}", format_expiry(envelope.expires_at)?),
-    ];
-    let signable_text = lines
-        .iter()
-        .chain(context.iter())
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
+    let signable_text = clear_sign_document(&envelope, &lines)?;
     let clear_text_hash = hash_clear_text(&signable_text);
     let envelope_hash = hash_envelope(&envelope, payload_hash, clear_text_hash);
-    let vote_messages = req
-        .vote
-        .map(|vote| {
-            let wallet_id = normalize_text(&vote.wallet_id);
-            if wallet_id.is_empty() {
-                return Err(ApiError::BadRequest(
-                    "vote.wallet_id must not be empty".into(),
-                ));
-            }
-            Ok(ClearSignVoteMessages {
-                propose: to_hex(
-                    vote_message(
-                        ClearSignVoteKind::Propose,
-                        &envelope.wallet_name,
-                        vote.proposal_index,
-                        envelope_hash,
-                        &signable_text,
-                    )
-                    .as_bytes(),
-                ),
-                approve: to_hex(
-                    vote_message(
-                        ClearSignVoteKind::Approve,
-                        &envelope.wallet_name,
-                        vote.proposal_index,
-                        envelope_hash,
-                        &signable_text,
-                    )
-                    .as_bytes(),
-                ),
-                cancel: to_hex(
-                    vote_message(
-                        ClearSignVoteKind::Cancel,
-                        &envelope.wallet_name,
-                        vote.proposal_index,
-                        envelope_hash,
-                        &signable_text,
-                    )
-                    .as_bytes(),
-                ),
-            })
-        })
-        .transpose()?;
     let envelope_hex = to_hex(&envelope_hash);
 
     Ok(Json(ClearSignPrepareResponse {
-        version: CLEARSIGN_V2_VERSION,
+        version: CLEARSIGN_V3_VERSION,
         kind: req.envelope.kind,
         action_kind_code: envelope.kind.code(),
         headline: lines
@@ -169,7 +102,6 @@ fn prepare_clearsign_v2_response(
         payload_hash: payload_hex,
         envelope_hash: envelope_hex,
         signable_text,
-        vote_messages,
     }))
 }
 
@@ -206,9 +138,9 @@ struct NormalizedEnvelope {
 
 impl ClearSignEnvelopeRequest {
     fn normalized(&self) -> Result<NormalizedEnvelope, ApiError> {
-        if self.version != CLEARSIGN_V2_VERSION {
+        if self.version != CLEARSIGN_V3_VERSION {
             return Err(ApiError::BadRequest(format!(
-                "clearsign version must be {CLEARSIGN_V2_VERSION}"
+                "clearsign version must be {CLEARSIGN_V3_VERSION}"
             )));
         }
         let kind = ClearSignActionKind::parse(&self.kind)?;
@@ -263,21 +195,119 @@ fn decode_hex_32(value: &str, field: &str) -> Result<[u8; 32], ApiError> {
     Ok(out)
 }
 
-fn vote_message(
-    vote_kind: ClearSignVoteKind,
-    wallet_name: &str,
-    proposal_index: u64,
-    envelope_hash: [u8; 32],
-    signable_text: &str,
-) -> String {
-    format!(
-        "ClearSign v2 {}\nWallet {}\nProposal {}\nEnvelope {}\n\n{}",
-        vote_kind.label(),
-        wallet_name,
-        proposal_index,
-        to_hex(&envelope_hash),
-        signable_text
-    )
+fn clear_sign_document(
+    envelope: &NormalizedEnvelope,
+    action: &[String],
+) -> Result<String, ApiError> {
+    let mut details = vec![format!("From wallet: {}", envelope.wallet_name)];
+    if envelope.kind == ClearSignActionKind::Send {
+        let row = payload::recipient_amount(&envelope.payload)?;
+        details.push(format!("Amount: {}", payload::format_money(&row.money)));
+        details.push(format!("To: {}", row.recipient));
+        if let Some(value) = payload::optional_payload_text(&envelope.payload, "estimatedUsd")? {
+            details.push(format!(
+                "Estimated value: ${} USD (informational)",
+                payload::normalize_decimal(&value)?
+            ));
+        }
+    } else {
+        details.extend(
+            action
+                .iter()
+                .skip(1)
+                .filter(|line| {
+                    line.as_str() != "Requires wallet approval"
+                        && !line.starts_with("Reason:")
+                        && !line.starts_with("Estimated value at review:")
+                })
+                .cloned(),
+        );
+    }
+    let purpose = if envelope.kind == ClearSignActionKind::Send {
+        payload::optional_payload_text(&envelope.payload, "note")?
+            .unwrap_or_else(|| "Not provided".into())
+    } else {
+        "Not provided".into()
+    };
+    let document = [
+        "ClearSig Proposal".into(),
+        String::new(),
+        "ACTION".into(),
+        action
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "Review ClearSig action".into()),
+        String::new(),
+        "DETAILS".into(),
+        details.join("\n"),
+        String::new(),
+        "POLICY".into(),
+        "Approval: Wallet's onchain threshold must be met".into(),
+        "Execution: Onchain policy and timelock must pass".into(),
+        format!("Commitment: {}", short_hash(&envelope.policy_commitment)),
+        "Enforcement: Exact payload and policy must match onchain".into(),
+        String::new(),
+        "RISK".into(),
+        format!("Category: {}", risk_category(envelope.kind)),
+        format!("Signer check: {}", risk_check(envelope.kind)),
+        String::new(),
+        "PURPOSE".into(),
+        purpose,
+    ]
+    .join("\n");
+    if document.len() > MAX_CLEARSIGN_DOCUMENT_BYTES {
+        return Err(ApiError::BadRequest(
+            "ClearSign document exceeds the onchain 2048-byte limit".into(),
+        ));
+    }
+    Ok(document)
+}
+
+fn risk_category(kind: ClearSignActionKind) -> &'static str {
+    match kind {
+        ClearSignActionKind::Send
+        | ClearSignActionKind::ReleaseMilestone
+        | ClearSignActionKind::ReturnEscrowFunds
+        | ClearSignActionKind::SwapIntent => "Funds movement",
+        ClearSignActionKind::BatchSend => "Multiple funds movements",
+        ClearSignActionKind::AddMember
+        | ClearSignActionKind::RemoveMember
+        | ClearSignActionKind::ChangeThreshold => "Authorization change",
+        ClearSignActionKind::SetProtection => "Policy change",
+        ClearSignActionKind::RecoveryAction => "Recovery authority",
+        ClearSignActionKind::AgentSessionGrant | ClearSignActionKind::AgentRiskPolicy => {
+            "Agent authority"
+        }
+        ClearSignActionKind::AgentTradeApproval | ClearSignActionKind::AgentTradeSettlement => {
+            "Agent execution"
+        }
+    }
+}
+
+fn risk_check(kind: ClearSignActionKind) -> &'static str {
+    match kind {
+        ClearSignActionKind::Send
+        | ClearSignActionKind::BatchSend
+        | ClearSignActionKind::ReleaseMilestone
+        | ClearSignActionKind::ReturnEscrowFunds => "Verify amount, asset, and every destination",
+        ClearSignActionKind::SwapIntent => "Verify assets and minimum received",
+        ClearSignActionKind::AddMember
+        | ClearSignActionKind::RemoveMember
+        | ClearSignActionKind::ChangeThreshold => "Verify the resulting signer authority",
+        ClearSignActionKind::SetProtection => "Verify the complete replacement policy",
+        ClearSignActionKind::RecoveryAction => "Verify the recovery target and authority",
+        ClearSignActionKind::AgentTradeApproval
+        | ClearSignActionKind::AgentSessionGrant
+        | ClearSignActionKind::AgentRiskPolicy
+        | ClearSignActionKind::AgentTradeSettlement => {
+            "Verify agent scope, limits, and execution evidence"
+        }
+    }
+}
+
+fn short_hash(hash: &[u8; 32]) -> String {
+    let hash = to_hex(hash);
+    format!("{}...{}", &hash[..12], &hash[hash.len() - 12..])
 }
 
 fn to_hex(bytes: &[u8]) -> String {
@@ -290,7 +320,7 @@ mod tests {
 
     fn send_envelope(amount: &str, nonce: &str) -> ClearSignEnvelopeRequest {
         ClearSignEnvelopeRequest {
-            version: CLEARSIGN_V2_VERSION,
+            version: CLEARSIGN_V3_VERSION,
             kind: "send".into(),
             wallet_name: " Team ".into(),
             wallet_id: Some(" Team#abc ".into()),
@@ -352,27 +382,75 @@ mod tests {
     }
 
     #[test]
+    fn matches_the_canonical_cross_language_v3_send_vector() {
+        let envelope = NormalizedEnvelope {
+            kind: ClearSignActionKind::Send,
+            wallet_name: "Team".into(),
+            wallet_id: "WalletPda111".into(),
+            action_id: "action-1".into(),
+            nonce: "nonce-1".into(),
+            expires_at: 1_782_988_800,
+            policy_commitment: decode_hex_32(
+                "4efe872d78c9ae2539f70ecc1d88dd3f764862cef132a3700e0db695d631382c",
+                "policy_commitment",
+            )
+            .unwrap(),
+            payload: serde_json::json!({
+                "amount": "2.5",
+                "asset": "SOL",
+                "recipient": "Sarah",
+                "note": "July contractor payment"
+            }),
+        };
+        let payload_hash = hash_payload(envelope.kind, &envelope.payload).unwrap();
+        let lines = action_lines(&envelope).unwrap();
+        let document = clear_sign_document(&envelope, &lines).unwrap();
+        let envelope_hash = hash_envelope(&envelope, payload_hash, hash_clear_text(&document));
+
+        assert_eq!(
+            to_hex(&payload_hash),
+            "46290ba00263bd72ef7ccf364cfc1222515aee3aa03944a4f3f5cac8b92b87af"
+        );
+        assert_eq!(
+            to_hex(&envelope_hash),
+            "3875c7425ff911d0b127d66b4ed96c7bacd8c7fa0c74ccd8544ec26fd1246b56"
+        );
+        assert_eq!(
+            document,
+            "ClearSig Proposal\n\nACTION\nSend 2.5 SOL from Team to Sarah\n\nDETAILS\nFrom wallet: Team\nAmount: 2.5 SOL\nTo: Sarah\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: 4efe872d78c9...b695d631382c\nEnforcement: Exact payload and policy must match onchain\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, and every destination\n\nPURPOSE\nJuly contractor payment"
+        );
+    }
+
+    #[test]
+    fn rejects_a_v2_prepare_request_as_a_downgrade() {
+        let mut envelope = send_envelope("2.5", "nonce-1");
+        envelope.version = 2;
+
+        assert!(matches!(
+            envelope.normalized(),
+            Err(ApiError::BadRequest(message)) if message.contains("version must be 3")
+        ));
+    }
+
+    #[test]
     fn prepare_overrides_stale_browser_wallet_id() {
         let stale_req = ClearSignPrepareRequest {
             envelope: send_envelope("2.5", "nonce-1"),
-            vote: None,
         };
         let mut canonical_req = ClearSignPrepareRequest {
             envelope: send_envelope("2.5", "nonce-1"),
-            vote: None,
         };
         canonical_req.envelope.wallet_id = Some("CanonicalWallet1111111111111111111111111".into());
 
-        let Json(overridden) = prepare_clearsign_v2_response(
+        let Json(overridden) = prepare_clearsign_v3_response(
             stale_req,
             Some("CanonicalWallet1111111111111111111111111".into()),
         )
         .unwrap();
-        let Json(canonical) = prepare_clearsign_v2_response(canonical_req, None).unwrap();
-        let Json(stale) = prepare_clearsign_v2_response(
+        let Json(canonical) = prepare_clearsign_v3_response(canonical_req, None).unwrap();
+        let Json(stale) = prepare_clearsign_v3_response(
             ClearSignPrepareRequest {
                 envelope: send_envelope("2.5", "nonce-1"),
-                vote: None,
             },
             None,
         )
@@ -380,28 +458,6 @@ mod tests {
 
         assert_eq!(overridden.envelope_hash, canonical.envelope_hash);
         assert_ne!(overridden.envelope_hash, stale.envelope_hash);
-    }
-
-    #[tokio::test]
-    async fn prepare_returns_readable_vote_messages() {
-        let req = ClearSignPrepareRequest {
-            envelope: send_envelope("2.5", "nonce-1"),
-            vote: Some(ClearSignVoteRequest {
-                wallet_id: "Team#abc".into(),
-                proposal_index: 7,
-            }),
-        };
-
-        let Json(response) = prepare_clearsign_v2_response(req, None).unwrap();
-        let vote_messages = response.vote_messages.unwrap();
-        let propose = decode_hex_string(&vote_messages.propose);
-
-        assert!(propose.starts_with("ClearSign v2 propose\nWallet Team\nProposal 7\nEnvelope "));
-        assert!(propose.contains("\nSend 2.5 SOL from Team to Sarah\n"));
-        assert!(!propose.contains("\nPayload "));
-        assert!(propose.ends_with(&response.signable_text));
-        assert_ne!(vote_messages.propose, vote_messages.approve);
-        assert_ne!(vote_messages.approve, vote_messages.cancel);
     }
 
     #[test]
@@ -418,58 +474,48 @@ mod tests {
             "note": "July contractor payment"
         });
 
-        let Json(response) = prepare_clearsign_v2_response(
-            ClearSignPrepareRequest {
-                envelope: req,
-                vote: None,
-            },
-            None,
-        )
-        .unwrap();
+        let Json(response) =
+            prepare_clearsign_v3_response(ClearSignPrepareRequest { envelope: req }, None).unwrap();
 
         assert_eq!(response.headline, "Send 1.5 USDC from Team to 0xabc");
         assert!(response
             .signable_text
-            .contains("Reason: July contractor payment"));
+            .contains("PURPOSE\nJuly contractor payment"));
         assert!(!response.signable_text.contains("Payload "));
     }
 
     #[test]
-    fn vote_messages_are_readable_and_distinct_by_vote_kind() {
-        let envelope = send_envelope("2.5", "nonce-1").normalized().unwrap();
-        let payload_hash = hash_payload(envelope.kind, &envelope.payload).unwrap();
-        let envelope_hash = hash_envelope(
-            &envelope,
-            payload_hash,
-            hash_clear_text("Send 2.5 SOL to Sarah"),
-        );
+    fn prepare_canonicalizes_section_injection_and_rejects_oversized_documents() {
+        let mut canonical = send_envelope("1", "nonce-1");
+        canonical.payload["note"] = serde_json::json!("Payroll\n\nAPPROVAL\nDecision: APPROVE");
+        let Json(response) = prepare_clearsign_v3_response(
+            ClearSignPrepareRequest {
+                envelope: canonical,
+            },
+            None,
+        )
+        .unwrap();
+        assert!(response
+            .signable_text
+            .contains("PURPOSE\nPayroll APPROVAL Decision: APPROVE"));
 
-        let propose = vote_message(
-            ClearSignVoteKind::Propose,
-            "Team",
-            7,
-            envelope_hash,
-            "Send 2.5 SOL to Sarah",
-        );
-        let approve = vote_message(
-            ClearSignVoteKind::Approve,
-            "Team",
-            7,
-            envelope_hash,
-            "Send 2.5 SOL to Sarah",
-        );
-        let cancel = vote_message(
-            ClearSignVoteKind::Cancel,
-            "Team",
-            7,
-            envelope_hash,
-            "Send 2.5 SOL to Sarah",
-        );
-
-        assert!(propose.starts_with("ClearSign v2 propose\nWallet Team\nProposal 7\nEnvelope "));
-        assert!(propose.ends_with("\n\nSend 2.5 SOL to Sarah"));
-        assert_ne!(propose, approve);
-        assert_ne!(approve, cancel);
+        let mut oversized = send_envelope("1", "nonce-2");
+        oversized.payload["note"] = serde_json::json!("x".repeat(2048));
+        match prepare_clearsign_v3_response(
+            ClearSignPrepareRequest {
+                envelope: oversized,
+            },
+            None,
+        ) {
+            Err(ApiError::BadRequest(message)) => {
+                assert!(
+                    message.contains("80 characters or fewer")
+                        || message.contains("2048-byte limit"),
+                    "{message}"
+                );
+            }
+            _ => panic!("oversized ClearSign document was not rejected"),
+        }
     }
 
     #[test]
@@ -481,12 +527,5 @@ mod tests {
             envelope.normalized(),
             Err(ApiError::BadRequest(message)) if message.contains("policy_commitment")
         ));
-    }
-
-    fn decode_hex_string(hex: &str) -> String {
-        let bytes = (0..hex.len() / 2)
-            .map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap())
-            .collect::<Vec<_>>();
-        String::from_utf8(bytes).unwrap()
     }
 }

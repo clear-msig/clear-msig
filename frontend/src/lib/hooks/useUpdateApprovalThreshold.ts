@@ -1,6 +1,6 @@
 "use client";
 
-// Update an intent's approval threshold via ClearSign v2 typed governance.
+// Update an intent's approval threshold via typed ClearSign governance.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";

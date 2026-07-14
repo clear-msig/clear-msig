@@ -3,9 +3,9 @@
 import { useCallback } from "react";
 import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
-import { buildAgentTradeClearSignV2 } from "@/lib/agents/clearsign";
-import type { AgentTradePayload, ClearSignEnvelope } from "@/lib/clearsign-v2";
-import { clearSignActionKindCode, prepareClearSignAction } from "@/lib/clearsign-v2";
+import { buildAgentTradeClearSign } from "@/lib/agents/clearsign";
+import type { AgentTradePayload, ClearSignEnvelope } from "@/lib/clearsign";
+import { clearSignActionKindCode, prepareClearSignAction } from "@/lib/clearsign";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { waitForProposalApproval } from "@/lib/chain/proposals";
 import { fetchWalletByName } from "@/lib/chain/wallets";
@@ -66,12 +66,12 @@ export function useAgentTypedClearSignApproval(walletName: string) {
       if (!activeSession) {
         throw new Error("This trade has no active on-chain agent session.");
       }
-      const binding = buildAgentTradeClearSignV2(proposal, {
+      const binding = buildAgentTradeClearSign(proposal, {
         walletId: walletData.pda.toBase58(),
         sessionId: activeSession.id,
       });
       const envelope: ClearSignEnvelope<AgentTradePayload> = {
-        version: 2,
+        version: 3,
         kind: "agent_trade_approval",
         walletName,
         walletId: binding.walletId,

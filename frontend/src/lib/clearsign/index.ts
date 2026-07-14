@@ -1,9 +1,7 @@
 export {
   prepareClearSignAction,
   type BackendClearSignSummary,
-  type ClearSignVoteMessages,
-  type ClearSignVotePrepareInput,
-} from "@/lib/clearsign-v2/client";
+} from "@/lib/clearsign/client";
 
 export {
   clearSignActionKindCode,
@@ -31,17 +29,17 @@ export {
   type SendPayload,
   type SwapPayload,
   type ThresholdPayload,
-} from "@/lib/clearsign-v2/actions";
+} from "@/lib/clearsign/actions";
 
 export {
   CLEARSIGN_SURFACE_COVERAGE,
   clearSignSurfaceById,
   type ClearSignSurfaceCoverage,
   type ClearSignSurfaceStatus,
-} from "@/lib/clearsign-v2/surfaceCoverage";
+} from "@/lib/clearsign/surfaceCoverage";
 
 export {
   pkhClearSignRecipient,
   randomActionLabel,
   textCommitmentHex,
-} from "@/lib/clearsign-v2/commitments";
+} from "@/lib/clearsign/commitments";

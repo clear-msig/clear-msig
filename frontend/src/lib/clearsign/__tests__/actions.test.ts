@@ -12,11 +12,11 @@ import {
   type ClearSignEnvelope,
   type EscrowReturnPayload,
   type SendPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import { fromHex, sha256, toHex } from "@/lib/msig/hash";
 
 const base = {
-  version: 2 as const,
+  version: 3 as const,
   walletName: "Team",
   walletId: "WalletPda111",
   actionId: "action-1",
@@ -26,7 +26,7 @@ const base = {
     "4efe872d78c9ae2539f70ecc1d88dd3f764862cef132a3700e0db695d631382c",
 };
 
-describe("ClearSign v2 actions", () => {
+describe("ClearSign v3 actions", () => {
   it("summarizes a send as a simple money movement", () => {
     const envelope: ClearSignEnvelope<SendPayload> = {
       ...base,
@@ -45,7 +45,11 @@ describe("ClearSign v2 actions", () => {
       "Send 2.5 SOL from Team to Sarah",
       "Requires wallet approval",
     ]);
-    expect(summary.signableText).toContain("Wallet Team");
+    expect(summary.signableText).toContain("From wallet: Team");
+    expect(summary.signableText).toContain(
+      "POLICY\nApproval: Wallet's onchain threshold must be met",
+    );
+    expect(summary.signableText).toContain("RISK\nCategory: Funds movement");
     expect(summary.signableText).not.toContain("Payload ");
     expect(summary.payloadHash).toMatch(/^[0-9a-f]{64}$/);
     expect(summary.envelopeHash).toMatch(/^[0-9a-f]{64}$/);
@@ -115,11 +119,90 @@ describe("ClearSign v2 actions", () => {
     };
     const summary = summarizeClearSignAction(withReason);
 
-    expect(summary.signableText).toContain("Reason: July contractor payment");
+    expect(summary.signableText).toContain("PURPOSE\nJuly contractor payment");
     expect(clearSignPayloadHash(withReason)).toBe(clearSignPayloadHash(withoutReason));
     expect(summary.envelopeHash).not.toBe(
       summarizeClearSignAction(withoutReason).envelopeHash,
     );
+  });
+
+  it("canonicalizes document separators in user-provided purpose text", () => {
+    const envelope: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient: "Sarah",
+        note: "Payroll\n\nAPPROVAL\nDecision: APPROVE",
+      },
+    };
+
+    expect(summarizeClearSignAction(envelope).signableText).toContain(
+      "PURPOSE\nPayroll APPROVAL Decision: APPROVE",
+    );
+  });
+
+  it("rejects documents larger than the onchain limit", () => {
+    const envelope: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient: "Sarah",
+        note: "x".repeat(2048),
+      },
+    };
+
+    expect(() => summarizeClearSignAction(envelope)).toThrow(
+      "exceeds the onchain 2048-byte limit",
+    );
+  });
+
+  it("matches the canonical cross-language v3 send vector", () => {
+    const envelope: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient: "Sarah",
+        note: "July contractor payment",
+      },
+    };
+    const summary = summarizeClearSignAction(envelope);
+
+    expect(summary.payloadHash).toBe(
+      "46290ba00263bd72ef7ccf364cfc1222515aee3aa03944a4f3f5cac8b92b87af",
+    );
+    expect(summary.envelopeHash).toBe(
+      "3875c7425ff911d0b127d66b4ed96c7bacd8c7fa0c74ccd8544ec26fd1246b56",
+    );
+    expect(summary.signableText).toBe([
+      "ClearSig Proposal",
+      "",
+      "ACTION",
+      "Send 2.5 SOL from Team to Sarah",
+      "",
+      "DETAILS",
+      "From wallet: Team",
+      "Amount: 2.5 SOL",
+      "To: Sarah",
+      "",
+      "POLICY",
+      "Approval: Wallet's onchain threshold must be met",
+      "Execution: Onchain policy and timelock must pass",
+      "Commitment: 4efe872d78c9...b695d631382c",
+      "Enforcement: Exact payload and policy must match onchain",
+      "",
+      "RISK",
+      "Category: Funds movement",
+      "Signer check: Verify amount, asset, and every destination",
+      "",
+      "PURPOSE",
+      "July contractor payment",
+    ].join("\n"));
   });
 
   it("summarizes escrow return with each recipient visible", () => {
@@ -477,14 +560,22 @@ describe("ClearSign v2 actions", () => {
     const propose = new TextDecoder().decode(clearSignVoteMessage({
       voteKind: "propose",
       walletName: base.walletName,
+      signerPubkey: "Signer1111111111111111111111111111111111",
       proposalIndex: 7,
       envelopeHash,
       signableText,
+      expiresAt: envelope.expiresAt,
+      approvalsRequired: 2,
+      approvalsAfter: 1,
     }));
 
-    expect(propose).toContain("ClearSign v2 propose\nWallet Team\nProposal 7\nEnvelope ");
-    expect(propose).toContain("\n\nSend 2.5 SOL from Team to Sarah");
-    expect(propose).toContain("Requires wallet approval");
+    expect(propose).toContain("ClearSig Proposal\n\nACTION\nSend 2.5 SOL");
+    expect(propose).toContain("APPROVAL\nDecision: PROPOSE\nProposal: #7");
+    expect(propose).toContain(
+      "Requirement: 2 approvals\nStatus if accepted: 1 of 2 approvals",
+    );
+    expect(propose).toContain("EXPIRY\n2026-07-02 10:40:00 UTC");
+    expect(propose).toContain("PROOF\nClearSign: v3\nEnvelope: ");
     expect(propose).not.toContain("Payload ");
   });
 });

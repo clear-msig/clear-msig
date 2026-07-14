@@ -19,7 +19,7 @@ export type ClearSignActionKind =
   | "agent_trade_settlement";
 
 export interface ClearSignEnvelope<TPayload extends ClearSignPayload> {
-  version: 2;
+  version: 3;
   kind: ClearSignActionKind;
   walletName: string;
   walletId?: string;
@@ -176,9 +176,14 @@ export interface ClearSignSummary {
 }
 
 const enc = new TextEncoder();
-const CLEARSIGN_V2_VERSION = 2;
-const CLEARSIGN_V2_DOMAIN = "clearsig:policy-engine:v2";
-const CLEARSIGN_V2_PAYLOAD_DOMAIN = "clearsig:policy-engine:v2:payload";
+const CLEARSIGN_V3_VERSION = 3;
+const CLEARSIGN_V3_DOMAIN = "clearsig:policy-engine:v3";
+// V3 deliberately preserves the deployed payload canonicalization. Execution
+// adapters already recompute this hash onchain; the v3 envelope domain and
+// document hash provide protocol separation without invalidating that safety
+// boundary or legacy v2 proposals.
+const CLEARSIGN_PAYLOAD_DOMAIN = "clearsig:policy-engine:v2:payload";
+const MAX_CLEARSIGN_DOCUMENT_BYTES = 2048;
 
 export type ClearSignVoteKind = "propose" | "approve" | "cancel";
 
@@ -186,14 +191,8 @@ export function summarizeClearSignAction(
   envelope: ClearSignEnvelope<ClearSignPayload>,
 ): ClearSignSummary {
   const payloadHash = clearSignPayloadHash(envelope);
-  const lines = actionLines(envelope);
-  const expires = `Expires ${formatTimestamp(envelope.expiresAt)}`;
-  const context = [
-    `Wallet ${envelope.walletName}`,
-    expires,
-  ];
-  const signableLines = [...lines, ...context];
-  const signableText = signableLines.join("\n");
+  const lines = actionLines(envelope).map(normalizeText);
+  const signableText = clearSignDocument(envelope, lines);
   const envelopeHash = clearSignEnvelopeHash(envelope, signableText);
   return {
     headline: lines[0] ?? "Review ClearSig action",
@@ -216,8 +215,8 @@ export function clearSignEnvelopeHash(
 ): string {
   const payloadHash = fromHex(clearSignPayloadHash(envelope));
   const out = new ByteWriter();
-  out.pushBytes(CLEARSIGN_V2_DOMAIN);
-  out.pushU8(CLEARSIGN_V2_VERSION);
+  out.pushBytes(CLEARSIGN_V3_DOMAIN);
+  out.pushU8(CLEARSIGN_V3_VERSION);
   out.pushU8(clearSignActionKindCode(envelope.kind));
   out.pushI64(BigInt(normalizeNumber(envelope.expiresAt)));
   out.pushBytes(normalizeText(envelope.walletName));
@@ -231,31 +230,203 @@ export function clearSignEnvelopeHash(
 }
 
 function summarizeSignableText(envelope: ClearSignEnvelope<ClearSignPayload>): string {
-  const lines = actionLines(envelope);
-  const context = [
-    `Wallet ${envelope.walletName}`,
-    `Expires ${formatTimestamp(envelope.expiresAt)}`,
-  ];
-  return [...lines, ...context].join("\n");
+  return clearSignDocument(envelope, actionLines(envelope));
 }
 
 export function clearSignVoteMessage(input: {
   voteKind: ClearSignVoteKind;
   walletName: string;
+  signerPubkey: string;
   proposalIndex: number | bigint;
   envelopeHash: string;
   signableText: string;
+  expiresAt: number | bigint;
+  approvalsRequired: number;
+  approvalsAfter: number;
 }): Uint8Array {
+  const approvalsRequired = normalizeApprovalCount(
+    input.approvalsRequired,
+    "approvalsRequired",
+  );
+  const approvalsAfter = normalizeApprovalCount(
+    input.approvalsAfter,
+    "approvalsAfter",
+  );
+  if (approvalsRequired === 0 || approvalsAfter > approvalsRequired) {
+    throw new Error("ClearSign approval counts are invalid.");
+  }
+  const requirement = approvalRequirementLabel(
+    input.voteKind,
+    approvalsRequired,
+  );
   return enc.encode(
     [
-      `ClearSign v2 ${input.voteKind}`,
-      `Wallet ${normalizeText(input.walletName)}`,
-      `Proposal ${BigInt(input.proposalIndex).toString()}`,
-      `Envelope ${normalizeHash(input.envelopeHash)}`,
-      "",
       input.signableText,
+      "",
+      "APPROVAL",
+      `Decision: ${voteDecision(input.voteKind)}`,
+      `Proposal: #${BigInt(input.proposalIndex).toString()}`,
+      `Wallet: ${normalizeText(input.walletName)}`,
+      `Requested by: ${normalizeText(input.signerPubkey)}`,
+      `Requirement: ${approvalsRequired} ${requirement}`,
+      `Status if accepted: ${approvalsAfter} of ${approvalsRequired} ${requirement}`,
+      "",
+      "EXPIRY",
+      `${formatTimestamp(input.expiresAt)} UTC`,
+      "",
+      "PROOF",
+      "ClearSign: v3",
+      `Envelope: ${normalizeHash(input.envelopeHash)}`,
     ].join("\n"),
   );
+}
+
+function normalizeApprovalCount(value: number, field: string): number {
+  if (!Number.isSafeInteger(value) || value < 0 || value > 16) {
+    throw new Error(`ClearSign ${field} must be an integer from 0 to 16.`);
+  }
+  return value;
+}
+
+function approvalRequirementLabel(
+  voteKind: ClearSignVoteKind,
+  required: number,
+): string {
+  if (voteKind === "cancel") {
+    return required === 1 ? "cancellation" : "cancellations";
+  }
+  return required === 1 ? "approval" : "approvals";
+}
+
+function clearSignDocument(
+  envelope: ClearSignEnvelope<ClearSignPayload>,
+  action: string[],
+): string {
+  const details = documentDetails(envelope, action);
+  const document = [
+    "ClearSig Proposal",
+    "",
+    "ACTION",
+    action[0] ?? "Review ClearSig action",
+    "",
+    "DETAILS",
+    ...details,
+    "",
+    "POLICY",
+    "Approval: Wallet's onchain threshold must be met",
+    "Execution: Onchain policy and timelock must pass",
+    `Commitment: ${shortHash(envelope.policyCommitment)}`,
+    "Enforcement: Exact payload and policy must match onchain",
+    "",
+    "RISK",
+    `Category: ${riskCategory(envelope.kind)}`,
+    `Signer check: ${riskCheck(envelope.kind)}`,
+    "",
+    "PURPOSE",
+    purposeFor(envelope),
+  ].join("\n");
+  if (enc.encode(document).length > MAX_CLEARSIGN_DOCUMENT_BYTES) {
+    throw new Error("ClearSign document exceeds the onchain 2048-byte limit.");
+  }
+  return document;
+}
+
+function documentDetails(
+  envelope: ClearSignEnvelope<ClearSignPayload>,
+  action: string[],
+): string[] {
+  const details = [`From wallet: ${normalizeText(envelope.walletName)}`];
+  if (envelope.kind === "send") {
+    const payload = envelope.payload as SendPayload;
+    details.push(`Amount: ${formatMoney(payload)}`);
+    details.push(`To: ${normalizeText(payload.recipient)}`);
+    const estimatedUsd = normalizeOptional(payload.estimatedUsd);
+    if (estimatedUsd) {
+      details.push(`Estimated value: $${normalizeDecimal(estimatedUsd)} USD (informational)`);
+    }
+    return details;
+  }
+  const secondary = action.slice(1).filter(
+    (line) =>
+      line !== "Requires wallet approval" &&
+      !line.startsWith("Reason:") &&
+      !line.startsWith("Estimated value at review:"),
+  );
+  return [...details, ...secondary];
+}
+
+function purposeFor(envelope: ClearSignEnvelope<ClearSignPayload>): string {
+  if (envelope.kind === "send") {
+    return normalizeOptional((envelope.payload as SendPayload).note) || "Not provided";
+  }
+  return "Not provided";
+}
+
+function riskCategory(kind: ClearSignActionKind): string {
+  switch (kind) {
+    case "send":
+    case "release_milestone":
+    case "return_escrow_funds":
+    case "swap_intent":
+      return "Funds movement";
+    case "batch_send":
+      return "Multiple funds movements";
+    case "add_member":
+    case "remove_member":
+    case "change_threshold":
+      return "Authorization change";
+    case "set_protection":
+      return "Policy change";
+    case "recovery_action":
+      return "Recovery authority";
+    case "agent_session_grant":
+    case "agent_risk_policy":
+      return "Agent authority";
+    case "agent_trade_approval":
+    case "agent_trade_settlement":
+      return "Agent execution";
+  }
+}
+
+function riskCheck(kind: ClearSignActionKind): string {
+  switch (kind) {
+    case "send":
+    case "batch_send":
+    case "release_milestone":
+    case "return_escrow_funds":
+      return "Verify amount, asset, and every destination";
+    case "swap_intent":
+      return "Verify assets and minimum received";
+    case "add_member":
+    case "remove_member":
+    case "change_threshold":
+      return "Verify the resulting signer authority";
+    case "set_protection":
+      return "Verify the complete replacement policy";
+    case "recovery_action":
+      return "Verify the recovery target and authority";
+    case "agent_trade_approval":
+    case "agent_session_grant":
+    case "agent_risk_policy":
+    case "agent_trade_settlement":
+      return "Verify agent scope, limits, and execution evidence";
+  }
+}
+
+function voteDecision(kind: ClearSignVoteKind): string {
+  switch (kind) {
+    case "propose":
+      return "PROPOSE";
+    case "approve":
+      return "APPROVE";
+    case "cancel":
+      return "CANCEL";
+  }
+}
+
+function shortHash(value: string): string {
+  const hash = normalizeHash(value);
+  return `${hash.slice(0, 12)}...${hash.slice(-12)}`;
 }
 
 export function clearSignActionKindCode(kind: ClearSignActionKind): number {
@@ -292,12 +463,12 @@ export function clearSignActionKindCode(kind: ClearSignActionKind): number {
 }
 
 function actionLines(envelope: ClearSignEnvelope<ClearSignPayload>): string[] {
-  const wallet = envelope.walletName;
+  const wallet = normalizeText(envelope.walletName);
   switch (envelope.kind) {
     case "send": {
       const payload = envelope.payload as SendPayload;
       const lines = [
-        `Send ${formatMoney(payload)} from ${wallet} to ${payload.recipient}`,
+        `Send ${formatMoney(payload)} from ${wallet} to ${normalizeText(payload.recipient)}`,
         "Requires wallet approval",
       ];
       const note = normalizeText(payload.note ?? "");
@@ -314,7 +485,7 @@ function actionLines(envelope: ClearSignEnvelope<ClearSignPayload>): string[] {
         `Send ${payload.recipients.length} payments from ${wallet}`,
         ...payload.recipients
           .slice(0, 4)
-          .map((row) => `${row.recipient} receives ${formatMoney(row)}`),
+          .map((row) => `${normalizeText(row.recipient)} receives ${formatMoney(row)}`),
         "Requires wallet approval",
       ];
     }
@@ -532,7 +703,7 @@ function canonicalPayloadBytes(
   payload: ClearSignPayload,
 ): Uint8Array {
   const out = new ByteWriter();
-  out.pushBytes(CLEARSIGN_V2_PAYLOAD_DOMAIN);
+  out.pushBytes(CLEARSIGN_PAYLOAD_DOMAIN);
   out.pushU8(clearSignActionKindCode(kind));
   switch (kind) {
     case "send": {
@@ -776,7 +947,7 @@ function normalizeAssetIdentity(value: string): string {
 }
 
 function normalizeText(value: string): string {
-  return value.trim();
+  return value.trim().replace(/\s+/g, " ");
 }
 
 function normalizeRawInteger(value: string): string {
@@ -789,7 +960,7 @@ function normalizeRawInteger(value: string): string {
 }
 
 function normalizeOptional(value: string | undefined): string {
-  return value?.trim() ?? "";
+  return value ? normalizeText(value) : "";
 }
 
 function normalizeHash(value: string): string {

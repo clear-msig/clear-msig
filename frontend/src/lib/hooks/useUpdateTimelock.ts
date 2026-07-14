@@ -1,6 +1,6 @@
 "use client";
 
-// Update an existing intent's timelock_seconds via ClearSign v2 typed
+// Update an existing intent's timelock_seconds via typed ClearSign
 // governance (change_threshold action with only timelock changed).
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";

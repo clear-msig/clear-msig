@@ -2,7 +2,7 @@ import {
   summarizeClearSignAction,
   type AgentTradeSettlementPayload,
   type ClearSignEnvelope,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import { decimalToAgentUsdRaw, hashAgentText, normalizeAgentHash } from "@/lib/agents/agentClearSignEncoding";
 import type { AgentRiskLedgerAccount } from "@/lib/agents/agentRiskLedger";
 import type { HyperliquidTestnetSettlementArtifact } from "@/lib/agents/serverHyperliquidTestnet";
@@ -53,7 +53,7 @@ export function buildAgentSettlementClearSign({
     throw new Error("Trusted settlement exceeds the session's open on-chain exposure.");
   }
   const envelope: ClearSignEnvelope<AgentTradeSettlementPayload> = {
-    version: 2,
+    version: 3,
     kind: "agent_trade_settlement",
     walletName,
     walletId,

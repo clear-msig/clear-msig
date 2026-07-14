@@ -7,6 +7,7 @@ pub enum MessageFlavor {
     OffchainV1,
     PlainV2,
     ClearSignV2Text,
+    ClearSignV3Document,
 }
 
 impl FromStr for MessageFlavor {
@@ -17,8 +18,9 @@ impl FromStr for MessageFlavor {
             "offchain_v1" => Ok(Self::OffchainV1),
             "plain_v2" => Ok(Self::PlainV2),
             "clearsign_v2_text" => Ok(Self::ClearSignV2Text),
+            "clearsign_v3_document" => Ok(Self::ClearSignV3Document),
             other => Err(anyhow!(
-                "invalid message flavor {other:?}; expected offchain_v1, plain_v2, or clearsign_v2_text"
+                "invalid message flavor {other:?}; expected offchain_v1, plain_v2, clearsign_v2_text, or clearsign_v3_document"
             )),
         }
     }
@@ -60,6 +62,9 @@ pub fn sign_message_with_flavor<S: MessageSigner + ?Sized>(
         Some(MessageFlavor::ClearSignV2Text) => signer
             .sign_message(plain)
             .with_context(|| "signature did not verify against clearsign_v2_text message bytes"),
+        Some(MessageFlavor::ClearSignV3Document) => signer.sign_message(plain).with_context(|| {
+            "signature did not verify against clearsign_v3_document message bytes"
+        }),
         None => sign_message_with_fallback(signer, wrapped, plain),
     }
 }

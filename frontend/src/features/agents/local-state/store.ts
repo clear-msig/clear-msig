@@ -5,7 +5,6 @@ import {
   canOpenLocalAgentExecution,
   executionModeForVenue,
 } from "@/lib/agents/executionAdapters";
-import { buildAgentTradeClearSignV2 } from "@/lib/agents/clearsign";
 import { closeAgentExecutionRecord } from "@/lib/agents/executionClose";
 import { evaluateAgentTradeProposal } from "@/lib/agents/policy";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
@@ -35,7 +34,7 @@ import {
 import {
   activeSessionFor,
   appendExecutionEvents,
-  bindProposalClearSignV2,
+  bindProposalClearSign,
   canExecuteProposal,
   currentPolicyForShape,
   dailyRealizedPnl,
@@ -109,7 +108,7 @@ export function saveAgentProposal(proposal: AgentTradeProposal): AgentTradePropo
   const policy =
     shape.policiesByWallet[proposal.walletName] ??
     defaultAgentVaultPolicy(proposal.walletName);
-  const boundProposal = bindProposalClearSignV2(
+  const boundProposal = bindProposalClearSign(
     bindAgentProposalPolicyHash(proposal, normalizePolicy(policy)),
   );
   const list = shape.proposalsByWallet[proposal.walletName] ?? [];
@@ -187,7 +186,7 @@ export function recheckAgentProposal(
     now,
   });
   const status = statusForEvaluation(evaluation);
-  const updatedBase: AgentTradeProposal = bindProposalClearSignV2({
+  const updatedBase: AgentTradeProposal = bindProposalClearSign({
     ...proposalForPolicy,
     status,
     evaluationDecision: evaluation.decision,
@@ -292,7 +291,7 @@ export function openAgentPaperTrade(
   const proposalForPolicy = bindAgentProposalPolicyHash(proposal, policy);
   const evaluation = evaluateProposalForCurrentRisk(shape, proposalForPolicy, now);
   if (!evaluation || evaluation.decision === "blocked") {
-    const updated = bindProposalClearSignV2({
+    const updated = bindProposalClearSign({
       ...proposalForPolicy,
       status: "blocked" as AgentProposalStatus,
       evaluationDecision: evaluation?.decision ?? "blocked",
@@ -330,7 +329,7 @@ export function openAgentPaperTrade(
     evaluation.decision === "requires_human_approval" &&
     proposal.status !== "approved"
   ) {
-    const updated = bindProposalClearSignV2({
+    const updated = bindProposalClearSign({
       ...proposalForPolicy,
       status: "needs_approval" as AgentProposalStatus,
       evaluationDecision: evaluation.decision,
@@ -350,7 +349,7 @@ export function openAgentPaperTrade(
   }
   const execution = executionFromProposal(proposalForPolicy, now);
   if (!execution) {
-    const updated = bindProposalClearSignV2({
+    const updated = bindProposalClearSign({
       ...proposalForPolicy,
       status: "approved" as AgentProposalStatus,
       evaluationDecision: evaluation.decision,
@@ -367,7 +366,7 @@ export function openAgentPaperTrade(
       reason: "backend_required",
     };
   }
-  const updated = bindProposalClearSignV2({
+  const updated = bindProposalClearSign({
     ...proposalForPolicy,
     status: "executed" as AgentProposalStatus,
     evaluationDecision: evaluation.decision,
@@ -417,7 +416,7 @@ export function saveAgentProposalAndExecuteIfAllowed(
   const policy =
     shape.policiesByWallet[proposal.walletName] ??
     defaultAgentVaultPolicy(proposal.walletName);
-  const boundProposal = bindProposalClearSignV2(
+  const boundProposal = bindProposalClearSign(
     bindAgentProposalPolicyHash(
       proposal,
       normalizePolicy(policy),
@@ -434,7 +433,7 @@ export function saveAgentProposalAndExecuteIfAllowed(
     boundProposal.status === "approved" && canExecuteProposal(shape, boundProposal)
       ? executionFromProposal(boundProposal, now)
       : null;
-  const savedProposal = bindProposalClearSignV2(execution
+  const savedProposal = bindProposalClearSign(execution
     ? {
         ...boundProposal,
         status: "executed" as AgentProposalStatus,
@@ -621,7 +620,7 @@ function transitionAgentProposal(
     return proposal ?? null;
   }
   const policy = currentPolicyForShape(shape, walletName);
-  const updated = bindProposalClearSignV2(
+  const updated = bindProposalClearSign(
     bindAgentProposalPolicyHash(
       { ...proposal, status, updatedAt: Date.now() },
       policy,

@@ -14,7 +14,7 @@ export function AgentClearSignProof({ proposal }: { proposal: AgentTradeProposal
     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-soft border border-accent/20 bg-accent/[0.05] px-2 py-1.5 text-[10px] font-medium text-text-soft">
       <span className="inline-flex items-center gap-1 text-accent">
         <ShieldCheck className="h-3 w-3" aria-hidden="true" />
-        ClearSign v2
+        ClearSign v3
       </span>
       <span className="font-mono">payload {proof.payloadHash.slice(0, 10)}</span>
       <span className="font-mono">risk {proof.payload.riskCheckHash.slice(0, 10)}</span>

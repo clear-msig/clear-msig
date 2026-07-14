@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clearSignEnvelopeHash, clearSignPayloadHash } from "@/lib/clearsign-v2";
+import { clearSignEnvelopeHash, clearSignPayloadHash } from "@/lib/clearsign";
 import {
   bindProEscrowPolicy,
   buildProEscrowReleaseEnvelope,

@@ -1,7 +1,7 @@
 import type {
   ClearSignEnvelope,
   SendPayload,
-} from "@/lib/clearsign-v2/actions";
+} from "@/lib/clearsign/actions";
 
 export type SendSignerRuntime =
   | "google-waas"
@@ -94,7 +94,7 @@ export function sendVerificationEnvelope(
   asset: SendAssetVerification,
 ): ClearSignEnvelope<SendPayload> {
   return {
-    version: 2,
+    version: 3,
     kind: "send",
     walletName: "Signing matrix",
     actionId: `send-matrix:${asset.id}`,

@@ -16,7 +16,7 @@
     "report:large-modules": "node scripts/report-large-modules.mjs",
     "verify": "npm run check:architecture && npm run lint && npm run typecheck && npm test",
     "test": "vitest run && node --test scripts/*.test.mjs",
-    "test:send-matrix": "vitest run src/features/send/infrastructure/sendVerificationMatrix.test.ts src/lib/clearsign-v2/__tests__/remoteSendRoutes.test.ts src/lib/clearsign-v2/__tests__/typedProposalSigningContract.test.ts",
+    "test:send-matrix": "vitest run src/features/send/infrastructure/sendVerificationMatrix.test.ts src/lib/clearsign/__tests__/remoteSendRoutes.test.ts src/lib/clearsign/__tests__/typedProposalSigningContract.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

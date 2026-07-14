@@ -3,7 +3,7 @@
 // Policy-rule type system. Inspired by Fordefi's policy-rule shape
 // (https://docs.fordefi.com/user-guide/policies/create-a-policy-rule)
 // - conditions describe WHEN a rule fires, action describes WHAT
-// happens. Adapted for the clear-msig domain: a rule lives under a
+// happens. Specialized for the clear-msig domain: a rule lives under a
 // specific wallet, augments the on-chain intent (which carries the
 // approver set + base threshold), and adds finer-grained checks
 // that are evaluated client-side before signing and encoded into the

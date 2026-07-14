@@ -8,6 +8,9 @@ use super::types::{
 };
 use super::validation::validate_typed_create_fields;
 
+const CLEARSIGN_V3_DOCUMENT_PREFIX: &str = "ClearSig Proposal\n\nACTION\n";
+const MAX_CLEARSIGN_DOCUMENT_BYTES: usize = 2048;
+
 pub(super) struct LifecycleInvocation {
     pub(super) context: TypedExecutionContext,
     pub(super) lifecycle: TypedProposalLifecycle,
@@ -34,6 +37,11 @@ pub(super) fn signed_create(
         &body.nonce,
     )?;
     body.pre_signed.ensure_valid()?;
+    if body.pre_signed.message_flavor.as_deref() != Some("clearsign_v3_document") {
+        return Err(ApiError::BadRequest(
+            "new typed proposals require a ClearSign v3 document".into(),
+        ));
+    }
     let signed_message = body.pre_signed.signed_message_hex.clone().ok_or_else(|| {
         ApiError::BadRequest("signed_message_hex is required for typed proposal create".into())
     })?;
@@ -77,7 +85,7 @@ pub(super) fn prepare_create(
         &body.action_id,
         &body.nonce,
     )?;
-    ensure_bounded_value(&body.signable_text, "signable_text")?;
+    validate_v3_signable_text(&body.signable_text)?;
     validate_optional_hex(body.policy_bytes_hex.as_deref(), "policyBytesHex")?;
     let actor_pubkey = validate_actor(body.actor_pubkey)?;
     Ok(LifecycleInvocation {
@@ -183,6 +191,52 @@ fn validate_optional_hex(value: Option<&str>, field: &str) -> Result<(), ApiErro
     Ok(())
 }
 
+fn validate_v3_signable_text(value: &str) -> Result<(), ApiError> {
+    ensure_non_empty(value, "signable_text")?;
+    if value.len() > MAX_CLEARSIGN_DOCUMENT_BYTES {
+        return Err(ApiError::BadRequest(
+            "signable_text must be 2048 bytes or fewer".into(),
+        ));
+    }
+    if value
+        .bytes()
+        .any(|byte| (byte < 0x20 && byte != b'\n') || byte == 0x7f)
+    {
+        return Err(ApiError::BadRequest(
+            "signable_text contains unsafe control characters".into(),
+        ));
+    }
+    if !value.starts_with(CLEARSIGN_V3_DOCUMENT_PREFIX) {
+        return Err(ApiError::BadRequest(
+            "new typed proposals require a ClearSign v3 document".into(),
+        ));
+    }
+    let sections = value.split("\n\n").collect::<Vec<_>>();
+    let expected = [
+        "ClearSig Proposal",
+        "ACTION",
+        "DETAILS",
+        "POLICY",
+        "RISK",
+        "PURPOSE",
+    ];
+    if sections.len() != expected.len()
+        || sections.iter().enumerate().any(|(index, section)| {
+            if index == 0 {
+                *section != expected[index]
+            } else {
+                !section.starts_with(&format!("{}\n", expected[index]))
+                    || section.len() == expected[index].len() + 1
+            }
+        })
+    {
+        return Err(ApiError::BadRequest(
+            "signable_text has invalid or duplicate ClearSign v3 sections".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn ensure_bounded_value(value: &str, field: &str) -> Result<(), ApiError> {
     ensure_non_empty(value, field)?;
     if value.len() > 16 * 1024 {
@@ -202,6 +256,8 @@ fn ensure_bounded_value(value: &str, field: &str) -> Result<(), ApiError> {
 mod tests {
     use super::*;
     use crate::clearsign::PreSigned;
+
+    const V3_DOCUMENT: &str = "ClearSig Proposal\n\nACTION\nSend 1 SOL\n\nDETAILS\nFrom wallet: Team\nAmount: 1 SOL\nTo: Sarah\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: 000000000000...000000000000\nEnforcement: Exact payload and policy must match onchain\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, and every destination\n\nPURPOSE\nPayroll";
 
     #[test]
     fn prepare_vote_rejects_invalid_actor_before_execution() {
@@ -230,7 +286,7 @@ mod tests {
                 action_id: "action".into(),
                 nonce: "nonce".into(),
                 policy_bytes_hex: None,
-                signable_text: "x".repeat(16 * 1024 + 1),
+                signable_text: "x".repeat(MAX_CLEARSIGN_DOCUMENT_BYTES + 1),
                 expiry: None,
                 actor_pubkey: None,
             },
@@ -239,8 +295,8 @@ mod tests {
     }
 
     #[test]
-    fn prepare_create_accepts_multiline_clearsign_text() {
-        let result = prepare_create(
+    fn prepare_create_rejects_legacy_text_and_accepts_a_v3_document() {
+        let legacy = prepare_create(
             "team".into(),
             PrepareTypedProposalCreateRequest {
                 intent_index: 1,
@@ -252,6 +308,24 @@ mod tests {
                 nonce: "nonce".into(),
                 policy_bytes_hex: None,
                 signable_text: "ClearSign v2\nWallet Team\nSend 1 SOL".into(),
+                expiry: None,
+                actor_pubkey: None,
+            },
+        );
+        assert!(matches!(legacy, Err(ApiError::BadRequest(_))));
+
+        let result = prepare_create(
+            "team".into(),
+            PrepareTypedProposalCreateRequest {
+                intent_index: 1,
+                action_kind: 1,
+                policy_commitment: "00".repeat(32),
+                payload_hash: "00".repeat(32),
+                envelope_hash: "00".repeat(32),
+                action_id: "action".into(),
+                nonce: "nonce".into(),
+                policy_bytes_hex: None,
+                signable_text: V3_DOCUMENT.into(),
                 expiry: None,
                 actor_pubkey: None,
             },
@@ -276,7 +350,7 @@ mod tests {
                 pre_signed: PreSigned {
                     signer_pubkey: "11111111111111111111111111111111".into(),
                     signature: "00".repeat(64),
-                    message_flavor: Some("clearsign_v2_text".into()),
+                    message_flavor: Some("clearsign_v3_document".into()),
                     params_data_hex: None,
                     signed_message_hex: Some("00".into()),
                     expiry,
@@ -295,6 +369,37 @@ mod tests {
                 expiry: Some(value),
                 ..
             } if !value.is_empty()
+        ));
+    }
+
+    #[test]
+    fn signed_create_rejects_a_legacy_v2_message_flavor() {
+        let expiry = crate::current_unix_timestamp().unwrap() + 300;
+        let result = signed_create(
+            "team".into(),
+            SignedTypedProposalCreateRequest {
+                intent_index: 1,
+                action_kind: 1,
+                policy_commitment: "00".repeat(32),
+                payload_hash: "00".repeat(32),
+                envelope_hash: "00".repeat(32),
+                action_id: "action".into(),
+                nonce: "nonce".into(),
+                policy_bytes_hex: None,
+                pre_signed: PreSigned {
+                    signer_pubkey: "11111111111111111111111111111111".into(),
+                    signature: "00".repeat(64),
+                    message_flavor: Some("clearsign_v2_text".into()),
+                    params_data_hex: None,
+                    signed_message_hex: Some("00".into()),
+                    expiry,
+                },
+            },
+        );
+
+        assert!(matches!(
+            result,
+            Err(ApiError::BadRequest(message)) if message.contains("ClearSign v3")
         ));
     }
 }

@@ -1,6 +1,17 @@
-# ClearSign Policy Engine v2
+# ClearSign Policy Engine
 
-Status: implementation starting on devnet.
+Status: v3 migration implemented; program upgrade and ordered service rollout
+required before production activation.
+
+V3 standardizes signer prompts as financial approval documents with `ACTION`,
+`DETAILS`, `POLICY`, `RISK`, `PURPOSE`, `APPROVAL`, `EXPIRY`, and `PROOF`
+sections. New proposal creation is v3-only after the program upgrade. Existing
+v2 proposals keep a narrowly scoped legacy approval/cancellation path.
+
+The v3 `APPROVAL` section names the signing pubkey and shows the exact onchain
+threshold plus the approval/cancellation count if that signature is accepted.
+The program reconstructs those fields from the wallet intent and proposal
+bitmaps before verifying the signature; they are not backend-supplied labels.
 
 Clear signing is the center of ClearSig. Every signer must understand the
 exact money movement or authority change before their wallet asks for a
@@ -22,18 +33,18 @@ refresh must not appear in primary signing copy.
 
 ## Architecture
 
-ClearSig v2 follows:
+ClearSign follows:
 
 1. Browser explains the typed action.
 2. Backend prepares and simulates the action.
 3. Solana verifies the canonical action and policy commitment.
-4. Signer signs the same canonical text/hash.
+4. Signer signs the complete canonical approval document.
 5. Chain enforces before money or authority moves.
 
 ## Typed Actions
 
 Every action that requires a wallet signature must have a versioned action
-type. The initial v2 action families are:
+type. The current action families are:
 
 - `send`
 - `batch_send`
@@ -52,11 +63,11 @@ product surfaces should emit typed actions.
 
 ## Canonical Action Envelope
 
-Every v2 action uses the same envelope:
+Every new action uses the v3 envelope:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "kind": "send",
   "walletName": "Team",
   "walletId": "optional-onchain-pda",
@@ -289,7 +300,7 @@ commitments so a changed trade/risk digest cannot reuse the human approval.
 
 Reviewed surfaces:
 
-- program ClearSign v2 hashing and replay envelope
+- program ClearSign hashing and replay envelope
 - typed proposal propose/approve/cancel/execute instructions
 - typed SOL escrow release and return-to-funder executors
 - CLI typed proposal builders and account parser

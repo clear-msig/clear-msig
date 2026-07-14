@@ -5,31 +5,18 @@ import {
   type ClearSignEnvelope,
   type ClearSignPayload,
   type ClearSignSummary,
-} from "@/lib/clearsign-v2/actions";
-
-export interface ClearSignVotePrepareInput {
-  walletId: string;
-  proposalIndex: number;
-}
-
-export interface ClearSignVoteMessages {
-  propose: string;
-  approve: string;
-  cancel: string;
-}
+} from "@/lib/clearsign/actions";
 
 export interface BackendClearSignSummary extends ClearSignSummary {
-  version: 2;
+  version: 3;
   kind: ClearSignEnvelope<ClearSignPayload>["kind"];
   actionKindCode: number;
-  voteMessages?: ClearSignVoteMessages;
   source: "backend" | "local";
 }
 
 export async function prepareClearSignAction(
   envelope: ClearSignEnvelope<ClearSignPayload>,
   options?: {
-    vote?: ClearSignVotePrepareInput;
     signal?: AbortSignal;
     fallback?: boolean;
   },
@@ -40,12 +27,11 @@ export async function prepareClearSignAction(
       Omit<BackendClearSignSummary, "source">,
       {
         envelope: ClearSignEnvelope<ClearSignPayload>;
-        vote?: ClearSignVotePrepareInput;
       }
     >(
-      "/v1/clearsign/v2/prepare",
+      "/v1/clearsign/v3/prepare",
       "POST",
-      { envelope, vote: options?.vote },
+      { envelope },
       { timeoutMs: 10_000, signal: options?.signal },
     );
     assertBackendSummaryMatchesLocal(response, local, envelope);
@@ -56,7 +42,7 @@ export async function prepareClearSignAction(
     }
     return {
       ...local,
-      version: 2,
+      version: 3,
       kind: envelope.kind,
       actionKindCode: clearSignActionKindCode(envelope.kind),
       source: "local",
@@ -73,7 +59,7 @@ function assertBackendSummaryMatchesLocal(
     response.lines.length === local.lines.length &&
     response.lines.every((line, index) => line === local.lines[index]);
   if (
-    response.version !== 2 ||
+    response.version !== 3 ||
     response.kind !== envelope.kind ||
     response.actionKindCode !== clearSignActionKindCode(envelope.kind) ||
     response.headline !== local.headline ||

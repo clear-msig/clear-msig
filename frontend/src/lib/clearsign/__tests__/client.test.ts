@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { prepareClearSignAction } from "@/lib/clearsign-v2/client";
+import { prepareClearSignAction } from "@/lib/clearsign/client";
 import {
   summarizeClearSignAction,
   type ClearSignEnvelope,
   type SendPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 
 const envelope: ClearSignEnvelope<SendPayload> = {
-  version: 2,
+  version: 3,
   kind: "send",
   walletName: "Team",
   walletId: "Team#abc",
@@ -36,7 +36,7 @@ describe("prepareClearSignAction", () => {
       vi.fn(async () =>
         new Response(
           JSON.stringify({
-            version: 2,
+            version: 3,
             kind: "send",
             actionKindCode: 1,
             ...local,
@@ -59,7 +59,7 @@ describe("prepareClearSignAction", () => {
       vi.fn(async () =>
         new Response(
           JSON.stringify({
-            version: 2,
+            version: 3,
             kind: "send",
             actionKindCode: 1,
             ...local,

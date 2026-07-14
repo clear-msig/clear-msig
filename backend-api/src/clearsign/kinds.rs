@@ -60,20 +60,3 @@ impl ClearSignActionKind {
         }
     }
 }
-
-#[derive(Clone, Copy)]
-pub(super) enum ClearSignVoteKind {
-    Propose,
-    Approve,
-    Cancel,
-}
-
-impl ClearSignVoteKind {
-    pub(super) fn label(self) -> &'static str {
-        match self {
-            Self::Propose => "propose",
-            Self::Approve => "approve",
-            Self::Cancel => "cancel",
-        }
-    }
-}

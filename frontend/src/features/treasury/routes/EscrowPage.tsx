@@ -38,7 +38,7 @@ import {
 import {
   prepareClearSignAction,
   type BackendClearSignSummary,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import { IntentType } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { toDisplayName } from "@/lib/retail/walletNames";

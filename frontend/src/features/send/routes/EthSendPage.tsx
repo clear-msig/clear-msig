@@ -61,7 +61,7 @@ import {
   textCommitmentHex,
   type ClearSignEnvelope,
   type SendPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import {
   ethToWei,
   fetchEvmBalance,
@@ -110,7 +110,7 @@ import {
   SEND_NOTE_MAX_LENGTH,
   SEND_NOTE_PLACEHOLDER,
 } from "@/lib/sendFields";
-import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
+import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
 import { ComposeStage } from "@/features/send/ui/evm/EvmNativeSendStages";
 import { PreFlightCard, SentStage } from "@/features/send/ui/evm/EvmNativeSendResults";
 
@@ -432,7 +432,7 @@ function SendEthPage() {
           `approvers:${ethIntent.account.approvers.join(",")}`,
         ]);
       const envelope: ClearSignEnvelope<SendPayload> = {
-        version: 2,
+        version: 3,
         kind: "send",
         walletName,
         walletId: walletQuery.data?.pda.toBase58(),

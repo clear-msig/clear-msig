@@ -51,7 +51,7 @@ generic validation, CORS/tracing, and route mounting.
 
 ## Program Shape
 
-ClearSign Policy Engine v2 should be modular from day one:
+ClearSign Policy Engine should be modular from day one:
 
 - typed action schema module
 - policy commitment module
@@ -80,3 +80,6 @@ adapter implementation, not product flows or action schemas.
 
 Browser explains. Backend prepares. Solana verifies. Signer understands. Chain
 enforces. Each layer should have a small module boundary and tests.
+
+The staged Ika integration and repository consolidation decisions are tracked
+in `docs/ika-integration-decisions-2026-07-14.md`.

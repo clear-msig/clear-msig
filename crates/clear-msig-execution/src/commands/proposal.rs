@@ -7,7 +7,8 @@ use crate::signing::sign_message_with_flavor;
 use crate::{accounts, ika, message, params, resolve, rpc};
 use clap::Subcommand;
 use clear_wallet::utils::clearsign::{
-    extract_clear_text_from_vote_message, ClearSignActionKind, ClearSignVoteKind,
+    extract_clear_text_from_vote_message, is_v3_document, validate_v3_document,
+    ClearSignActionKind, ClearSignVoteKind,
 };
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
 use solana_sdk::instruction::AccountMeta;
@@ -31,7 +32,7 @@ pub enum ProposalAction {
         #[arg(long)]
         expiry: Option<String>,
     },
-    /// Create a ClearSign v2 typed proposal
+    /// Create a ClearSign typed proposal
     TypedCreate {
         #[arg(long)]
         wallet: String,
@@ -51,7 +52,7 @@ pub enum ProposalAction {
         nonce: String,
         #[arg(long)]
         policy_bytes_hex: Option<String>,
-        /// Human-readable ClearSign v2 action text produced by /clearsign/v2/prepare.
+        /// Human-readable ClearSign v3 document produced by /clearsign/v3/prepare.
         ///
         /// Required for dry-run and local signing. Browser pre-signed submits
         /// pass the exact signed readable vote bytes via global --signed-message.
@@ -60,21 +61,21 @@ pub enum ProposalAction {
         #[arg(long)]
         expiry: Option<String>,
     },
-    /// Approve a ClearSign v2 typed proposal
+    /// Approve a ClearSign typed proposal
     TypedApprove {
         #[arg(long)]
         wallet: String,
         #[arg(long)]
         proposal: String,
     },
-    /// Cancel a ClearSign v2 typed proposal
+    /// Cancel a ClearSign typed proposal
     TypedCancel {
         #[arg(long)]
         wallet: String,
         #[arg(long)]
         proposal: String,
     },
-    /// Mark an approved ClearSign v2 typed proposal executed
+    /// Mark an approved ClearSign typed proposal executed
     TypedExecute {
         #[arg(long)]
         wallet: String,
@@ -683,12 +684,18 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                 &pid,
             );
             let proposal_pubkey = Pubkey::new_from_array(proposal_addr.to_bytes());
+            let approval_count_after =
+                u8::from(intent_account.approvers.contains(&signer_pubkey_b58));
             let vote_message = signable_text.as_deref().map(|text| {
                 typed_vote_message(
                     ClearSignVoteKind::Propose,
                     &wallet_account.name,
+                    &config.signer.pubkey(),
                     proposal_index,
                     envelope_hash,
+                    expiry_ts,
+                    intent_account.approval_threshold,
+                    approval_count_after,
                     text.as_bytes(),
                 )
             });
@@ -705,6 +712,10 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     intent_pubkey: intent_pubkey.to_string(),
                     proposal_pubkey: proposal_pubkey.to_string(),
                     proposal_index,
+                    signer_pubkey: signer_pubkey_b58.clone(),
+                    approval_requirement: intent_account.approval_threshold,
+                    approval_count_after,
+                    approval_kind: "approvals",
                     action_kind,
                     policy_commitment_hex: crate::output::hex_of(&policy_commitment),
                     payload_hash_hex: crate::output::hex_of(&payload_hash),
@@ -712,14 +723,19 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     action_id: action_id.clone(),
                     nonce: nonce.clone(),
                     message_hex: crate::output::hex_of(vote_message),
-                    message_flavor: "clearsign_v2_text",
+                    message_flavor: typed_message_flavor(
+                        signable_text
+                            .as_deref()
+                            .expect("typed dry-run requires signable text")
+                            .as_bytes(),
+                    ),
                     expiry: expiry_ts,
                 });
                 return Ok(());
             }
 
             crate::progress!(
-                "Signing ClearSign v2 proposal message:\n{}",
+                "Signing ClearSign proposal document:\n{}",
                 String::from_utf8_lossy(vote_message.as_deref().unwrap_or_else(|| {
                     config
                         .signed_message_override
@@ -741,12 +757,16 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     let signed_clear_text = extract_clear_text_from_vote_message(
                         ClearSignVoteKind::Propose,
                         wallet_account.name.as_bytes(),
+                        &config.signer.pubkey(),
                         proposal_index,
                         envelope_hash,
+                        expiry_ts,
+                        intent_account.approval_threshold,
+                        approval_count_after,
                         signed_message,
                     )
                     .map_err(|_| {
-                        anyhow!("--signed-message is not a valid ClearSign v2 propose message")
+                        anyhow!("--signed-message is not a valid ClearSign proposal document")
                     })?;
                     if signed_clear_text != text.as_bytes() {
                         return Err(anyhow!(
@@ -760,16 +780,23 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     extract_clear_text_from_vote_message(
                         ClearSignVoteKind::Propose,
                         wallet_account.name.as_bytes(),
+                        &config.signer.pubkey(),
                         proposal_index,
                         envelope_hash,
+                        expiry_ts,
+                        intent_account.approval_threshold,
+                        approval_count_after,
                         signed_message,
                     )
                     .map_err(|_| {
-                        anyhow!("--signed-message is not a valid ClearSign v2 propose message")
+                        anyhow!("--signed-message is not a valid ClearSign proposal document")
                     })?
                     .to_vec(),
                 )
             };
+            validate_v3_document(clear_text.as_ref()).map_err(|_| {
+                anyhow!("new typed proposals require a canonical ClearSign v3 document")
+            })?;
             let signature = config.signer.sign_message(signed_message)?;
             let payer_pubkey = solana_sdk::signer::Signer::pubkey(&config.payer);
             let action_id_hash = crate::message::sha256_hash(action_id.as_bytes());
@@ -3045,10 +3072,46 @@ fn ensure_typed_text(value: &str, field: &str) -> Result<()> {
 fn typed_vote_message(
     vote_kind: ClearSignVoteKind,
     wallet_name: &str,
+    signer_pubkey: &[u8; 32],
     proposal_index: u64,
     envelope_hash: [u8; 32],
+    expires_at: i64,
+    approvals_required: u8,
+    approvals_after: u8,
     clear_text: &[u8],
 ) -> Vec<u8> {
+    if is_v3_document(clear_text) {
+        let mut out = Vec::with_capacity(320 + clear_text.len());
+        out.extend_from_slice(clear_text);
+        out.extend_from_slice(b"\n\nAPPROVAL\nDecision: ");
+        out.extend_from_slice(match vote_kind {
+            ClearSignVoteKind::Propose => b"PROPOSE",
+            ClearSignVoteKind::Approve => b"APPROVE",
+            ClearSignVoteKind::Cancel => b"CANCEL",
+        });
+        out.extend_from_slice(b"\nProposal: #");
+        out.extend_from_slice(proposal_index.to_string().as_bytes());
+        out.extend_from_slice(b"\nWallet: ");
+        out.extend_from_slice(wallet_name.as_bytes());
+        out.extend_from_slice(b"\nRequested by: ");
+        out.extend_from_slice(bs58::encode(signer_pubkey).into_string().as_bytes());
+        out.extend_from_slice(b"\nRequirement: ");
+        out.extend_from_slice(approvals_required.to_string().as_bytes());
+        out.extend_from_slice(approval_requirement_label(vote_kind, approvals_required));
+        out.extend_from_slice(b"\nStatus if accepted: ");
+        out.extend_from_slice(approvals_after.to_string().as_bytes());
+        out.extend_from_slice(b" of ");
+        out.extend_from_slice(approvals_required.to_string().as_bytes());
+        out.extend_from_slice(approval_requirement_label(vote_kind, approvals_required));
+        out.extend_from_slice(b"\n\nEXPIRY\n");
+        let mut expiry = [0u8; 19];
+        clear_wallet::utils::datetime::format_timestamp(expires_at, &mut expiry)
+            .expect("fixed expiry buffer must fit");
+        out.extend_from_slice(&expiry);
+        out.extend_from_slice(b" UTC\n\nPROOF\nClearSign: v3\nEnvelope: ");
+        out.extend_from_slice(crate::output::hex_of(&envelope_hash).as_bytes());
+        return out;
+    }
     let mut out = Vec::with_capacity(128 + clear_text.len());
     out.extend_from_slice(b"ClearSign v2 ");
     out.extend_from_slice(match vote_kind {
@@ -3065,6 +3128,23 @@ fn typed_vote_message(
     out.extend_from_slice(b"\n\n");
     out.extend_from_slice(clear_text);
     out
+}
+
+fn approval_requirement_label(kind: ClearSignVoteKind, required: u8) -> &'static [u8] {
+    match (kind, required) {
+        (ClearSignVoteKind::Cancel, 1) => b" cancellation",
+        (ClearSignVoteKind::Cancel, _) => b" cancellations",
+        (_, 1) => b" approval",
+        _ => b" approvals",
+    }
+}
+
+fn typed_message_flavor(clear_text: &[u8]) -> &'static str {
+    if is_v3_document(clear_text) {
+        "clearsign_v3_document"
+    } else {
+        "clearsign_v2_text"
+    }
 }
 
 fn resolve_approved_typed_proposal(
@@ -3324,11 +3404,25 @@ fn typed_approve_or_cancel(
     } else {
         ClearSignVoteKind::Cancel
     };
+    let approval_requirement = if is_approve {
+        intent_account.approval_threshold
+    } else {
+        intent_account.cancellation_threshold
+    };
+    let approval_count_after = if is_approve {
+        proposal_account.approval_bitmap.count_ones() as u8 + 1
+    } else {
+        proposal_account.cancellation_bitmap.count_ones() as u8 + 1
+    };
     let vote_message = typed_vote_message(
         vote_kind,
         &wallet_account.name,
+        &config.signer.pubkey(),
         proposal_account.proposal_index,
         proposal_account.envelope_hash,
+        proposal_account.expires_at,
+        approval_requirement,
+        approval_count_after,
         &proposal_account.clear_text,
     );
 
@@ -3345,6 +3439,14 @@ fn typed_approve_or_cancel(
             intent_pubkey: intent_pubkey.to_string(),
             proposal_pubkey: proposal_pubkey.to_string(),
             proposal_index: proposal_account.proposal_index,
+            signer_pubkey: signer_pubkey_b58,
+            approval_requirement,
+            approval_count_after,
+            approval_kind: if is_approve {
+                "approvals"
+            } else {
+                "cancellations"
+            },
             action_kind: proposal_account.action_kind,
             policy_commitment_hex: crate::output::hex_of(&proposal_account.policy_commitment),
             payload_hash_hex: crate::output::hex_of(&proposal_account.payload_hash),
@@ -3352,14 +3454,14 @@ fn typed_approve_or_cancel(
             action_id: String::from_utf8_lossy(&proposal_account.action_id).to_string(),
             nonce: String::from_utf8_lossy(&proposal_account.nonce).to_string(),
             message_hex: crate::output::hex_of(&vote_message),
-            message_flavor: "clearsign_v2_text",
+            message_flavor: typed_message_flavor(&proposal_account.clear_text),
             expiry: proposal_account.expires_at,
         });
         return Ok(());
     }
 
     crate::progress!(
-        "Signing ClearSign v2 {action} message:\n{}",
+        "Signing ClearSign {action} document:\n{}",
         String::from_utf8_lossy(&vote_message)
     );
     let signed_message = config

@@ -12,7 +12,7 @@ import {
 import {
   clearSignVoteMessage,
   summarizeClearSignAction,
-} from "@/lib/clearsign-v2/actions";
+} from "@/lib/clearsign/actions";
 import { signMessageWithInjectedProvider } from "@/lib/wallet/injectedSolana";
 import { signDynamicSolanaMessage } from "@/features/wallet-runtime/infrastructure/dynamicSolanaMessageSigner";
 
@@ -53,9 +53,13 @@ describe("supported send signing matrix", () => {
       const bytes = clearSignVoteMessage({
         voteKind: "propose",
         walletName: "Signing matrix",
+        signerPubkey: new PublicKey(keypair.publicKey).toBase58(),
         proposalIndex: 1,
         envelopeHash: summary.envelopeHash,
         signableText: summary.signableText,
+        expiresAt: sendVerificationEnvelope(asset).expiresAt,
+        approvalsRequired: 2,
+        approvalsAfter: 1,
       });
 
       const signature = await signForRuntime(signer, keypair, bytes);

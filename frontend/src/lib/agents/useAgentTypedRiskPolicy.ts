@@ -9,7 +9,7 @@ import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { buildAgentRiskPolicyClearSign } from "@/lib/agents/riskPolicyClearSign";
 import type { AgentSessionGrant, AgentVaultPolicy } from "@/lib/agents/types";
-import { prepareClearSignAction } from "@/lib/clearsign-v2";
+import { prepareClearSignAction } from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType } from "@/lib/msig";
 import { useConnection, useWallet } from "@/lib/wallet";

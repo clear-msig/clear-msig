@@ -55,7 +55,7 @@ import {
   textCommitmentHex,
   type ClearSignEnvelope,
   type SendPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import { chainByKind } from "@/lib/retail/chains";
 import { appConfig, configuredBrowserRpcUrl } from "@/lib/config";
 import {
@@ -76,7 +76,7 @@ import {
   SEND_NOTE_MAX_LENGTH,
   SEND_NOTE_PLACEHOLDER,
 } from "@/lib/sendFields";
-import { liveUsdEstimate } from "@/lib/clearsign-v2/fiatEstimate";
+import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
 import { PreFlightCard, SentStage, ZcashAwaitingApproval, ZcashCompose } from "@/features/send/ui/zcash/ZcashSendStages";
 
 const ZEC_TEMPLATE = "examples/intents/zcash_transfer.json";
@@ -392,7 +392,7 @@ export default function ZcashSendPage() {
           `approvers:${zcashIntent.approvers.join(",")}`,
         ]);
       const envelope: ClearSignEnvelope<SendPayload> = {
-        version: 2,
+        version: 3,
         kind: "send",
         walletName: name,
         walletId: walletQuery.data?.pda.toBase58(),

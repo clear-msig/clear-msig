@@ -1,4 +1,4 @@
-import type { ClearSignSurfaceStatus } from "@/lib/clearsign-v2/surfaceCoverage";
+import type { ClearSignSurfaceStatus } from "@/lib/clearsign/surfaceCoverage";
 
 export type ClearSignedChainKey = "eth" | "btc" | "zec" | "hyperliquid";
 

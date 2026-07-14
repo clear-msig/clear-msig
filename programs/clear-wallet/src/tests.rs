@@ -12,9 +12,9 @@ use {
         hash_private_escrow_release_payload, hash_private_escrow_return_payload,
         hash_release_milestone_payload, hash_release_token_milestone_payload,
         hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
-        hash_send_payload, hash_wallet_policy_update_payload, write_vote_message,
+        hash_send_payload, hash_wallet_policy_update_payload, write_vote_message_for_clear_text,
         ClearSignActionKind, ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind,
-        MAX_CLEARSIGN_TEXT_BYTES,
+        MAX_CLEARSIGN_VOTE_MESSAGE_BYTES,
     },
     crate::utils::policy::hash_typed_policy,
     alloc::vec,
@@ -1178,13 +1178,37 @@ fn sign_typed_vote(
     proposal_index: u64,
     envelope_hash: [u8; 32],
 ) -> [u8; 64] {
-    let mut message = [0u8; MAX_CLEARSIGN_TEXT_BYTES + 160];
-    let message_len = write_vote_message(
+    sign_typed_vote_with_approval(
+        key,
+        vote_kind,
+        wallet_name,
+        proposal_index,
+        envelope_hash,
+        1,
+        1,
+    )
+}
+
+fn sign_typed_vote_with_approval(
+    key: &ed25519_dalek::SigningKey,
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &str,
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+    approvals_required: u8,
+    approvals_after: u8,
+) -> [u8; 64] {
+    let mut message = [0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
+    let message_len = write_vote_message_for_clear_text(
         &mut message,
         vote_kind,
         wallet_name.as_bytes(),
+        &key.verifying_key().to_bytes(),
         proposal_index,
         envelope_hash,
+        typed_test_expiry(),
+        approvals_required,
+        approvals_after,
         TEST_CLEAR_TEXT,
     )
     .expect("test ClearSign vote message should be valid");
@@ -1198,8 +1222,7 @@ fn sign_typed_vote(
     signature
 }
 
-const TEST_CLEAR_TEXT: &[u8] =
-    b"Send 1 SOL from test wallet to test recipient\nRequires wallet approval";
+const TEST_CLEAR_TEXT: &[u8] = b"ClearSig Proposal\n\nACTION\nSend 1 SOL\n\nDETAILS\nFrom wallet: test wallet\nAmount: 1 SOL\nTo: test recipient\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: test\nEnforcement: Exact payload and policy must match onchain\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, and every destination\n\nPURPOSE\nProgram test";
 
 fn typed_sol_policy_bytes(
     mode: u8,
@@ -6187,12 +6210,14 @@ fn test_cleanup_nonfinalized_typed_proposal_fails() {
         payload_hash,
         envelope_hash,
         proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
+        signature: sign_typed_vote_with_approval(
             &proposer,
             ClearSignVoteKind::Propose,
             wallet_name,
             proposal_index,
             envelope_hash,
+            1,
+            0,
         ),
         clear_text: TEST_CLEAR_TEXT.to_vec(),
         policy_bytes: Vec::new(),

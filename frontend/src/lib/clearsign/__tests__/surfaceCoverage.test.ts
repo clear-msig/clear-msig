@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLEARSIGN_SURFACE_COVERAGE,
   clearSignSurfaceById,
-} from "@/lib/clearsign-v2/surfaceCoverage";
+} from "@/lib/clearsign/surfaceCoverage";
 
 describe("ClearSign surface coverage", () => {
   it("names every high-risk user action surface", () => {

@@ -2,7 +2,7 @@ import {
   summarizeClearSignAction,
   type AgentRiskPolicyPayload,
   type ClearSignEnvelope,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import type { AgentSessionGrant, AgentVaultPolicy } from "@/lib/agents/types";
 import {
   decimalToAgentUsdRaw,
@@ -27,7 +27,7 @@ export function buildAgentRiskPolicyClearSign(
     status,
   };
   const envelope: ClearSignEnvelope<AgentRiskPolicyPayload> = {
-    version: 2,
+    version: 3,
     kind: "agent_risk_policy",
     walletName: session.walletName,
     walletId,
