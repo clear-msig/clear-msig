@@ -20,10 +20,7 @@ WORKDIR /build
 # build cache (or local Docker layer cache) for re-builds.
 COPY . .
 
-RUN --mount=type=cache,id=clear-msig-cargo-registry,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=clear-msig-cargo-git,target=/usr/local/cargo/git \
-    --mount=type=cache,id=clear-msig-backend-target,target=/build/target \
-    cargo build --release -p clear-msig-backend-api \
+RUN cargo build --release -p clear-msig-backend-api \
     && cp target/release/clear-msig-backend-api /clear-msig-backend-api
 
 # ----------------------------------------------------------------------
