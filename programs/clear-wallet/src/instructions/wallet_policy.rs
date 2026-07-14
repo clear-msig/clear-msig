@@ -143,7 +143,7 @@ impl<'info> ExecuteTypedWalletPolicyUpdate<'info> {
         next.set_commitment_for_chain(args.chain_kind, new_policy_commitment)?;
         let view =
             unsafe { &mut *(self.wallet_policy as *mut UncheckedAccount as *mut AccountView) };
-        next.write(view.data_mut_ptr());
+        unsafe { next.write(view.data_mut_ptr()) };
 
         mark_typed_executed(&mut self.intent, &mut self.proposal);
         Ok(())

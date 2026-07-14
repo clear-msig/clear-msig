@@ -25,9 +25,14 @@ import { LedgerError } from "@/lib/wallet/ledger";
 import {
   TypedClearSignMessageVerificationError,
   verifiedTypedClearSignMessageBytes,
-} from "@/lib/clearsign-v2/typedMessage";
+  type ExpectedTypedClearSignMessage,
+} from "@/lib/clearsign/typedMessage";
 import type { DryRunDescriptor, TypedDryRunDescriptor } from "@/lib/api/types";
 import type { MessageFlavor } from "@/lib/msig/offchain";
+import {
+  WalletSignatureTimeoutError,
+  withWalletSignatureTimeout,
+} from "@/lib/wallet/signing";
 
 export interface SignOptions {
   /// When provided, route the sign through the signer whose pubkey
@@ -36,6 +41,8 @@ export interface SignOptions {
   /// pubkey but the user has since connected a Ledger). Resolve via
   /// `useWallet().pickSigner(approvers)`.
   preferSigner?: PublicKey | null;
+  /** Browser-rebuilt transaction binding required for typed proposal creation. */
+  expectedTyped?: ExpectedTypedClearSignMessage;
 }
 
 export interface SignedPayload {
@@ -47,7 +54,11 @@ export interface SignedPayload {
   /// Byte layout that was signed. The backend forwards this to the CLI
   /// so pre-signed verification uses the same layout instead of
   /// guessing via fallback.
-  message_flavor?: "offchain_v1" | "plain_v2" | "clearsign_v2_text";
+  message_flavor?:
+    | "offchain_v1"
+    | "plain_v2"
+    | "clearsign_v2_text"
+    | "clearsign_v3_document";
   /// Hex-encoded exact message bytes the user signed. Typed ClearSign
   /// votes submit this so the program verifies the readable text.
   signed_message_hex?: string;
@@ -66,7 +77,8 @@ export class WalletSignError extends Error {
     | "unknown"
     | "message_mismatch"
     | "stale_request"
-    | "wallet_signed_wrong_bytes";
+    | "wallet_signed_wrong_bytes"
+    | "timeout";
   /// Set when `code === "message_mismatch"` - the bytes the backend
   /// asked us to sign did not match the bytes the frontend rebuilt
   /// from chain state. Includes both for debugging.
@@ -130,7 +142,9 @@ export function useSignWithWallet() {
       const effectiveSigner = options?.preferSigner ?? publicKey;
       let sig: Uint8Array;
       try {
-        sig = await signMessage(messageBytes, options?.preferSigner);
+        sig = await withWalletSignatureTimeout(
+          signMessage(messageBytes, options?.preferSigner),
+        );
       } catch (err) {
         // Distinguish real user rejections from device/transport
         // errors. Treating everything as "rejected" was telling
@@ -303,9 +317,15 @@ export function useSignWithWallet() {
     options?: SignOptions,
   ): Promise<SignedPayload> {
     ensureDescriptorFresh(descriptor);
+    if (descriptor.action === "proposal_typed_create" && !options?.expectedTyped) {
+      throw new WalletSignError(
+        "message_mismatch",
+        "Typed proposal signing requires the transaction details rebuilt in this browser.",
+      );
+    }
     let bytes: Uint8Array;
     try {
-      bytes = verifiedTypedClearSignMessageBytes(descriptor);
+      bytes = verifiedTypedClearSignMessageBytes(descriptor, options?.expectedTyped);
     } catch (err) {
       if (err instanceof TypedClearSignMessageVerificationError) {
         throw new WalletSignError("message_mismatch", err.message);
@@ -319,10 +339,16 @@ export function useSignWithWallet() {
       );
     }
     const signed = await signBytes(bytes, options);
+    if (signed.signer_pubkey !== descriptor.signer_pubkey) {
+      throw new WalletSignError(
+        "message_mismatch",
+        "The wallet that signed does not match the signer named in this approval document.",
+      );
+    }
     ensureDescriptorFresh(descriptor);
     return {
       ...signed,
-      message_flavor: "clearsign_v2_text",
+      message_flavor: descriptor.message_flavor,
       signed_message_hex: descriptor.message_hex,
     };
   }
@@ -345,6 +371,12 @@ function ensureDescriptorFresh(descriptor: { expiry: number }) {
 /// their own codes so `friendlyError` can show "open the Solana app"
 /// instead of "you cancelled".
 function classifySignError(err: unknown): WalletSignError {
+  if (err instanceof WalletSignatureTimeoutError) {
+    return new WalletSignError(
+      "timeout",
+      "Your wallet did not open the signing request. Return to the app and try again, or reconnect the wallet.",
+    );
+  }
   if (err instanceof LedgerError) {
     switch (err.code) {
       case "rejected":

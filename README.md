@@ -7,7 +7,7 @@
 | Live demo | **[clearsig.xyz](https://clearsig.xyz)** |
 | GitHub | [clear-msig/clear-msig](https://github.com/clear-msig/clear-msig) |
 | Program ID (devnet) | [`53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v`](https://explorer.solana.com/address/53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v?cluster=devnet) |
-| Backend (Render) | [clear-msig-backend.onrender.com](https://clear-msig-backend.onrender.com/health) |
+| Backend (Railway) | [clear-msig-backend-production.up.railway.app](https://clear-msig-backend-production.up.railway.app/health) |
 
 > **Pre-alpha — do not use with real funds.** Devnet only. Ika is currently a single mock signer, not production distributed MPC.
 
@@ -195,12 +195,14 @@ programs/clear-wallet/src/
   utils/          Message building, ika_cpi, hashing
   client/         PDA derivation, intent builder, JSON parsing
 
-cli/src/
-  commands/       wallet, intent, proposal, config
+crates/clear-msig-execution/src/
+  commands/       wallet, intent, proposal, config execution handlers
   chains/         Per-chain broadcast adapters
   ika.rs          gRPC DKG / presign / sign, PDA + preimage helpers
 
-backend-api/      Axum HTTP+SSE relayer that shells out to the CLI
+cli/src/          Thin `clear-msig` binary launcher only
+
+backend-api/      Axum relayer linked to the shared Rust execution library
 frontend/         Next.js 15 + React 19 app
 examples/intents/ Per-chain intent JSON templates
 ```
@@ -216,4 +218,4 @@ The full attack-surface walkthrough lives in [SECURITY.md](SECURITY.md). Read it
 - [Agent trading vault MVP plan](docs/agent-trading-vault-mvp-plan.md)
 - [Encrypt pre-alpha integration notes](docs/encrypt-prealpha-testing.md)
 - [Current deploy runbook](docs/deploy-current.md)
-- [Render and Vercel deploy notes](docs/render-migration.md)
+- [Railway and Vercel deploy notes](docs/railway-migration.md)

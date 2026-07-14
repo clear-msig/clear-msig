@@ -7,7 +7,7 @@ use super::{
         json_string, leverage_to_x100, payload_text, payload_u32, recipient_amount,
         update_recipient_amount, AssetEncoding, Money,
     },
-    NormalizedEnvelope, CLEARSIGN_V2_DOMAIN, CLEARSIGN_V2_PAYLOAD_DOMAIN, CLEARSIGN_V2_VERSION,
+    NormalizedEnvelope, CLEARSIGN_PAYLOAD_DOMAIN, CLEARSIGN_V3_DOMAIN, CLEARSIGN_V3_VERSION,
 };
 use crate::ApiError;
 
@@ -164,6 +164,90 @@ pub(super) fn hash_payload(
             hasher.update(expires_at.to_le_bytes());
             hasher.update([status]);
         }
+        ClearSignActionKind::AgentRiskPolicy => {
+            let session_id = payload_text(payload, "sessionId")?;
+            let oracle_policy_hash = hash_bytes_from_hex(
+                &payload_text(payload, "oraclePolicyHash")?,
+                "payload.oraclePolicyHash",
+            )?;
+            let max_loss_raw = payload_text(payload, "maxLossRaw")?
+                .parse::<u128>()
+                .map_err(|_| {
+                    ApiError::BadRequest("payload.maxLossRaw must be an integer".into())
+                })?;
+            let status = match payload_text(payload, "status")?.as_str() {
+                "active" => 1u8,
+                "paused" => 2u8,
+                _ => {
+                    return Err(ApiError::BadRequest(
+                        "payload.status must be active or paused".into(),
+                    ))
+                }
+            };
+            if status == 1 && max_loss_raw == 0 {
+                return Err(ApiError::BadRequest(
+                    "payload.maxLossRaw must be positive for an active policy".into(),
+                ));
+            }
+            update_bytes(&mut hasher, b"agent_risk_policy");
+            hasher.update(text_commitment(&session_id));
+            hasher.update(oracle_policy_hash);
+            hasher.update(max_loss_raw.to_le_bytes());
+            hasher.update([status]);
+        }
+        ClearSignActionKind::AgentTradeSettlement => {
+            let session_id = payload_text(payload, "sessionId")?;
+            let execution_id = payload_text(payload, "executionId")?;
+            let settlement_artifact_hash = hash_bytes_from_hex(
+                &payload_text(payload, "settlementArtifactHash")?,
+                "payload.settlementArtifactHash",
+            )?;
+            let oracle_policy_hash = hash_bytes_from_hex(
+                &payload_text(payload, "oraclePolicyHash")?,
+                "payload.oraclePolicyHash",
+            )?;
+            let closed_notional_raw = payload_text(payload, "closedNotionalRaw")?
+                .parse::<u128>()
+                .map_err(|_| {
+                    ApiError::BadRequest("payload.closedNotionalRaw must be an integer".into())
+                })?;
+            let pnl_abs_raw = payload_text(payload, "pnlAbsRaw")?
+                .parse::<u128>()
+                .map_err(|_| ApiError::BadRequest("payload.pnlAbsRaw must be an integer".into()))?;
+            let outcome = match payload_text(payload, "outcome")?.as_str() {
+                "profit" => 1u8,
+                "loss" => 2u8,
+                "flat" => 3u8,
+                _ => {
+                    return Err(ApiError::BadRequest(
+                        "payload.outcome must be profit, loss, or flat".into(),
+                    ))
+                }
+            };
+            let sequence = payload
+                .get("settlementSequence")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| {
+                    ApiError::BadRequest("payload.settlementSequence must be an integer".into())
+                })?;
+            if closed_notional_raw == 0
+                || (outcome == 3 && pnl_abs_raw != 0)
+                || (outcome != 3 && pnl_abs_raw == 0)
+            {
+                return Err(ApiError::BadRequest(
+                    "agent settlement amount or outcome is invalid".into(),
+                ));
+            }
+            update_bytes(&mut hasher, b"agent_trade_settlement");
+            hasher.update(text_commitment(&session_id));
+            hasher.update(text_commitment(&execution_id));
+            hasher.update(settlement_artifact_hash);
+            hasher.update(oracle_policy_hash);
+            hasher.update(closed_notional_raw.to_le_bytes());
+            hasher.update([outcome]);
+            hasher.update(pnl_abs_raw.to_le_bytes());
+            hasher.update(sequence.to_le_bytes());
+        }
         ClearSignActionKind::AddMember
         | ClearSignActionKind::RemoveMember
         | ClearSignActionKind::ChangeThreshold => {
@@ -242,8 +326,8 @@ pub(super) fn hash_envelope(
     clear_text_hash: [u8; 32],
 ) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    update_bytes(&mut hasher, CLEARSIGN_V2_DOMAIN);
-    hasher.update([CLEARSIGN_V2_VERSION]);
+    update_bytes(&mut hasher, CLEARSIGN_V3_DOMAIN);
+    hasher.update([CLEARSIGN_V3_VERSION]);
     hasher.update([envelope.kind.code()]);
     hasher.update(envelope.expires_at.to_le_bytes());
     update_bytes(&mut hasher, envelope.wallet_name.as_bytes());
@@ -258,7 +342,7 @@ pub(super) fn hash_envelope(
 
 fn payload_hasher(kind: ClearSignActionKind) -> Sha256 {
     let mut hasher = Sha256::new();
-    update_bytes(&mut hasher, CLEARSIGN_V2_PAYLOAD_DOMAIN);
+    update_bytes(&mut hasher, CLEARSIGN_PAYLOAD_DOMAIN);
     hasher.update([kind.code()]);
     hasher
 }
@@ -530,6 +614,80 @@ mod tests {
     }
 
     #[test]
+    fn agent_risk_policy_binds_loss_cap_and_oracle_commitment() {
+        let payload = serde_json::json!({
+            "sessionId": "session-1",
+            "oraclePolicyHash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "maxLossRaw": "100000000",
+            "status": "active"
+        });
+        let changed_cap = serde_json::json!({
+            "sessionId": "session-1",
+            "oraclePolicyHash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "maxLossRaw": "100000001",
+            "status": "active"
+        });
+        let changed_oracle = serde_json::json!({
+            "sessionId": "session-1",
+            "oraclePolicyHash": "2222222222222222222222222222222222222222222222222222222222222222",
+            "maxLossRaw": "100000000",
+            "status": "active"
+        });
+        let base = hash_payload(ClearSignActionKind::AgentRiskPolicy, &payload).unwrap();
+        assert_ne!(
+            base,
+            hash_payload(ClearSignActionKind::AgentRiskPolicy, &changed_cap).unwrap()
+        );
+        assert_ne!(
+            base,
+            hash_payload(ClearSignActionKind::AgentRiskPolicy, &changed_oracle).unwrap()
+        );
+    }
+
+    #[test]
+    fn agent_settlement_binds_artifact_accounting_and_sequence() {
+        let payload = serde_json::json!({
+            "sessionId": "session-1",
+            "executionId": "execution-1",
+            "settlementArtifactHash": "3333333333333333333333333333333333333333333333333333333333333333",
+            "oraclePolicyHash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "closedNotionalRaw": "250000000",
+            "outcome": "loss",
+            "pnlAbsRaw": "50000000",
+            "settlementSequence": 4
+        });
+        let changed_sequence = serde_json::json!({
+            "sessionId": "session-1",
+            "executionId": "execution-1",
+            "settlementArtifactHash": "3333333333333333333333333333333333333333333333333333333333333333",
+            "oraclePolicyHash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "closedNotionalRaw": "250000000",
+            "outcome": "loss",
+            "pnlAbsRaw": "50000000",
+            "settlementSequence": 5
+        });
+        let changed_artifact = serde_json::json!({
+            "sessionId": "session-1",
+            "executionId": "execution-1",
+            "settlementArtifactHash": "4444444444444444444444444444444444444444444444444444444444444444",
+            "oraclePolicyHash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "closedNotionalRaw": "250000000",
+            "outcome": "loss",
+            "pnlAbsRaw": "50000000",
+            "settlementSequence": 4
+        });
+        let base = hash_payload(ClearSignActionKind::AgentTradeSettlement, &payload).unwrap();
+        assert_ne!(
+            base,
+            hash_payload(ClearSignActionKind::AgentTradeSettlement, &changed_sequence).unwrap()
+        );
+        assert_ne!(
+            base,
+            hash_payload(ClearSignActionKind::AgentTradeSettlement, &changed_artifact).unwrap()
+        );
+    }
+
+    #[test]
     fn send_payload_binds_committed_recipient_and_asset() {
         let committed = serde_json::json!({
             "recipient": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
@@ -570,8 +728,8 @@ mod tests {
         clear_text_hash: [u8; 32],
     ) -> [u8; 32] {
         let mut hasher = Sha256::new();
-        update_bytes(&mut hasher, CLEARSIGN_V2_DOMAIN);
-        hasher.update([CLEARSIGN_V2_VERSION]);
+        update_bytes(&mut hasher, CLEARSIGN_V3_DOMAIN);
+        hasher.update([CLEARSIGN_V3_VERSION]);
         hasher.update([envelope.kind.code()]);
         hasher.update(envelope.expires_at.to_le_bytes());
         update_bytes(&mut hasher, envelope.wallet_name.as_bytes());

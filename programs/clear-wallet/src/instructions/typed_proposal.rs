@@ -9,8 +9,9 @@ use crate::{
         wallet::ClearWallet,
     },
     utils::clearsign::{
-        hash_clear_text, hash_envelope, write_vote_message, ClearSignActionKind, ClearSignEnvelope,
-        ClearSignVoteKind, MAX_CLEARSIGN_TEXT_BYTES,
+        hash_clear_text, hash_envelope, hash_envelope_for_clear_text, validate_v3_document,
+        write_vote_message_for_clear_text, ClearSignActionKind, ClearSignEnvelope,
+        ClearSignVoteKind, MAX_CLEARSIGN_VOTE_MESSAGE_BYTES,
     },
     utils::policy::hash_typed_policy,
 };
@@ -140,6 +141,7 @@ impl<'info> ProposeTyped<'info> {
         let kind = ClearSignActionKind::from_code(args.action_kind)
             .ok_or(WalletError::InvalidClearSignAction)?;
         let clear_text = args.clear_text;
+        validate_v3_document(clear_text).map_err(|_| WalletError::ClearSignVersionDowngrade)?;
         let envelope = ClearSignEnvelope {
             kind,
             wallet_name: self.wallet.name().as_bytes(),
@@ -171,18 +173,15 @@ impl<'info> ProposeTyped<'info> {
             self.intent.is_proposer(&proposer_addr),
             WalletError::NotProposer
         );
+        let proposer_approver_index = self.intent.approver_index(&proposer_addr);
+        let approvals_after = u8::from(proposer_approver_index.is_some());
 
         verify_typed_signature(
             ClearSignVoteKind::Propose,
-            self.wallet.name().as_bytes(),
-            self.wallet.address().as_ref(),
-            args.action_kind,
-            args.expiry,
-            args.policy_commitment,
-            args.payload_hash,
-            args.action_id.as_ref(),
-            args.nonce.as_ref(),
+            &envelope,
             clear_text,
+            self.intent.approval_threshold,
+            approvals_after,
             proposal_index,
             args.envelope_hash,
             args.proposer_pubkey,
@@ -192,7 +191,7 @@ impl<'info> ProposeTyped<'info> {
         let mut approval_bitmap = 0u16;
         let mut approved_at = 0i64;
         let mut status = ProposalStatus::Active;
-        if let Some(idx) = self.intent.approver_index(&proposer_addr) {
+        if let Some(idx) = proposer_approver_index {
             approval_bitmap = 1u16 << idx;
             if approval_bitmap.count_ones() as u8 >= self.intent.approval_threshold {
                 status = ProposalStatus::Approved;
@@ -255,17 +254,23 @@ impl<'info> ApproveTyped<'info> {
             WalletError::AlreadyApproved
         );
 
+        let action_id = self.proposal.action_id();
+        let nonce = self.proposal.nonce();
+        let clear_text = self.proposal.clear_text();
+        let envelope = stored_envelope(
+            &self.wallet,
+            &self.proposal,
+            action_id.as_ref(),
+            nonce.as_ref(),
+            clear_text.as_ref(),
+        )?;
+
         verify_typed_signature(
             ClearSignVoteKind::Approve,
-            self.wallet.name().as_bytes(),
-            self.wallet.address().as_ref(),
-            self.proposal.action_kind,
-            self.proposal.expires_at.get(),
-            self.proposal.policy_commitment,
-            self.proposal.payload_hash,
-            self.proposal.action_id().as_ref(),
-            self.proposal.nonce().as_ref(),
-            self.proposal.clear_text().as_ref(),
+            &envelope,
+            clear_text.as_ref(),
+            self.intent.approval_threshold,
+            self.proposal.approval_count().saturating_add(1),
             self.proposal.proposal_index.get(),
             self.proposal.envelope_hash,
             approver_addr.as_ref(),
@@ -299,17 +304,23 @@ impl<'info> CancelTyped<'info> {
             WalletError::AlreadyCancelled
         );
 
+        let action_id = self.proposal.action_id();
+        let nonce = self.proposal.nonce();
+        let clear_text = self.proposal.clear_text();
+        let envelope = stored_envelope(
+            &self.wallet,
+            &self.proposal,
+            action_id.as_ref(),
+            nonce.as_ref(),
+            clear_text.as_ref(),
+        )?;
+
         verify_typed_signature(
             ClearSignVoteKind::Cancel,
-            self.wallet.name().as_bytes(),
-            self.wallet.address().as_ref(),
-            self.proposal.action_kind,
-            self.proposal.expires_at.get(),
-            self.proposal.policy_commitment,
-            self.proposal.payload_hash,
-            self.proposal.action_id().as_ref(),
-            self.proposal.nonce().as_ref(),
-            self.proposal.clear_text().as_ref(),
+            &envelope,
+            clear_text.as_ref(),
+            self.intent.cancellation_threshold,
+            self.proposal.cancellation_count().saturating_add(1),
             self.proposal.proposal_index.get(),
             self.proposal.envelope_hash,
             canceller_addr.as_ref(),
@@ -391,49 +402,56 @@ pub(crate) fn mark_typed_executed(intent: &mut Intent<'_>, proposal: &mut TypedP
 
 fn verify_typed_signature(
     vote_kind: ClearSignVoteKind,
-    wallet_name: &[u8],
-    wallet_id: &[u8],
-    action_kind: u8,
-    expires_at: i64,
-    policy_commitment: [u8; 32],
-    payload_hash: [u8; 32],
-    action_id: &[u8],
-    nonce: &[u8],
-    expected_clear_text: &[u8],
+    envelope: &ClearSignEnvelope<'_>,
+    clear_text: &[u8],
+    approvals_required: u8,
+    approvals_after: u8,
     proposal_index: u64,
     envelope_hash: [u8; 32],
     signer_pubkey: &[u8],
     signature: &[u8; 64],
 ) -> Result<(), ProgramError> {
-    let clear_text = expected_clear_text;
-    let kind =
-        ClearSignActionKind::from_code(action_kind).ok_or(WalletError::InvalidClearSignAction)?;
-    let envelope = ClearSignEnvelope {
-        kind,
-        wallet_name,
-        wallet_id,
-        action_id,
-        nonce,
-        expires_at,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(clear_text)
-            .map_err(|_| WalletError::InvalidClearSignEnvelope)?,
-    };
     require!(
-        hash_envelope(&envelope) == envelope_hash,
+        hash_envelope_for_clear_text(envelope, clear_text) == envelope_hash,
         WalletError::InvalidClearSignEnvelope
     );
-    let mut vote_message = [0u8; MAX_CLEARSIGN_TEXT_BYTES + 160];
-    let vote_message_len = write_vote_message(
+    let mut vote_message = [0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
+    let vote_message_len = write_vote_message_for_clear_text(
         &mut vote_message,
         vote_kind,
-        wallet_name,
+        envelope.wallet_name,
+        signer_pubkey,
         proposal_index,
         envelope_hash,
+        envelope.expires_at,
+        approvals_required,
+        approvals_after,
         clear_text,
     )
     .map_err(|_| WalletError::InvalidClearSignEnvelope)?;
     brine_ed25519::sig_verify(signer_pubkey, signature, &vote_message[..vote_message_len])
         .map_err(|_| WalletError::InvalidSignature.into())
+}
+
+fn stored_envelope<'a>(
+    wallet: &'a ClearWallet<'_>,
+    proposal: &TypedProposal<'_>,
+    action_id: &'a [u8],
+    nonce: &'a [u8],
+    clear_text: &[u8],
+) -> Result<ClearSignEnvelope<'a>, ProgramError> {
+    let kind = ClearSignActionKind::from_code(proposal.action_kind)
+        .ok_or(WalletError::InvalidClearSignAction)?;
+    Ok(ClearSignEnvelope {
+        kind,
+        wallet_name: wallet.name().as_bytes(),
+        wallet_id: wallet.address().as_ref(),
+        action_id,
+        nonce,
+        expires_at: proposal.expires_at.get(),
+        policy_commitment: proposal.policy_commitment,
+        payload_hash: proposal.payload_hash,
+        clear_text_hash: hash_clear_text(clear_text)
+            .map_err(|_| WalletError::InvalidClearSignEnvelope)?,
+    })
 }

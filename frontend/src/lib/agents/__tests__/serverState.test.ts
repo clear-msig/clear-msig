@@ -18,7 +18,7 @@ import {
   saveAgentServerVaultPolicy,
   setAgentServerEmergencyPause,
   validateAgentServerExecutionHandoff,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import type {
   AgentProfile,
   AgentExecutionRecord,

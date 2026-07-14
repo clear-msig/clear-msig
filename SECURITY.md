@@ -2,7 +2,17 @@
 
 Honest accounting of attack surfaces in Clear today + what's mitigated, what's open, and what's deferred. Written by walking the codebase as an attacker would; updated when the model changes.
 
-The product is in pre-alpha. Some load-bearing mitigations (FHE-encrypted policies, on-chain cap enforcement) ride on the Encrypt network going live. Until then, any "encrypted" or "private" badging in the UI is forward-looking, and the in-app chips say "pre-alpha" to make that explicit.
+The product is in pre-alpha. Native-chain recipient, amount, time, velocity,
+member-allowance, approval, and cooldown controls are enforced by the deployed
+Solana program when their active policy commitment is present. Encrypt-backed
+private policy values and private escrow remain pre-alpha and must not be
+described as production confidentiality. The current Ika integration is also
+experimental and is not a production distributed signer.
+
+The component-by-component malicious trust analysis, censorship behavior, and
+operator recovery paths are maintained in [`docs/trust-boundaries.md`](docs/trust-boundaries.md).
+Agent session, loss, exposure, and settlement controls are documented in
+[`docs/agent-vault-security.md`](docs/agent-vault-security.md).
 
 ## Attack surfaces
 
@@ -183,9 +193,9 @@ while a signed-in browser is active; this is not background push. Adding a
 chain indexer or worker would allow notifications to arrive while every client
 is offline.
 
-### O. ClearSign v2 typed proposals
+### O. ClearSign v3 typed proposals
 
-**Vector.** The product now creates typed v2 approval records for escrow and
+**Vector.** The product creates typed v3 approval records for escrow and
 future protected actions. A bad implementation could let a signer approve one
 human-readable action while the program records or executes a different action,
 or could let the same signature be replayed against another proposal/wallet.
@@ -198,19 +208,26 @@ or could let the same signature be replayed against another proposal/wallet.
 - The program recomputes the envelope hash from action kind, wallet name,
   wallet PDA, action id, nonce, expiry, policy commitment, and payload hash
   before storing a typed proposal.
+- The signed v3 document has ordered `ACTION`, `DETAILS`, `POLICY`, `RISK`, and
+  `PURPOSE` sections. The approval wrapper binds the signer, proposal index,
+  threshold, resulting approval count, exact UTC expiry, and full envelope hash.
+- New v2 proposals are rejected. Existing v2 records retain a narrow
+  approve/cancel compatibility path so migration does not strand funds.
 - The program rejects expired typed proposals and caps action lifetime.
 - Execute rechecks action kind, policy commitment, payload hash, envelope hash,
   status, expiry, and timelock before marking a typed proposal executed.
 - Typed SOL escrow release and return-to-funder executors recompute the payload
   hash from the actual destination account(s), amount(s), escrow id, and
   milestone id before moving lamports from the wallet vault.
-- Frontend typed proposal parsing and PDA derivation now have regression tests,
-  so v2 proposal inbox/detail UI does not silently drift from program layout.
+- Frontend typed proposal parsing and PDA derivation have regression tests, so
+  the proposal inbox/detail UI does not silently drift from program layout.
 
-**What this does NOT mitigate yet.** Typed SOL escrow release and
-return-to-funder unwind are covered by program executors. SPL-token escrow,
-BTC/EVM/Ika escrow, and encrypted private escrow still need asset-specific
-typed executors before they should be treated as cryptographically enforced.
+**What this does NOT mitigate yet.** The program binds the exact signed text,
+payload hash, policy commitment, and execution inputs, but does not derive every
+human sentence from the raw payload. Until action-specific onchain document
+renderers or approved template identifiers exist, the trusted preparation
+clients remain responsible for truthful prose. Device-specific compact hardware
+templates are also not active yet.
 
 ## Posture summary
 
@@ -230,7 +247,7 @@ What's solid today:
 - One-click passkey enrollment for embedded-wallet users on /security; soft passkey nudge after wallet create
 - SMTP body sanitization + tight invite limits
 - Replay protection via signed nonce in messages
-- ClearSign v2 typed proposal hashes/signatures for escrow, sends, wallet policy, and **intent governance** (members/threshold/timelock)
+- ClearSign v3 typed proposal documents and hashes/signatures for escrow, sends, wallet policy, and **intent governance** (members/threshold/timelock)
 - TSS-MPC keys via Dynamic (single-host compromise resistant)
 - Pre-alpha caveat on every "encrypted" / "private" chip
 - 0 critical npm vulns; high-severity remainders are transitive + non-reachable
@@ -238,7 +255,7 @@ What's solid today:
 What's load-bearing pre-alpha and ships when the network does:
 - **FHE-encrypted policies are NOT live today.** Honest accounting of where each layer stands:
   - Frontend (`frontend/src/lib/encrypt/client.ts`): wired. Every policy change routes through `encryptPolicy` / `encryptPolicyBatch`. When `NEXT_PUBLIC_ENCRYPT_GRPC_URL` and `NEXT_PUBLIC_ENCRYPT_NETWORK_KEY_HEX` are set, the browser calls Encrypt's published pre-alpha gRPC-Web `createInput` endpoint and forwards the returned ciphertext identifiers. Without those env vars it falls back to the local pre-alpha stub.
-  - CLI (`cli/src/commands/intent.rs`): receives the ciphertext IDs and **logs them only** (`[encrypt] intent-add received N policy ciphertext id(s): …`). They are not forwarded into the on-chain instruction yet.
+  - Execution library (`crates/clear-msig-execution/src/commands/intent.rs`): receives the ciphertext IDs and **logs them only** (`[encrypt] intent-add received N policy ciphertext id(s): …`). They are not forwarded into the on-chain instruction yet.
   - Solana program (`programs/clear-wallet/`): has zero FHE-aware code today. No `#[encrypt_fn]` handlers, no `EUint*` types, no encrypted-bytes account fields. Approval threshold + allowance arithmetic operate on plaintext.
   - Net: a "flip a flag and you're encrypting" story would be misleading. The program work is the bulk of the lift; the frontend can now exercise Encrypt's pre-alpha API surface. UI status text (`encryptStatus().description`) and the /privacy page reflect this.
 - On-chain enforcement of allowances + budgets (program lacks the FHE handlers needed to compare encrypted bytes).
@@ -248,4 +265,18 @@ What's deferred to post-MVP:
 - Inline passkey prompt at wallet-create time for high-value wallets (see K). Today the prompt lives behind one button on `/security`; it's wired but opt-in.
 - Flipping nonce-based CSP from report-only to enforcing (see D). Needs a few days of observed violation reports on production traffic to confirm Dynamic's runtime + framer-motion don't trip on the strict policy.
 
-If you find an issue not in this list, file it with [INSERT REPORTING CHANNEL] before disclosing publicly.
+If you find an issue not in this list, use the private reporting process below
+before disclosing publicly.
+
+## Reporting a vulnerability
+
+Do not open a public issue for suspected vulnerabilities. Use GitHub's private
+vulnerability reporting for this repository so maintainers can investigate
+without exposing users or signing infrastructure.
+
+Include the affected commit, component, reproduction steps, impact, and any
+suggested remediation. Do not access funds, keys, accounts, or data that you do
+not own while validating a report.
+
+Only the current `main` branch is supported during pre-alpha. Security fixes
+are released from reviewed commits after required CI and code-owner approval.

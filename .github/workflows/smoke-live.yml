@@ -6,7 +6,7 @@ on:
       backend_url:
         description: "Backend URL"
         required: true
-        default: "https://clear-msig-backend.onrender.com"
+        default: "https://clear-msig-backend-production.up.railway.app"
       frontend_url:
         description: "Frontend URL"
         required: true

@@ -6,11 +6,9 @@
 // every connector package out of the initial layout chunk that
 // ships on /privacy, /security, /, etc.
 //
-// 2026-05-21: keep only the embedded Solana connector that signs
-// correctly for Clear. Dynamic email / social login still works, but
-// the WaaS-SVM connector is intentionally omitted because its
-// signMessage path UTF-8-decodes payload bytes and breaks Clear's
-// offchain signing envelope.
+// Connector ownership lives in the Embedded, External, and Connect
+// wrappers beside this file. Keeping this base connector-agnostic lets
+// authenticated routes avoid loading a connector family they cannot use.
 
 import {
   DynamicContextProvider,
@@ -18,24 +16,27 @@ import {
   useUserWallets,
   type DynamicContextProps,
 } from "@dynamic-labs/sdk-react-core";
-import { TurnkeySolanaWalletConnectors } from "@dynamic-labs/embedded-wallet-solana";
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { LedgerProvider } from "@/lib/wallet/LedgerProvider";
-import { DynamicWalletRuntimeProvider } from "@/lib/wallet/dynamic";
+import { DynamicWalletRuntimeProvider } from "@/features/wallet-runtime/infrastructure/DynamicWalletRuntimeProvider";
 import {
   EXTERNAL_WALLET_RUNTIME_EVENT,
-  EXTERNAL_WALLET_RUNTIME_KEY,
+  storeAuthenticatedWalletRuntime,
 } from "@/features/wallet-runtime/domain/runtimePreference";
+import {
+  connectedWalletRuntime,
+  type WalletSelectionPreference,
+} from "@/lib/wallet/selection";
+import { initialAuthFlowDecision } from "@/features/wallet-runtime/domain/initialAuthFlow";
 
 interface Props {
   environmentId: string;
   children: React.ReactNode;
-  walletConnectors?: DynamicContextProps["settings"]["walletConnectors"];
-  rememberExternalWallet?: boolean;
+  walletConnectors: DynamicContextProps["settings"]["walletConnectors"];
+  walletPreference: WalletSelectionPreference;
+  persistRuntimePreference?: boolean;
 }
-
-const EMBEDDED_WALLET_CONNECTORS = [TurnkeySolanaWalletConnectors];
 
 // ── Obsidian & Lime brand override for the Dynamic modal ──────────
 // Dynamic renders its auth modal inside a shadow DOM with class
@@ -184,8 +185,9 @@ const DYNAMIC_BRAND_CSS = `
 export default function DynamicProviderTree({
   environmentId,
   children,
-  walletConnectors = EMBEDDED_WALLET_CONNECTORS,
-  rememberExternalWallet = false,
+  walletConnectors,
+  walletPreference,
+  persistRuntimePreference = false,
 }: Props) {
   // Same settings shape and same comments live here as before, just
   // moved out of AppProviders. See the original notes there for
@@ -196,6 +198,7 @@ export default function DynamicProviderTree({
       walletConnectors,
       initialAuthenticationMode: "connect-and-sign",
       deviceRegistrationModal: { enabled: false },
+      transactionConfirmation: { required: true },
       cssOverrides: DYNAMIC_BRAND_CSS,
     }),
     [environmentId, walletConnectors],
@@ -203,9 +206,13 @@ export default function DynamicProviderTree({
 
   return (
     <DynamicContextProvider settings={settings}>
-      <DynamicPostConnectModalGuard rememberExternalWallet={rememberExternalWallet}>
+      <DynamicPostConnectModalGuard
+        persistRuntimePreference={persistRuntimePreference}
+      >
         <LedgerProvider>
-          <DynamicWalletRuntimeProvider>{children}</DynamicWalletRuntimeProvider>
+          <DynamicWalletRuntimeProvider walletPreference={walletPreference}>
+            {children}
+          </DynamicWalletRuntimeProvider>
         </LedgerProvider>
       </DynamicPostConnectModalGuard>
     </DynamicContextProvider>
@@ -214,47 +221,50 @@ export default function DynamicProviderTree({
 
 function DynamicPostConnectModalGuard({
   children,
-  rememberExternalWallet,
+  persistRuntimePreference,
 }: {
   children: React.ReactNode;
-  rememberExternalWallet: boolean;
+  persistRuntimePreference: boolean;
 }) {
   const { primaryWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow } =
     useDynamicContext();
   const wallets = useUserWallets();
+  const initialAuthFlowHandled = useRef(false);
 
   const hasUsableWallet =
     !!primaryWallet || wallets.some((wallet) => wallet && isSolanaWallet(wallet));
 
   useEffect(() => {
-    if (!sdkHasLoaded || !showAuthFlow || !hasUsableWallet) return;
-    setShowAuthFlow(false);
-    // Mobile webviews can re-open Dynamic's auth portal one tick after
-    // wallet hydration. Close it once immediately, then once more after
-    // the SDK has finished its post-connect bookkeeping.
-    const closeAgain = window.setTimeout(() => setShowAuthFlow(false), 250);
-    return () => window.clearTimeout(closeAgain);
+    const decision = initialAuthFlowDecision({
+      sdkHasLoaded,
+      hasUsableWallet,
+      alreadyHandled: initialAuthFlowHandled.current,
+      showAuthFlow,
+    });
+    initialAuthFlowHandled.current = decision.handled;
+    if (decision.dismiss) setShowAuthFlow(false);
   }, [hasUsableWallet, sdkHasLoaded, setShowAuthFlow, showAuthFlow]);
 
   useEffect(() => {
-    if (!rememberExternalWallet || typeof window === "undefined") return;
-    const hasExternalWallet = wallets.some((wallet) => {
-      const connector = (wallet as unknown as {
-        connector?: { key?: string; name?: string; overrideKey?: string };
-      }).connector;
-      const id = (
-        connector?.key ??
-        connector?.overrideKey ??
-        connector?.name ??
-        ""
-      ).toLowerCase();
-      return id.length > 0 && !/dynamicwaas|turnkey/.test(id);
-    });
-    if (hasExternalWallet) {
-      window.localStorage.setItem(EXTERNAL_WALLET_RUNTIME_KEY, "1");
+    if (
+      !persistRuntimePreference ||
+      !sdkHasLoaded ||
+      !hasUsableWallet ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+    const runtime = connectedWalletRuntime(primaryWallet, wallets);
+    if (storeAuthenticatedWalletRuntime(window.localStorage, runtime)) {
       window.dispatchEvent(new Event(EXTERNAL_WALLET_RUNTIME_EVENT));
     }
-  }, [rememberExternalWallet, wallets]);
+  }, [
+    hasUsableWallet,
+    persistRuntimePreference,
+    primaryWallet,
+    sdkHasLoaded,
+    wallets,
+  ]);
 
   return children;
 }

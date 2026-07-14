@@ -25,18 +25,11 @@ import {
   useIsLoggedIn,
   useRegisterPasskey,
 } from "@dynamic-labs/sdk-react-core";
-import DynamicProviderTree from "@/features/wallet-runtime/infrastructure/DynamicProviderTree";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { useToast } from "@/components/ui/Toast";
 
 export default function InteractiveSecurityCards() {
-  const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID ?? "";
-  if (!environmentId) return null;
-  return (
-    <DynamicProviderTree environmentId={environmentId}>
-      <InteractiveSecurityCardsContent />
-    </DynamicProviderTree>
-  );
+  return <InteractiveSecurityCardsContent />;
 }
 
 function InteractiveSecurityCardsContent() {

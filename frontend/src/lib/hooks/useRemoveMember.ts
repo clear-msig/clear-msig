@@ -1,6 +1,6 @@
 "use client";
 
-// Remove a friend from a shared wallet via ClearSign v2 typed governance.
+// Remove a friend from a shared wallet via typed ClearSign governance.
 // Watchers stay local-only.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";

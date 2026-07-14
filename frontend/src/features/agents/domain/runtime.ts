@@ -9,12 +9,12 @@ export { buildAgentAutomaticExitDecisions } from "@/lib/agents/automaticTradeMan
 export type { AgentAutomaticExitDecision } from "@/lib/agents/automaticTradeManagement";
 export { buildAgentBetaReadiness } from "@/lib/agents/betaReadiness";
 export type { AgentBetaReadiness } from "@/lib/agents/betaReadiness";
-export { buildAgentTradeClearSignV2 } from "@/lib/agents/clearsign";
+export { buildAgentTradeClearSign } from "@/lib/agents/clearsign";
 export { acknowledgeAgentComplianceDisclosures, buildAgentComplianceReadiness, hasAgentComplianceAcknowledgement } from "@/lib/agents/compliance";
 export { buildAgentTradeDecisionJournal } from "@/lib/agents/decisionJournal";
 export { canOpenLocalAgentExecution } from "@/lib/agents/executionAdapters";
 export { closeAgentExecutionRecord } from "@/lib/agents/executionClose";
-export { buildAgentFundingPlan } from "@/lib/agents/funding";
+export { buildAgentFundingPlan, buildAgentVaultAllocationHref } from "@/lib/agents/funding";
 export type { AgentFundingRecommendation } from "@/lib/agents/funding";
 export { buildAgentTradeProposalFromSignal, parseAgentSignalJson, sampleAgentSignalPayload } from "@/lib/agents/intake";
 export { buildTradingLaunchState } from "@/lib/agents/launchReadiness";

@@ -1,10 +1,16 @@
 use sha2::{Digest, Sha256};
 
+use crate::utils::base58::encode_base58;
+
 pub const CLEARSIGN_V2_VERSION: u8 = 2;
 pub const CLEARSIGN_V2_DOMAIN: &[u8] = b"clearsig:policy-engine:v2";
+pub const CLEARSIGN_V3_VERSION: u8 = 3;
+pub const CLEARSIGN_V3_DOMAIN: &[u8] = b"clearsig:policy-engine:v3";
 pub const CLEARSIGN_V2_PAYLOAD_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:payload";
 pub const CLEARSIGN_V2_POLICY_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:policy";
 pub const MAX_ACTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
+pub const MAX_CLEARSIGN_VOTE_MESSAGE_BYTES: usize = MAX_CLEARSIGN_TEXT_BYTES + 512;
+pub const CLEARSIGN_V3_DOCUMENT_PREFIX: &[u8] = b"ClearSig Proposal\n\nACTION\n";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -21,6 +27,8 @@ pub enum ClearSignActionKind {
     RecoveryAction = 10,
     SwapIntent = 11,
     AgentSessionGrant = 12,
+    AgentRiskPolicy = 13,
+    AgentTradeSettlement = 14,
 }
 
 impl ClearSignActionKind {
@@ -38,6 +46,8 @@ impl ClearSignActionKind {
             10 => Some(Self::RecoveryAction),
             11 => Some(Self::SwapIntent),
             12 => Some(Self::AgentSessionGrant),
+            13 => Some(Self::AgentRiskPolicy),
+            14 => Some(Self::AgentTradeSettlement),
             _ => None,
         }
     }
@@ -60,12 +70,14 @@ impl ClearSignActionKind {
             Self::RecoveryAction => "Approve recovery",
             Self::SwapIntent => "Approve swap",
             Self::AgentSessionGrant => "Grant agent session",
+            Self::AgentRiskPolicy => "Set agent risk policy",
+            Self::AgentTradeSettlement => "Settle agent trade",
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ClearSignV2Error {
+pub enum ClearSignError {
     MissingWalletName,
     MissingActionId,
     MissingNonce,
@@ -108,24 +120,24 @@ pub struct ClearSignEnvelope<'a> {
 }
 
 impl<'a> ClearSignEnvelope<'a> {
-    pub fn validate_replay_fields(&self, now: i64) -> Result<(), ClearSignV2Error> {
+    pub fn validate_replay_fields(&self, now: i64) -> Result<(), ClearSignError> {
         if self.wallet_name.is_empty() {
-            return Err(ClearSignV2Error::MissingWalletName);
+            return Err(ClearSignError::MissingWalletName);
         }
         if self.action_id.is_empty() {
-            return Err(ClearSignV2Error::MissingActionId);
+            return Err(ClearSignError::MissingActionId);
         }
         if self.nonce.is_empty() {
-            return Err(ClearSignV2Error::MissingNonce);
+            return Err(ClearSignError::MissingNonce);
         }
         if self.action_id.len() != 32 || self.nonce.len() != 32 {
-            return Err(ClearSignV2Error::InvalidReplayCommitment);
+            return Err(ClearSignError::InvalidReplayCommitment);
         }
         if self.expires_at <= now {
-            return Err(ClearSignV2Error::Expired);
+            return Err(ClearSignError::Expired);
         }
         if self.expires_at - now > MAX_ACTION_TTL_SECONDS {
-            return Err(ClearSignV2Error::ExpiryTooFar);
+            return Err(ClearSignError::ExpiryTooFar);
         }
         Ok(())
     }
@@ -142,9 +154,21 @@ pub struct ClearSignRecipientAmount<'a> {
 }
 
 pub fn hash_envelope(envelope: &ClearSignEnvelope<'_>) -> [u8; 32] {
+    hash_envelope_with_domain(envelope, CLEARSIGN_V3_DOMAIN, CLEARSIGN_V3_VERSION)
+}
+
+pub fn hash_envelope_v2(envelope: &ClearSignEnvelope<'_>) -> [u8; 32] {
+    hash_envelope_with_domain(envelope, CLEARSIGN_V2_DOMAIN, CLEARSIGN_V2_VERSION)
+}
+
+fn hash_envelope_with_domain(
+    envelope: &ClearSignEnvelope<'_>,
+    domain: &[u8],
+    version: u8,
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    update_bytes(&mut hasher, CLEARSIGN_V2_DOMAIN);
-    hasher.update([CLEARSIGN_V2_VERSION]);
+    update_bytes(&mut hasher, domain);
+    hasher.update([version]);
     hasher.update([envelope.kind.code()]);
     update_i64(&mut hasher, envelope.expires_at);
     update_bytes(&mut hasher, envelope.wallet_name);
@@ -157,12 +181,58 @@ pub fn hash_envelope(envelope: &ClearSignEnvelope<'_>) -> [u8; 32] {
     finish_hash(hasher)
 }
 
-pub fn hash_clear_text(clear_text: &[u8]) -> Result<[u8; 32], ClearSignV2Error> {
+pub fn hash_envelope_for_clear_text(
+    envelope: &ClearSignEnvelope<'_>,
+    clear_text: &[u8],
+) -> [u8; 32] {
+    if is_v3_document(clear_text) {
+        hash_envelope(envelope)
+    } else {
+        hash_envelope_v2(envelope)
+    }
+}
+
+pub fn is_v3_document(clear_text: &[u8]) -> bool {
+    clear_text.starts_with(CLEARSIGN_V3_DOCUMENT_PREFIX)
+}
+
+pub fn validate_v3_document(clear_text: &[u8]) -> Result<(), ClearSignError> {
+    hash_clear_text(clear_text)?;
+    if !is_v3_document(clear_text)
+        || clear_text
+            .iter()
+            .any(|byte| (*byte < 0x20 && *byte != b'\n') || *byte == 0x7f)
+    {
+        return Err(ClearSignError::InvalidVoteMessage);
+    }
+    let mut cursor = CLEARSIGN_V3_DOCUMENT_PREFIX.len();
+    for section in [
+        b"\n\nDETAILS\n".as_slice(),
+        b"\n\nPOLICY\n".as_slice(),
+        b"\n\nRISK\n".as_slice(),
+        b"\n\nPURPOSE\n".as_slice(),
+    ] {
+        let offset =
+            find_bytes(&clear_text[cursor..], section).ok_or(ClearSignError::InvalidVoteMessage)?;
+        let content = &clear_text[cursor..cursor + offset];
+        if content.is_empty() || find_bytes(content, b"\n\n").is_some() {
+            return Err(ClearSignError::InvalidVoteMessage);
+        }
+        cursor += offset + section.len();
+    }
+    let purpose = &clear_text[cursor..];
+    if purpose.is_empty() || find_bytes(purpose, b"\n\n").is_some() {
+        return Err(ClearSignError::InvalidVoteMessage);
+    }
+    Ok(())
+}
+
+pub fn hash_clear_text(clear_text: &[u8]) -> Result<[u8; 32], ClearSignError> {
     if clear_text.is_empty() {
-        return Err(ClearSignV2Error::MissingClearText);
+        return Err(ClearSignError::MissingClearText);
     }
     if clear_text.len() > MAX_CLEARSIGN_TEXT_BYTES {
-        return Err(ClearSignV2Error::MessageTooLong);
+        return Err(ClearSignError::MessageTooLong);
     }
     let mut hasher = Sha256::new();
     hasher.update(clear_text);
@@ -174,12 +244,63 @@ pub const MAX_CLEARSIGN_TEXT_BYTES: usize = 2048;
 pub fn extract_clear_text_from_vote_message<'a>(
     vote_kind: ClearSignVoteKind,
     wallet_name: &[u8],
+    signer_pubkey: &[u8],
     proposal_index: u64,
     envelope_hash: [u8; 32],
+    expires_at: i64,
+    approvals_required: u8,
+    approvals_after: u8,
     vote_message: &'a [u8],
-) -> Result<&'a [u8], ClearSignV2Error> {
+) -> Result<&'a [u8], ClearSignError> {
+    if vote_message.starts_with(CLEARSIGN_V3_DOCUMENT_PREFIX) {
+        let marker = b"\n\nAPPROVAL\n";
+        let split = find_bytes(vote_message, marker).ok_or(ClearSignError::InvalidVoteMessage)?;
+        let clear_text = &vote_message[..split];
+        let mut cursor = &vote_message[split + marker.len()..];
+        cursor = strip_prefix(cursor, b"Decision: ")?;
+        cursor = strip_prefix(cursor, vote_decision(vote_kind))?;
+        cursor = strip_prefix(cursor, b"\nProposal: #")?;
+        let decimal_len = decimal_u64_len(proposal_index);
+        let mut decimal = [0u8; 20];
+        write_decimal_u64(proposal_index, &mut decimal);
+        cursor = strip_prefix(cursor, &decimal[..decimal_len])?;
+        cursor = strip_prefix(cursor, b"\nWallet: ")?;
+        cursor = strip_prefix(cursor, wallet_name)?;
+        cursor = strip_prefix(cursor, b"\nRequested by: ")?;
+        let mut signer = [0u8; 44];
+        let signer_len =
+            encode_base58(signer_pubkey, &mut signer).ok_or(ClearSignError::InvalidVoteMessage)?;
+        cursor = strip_prefix(cursor, &signer[..signer_len])?;
+        cursor = strip_prefix(cursor, b"\nRequirement: ")?;
+        cursor = strip_decimal_u8(cursor, approvals_required)?;
+        cursor = strip_prefix(
+            cursor,
+            approval_requirement_label(vote_kind, approvals_required),
+        )?;
+        cursor = strip_prefix(cursor, b"\nStatus if accepted: ")?;
+        cursor = strip_decimal_u8(cursor, approvals_after)?;
+        cursor = strip_prefix(cursor, b" of ")?;
+        cursor = strip_decimal_u8(cursor, approvals_required)?;
+        cursor = strip_prefix(
+            cursor,
+            approval_requirement_label(vote_kind, approvals_required),
+        )?;
+        cursor = strip_prefix(cursor, b"\n\nEXPIRY\n")?;
+        let mut expiry = [0u8; 19];
+        crate::utils::datetime::format_timestamp(expires_at, &mut expiry)
+            .ok_or(ClearSignError::InvalidVoteMessage)?;
+        cursor = strip_prefix(cursor, &expiry)?;
+        cursor = strip_prefix(cursor, b" UTC\n\nPROOF\nClearSign: v3\nEnvelope: ")?;
+        let mut hex = [0u8; 64];
+        write_hex_32(&envelope_hash, &mut hex);
+        cursor = strip_prefix(cursor, &hex)?;
+        if !cursor.is_empty() {
+            return Err(ClearSignError::InvalidVoteMessage);
+        }
+        return Ok(clear_text);
+    }
     if vote_message.len() > MAX_CLEARSIGN_TEXT_BYTES + 160 {
-        return Err(ClearSignV2Error::MessageTooLong);
+        return Err(ClearSignError::MessageTooLong);
     }
     let mut cursor = vote_message;
     cursor = strip_prefix(cursor, b"ClearSign v2 ")?;
@@ -197,12 +318,126 @@ pub fn extract_clear_text_from_vote_message<'a>(
     cursor = strip_prefix(cursor, &hex)?;
     cursor = strip_prefix(cursor, b"\n\n")?;
     if cursor.is_empty() {
-        return Err(ClearSignV2Error::MissingClearText);
+        return Err(ClearSignError::MissingClearText);
     }
     if cursor.len() > MAX_CLEARSIGN_TEXT_BYTES {
-        return Err(ClearSignV2Error::MessageTooLong);
+        return Err(ClearSignError::MessageTooLong);
     }
     Ok(cursor)
+}
+
+pub fn write_vote_message_for_clear_text(
+    out: &mut [u8],
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &[u8],
+    signer_pubkey: &[u8],
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+    expires_at: i64,
+    approvals_required: u8,
+    approvals_after: u8,
+    clear_text: &[u8],
+) -> Result<usize, ClearSignError> {
+    if !is_v3_document(clear_text) {
+        return write_vote_message(
+            out,
+            vote_kind,
+            wallet_name,
+            proposal_index,
+            envelope_hash,
+            clear_text,
+        );
+    }
+    hash_clear_text(clear_text)?;
+    let mut len = 0usize;
+    push_bytes(out, &mut len, clear_text)?;
+    push_bytes(out, &mut len, b"\n\nAPPROVAL\nDecision: ")?;
+    push_bytes(out, &mut len, vote_decision(vote_kind))?;
+    push_bytes(out, &mut len, b"\nProposal: #")?;
+    let decimal_len = decimal_u64_len(proposal_index);
+    let mut decimal = [0u8; 20];
+    write_decimal_u64(proposal_index, &mut decimal);
+    push_bytes(out, &mut len, &decimal[..decimal_len])?;
+    push_bytes(out, &mut len, b"\nWallet: ")?;
+    push_bytes(out, &mut len, wallet_name)?;
+    push_bytes(out, &mut len, b"\nRequested by: ")?;
+    let mut signer = [0u8; 44];
+    let signer_len =
+        encode_base58(signer_pubkey, &mut signer).ok_or(ClearSignError::InvalidVoteMessage)?;
+    push_bytes(out, &mut len, &signer[..signer_len])?;
+    push_bytes(out, &mut len, b"\nRequirement: ")?;
+    push_decimal_u8(out, &mut len, approvals_required)?;
+    push_bytes(
+        out,
+        &mut len,
+        approval_requirement_label(vote_kind, approvals_required),
+    )?;
+    push_bytes(out, &mut len, b"\nStatus if accepted: ")?;
+    push_decimal_u8(out, &mut len, approvals_after)?;
+    push_bytes(out, &mut len, b" of ")?;
+    push_decimal_u8(out, &mut len, approvals_required)?;
+    push_bytes(
+        out,
+        &mut len,
+        approval_requirement_label(vote_kind, approvals_required),
+    )?;
+    push_bytes(out, &mut len, b"\n\nEXPIRY\n")?;
+    let mut expiry = [0u8; 19];
+    crate::utils::datetime::format_timestamp(expires_at, &mut expiry)
+        .ok_or(ClearSignError::InvalidVoteMessage)?;
+    push_bytes(out, &mut len, &expiry)?;
+    push_bytes(out, &mut len, b" UTC\n\nPROOF\nClearSign: v3\nEnvelope: ")?;
+    let mut hex = [0u8; 64];
+    write_hex_32(&envelope_hash, &mut hex);
+    push_bytes(out, &mut len, &hex)?;
+    Ok(len)
+}
+
+fn vote_decision(kind: ClearSignVoteKind) -> &'static [u8] {
+    match kind {
+        ClearSignVoteKind::Propose => b"PROPOSE",
+        ClearSignVoteKind::Approve => b"APPROVE",
+        ClearSignVoteKind::Cancel => b"CANCEL",
+    }
+}
+
+fn approval_requirement_label(kind: ClearSignVoteKind, required: u8) -> &'static [u8] {
+    match (kind, required) {
+        (ClearSignVoteKind::Cancel, 1) => b" cancellation",
+        (ClearSignVoteKind::Cancel, _) => b" cancellations",
+        (_, 1) => b" approval",
+        _ => b" approvals",
+    }
+}
+
+fn push_decimal_u8(out: &mut [u8], len: &mut usize, value: u8) -> Result<(), ClearSignError> {
+    let mut digits = [0u8; 3];
+    let width = if value >= 100 {
+        3
+    } else if value >= 10 {
+        2
+    } else {
+        1
+    };
+    let mut remaining = value;
+    for index in (0..width).rev() {
+        digits[index] = b'0' + remaining % 10;
+        remaining /= 10;
+    }
+    push_bytes(out, len, &digits[..width])
+}
+
+fn strip_decimal_u8(input: &[u8], value: u8) -> Result<&[u8], ClearSignError> {
+    let mut digits = [0u8; 3];
+    let mut len = 0usize;
+    push_decimal_u8(&mut digits, &mut len, value)?;
+    strip_prefix(input, &digits[..len])
+}
+
+fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
 
 pub fn write_vote_message(
@@ -212,7 +447,7 @@ pub fn write_vote_message(
     proposal_index: u64,
     envelope_hash: [u8; 32],
     clear_text: &[u8],
-) -> Result<usize, ClearSignV2Error> {
+) -> Result<usize, ClearSignError> {
     hash_clear_text(clear_text)?;
     let mut len = 0usize;
     push_bytes(out, &mut len, b"ClearSign v2 ")?;
@@ -532,6 +767,48 @@ pub fn hash_agent_session_grant_payload(
     finish_hash(hasher)
 }
 
+/// Governed loss policy for one agent session.
+pub fn hash_agent_risk_policy_payload(
+    session_id_hash: &[u8; 32],
+    oracle_policy_hash: &[u8; 32],
+    max_loss_raw: u128,
+    status: u8,
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::AgentRiskPolicy);
+    update_bytes(&mut hasher, b"agent_risk_policy");
+    hasher.update(session_id_hash);
+    hasher.update(oracle_policy_hash);
+    hasher.update(max_loss_raw.to_le_bytes());
+    hasher.update([status]);
+    finish_hash(hasher)
+}
+
+/// Owner-approved settlement binds accounting to an immutable venue/oracle
+/// artifact and a strictly increasing session sequence.
+#[allow(clippy::too_many_arguments)]
+pub fn hash_agent_trade_settlement_payload(
+    session_id_hash: &[u8; 32],
+    execution_id_hash: &[u8; 32],
+    settlement_artifact_hash: &[u8; 32],
+    oracle_policy_hash: &[u8; 32],
+    closed_notional_raw: u128,
+    outcome: u8,
+    pnl_abs_raw: u128,
+    settlement_sequence: u64,
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::AgentTradeSettlement);
+    update_bytes(&mut hasher, b"agent_trade_settlement");
+    hasher.update(session_id_hash);
+    hasher.update(execution_id_hash);
+    hasher.update(settlement_artifact_hash);
+    hasher.update(oracle_policy_hash);
+    hasher.update(closed_notional_raw.to_le_bytes());
+    hasher.update([outcome]);
+    hasher.update(pnl_abs_raw.to_le_bytes());
+    hasher.update(settlement_sequence.to_le_bytes());
+    finish_hash(hasher)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn hash_agent_trade_approval_payload(
     agent_id_hash: &[u8],
@@ -594,18 +871,18 @@ fn finish_hash(hasher: Sha256) -> [u8; 32] {
     out
 }
 
-fn strip_prefix<'a>(input: &'a [u8], prefix: &[u8]) -> Result<&'a [u8], ClearSignV2Error> {
+fn strip_prefix<'a>(input: &'a [u8], prefix: &[u8]) -> Result<&'a [u8], ClearSignError> {
     input
         .strip_prefix(prefix)
-        .ok_or(ClearSignV2Error::InvalidVoteMessage)
+        .ok_or(ClearSignError::InvalidVoteMessage)
 }
 
-fn push_bytes(out: &mut [u8], len: &mut usize, value: &[u8]) -> Result<(), ClearSignV2Error> {
+fn push_bytes(out: &mut [u8], len: &mut usize, value: &[u8]) -> Result<(), ClearSignError> {
     let end = len
         .checked_add(value.len())
-        .ok_or(ClearSignV2Error::MessageTooLong)?;
+        .ok_or(ClearSignError::MessageTooLong)?;
     if end > out.len() {
-        return Err(ClearSignV2Error::MessageTooLong);
+        return Err(ClearSignError::MessageTooLong);
     }
     out[*len..end].copy_from_slice(value);
     *len = end;
@@ -639,7 +916,11 @@ fn write_hex_32(bytes: &[u8; 32], out: &mut [u8; 64]) {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
+
     use super::*;
+
+    const V3_SEND_DOCUMENT: &[u8] = b"ClearSig Proposal\n\nACTION\nSend 2.5 SOL from Team to Sarah\n\nDETAILS\nFrom wallet: Team\nAmount: 2.5 SOL\nTo: Sarah\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: 111111111111...111111111111\nEnforcement: Exact payload and policy must match onchain\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, and every destination\n\nPURPOSE\nPayroll";
 
     fn amount(asset: &'static [u8], raw_amount: u128) -> ClearSignAmount<'static> {
         ClearSignAmount { asset, raw_amount }
@@ -674,11 +955,135 @@ mod tests {
         assert_eq!(ClearSignActionKind::Send.code(), 1);
         assert_eq!(ClearSignActionKind::ReturnEscrowFunds.code(), 8);
         assert_eq!(ClearSignActionKind::SwapIntent.code(), 11);
+        assert_eq!(ClearSignActionKind::AgentRiskPolicy.code(), 13);
+        assert_eq!(ClearSignActionKind::AgentTradeSettlement.code(), 14);
         assert_eq!(
             ClearSignActionKind::from_code(9),
             Some(ClearSignActionKind::AgentTradeApproval)
         );
         assert_eq!(ClearSignActionKind::from_code(99), None);
+    }
+
+    #[test]
+    fn v3_document_validation_is_strict_and_ordered() {
+        assert_eq!(validate_v3_document(V3_SEND_DOCUMENT), Ok(()));
+        assert_eq!(
+            validate_v3_document(b"ClearSign v2 propose\nWallet Team"),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+
+        let reordered = V3_SEND_DOCUMENT
+            .windows(b"\n\nPOLICY\n".len())
+            .position(|window| window == b"\n\nPOLICY\n")
+            .unwrap();
+        let mut malformed = V3_SEND_DOCUMENT.to_vec();
+        malformed.splice(
+            reordered..reordered + b"\n\nPOLICY\n".len(),
+            b"\n\nPURPOSE\n".iter().copied(),
+        );
+        assert_eq!(
+            validate_v3_document(&malformed),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+
+        let injected = V3_SEND_DOCUMENT
+            .iter()
+            .copied()
+            .chain(b"\n\nPROOF\nNot allowed".iter().copied())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            validate_v3_document(&injected),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+
+        let control_character = V3_SEND_DOCUMENT
+            .iter()
+            .copied()
+            .chain([b'\t'])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            validate_v3_document(&control_character),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+    }
+
+    #[test]
+    fn v3_vote_message_round_trips_and_binds_expiry() {
+        let envelope_hash = [0xabu8; 32];
+        let mut message = [0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
+        let len = write_vote_message_for_clear_text(
+            &mut message,
+            ClearSignVoteKind::Approve,
+            b"Team",
+            &[1u8; 32],
+            7,
+            envelope_hash,
+            1_800_000_000,
+            2,
+            1,
+            V3_SEND_DOCUMENT,
+        )
+        .unwrap();
+
+        assert_eq!(
+            extract_clear_text_from_vote_message(
+                ClearSignVoteKind::Approve,
+                b"Team",
+                &[1u8; 32],
+                7,
+                envelope_hash,
+                1_800_000_000,
+                2,
+                1,
+                &message[..len],
+            ),
+            Ok(V3_SEND_DOCUMENT)
+        );
+        assert_eq!(
+            extract_clear_text_from_vote_message(
+                ClearSignVoteKind::Approve,
+                b"Team",
+                &[1u8; 32],
+                7,
+                envelope_hash,
+                1_800_000_001,
+                2,
+                1,
+                &message[..len],
+            ),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+    }
+
+    #[test]
+    fn legacy_v2_vote_messages_remain_verifiable_for_existing_proposals() {
+        let envelope_hash = [0x11u8; 32];
+        let clear_text = b"Send 2.5 SOL to Sarah";
+        let mut message = [0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
+        let len = write_vote_message(
+            &mut message,
+            ClearSignVoteKind::Approve,
+            b"Team",
+            3,
+            envelope_hash,
+            clear_text,
+        )
+        .unwrap();
+
+        assert_eq!(
+            extract_clear_text_from_vote_message(
+                ClearSignVoteKind::Approve,
+                b"Team",
+                &[1u8; 32],
+                3,
+                envelope_hash,
+                1_800_000_000,
+                1,
+                1,
+                &message[..len],
+            ),
+            Ok(clear_text.as_slice())
+        );
     }
 
     #[test]
@@ -745,20 +1150,20 @@ mod tests {
         );
         assert_eq!(
             test_envelope(b"", b"nonce-1", payload).validate_replay_fields(1_799_999_000),
-            Err(ClearSignV2Error::MissingActionId)
+            Err(ClearSignError::MissingActionId)
         );
         assert_eq!(
             test_envelope(&id32(b"action-1"), b"", payload).validate_replay_fields(1_799_999_000),
-            Err(ClearSignV2Error::MissingNonce)
+            Err(ClearSignError::MissingNonce)
         );
         assert_eq!(
             test_envelope(&id32(b"action-1"), &id32(b"nonce-1"), payload)
                 .validate_replay_fields(1_800_000_000),
-            Err(ClearSignV2Error::Expired)
+            Err(ClearSignError::Expired)
         );
         assert_eq!(
             test_envelope(&id32(b"action-1"), &id32(b"nonce-1"), payload).validate_replay_fields(1),
-            Err(ClearSignV2Error::ExpiryTooFar)
+            Err(ClearSignError::ExpiryTooFar)
         );
     }
 

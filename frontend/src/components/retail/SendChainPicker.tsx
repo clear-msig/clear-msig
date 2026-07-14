@@ -15,10 +15,19 @@
 // no obvious entry point to add a second chain.
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Plus } from "lucide-react";
 import { useSendChains } from "@/lib/hooks/useSendChains";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { chainSendSubtitle } from "@/lib/chain/send-support";
+
+const HeldAssetPicker = dynamic(
+  () =>
+    import("@/components/retail/HeldAssetPicker").then(
+      (module) => module.HeldAssetPicker,
+    ),
+  { ssr: false, loading: () => null },
+);
 
 export function SendChainPicker({
   walletName,
@@ -29,14 +38,32 @@ export function SendChainPicker({
 }) {
   const { options, loading } = useSendChains(walletName);
   if (loading) {
+    const solana = options.find((option) => option.chain.kind === 0);
+    const solanaHref = `/app/wallet/${encodeURIComponent(walletName)}/send?asset=solana`;
     return (
-      <div
-        className="mb-4 flex animate-pulse flex-wrap items-center gap-2"
-        aria-hidden="true"
-      >
-        <div className="h-[58px] w-32 rounded-card border border-border-soft bg-surface-raised" />
-        <div className="h-[58px] w-36 rounded-card border border-border-soft bg-surface-raised" />
-      </div>
+      <nav aria-label="Choose what to send" className="mb-4">
+        <div className="flex items-center gap-2 overflow-x-auto rounded-card border border-border-soft bg-surface-raised/80 p-1.5 shadow-card-rest backdrop-blur">
+          {solana ? (
+            <Link href={solanaHref} className="block shrink-0">
+              <span className="flex h-12 min-w-[8.25rem] items-center gap-2 rounded-soft border border-accent/40 bg-canvas px-2.5 text-left text-text-strong shadow-card-rest">
+                <ChainBadge chain={solana.chain} size="sm" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-xs font-medium text-text-strong">
+                    Solana
+                  </span>
+                  <span className="truncate text-[10px] text-text-soft">
+                    Available now
+                  </span>
+                </span>
+              </span>
+            </Link>
+          ) : null}
+          <div
+            className="h-12 w-36 shrink-0 animate-pulse rounded-soft border border-border-soft bg-canvas"
+            aria-label="Loading other assets"
+          />
+        </div>
+      </nav>
     );
   }
   // Show every sendable asset state here. /send is now the user's
@@ -48,10 +75,7 @@ export function SendChainPicker({
   // hidden affordance.
   const addChainHref = `/app/wallet/${encodeURIComponent(walletName)}/chains/add?autostart=1`;
   return (
-    <nav
-      aria-label="Choose what to send"
-      className="mb-4"
-    >
+    <nav aria-label="Choose what to send" className="mb-4">
       <div className="flex items-center gap-2 overflow-x-auto rounded-card border border-border-soft bg-surface-raised/80 p-1.5 shadow-card-rest backdrop-blur md:pb-1.5">
         {visible.map((opt) => {
           const isActive = opt.chain.kind === activeKind;
@@ -120,6 +144,7 @@ export function SendChainPicker({
           <span className="sr-only">Turn on another asset</span>
         </Link>
       </div>
+      <HeldAssetPicker walletName={walletName} activeKind={activeKind} />
     </nav>
   );
 }

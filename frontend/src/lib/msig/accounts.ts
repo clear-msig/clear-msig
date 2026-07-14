@@ -1,4 +1,4 @@
-// Account parsers . TypeScript mirrors of cli/src/accounts.rs.
+// Account parsers . TypeScript mirrors of crates/clear-msig-execution/src/accounts.rs.
 //
 // Every parser returns records whose field names / types line up with
 // the Rust structs so the browser can render them without an extra

@@ -4,6 +4,7 @@ import {
   type PolicyEnforcementPlan,
 } from "@/lib/policies/enforce";
 import {
+  decodeMemberAllowanceCaps,
   encodeTypedRemoteSendPolicy,
   encodeTypedSolPolicy,
 } from "@/lib/policies/onchain";
@@ -288,6 +289,13 @@ describe("policy enforcement guardrails", () => {
     expect(encoded!.bytes[21]).toBe(0);
     expect(readU64Le(encoded!.bytes, 54)).toBe(1_250_000_000n);
     expect(readU32Le(encoded!.bytes, 62)).toBe(7 * 86_400);
+    expect(decodeMemberAllowanceCaps(encoded!.bytes)).toEqual([
+      {
+        member,
+        capRaw: 1_250_000_000n,
+        windowSeconds: 7 * 86_400,
+      },
+    ]);
   });
 });
 

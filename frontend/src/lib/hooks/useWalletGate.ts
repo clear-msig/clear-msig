@@ -115,6 +115,10 @@ export function useWalletGate() {
       readSelectedProductSurface(address)
     );
   }, [address, explicitNextSurface, explicitSurface, pathname]);
+  const rememberedProductHref = useMemo(() => {
+    if (!connectPreferredSurface || !address) return null;
+    return readSelectedProductWalletHref(connectPreferredSurface, address);
+  }, [address, connectPreferredSurface]);
 
   // Only need the memberships count on /connect to pick the post-
   // connect destination. Same queryKey as the dashboard's fetch so
@@ -126,12 +130,14 @@ export function useWalletGate() {
       address.length > 0 &&
       pathname === "/connect" &&
       wallet.connected &&
+      rememberedProductHref === null &&
       (explicitNext === null || shouldResolveExplicitProductNext),
     staleTime: 30_000,
   });
   const productSelection = useMemo(() => {
     if (pathname !== "/connect") return null;
     if (!wallet.connected) return null;
+    if (rememberedProductHref) return null;
     if (memberships.isLoading || memberships.isFetching) return null;
     if (!connectPreferredSurface) return null;
     const selection = productWalletSelection(
@@ -151,6 +157,7 @@ export function useWalletGate() {
     memberships.isFetching,
     memberships.isLoading,
     pathname,
+    rememberedProductHref,
     wallet.connected,
   ]);
 
@@ -166,7 +173,7 @@ export function useWalletGate() {
     // Solana toggle is off). Without this guard /welcome would bounce
     // to /connect, /connect would see them as "logged in" and not
     // know what to do, and they'd loop. Stay on the current page;
-    // /connect's DynamicWidget will render its own status, and
+    // /connect's Dynamic auth flow will render its own status, and
     // /welcome (and other gates) render a NeutralWait that resolves
     // once the Solana wallet appears.
     if (wallet.loggedInWithoutSolana) return;
@@ -180,6 +187,15 @@ export function useWalletGate() {
             clearPendingProductSurface();
           }
           router.replace(explicitNext);
+          return;
+        }
+        // A wallet selected earlier in this browser session is already a
+        // validated same-origin app route. Open it immediately instead of
+        // blocking every reconnect on a full program-account membership scan.
+        // The destination page still reads the wallet from chain.
+        if (rememberedProductHref) {
+          clearPendingProductSurface();
+          router.replace(rememberedProductHref);
           return;
         }
         // Wait for the memberships query to settle so we don't flash
@@ -268,6 +284,7 @@ export function useWalletGate() {
     memberships.isLoading,
     memberships.isFetching,
     memberships.data,
+    rememberedProductHref,
   ]);
 
   return {

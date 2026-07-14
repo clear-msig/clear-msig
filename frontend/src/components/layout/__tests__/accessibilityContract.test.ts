@@ -47,7 +47,9 @@ describe("application accessibility contract", () => {
   it("traps and restores focus in custom modal surfaces", () => {
     const approval = source("src/components/agents/OwnerApprovalDialog.tsx");
     const tour = source("src/components/onboarding/WalletTourModal.tsx");
-    const walletHub = source("src/features/wallet/routes/WalletHomePage.tsx");
+    const walletHub = source(
+      "src/features/wallet/ui/home/MobileWalletSwitchModal.tsx",
+    );
 
     for (const modal of [approval, tour, walletHub]) {
       expect(modal).toContain("useFocusTrap(");

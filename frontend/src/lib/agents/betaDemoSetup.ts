@@ -12,7 +12,7 @@ import {
   saveAgentProposalAndExecuteIfAllowed,
   saveAgentSession,
   saveAgentVaultPolicy,
-} from "@/lib/agents/storage";
+} from "@/features/agents/local-state/store";
 import { seedClearSigAgentDemoHistory } from "@/lib/agents/demoHistory";
 import type { AgentProfile, AgentSessionGrant } from "@/lib/agents/types";
 

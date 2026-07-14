@@ -3,8 +3,8 @@ use serde_json::Value;
 use super::{
     kinds::ClearSignActionKind,
     payload::{
-        format_money, normalize_decimal, payload_text, payload_u32, recipient_amount,
-        AssetEncoding, Money,
+        format_money, normalize_decimal, optional_payload_text, payload_text, payload_u32,
+        recipient_amount, AssetEncoding, Money,
     },
     NormalizedEnvelope,
 };
@@ -14,7 +14,7 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
     match envelope.kind {
         ClearSignActionKind::Send => {
             let row = recipient_amount(&envelope.payload)?;
-            Ok(vec![
+            let mut lines = vec![
                 format!(
                     "Send {} from {} to {}",
                     format_money(&row.money),
@@ -22,7 +22,22 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
                     row.recipient
                 ),
                 "Requires wallet approval".into(),
-            ])
+            ];
+            if let Some(note) = optional_payload_text(&envelope.payload, "note")? {
+                if note.chars().count() > 80 {
+                    return Err(ApiError::BadRequest(
+                        "payload.note must be 80 characters or fewer".into(),
+                    ));
+                }
+                lines.push(format!("Reason: {note}"));
+            }
+            if let Some(estimated_usd) = optional_payload_text(&envelope.payload, "estimatedUsd")? {
+                lines.push(format!(
+                    "Estimated value at review: ${} USD (informational)",
+                    normalize_decimal(&estimated_usd)?
+                ));
+            }
+            Ok(lines)
         }
         ClearSignActionKind::BatchSend => {
             let rows = envelope
@@ -124,6 +139,51 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
             format!(
                 "Max leverage {}",
                 payload_text(&envelope.payload, "maxLeverage")?
+            ),
+        ]),
+        ClearSignActionKind::AgentRiskPolicy => Ok(vec![
+            format!(
+                "{} agent risk policy for {}",
+                if payload_text(&envelope.payload, "status")? == "paused" {
+                    "Pause"
+                } else {
+                    "Set"
+                },
+                payload_text(&envelope.payload, "sessionId")?
+            ),
+            format!(
+                "Maximum realized loss {} raw units",
+                payload_text(&envelope.payload, "maxLossRaw")?
+            ),
+            format!(
+                "Oracle policy {}",
+                payload_text(&envelope.payload, "oraclePolicyHash")?
+            ),
+        ]),
+        ClearSignActionKind::AgentTradeSettlement => Ok(vec![
+            format!(
+                "Settle agent execution {}",
+                payload_text(&envelope.payload, "executionId")?
+            ),
+            format!(
+                "Close {} raw notional as {}",
+                payload_text(&envelope.payload, "closedNotionalRaw")?,
+                payload_text(&envelope.payload, "outcome")?
+            ),
+            format!(
+                "Absolute P/L {} raw units, sequence {}",
+                payload_text(&envelope.payload, "pnlAbsRaw")?,
+                envelope
+                    .payload
+                    .get("settlementSequence")
+                    .and_then(Value::as_u64)
+                    .ok_or_else(|| ApiError::BadRequest(
+                        "payload.settlementSequence must be an integer".into()
+                    ))?
+            ),
+            format!(
+                "Settlement artifact {}",
+                payload_text(&envelope.payload, "settlementArtifactHash")?
             ),
         ]),
         ClearSignActionKind::AddMember => Ok(vec![format!(

@@ -58,23 +58,32 @@ test("counts immediately mounted dynamic runtime chunks once per route", () => {
   assert.deepEqual(manifest.pages["/public/page"], ["shared.js"]);
 });
 
-test("keeps mutually exclusive wallet runtimes in separate route profiles", () => {
+test("keeps WaaS, Turnkey, and external runtimes in separate route profiles", () => {
   const base = { pages: { "/app/a/page": ["route.js"] } };
   const loadables = {
-    embedded: { files: ["core.js", "embedded.js"] },
+    waas: { files: ["core.js", "waas.js"] },
+    turnkey: { files: ["core.js", "turnkey.js"] },
     external: { files: ["core.js", "external.js"] },
   };
-  const embedded = includeImmediateRuntimeChunks(base, loadables, [
-    { routePrefix: "/app/", loadableKey: "embedded" },
+  const waas = includeImmediateRuntimeChunks(base, loadables, [
+    { routePrefix: "/app/", loadableKey: "waas" },
+  ]);
+  const turnkey = includeImmediateRuntimeChunks(base, loadables, [
+    { routePrefix: "/app/", loadableKey: "turnkey" },
   ]);
   const external = includeImmediateRuntimeChunks(base, loadables, [
     { routePrefix: "/app/", loadableKey: "external" },
   ]);
 
-  assert.deepEqual(embedded.pages["/app/a/page"], [
+  assert.deepEqual(waas.pages["/app/a/page"], [
     "route.js",
     "core.js",
-    "embedded.js",
+    "waas.js",
+  ]);
+  assert.deepEqual(turnkey.pages["/app/a/page"], [
+    "route.js",
+    "core.js",
+    "turnkey.js",
   ]);
   assert.deepEqual(external.pages["/app/a/page"], [
     "route.js",

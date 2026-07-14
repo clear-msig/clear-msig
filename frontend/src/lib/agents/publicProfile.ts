@@ -11,7 +11,7 @@ import {
   trackRecordSourceLabel,
   type AgentTrackRecordLane,
 } from "@/lib/agents/trackRecord";
-import type { AgentServerWalletState } from "@/lib/agents/serverState";
+import type { AgentServerWalletState } from "@/features/agents/server/serverState";
 import type {
   AgentExecutionRecord,
   AgentLeaderboardEntry,

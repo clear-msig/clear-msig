@@ -27,7 +27,6 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType } from "@/lib/msig";
 import { friendlyError } from "@/lib/api/errors";
 import {
-  isValidSolanaAddress,
   shortAddress,
   type Contact,
 } from "@/lib/retail/contacts";
@@ -46,6 +45,18 @@ import {
 import { getProTreasuryRuntime } from "@/lib/pro/treasury";
 import { consumeProBatchPrefill } from "@/lib/pro/escrow";
 import { formatUsd, quotePerWhole } from "@/lib/retail/priceConversion";
+import {
+  emptyRow,
+  parseBatchCsv,
+  resolveRow,
+  sanitizeAmount,
+  validRows,
+  type DraftRow,
+  type ResolvedRow,
+  type ResolvedValid,
+} from "@/features/send/domain/batch";
+import { downloadBatchCsvTemplate } from "@/features/send/infrastructure/batchCsv";
+import { formatSol } from "@/features/send/ui/batch/batchPresentation";
 
 // Hard cap on rows per batch - high enough for real payroll, low
 // enough to prevent runaway sign-prompt loops.
@@ -56,12 +67,6 @@ const STAGE_TRANSITION = {
 };
 
 type Stage = "compose" | "review" | "sending" | "done";
-
-interface DraftRow {
-  id: string;
-  recipient: string;
-  amount: string;
-}
 
 export default function BatchSendPageWrapper() {
   return (
@@ -933,18 +938,6 @@ function DoneStage({
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
-interface ResolvedValid {
-  kind: "valid";
-  label: string;
-  destination: string;
-  lamports: string;
-}
-type ResolvedRow =
-  | ResolvedValid
-  | { kind: "empty" }
-  | { kind: "invalid-address" }
-  | { kind: "invalid-amount" };
-
 interface BatchRiskSummary {
   title: string;
   body: string;
@@ -989,155 +982,4 @@ function buildBatchRiskSummary(
   }
 
   return null;
-}
-
-function resolveRow(draft: DraftRow, contacts: Contact[]): ResolvedRow {
-  const recipientRaw = draft.recipient.trim();
-  const amountRaw = draft.amount.trim();
-  if (recipientRaw.length === 0 && amountRaw.length === 0) return { kind: "empty" };
-
-  const contact = contacts.find(
-    (c) => c.name.toLowerCase() === recipientRaw.toLowerCase(),
-  );
-  const destination = contact
-    ? contact.address
-    : isValidSolanaAddress(recipientRaw)
-      ? recipientRaw
-      : null;
-  if (!destination) return { kind: "invalid-address" };
-
-  const sol = Number(amountRaw);
-  if (!isFinite(sol) || sol <= 0) return { kind: "invalid-amount" };
-  const lamports = Math.round(sol * 1_000_000_000).toString();
-  const label = contact ? contact.name : shortAddress(destination);
-
-  return { kind: "valid", label, destination, lamports };
-}
-
-function validRows(resolved: ResolvedRow[]): number {
-  return resolved.filter((r) => r.kind === "valid").length;
-}
-
-function emptyRow(): DraftRow {
-  return {
-    id:
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2, 10),
-    recipient: "",
-    amount: "",
-  };
-}
-
-function parseBatchCsv(raw: string): { rows: DraftRow[]; skipped: number } {
-  const lines = raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (lines.length === 0) return { rows: [], skipped: 0 };
-
-  const first = parseCsvLine(lines[0] ?? "").map((cell) =>
-    cell.trim().toLowerCase(),
-  );
-  const hasHeader =
-    first.includes("amount") ||
-    first.includes("address") ||
-    first.includes("recipient");
-  const header = hasHeader ? first : ["name", "address", "asset", "amount", "note"];
-  const body = hasHeader ? lines.slice(1) : lines;
-  const indexOf = (...keys: string[]) =>
-    keys.map((key) => header.indexOf(key)).find((idx) => idx >= 0) ?? -1;
-  const nameIdx = indexOf("name", "recipient", "payee");
-  const addressIdx = indexOf("address", "wallet", "wallet_address");
-  const assetIdx = indexOf("asset", "token", "ticker");
-  const amountIdx = indexOf("amount", "sol");
-
-  const rows: DraftRow[] = [];
-  let skipped = 0;
-
-  for (const line of body) {
-    const cells = parseCsvLine(line).map((cell) => cell.trim());
-    const asset = assetIdx >= 0 ? (cells[assetIdx] ?? "").toUpperCase() : "SOL";
-    const recipient =
-      (addressIdx >= 0 ? cells[addressIdx] : "") ||
-      (nameIdx >= 0 ? cells[nameIdx] : "");
-    const amount = amountIdx >= 0 ? cells[amountIdx] ?? "" : "";
-    if (!recipient || !amount || (asset && asset !== "SOL")) {
-      skipped += 1;
-      continue;
-    }
-    rows.push({
-      id:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : Math.random().toString(36).slice(2, 10),
-      recipient,
-      amount: sanitizeAmount(amount),
-    });
-  }
-
-  return { rows, skipped };
-}
-
-function parseCsvLine(line: string): string[] {
-  const out: string[] = [];
-  let current = "";
-  let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (quoted && line[i + 1] === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        quoted = !quoted;
-      }
-      continue;
-    }
-    if (ch === "," && !quoted) {
-      out.push(current);
-      current = "";
-      continue;
-    }
-    current += ch;
-  }
-  out.push(current);
-  return out;
-}
-
-function downloadBatchCsvTemplate(
-  columns: string[],
-  template: "batch" | "payroll",
-): void {
-  if (typeof window === "undefined") return;
-  const header = columns.length > 0 ? columns : ["name", "address", "asset", "amount", "note"];
-  const sample =
-    template === "payroll"
-      ? ["Teammate", "SOLANA_ADDRESS", "SOL", "0.25", "Payroll"]
-      : ["Vendor", "SOLANA_ADDRESS", "SOL", "0.25", "Invoice"];
-  const csv = [header.join(","), sample.slice(0, header.length).join(",")].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `clearsig-${template}-template.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function sanitizeAmount(raw: string): string {
-  const stripped = raw.replace(/[^\d.]/g, "");
-  const [whole = "", frac] = stripped.split(".");
-  const w = whole.slice(0, 12);
-  return frac === undefined ? w : `${w}.${frac.slice(0, 4)}`;
-}
-
-function formatSol(n: number): string {
-  if (!isFinite(n) || n === 0) return "0";
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  });
 }

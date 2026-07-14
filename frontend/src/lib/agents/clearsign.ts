@@ -2,10 +2,10 @@ import {
   summarizeClearSignAction,
   type AgentTradePayload,
   type ClearSignEnvelope,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import { sha256, toHex } from "@/lib/msig/hash";
 import type {
-  AgentTradeClearSignV2Snapshot,
+  AgentTradeClearSignSnapshot,
   AgentTradeProposal,
 } from "@/lib/agents/types";
 
@@ -13,10 +13,10 @@ const enc = new TextEncoder();
 const ZERO_HASH = "0".repeat(64);
 const USD_DECIMALS = 6;
 
-export function buildAgentTradeClearSignV2(
+export function buildAgentTradeClearSign(
   proposal: AgentTradeProposal,
   options: { walletId?: string; sessionId?: string } = {},
-): AgentTradeClearSignV2Snapshot {
+): AgentTradeClearSignSnapshot {
   const market = proposal.market.trim().toUpperCase();
   const venue = proposal.venue;
   const assetId = `USDC:${venue}`;
@@ -53,7 +53,7 @@ export function buildAgentTradeClearSignV2(
     riskCheckHash,
   };
   const envelope: ClearSignEnvelope<AgentTradePayload> = {
-    version: 2,
+    version: 3,
     kind: "agent_trade_approval",
     walletName: proposal.walletName,
     walletId: options.walletId ?? proposal.clearSignV2?.walletId ?? "",

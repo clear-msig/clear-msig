@@ -2,8 +2,7 @@
 #
 # Create from Render Dashboard: New > Blueprint > connect this repo.
 # The service builds the existing Dockerfile, which bundles:
-#   - clear-msig-backend-api
-#   - clear-msig CLI
+#   - clear-msig-backend-api with the shared execution library linked in-process
 #   - examples/intents/*
 #
 # Required secrets are marked sync:false and must be filled in the
@@ -20,7 +19,10 @@ services:
     dockerContext: .
     healthCheckPath: /health
     numInstances: 1
-    autoDeployTrigger: checksPass
+    # main is protected by required CI before merge. Render's checksPass mode
+    # waits for every check on the commit, including unrelated Dependabot update
+    # jobs, so one failed dependency refresh can indefinitely block production.
+    autoDeployTrigger: commit
     disk:
       name: clear-msig-data
       mountPath: /data

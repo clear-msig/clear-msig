@@ -59,6 +59,32 @@ for (const file of metrics) {
   if (file.path.includes("/features/agents/controllers/") && file.lines > 700) {
     failures.push(`${label(file.path)} has ${file.lines} lines; agent controllers are capped at 700`);
   }
+  if (
+    /\/features\/agents\/(?:local-state|server)\//.test(file.path) &&
+    file.lines > 700
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; agent state modules are capped at 700`,
+    );
+  }
+  if (
+    /\/lib\/agents\/(?:storage|serverState)\.ts$/.test(file.path) &&
+    file.lines > 80
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; legacy agent state entries must remain compatibility facades`,
+    );
+  }
+  if (
+    !/\/lib\/agents\/(?:storage|serverState)\.ts$/.test(file.path) &&
+    importStatements(file.source).some((statement) =>
+      /@\/lib\/agents\/(?:storage|serverState)/.test(statement),
+    )
+  ) {
+    failures.push(
+      `${label(file.path)} imports legacy agent state instead of the feature-owned boundary`,
+    );
+  }
   if (file.path.includes("/features/agents/infrastructure/")) {
     if (/^\s*export\s+\*/m.test(file.source)) {
       failures.push(`${label(file.path)} uses a wildcard export; infrastructure ports must be explicit`);
@@ -66,6 +92,71 @@ for (const file of metrics) {
     if (file.lines > 120) {
       failures.push(`${label(file.path)} has ${file.lines} lines; split infrastructure ports above 120`);
     }
+  }
+  if (
+    file.path.endsWith("/features/settings/routes/AppSettingsPage.tsx") &&
+    file.lines > 700
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; Settings composition is capped at 700`,
+    );
+  }
+  if (
+    file.path.endsWith("/features/wallet/routes/WalletHomePage.tsx") &&
+    file.lines > 1_100
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; wallet home is capped at 1,100`,
+    );
+  }
+  if (file.path.includes("/features/send/routes/") && file.lines > 1_000) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; send routes are capped at 1,000`,
+    );
+  }
+  if (file.path.includes("/features/send/ui/") && file.lines > 450) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; send UI modules are capped at 450`,
+    );
+  }
+  if (file.path.includes("/features/send/infrastructure/") && file.lines > 250) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; send infrastructure modules are capped at 250`,
+    );
+  }
+  if (file.path.includes("/features/send/ui/")) {
+    const importsInfrastructure = importStatements(file.source).some((statement) =>
+      resolveImport(file.path, statement).includes("/features/send/infrastructure/"),
+    );
+    if (importsInfrastructure) {
+      failures.push(`${label(file.path)} imports send infrastructure from render-only UI`);
+    }
+  }
+  if (file.path.includes("/features/send/domain/")) {
+    const importsPresentationOrRuntime = importStatements(file.source).some(
+      (statement) => {
+        const importedPath = resolveImport(file.path, statement);
+        return (
+          importedPath === "react" ||
+          importedPath === "next" ||
+          importedPath.startsWith("next/") ||
+          importedPath.includes("/components/") ||
+          importedPath.includes("/features/send/ui/") ||
+          importedPath.includes("/features/send/infrastructure/")
+        );
+      },
+    );
+    if (importsPresentationOrRuntime) {
+      failures.push(`${label(file.path)} mixes send domain logic with UI or infrastructure`);
+    }
+  }
+  if (
+    file.path.includes("/features/wallet-runtime/infrastructure/") &&
+    file.lines > 500
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; wallet runtime infrastructure is capped at 500`,
+    );
   }
 
   const isAgentBoundary =
@@ -81,7 +172,7 @@ for (const file of metrics) {
           /\/features\/agents\/infrastructure\/(?:browserRuntime|localAgentRuntime)$/.test(
             importedPath,
           ) ||
-          /\/lib\/agents\/(?:client|server)/.test(importedPath) ||
+          /\/lib\/agents\//.test(importedPath) ||
           /\/lib\/(?:wallet|hooks\/useSignWithWallet)/.test(importedPath)
         );
       },
@@ -117,6 +208,22 @@ for (const file of metrics) {
     if (importsRuntimeBoundary) {
       failures.push(`${label(file.path)} pulls runtime infrastructure into the agent domain`);
     }
+  }
+
+  const importsWalletRuntimeBase = importStatements(file.source).some(
+    (statement) =>
+      resolveImport(file.path, statement).endsWith(
+        "/features/wallet-runtime/infrastructure/DynamicProviderTree",
+      ),
+  );
+  const isWalletRuntimeEntry =
+    /\/features\/wallet-runtime\/infrastructure\/(?:Connect|Waas|Turnkey|External)DynamicProviderTree\.tsx$/.test(
+      file.path,
+    );
+  if (importsWalletRuntimeBase && !isWalletRuntimeEntry) {
+    failures.push(
+      `${label(file.path)} bypasses the explicit wallet runtime entry points`,
+    );
   }
 
   const layer = featureLayer(file.path);

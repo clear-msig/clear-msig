@@ -2,7 +2,7 @@
 
 // Browser-side gRPC-Web client for the Ika dWallet pre-alpha service.
 //
-// Adapted from `solana/packages/frontend/lib/ika-web.ts` in the
+// Portions originate from `solana/packages/frontend/lib/ika-web.ts` in the
 // upstream ikavery repo (https://github.com/Iamknownasfesal/ikavery,
 // BSD-3-Clause). We hand-roll gRPC-Web framing over `fetch` because:
 //

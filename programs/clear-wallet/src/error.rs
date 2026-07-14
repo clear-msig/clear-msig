@@ -48,9 +48,9 @@ pub enum WalletError {
     AccountAddressMismatch,
     /// A parameter value violates its intent constraint.
     ParamConstraintViolation,
-    /// ClearSign v2 action kind is not recognized.
+    /// ClearSign action kind is not recognized.
     InvalidClearSignAction,
-    /// ClearSign v2 envelope hash does not match the provided canonical fields.
+    /// ClearSign envelope hash does not match the provided canonical fields.
     InvalidClearSignEnvelope,
     /// Typed policy bytes are malformed or do not match the signed commitment.
     InvalidPolicy,
@@ -74,4 +74,10 @@ pub enum WalletError {
     AgentSessionInactive,
     /// Agent trade exceeds the remaining session notional or leverage bound.
     AgentSessionLimitExceeded,
+    /// Agent risk policy is missing, paused, exhausted, or does not match.
+    AgentRiskPolicyDenied,
+    /// Agent settlement sequence or artifact does not match current state.
+    AgentSettlementInvalid,
+    /// A new typed proposal attempted to use a legacy ClearSign document.
+    ClearSignVersionDowngrade,
 }

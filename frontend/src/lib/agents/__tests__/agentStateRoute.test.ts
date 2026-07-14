@@ -15,7 +15,7 @@ import {
   saveAgentServerProposal,
   saveAgentServerSession,
   saveAgentServerVaultPolicy,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import type {
   AgentExecutionRecord,
   AgentOwnerApproval,

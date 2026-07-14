@@ -8,6 +8,7 @@ use crate::ApiError;
 pub(super) struct Money {
     pub(super) amount: String,
     pub(super) asset: String,
+    pub(super) display_asset: String,
     pub(super) asset_encoding: AssetEncoding,
     pub(super) raw_amount: u128,
 }
@@ -38,15 +39,36 @@ impl Money {
         asset: String,
         asset_encoding: AssetEncoding,
     ) -> Result<Self, ApiError> {
-        let asset = normalize_text(&asset).to_uppercase();
+        Self::new_with_display(amount, asset, asset_encoding, None, None)
+    }
+
+    fn new_with_display(
+        amount: String,
+        asset: String,
+        asset_encoding: AssetEncoding,
+        decimals: Option<usize>,
+        display_asset: Option<String>,
+    ) -> Result<Self, ApiError> {
+        let asset = normalize_asset_identity(&asset);
         if asset.is_empty() {
             return Err(ApiError::BadRequest("asset must not be empty".into()));
         }
         let amount = normalize_decimal(&amount)?;
-        let raw_amount = decimal_to_raw(&amount, asset_decimals(&asset))?;
+        let decimals = decimals.unwrap_or_else(|| asset_decimals(&asset));
+        if decimals > 36 {
+            return Err(ApiError::BadRequest(
+                "payload.decimals must be between 0 and 36".into(),
+            ));
+        }
+        let display_asset = display_asset
+            .map(|value| normalize_text(&value).to_uppercase())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| asset.clone());
+        let raw_amount = decimal_to_raw(&amount, decimals)?;
         Ok(Self {
             amount,
             asset,
+            display_asset,
             asset_encoding,
             raw_amount,
         })
@@ -57,10 +79,12 @@ pub(super) fn recipient_amount(value: &Value) -> Result<RecipientAmount, ApiErro
     let row = RecipientAmount {
         recipient: payload_text(value, "recipient")?,
         recipient_encoding: recipient_encoding(value)?,
-        money: Money::new(
+        money: Money::new_with_display(
             payload_text(value, "amount")?,
             payload_text(value, "asset")?,
             asset_encoding(value)?,
+            optional_decimals(value)?,
+            optional_payload_text(value, "displayAsset")?,
         )?,
     };
     validate_recipient_amount(&row)?;
@@ -107,6 +131,23 @@ pub(super) fn payload_text(payload: &Value, field: &str) -> Result<String, ApiEr
         )));
     }
     Ok(value)
+}
+
+pub(super) fn optional_payload_text(
+    payload: &Value,
+    field: &str,
+) -> Result<Option<String>, ApiError> {
+    let Some(value) = payload.get(field) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    let value = value
+        .as_str()
+        .map(normalize_text)
+        .ok_or_else(|| ApiError::BadRequest(format!("payload.{field} must be a string")))?;
+    Ok((!value.is_empty()).then_some(value))
 }
 
 pub(super) fn payload_u32(payload: &Value, field: &str) -> Result<u32, ApiError> {
@@ -195,7 +236,7 @@ pub(super) fn leverage_to_x100(value: &str) -> Result<u32, ApiError> {
 }
 
 pub(super) fn normalize_text(value: &str) -> String {
-    value.trim().to_string()
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 pub(super) fn normalize_decimal(value: &str) -> Result<String, ApiError> {
@@ -227,7 +268,7 @@ pub(super) fn normalize_decimal(value: &str) -> Result<String, ApiError> {
 }
 
 pub(super) fn format_money(money: &Money) -> String {
-    format!("{} {}", money.amount, money.asset)
+    format!("{} {}", money.amount, money.display_asset)
 }
 
 pub(super) fn json_string(value: &str) -> Result<String, ApiError> {
@@ -273,5 +314,78 @@ fn asset_decimals(asset: &str) -> usize {
         "ETH" | "HYPE" => 18,
         "USDC" | "USDT" | "USD" => 6,
         _ => 9,
+    }
+}
+
+fn normalize_asset_identity(value: &str) -> String {
+    let asset = normalize_text(value);
+    if asset.len() == 42
+        && asset.starts_with("0x")
+        && asset[2..].bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        asset.to_lowercase()
+    } else {
+        asset.to_uppercase()
+    }
+}
+
+fn optional_decimals(payload: &Value) -> Result<Option<usize>, ApiError> {
+    let Some(value) = payload.get("decimals") else {
+        return Ok(None);
+    };
+    let raw = value
+        .as_u64()
+        .ok_or_else(|| ApiError::BadRequest("payload.decimals must be an integer".into()))?;
+    let decimals = usize::try_from(raw)
+        .map_err(|_| ApiError::BadRequest("payload.decimals is too large".into()))?;
+    if decimals > 36 {
+        return Err(ApiError::BadRequest(
+            "payload.decimals must be between 0 and 36".into(),
+        ));
+    }
+    Ok(Some(decimals))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_human_amounts_become_destination_base_units() {
+        let eth = recipient_amount(&serde_json::json!({
+            "recipient": "0xabc",
+            "amount": "2",
+            "asset": "ETH"
+        }))
+        .unwrap();
+        let btc = recipient_amount(&serde_json::json!({
+            "recipient": "tb1qexample",
+            "amount": "0.003",
+            "asset": "BTC"
+        }))
+        .unwrap();
+
+        assert_eq!(eth.money.raw_amount, 2_000_000_000_000_000_000);
+        assert_eq!(btc.money.raw_amount, 300_000);
+    }
+
+    #[test]
+    fn token_human_amount_uses_contract_decimals_and_readable_symbol() {
+        let token = recipient_amount(&serde_json::json!({
+            "recipient": "0xabc",
+            "amount": "1.5",
+            "asset": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "assetEncoding": "sha256_text",
+            "decimals": 6,
+            "displayAsset": "USDC"
+        }))
+        .unwrap();
+
+        assert_eq!(token.money.raw_amount, 1_500_000);
+        assert_eq!(format_money(&token.money), "1.5 USDC");
+        assert_eq!(
+            token.money.asset,
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        );
     }
 }

@@ -14,6 +14,7 @@ import { decryptAgentVaultPolicy } from "@/features/agents/infrastructure/vaultC
 import { useSignWithWallet } from "@/features/agents/infrastructure/walletSigningClient";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { decodeParam, formatSignedUsd, formatUsd, loadStartMarketData, mergeById, sessionAllowsVenue, venueLabel } from "@/features/agents/ui/start/presentation";
+import { useConnectedVenueSettlement } from "@/features/agents/controllers/useConnectedVenueSettlement";
 
 export function useStartTradingController() {
   const params = useParams<{ name: string }>();
@@ -311,6 +312,15 @@ export function useStartTradingController() {
       setApprovalBusy(false);
     }
   }, [approvalMode, approvalRequest, canSign, signLocalClearText, toast]);
+  const { settleConnectedTrade, settlementBusyId } = useConnectedVenueSettlement({
+    walletName: name,
+    policy,
+    sessions,
+    proposals,
+    requests: venueRequests,
+    requestOwnerApproval,
+    refresh,
+  });
   const acceptDisclosures = () => {
     acknowledgeAgentComplianceDisclosures({
       walletName: name,
@@ -633,6 +643,8 @@ export function useStartTradingController() {
     setupSettings,
     setAgentId,
     setVenue,
+    settleConnectedTrade,
+    settlementBusyId,
     steps,
     submittedVenueRequests,
     tradeLifecycles,

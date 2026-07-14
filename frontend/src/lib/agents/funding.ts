@@ -39,6 +39,18 @@ export interface AgentFundingPlan {
   totalRecommendedNotionalUsd: string;
 }
 
+export function buildAgentVaultAllocationHref(input: {
+  sourceWallet: string;
+  destinationAddress: string;
+  agentVaultName: string;
+}): string {
+  const query = new URLSearchParams({
+    recipient: input.destinationAddress,
+    note: `Allocate to ${input.agentVaultName}`,
+  });
+  return `/app/wallet/${encodeURIComponent(input.sourceWallet)}/send?${query.toString()}`;
+}
+
 export function buildAgentFundingPlan({
   agents,
   scorecards,

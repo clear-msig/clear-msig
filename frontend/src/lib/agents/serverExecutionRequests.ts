@@ -4,6 +4,7 @@ import type {
   AgentServerExecutionRequest,
 } from "@/lib/agents/serverExecutionAdapters";
 import type { HyperliquidTestnetOrderArtifact } from "@/lib/agents/serverHyperliquidTestnet";
+import type { HyperliquidTestnetSettlementArtifact } from "@/lib/agents/serverHyperliquidTestnet";
 
 interface UpstashEnv {
   url: string;
@@ -25,9 +26,85 @@ export interface AgentServerExecutionRecord {
   message: string;
   artifact?: HyperliquidTestnetOrderArtifact;
   artifactHash?: string;
+  settlementArtifact?: HyperliquidTestnetSettlementArtifact;
+  settlementArtifactHash?: string;
+  settlementProposalAddress?: string;
+  settlementProposalStatus?: "created" | "approved" | "executed";
+  settlementTxid?: string;
   createdAt: number;
   updatedAt: number;
   version: 1;
+}
+
+export async function recordAgentServerExecutionSettlement({
+  walletName,
+  agentId,
+  requestId,
+  artifact,
+}: {
+  walletName: string;
+  agentId: string;
+  requestId: string;
+  artifact: HyperliquidTestnetSettlementArtifact;
+}): Promise<AgentServerExecutionRecordResult> {
+  const key = executionKey(walletName, agentId);
+  const redis = readUpstashEnv();
+  const current = redis
+    ? await redisGet<AgentServerExecutionRecord[]>(executionRedisKey(key), redis) ?? []
+    : EXECUTIONS.get(key) ?? [];
+  const existing = current.find((item) => item.id === requestId);
+  if (!existing) throw new Error("Stored venue execution request was not found.");
+  if (existing.settlementArtifact) {
+    return { record: existing, duplicate: true };
+  }
+  const nextRecord: AgentServerExecutionRecord = {
+    ...existing,
+    settlementArtifact: artifact,
+    settlementArtifactHash: hashAgentServerExecutionArtifact(artifact),
+    message: `Hyperliquid testnet position closed by order ${artifact.closingOrderId}. On-chain settlement approval is required.`,
+    updatedAt: Date.now(),
+  };
+  const next = current.map((item) => item.id === requestId ? nextRecord : item);
+  if (redis) await redisSet(executionRedisKey(key), next, redis);
+  else EXECUTIONS.set(key, next);
+  return { record: nextRecord, duplicate: false };
+}
+
+export async function recordAgentServerExecutionSettlementProof({
+  walletName,
+  agentId,
+  requestId,
+  proposalAddress,
+  status,
+  txid,
+}: {
+  walletName: string;
+  agentId: string;
+  requestId: string;
+  proposalAddress: string;
+  status: "created" | "approved" | "executed";
+  txid?: string;
+}): Promise<AgentServerExecutionRecord> {
+  const key = executionKey(walletName, agentId);
+  const redis = readUpstashEnv();
+  const current = redis
+    ? await redisGet<AgentServerExecutionRecord[]>(executionRedisKey(key), redis) ?? []
+    : EXECUTIONS.get(key) ?? [];
+  const existing = current.find((item) => item.id === requestId);
+  if (!existing?.settlementArtifact) {
+    throw new Error("Trusted venue settlement artifact was not found.");
+  }
+  const nextRecord = {
+    ...existing,
+    settlementProposalAddress: proposalAddress,
+    settlementProposalStatus: status,
+    settlementTxid: txid,
+    updatedAt: Date.now(),
+  };
+  const next = current.map((item) => item.id === requestId ? nextRecord : item);
+  if (redis) await redisSet(executionRedisKey(key), next, redis);
+  else EXECUTIONS.set(key, next);
+  return nextRecord;
 }
 
 export interface AgentServerExecutionRecordResult {
@@ -114,7 +191,7 @@ export function agentServerExecutionStorageMode(): "redis" | "memory" {
 }
 
 export function hashAgentServerExecutionArtifact(
-  artifact: HyperliquidTestnetOrderArtifact,
+  artifact: HyperliquidTestnetOrderArtifact | HyperliquidTestnetSettlementArtifact,
 ): string {
   return createHash("sha256").update(stableJson(artifact)).digest("hex");
 }

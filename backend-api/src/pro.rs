@@ -234,7 +234,7 @@ impl ProStore {
         };
         doc.audit_events.push(event.clone());
         doc.audit_events
-            .sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            .sort_by_key(|event| std::cmp::Reverse(event.created_at));
         doc.audit_events.truncate(2_000);
         self.write_locked(&doc).await?;
         Ok(event)
@@ -248,7 +248,7 @@ impl ProStore {
             .into_iter()
             .filter(|row| row.wallet_name == wallet_name)
             .collect();
-        rows.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        rows.sort_by_key(|event| std::cmp::Reverse(event.created_at));
         Ok(rows.into_iter().take(200).collect())
     }
 

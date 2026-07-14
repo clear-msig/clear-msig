@@ -8,13 +8,13 @@
 #   - Optional backend membership lookup when an address is supplied
 #
 # Usage:
-#   BACKEND_URL=https://clear-msig-backend.onrender.com \
+#   BACKEND_URL=https://clear-msig-backend-production.up.railway.app \
 #   FRONTEND_URL=https://clearsig.xyz \
 #   ./scripts/smoke-live.sh [--address <solana-pubkey>]
 
 set -euo pipefail
 
-BACKEND_URL="${BACKEND_URL:-https://clear-msig-backend.onrender.com}"
+BACKEND_URL="${BACKEND_URL:-https://clear-msig-backend-production.up.railway.app}"
 FRONTEND_URL="${FRONTEND_URL:-https://clearsig.xyz}"
 ADDRESS=""
 
@@ -38,6 +38,7 @@ curl_json() {
 echo "Checking backend health: ${BACKEND_URL}/health"
 health="$(curl_json "${BACKEND_URL}/health")"
 echo "$health" | grep -q '"status":"ok"'
+echo "$health" | grep -q '"destination_receipt_storage":"redis"'
 echo "  ok"
 
 echo "Checking frontend live prices: ${FRONTEND_URL}/api/prices"

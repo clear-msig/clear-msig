@@ -1,6 +1,6 @@
 "use client";
 
-// Change a member's role on a shared wallet via ClearSign v2 typed governance.
+// Change a member's role on a shared wallet via typed ClearSign governance.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";

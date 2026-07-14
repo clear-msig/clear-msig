@@ -27,19 +27,17 @@
 //      `POST /tx`.
 //
 // Network: signet by default, matching the CLI's default and the
-// `cli/src/chains/bitcoin.rs` test path. The wallet's chain binding
+// `crates/clear-msig-execution/src/chains/bitcoin.rs` test path. The wallet's chain binding
 // returns either testnet or mainnet addresses; we read the binding
 // at runtime to decide which network the dWallet is bound to. (For
 // pre-alpha all wallets come up on signet/testnet. `tb` HRP. So
 // `validateBtcDestination` accepts both.)
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Loader2, Send } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType, ProposalStatus, toHex } from "@/lib/msig";
@@ -51,7 +49,11 @@ import {
   hasBitcoinChangeIntent,
   waitForBitcoinChangeIntent,
 } from "@/features/send/infrastructure/bitcoinIntent";
-import { SendErrorBanner } from "@/features/send/ui/bitcoin/SendErrorBanner";
+import {
+  type BtcSetupPendingReason,
+} from "@/features/send/ui/bitcoin/BtcSetupStates";
+import { shortBtcAddress } from "@/features/send/ui/bitcoin/bitcoinPreview";
+import { BtcSendScreen } from "@/features/send/ui/bitcoin/BtcSendScreen";
 import { encodeParams } from "@/lib/msig/encode";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
@@ -68,29 +70,8 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useToast } from "@/components/ui/Toast";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
-import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
-import {
-  SignPayloadPreview,
-  type SignPayloadDetail,
-} from "@/components/retail/SignPayloadPreview";
-import {
-  SendReceipt,
-  type ReceiptDetail,
-} from "@/components/retail/SendReceipt";
-import { UsdHint } from "@/components/retail/UsdHint";
-import { SendChainPicker } from "@/components/retail/SendChainPicker";
-import { SendAmountField } from "@/components/retail/SendAmountField";
-import { InfoTip } from "@/components/retail/InfoTip";
-import { Button } from "@/components/retail/Button";
-import { ChainBadge } from "@/components/retail/ChainBadge";
-import { FormField, TextInput } from "@/components/retail/FormField";
-import { chainByKind } from "@/lib/retail/chains";
 import { appConfig } from "@/lib/config";
-import {
-  SEND_NOTE_LABEL,
-  SEND_NOTE_MAX_LENGTH,
-  SEND_NOTE_PLACEHOLDER,
-} from "@/lib/sendFields";
+import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
 import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
@@ -106,13 +87,12 @@ import {
   textCommitmentHex,
   type ClearSignEnvelope,
   type SendPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import {
   BTC_SEND_FEE_RESERVE_SATS,
   DEFAULT_BITCOIN_NETWORK,
   decodeSegwitAddress,
   bitcoinBroadcastUrl,
-  bitcoinExplorerLabel,
   fetchBitcoinAddressSnapshot,
   formatSats,
   mempoolSpaceTxUrl,
@@ -121,7 +101,6 @@ import {
   selectBitcoinSendUtxo,
   validateBtcDestination,
   type BitcoinNetwork,
-  type EsploraUtxo,
 } from "@/lib/chain/btc";
 import {
   BTC_CHAIN_KIND,
@@ -135,8 +114,6 @@ interface BroadcastResultLike {
   tx_id?: string;
   raw_tx_hex?: string;
 }
-
-type BtcSetupPendingReason = "approval" | "sync";
 
 export default function BitcoinSendPageWrapper() {
   return (
@@ -519,7 +496,7 @@ function BitcoinSendPage() {
           `approvers:${btcIntent.approvers.join(",")}`,
         ]);
       const envelope: ClearSignEnvelope<SendPayload> = {
-        version: 2,
+        version: 3,
         kind: "send",
         walletName: name,
         walletId: walletQuery.data?.pda.toBase58(),
@@ -530,10 +507,11 @@ function BitcoinSendPage() {
         payload: {
           recipient: committedRecipient,
           recipientEncoding: "sha256_text",
-          amount: sendAmountSats.toString(),
+          amount: amountBtc.trim(),
           asset: "BTC",
           assetEncoding: "sha256_text",
           note: note.trim() || undefined,
+          estimatedUsd: liveUsdEstimate(amountBtc, "BTC"),
         },
       };
       const summary = await prepareClearSignAction(envelope, {
@@ -552,7 +530,14 @@ function BitcoinSendPage() {
         expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposerPk.toBase58(),
       });
-      const signed = await signTypedDescriptor(dry, { preferSigner: proposerPk });
+      const signed = await signTypedDescriptor(dry, {
+        preferSigner: proposerPk,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
+      });
       const submitted = await backendApi.submit.createTypedProposal(name, {
         ...signed,
         expiry: dry.expiry,
@@ -747,10 +732,6 @@ function BitcoinSendPage() {
   };
 
   // ── Render ────────────────────────────────────────────────────────
-  const motionProps = reduce
-    ? {}
-    : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
-  const btcMeta = chainByKind(BTC_CHAIN_KIND);
   const walletDisplay = toDisplayName(name);
 
   const isLoading =
@@ -838,730 +819,82 @@ function BitcoinSendPage() {
   }, [autoStartSetup, autoStartedSetup, needsSetup, setupIntent]);
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
-      <motion.section
-        {...motionProps}
-        transition={{ duration: 0.3 }}
-        className="flex w-full flex-col gap-5"
-      >
-        {/* Compact left-aligned header. Matches SOL + ETH /send. */}
-        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-          <div className="flex items-center gap-3">
-            {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
-            <div className="flex flex-col gap-0.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                Send
-              </p>
-              <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
-                Send BTC
-              </h1>
-            </div>
-          </div>
-          <p className="text-xs text-text-soft sm:text-sm">
-            From{" "}
-            <span className="font-medium text-text-strong">
-              {walletDisplay}
-            </span>
-            <span className="ml-1 text-text-soft/70">· {btcNetwork}</span>
-          </p>
-        </header>
-
-        <SendChainPicker walletName={name} activeKind={BTC_CHAIN_KIND} />
-
-        {blockedByDisconnect && (
-          <BlockedNote
-            title="Sign in first"
-            body="Connect your Solana wallet to authorise sends from this multisig."
-          />
-        )}
-        {!blockedByDisconnect && blockedByLedger && (
-          <BlockedNote
-            title="Use a software wallet for Bitcoin"
-            body="Switch wallets and try again. Ledger support for Bitcoin sends is coming after the beta path is stable."
-          />
-        )}
-        {isLoading && !blockedByDisconnect && !blockedByLedger && (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-text-soft">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Checking Bitcoin…
-          </div>
-        )}
-
-        {needsBinding && (
-          <NeedsBinding walletName={name} reduce={!!reduce} />
-        )}
-        {needsSetup && !btcSetupPendingApproval && (
-          <NeedsSetup
-            address={dwalletAddress}
-            balanceSats={balanceSats}
-            balanceLoading={btcSnapshotQuery.isLoading}
-            balanceError={btcSnapshotQuery.error}
-            network={btcNetwork}
-            onSetup={() => {
-              if (setupIntent.isPending || setupIntent.isSuccess) return;
-              setupIntent.mutate();
-            }}
-            busy={setupIntent.isPending}
-            reduce={!!reduce}
-          />
-        )}
-        {needsSetup && btcSetupPendingApproval && (
-          <BitcoinSetupPendingCard
-            walletName={name}
-            proposal={btcSetupPendingApproval.proposal}
-            reason={btcSetupPendingApproval.reason}
-          />
-        )}
-        {ready && !sentLabel && !awaitingApprovalLabel && sendError && (
-          <SendErrorBanner
-            error={sendError}
-            onReset={() => {
-              setSendError(null);
-              setDestination("");
-              setAmountBtc("");
-              setDestinationError(null);
-              setAmountError(null);
-            }}
-            onDismiss={() => setSendError(null)}
-          />
-        )}
-        {ready &&
-          !sentLabel &&
-          !awaitingApprovalLabel &&
-          !sendError &&
-          btcSetupPendingApproval && (
-            <BitcoinSetupPendingCard
-              walletName={name}
-              proposal={btcSetupPendingApproval.proposal}
-              reason={btcSetupPendingApproval.reason}
-            />
-          )}
-        {ready && !sentLabel && !awaitingApprovalLabel && policyEvaluation?.matched && (
-          <PolicyMatchBanner walletName={name} evaluation={policyEvaluation} />
-        )}
-        {ready && !sentLabel && !awaitingApprovalLabel && (
-          <div className="flex flex-col gap-3">
-            <SignPayloadPreview
-              action={
-                sendAmountSats && destination.trim()
-                  ? `Send ${amountBtc.trim()} BTC to ${shortBtcAddress(destination.trim())}`
-                  : "Fill in the amount and recipient above"
-              }
-              details={buildBtcPreviewDetails({
-                walletDisplay,
-                destination,
-                amountBtc,
-                selectedUtxo,
-                effectiveFeeSats,
-                changeSats,
-                note,
-                approvalThreshold: btcIntent?.approvalThreshold ?? 1,
-                timelockSeconds: btcIntent?.timelockSeconds ?? 0,
-              })}
-              collapsibleDetails
-            />
-          </div>
-        )}
-        {ready && !sentLabel && !awaitingApprovalLabel && (
-          <ComposeForm
-            destination={destination}
-            setDestination={setDestination}
-            destinationError={destinationError}
-            amountBtc={amountBtc}
-            setAmountBtc={setAmountBtc}
-            note={note}
-            setNote={setNote}
-            amountError={amountError}
-            balanceSats={balanceSats}
-            balanceLoading={btcSnapshotQuery.isLoading}
-            balanceError={btcSnapshotQuery.error}
-            maxSpendableSats={largestSpendableSats}
-            selectedUtxo={selectedUtxo}
-            effectiveFeeSats={effectiveFeeSats}
-            changeSats={changeSats}
-            address={dwalletAddress}
-            network={btcNetwork}
-            sending={send.isPending}
-            canSubmit={canSubmit}
-            walletDisplay={walletDisplay}
-            onSend={handleSend}
-          />
-        )}
-        {sentLabel && (
-          <SentCard
-            sent={sentLabel}
-            walletDisplay={walletDisplay}
-            walletName={name}
-            network={btcNetwork}
-            onAnother={() => {
-              setSentLabel(null);
-              setDestination("");
-              setAmountBtc("");
-              setNote("");
-            }}
-          />
-        )}
-        {awaitingApprovalLabel && (
-          <AwaitingApprovalCard
-            request={awaitingApprovalLabel}
-            walletDisplay={walletDisplay}
-            walletName={name}
-            onAnother={() => {
-              setAwaitingApprovalLabel(null);
-              setDestination("");
-              setAmountBtc("");
-              setNote("");
-            }}
-          />
-        )}
-      </motion.section>
-    </div>
-  );
-}
-
-// ─── Sub-components ──────────────────────────────────────────────────
-
-function BlockedNote({ title, body }: { title: string; body: string }) {
-  return (
-    <aside className="rounded-card border border-warning/40 bg-warning/[0.06] p-4 text-sm text-text-soft">
-      <p className="font-medium text-text-strong">{title}</p>
-      <p className="mt-1">{body}</p>
-    </aside>
-  );
-}
-
-function NeedsBinding({
-  walletName,
-  reduce,
-}: {
-  walletName: string;
-  reduce: boolean;
-}) {
-  const motionProps = reduce
-    ? {}
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  return (
-    <motion.section
-      {...motionProps}
-      transition={{ duration: 0.25 }}
-      className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
-    >
-      <Link
-        href={`/app/wallet/${encodeURIComponent(walletName)}/chains/add?chain=bitcoin_p2wpkh&autostart=1`}
-        className="self-start"
-      >
-        <Button>
-          Turn on Bitcoin sending
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Button>
-      </Link>
-    </motion.section>
-  );
-}
-
-function NeedsSetup({
-  address,
-  balanceSats,
-  balanceLoading,
-  balanceError,
-  network,
-  onSetup,
-  busy,
-  reduce,
-}: {
-  address: string | null;
-  balanceSats: bigint | null;
-  balanceLoading: boolean;
-  balanceError: Error | null;
-  network: BitcoinNetwork;
-  onSetup: () => void;
-  busy: boolean;
-  reduce: boolean;
-}) {
-  const motionProps = reduce
-    ? {}
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  return (
-    <motion.section
-      {...motionProps}
-      transition={{ duration: 0.25 }}
-      className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
-    >
-      {address && (
-        <div className="rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
-            Bitcoin address
-          </p>
-          <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
-            {address}
-          </p>
-          <p className="mt-2 font-numerals text-[11px] tabular-nums text-text-soft">
-            Balance:{" "}
-            {balanceLoading ? (
-              "checking..."
-            ) : balanceSats !== null ? (
-              <>
-                {formatSats(balanceSats)} BTC
-                <UsdHint
-                  amount={balanceSats}
-                  smallestPerWhole={100_000_000n}
-                  ticker="BTC"
-                />
-              </>
-            ) : (
-              btcBalanceStatusLabel(balanceError, network)
-            )}
-          </p>
-        </div>
-      )}
-      <Button onClick={onSetup} disabled={busy} fullWidth>
-        {busy ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Turning on Bitcoin…
-          </>
-        ) : (
-          <>
-            Turn on Bitcoin sending
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </>
-        )}
-      </Button>
-    </motion.section>
-  );
-}
-
-function ComposeForm(props: {
-  destination: string;
-  setDestination: (v: string) => void;
-  destinationError: string | null;
-  amountBtc: string;
-  setAmountBtc: (v: string) => void;
-  note: string;
-  setNote: (v: string) => void;
-  amountError: string | null;
-  balanceSats: bigint | null;
-  balanceLoading: boolean;
-  balanceError: Error | null;
-  maxSpendableSats: bigint;
-  selectedUtxo: EsploraUtxo | null;
-  effectiveFeeSats: bigint | null;
-  changeSats: bigint | null;
-  address: string | null;
-  network: BitcoinNetwork;
-  sending: boolean;
-  canSubmit: boolean;
-  walletDisplay: string;
-  onSend: () => void;
-}) {
-  const balanceBtc =
-    props.balanceSats !== null ? formatSats(props.balanceSats) : null;
-  return (
-    <>
-      {/* Compose grid. Amount + Recipient sit side-by-side on lg+
-          and merge into one bordered card on mobile. Same shell as
-          SOL /send and ETH /send/eth. */}
-      <div
-        className={
-          "flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest " +
-          "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 " +
-          "lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
-        }
-      >
-        {/* Amount card. Balance + Use max live with the input so the
-            spendable BTC state stays visually scoped. */}
-        <section
-          className={
-            "flex flex-col gap-3 " +
-            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
-          }
-        >
-          <SendAmountField
-            id="btc-amount"
-            ticker="BTC"
-            value={props.amountBtc}
-            onChange={(e) => props.setAmountBtc(e.target.value)}
-            maxLength={20}
-            action={
-              props.maxSpendableSats > 0n ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    props.setAmountBtc(formatSats(props.maxSpendableSats));
-                  }}
-                  className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
-                >
-                  Use max
-                </button>
-              ) : null
+    <BtcSendScreen
+      walletName={name}
+      walletDisplay={walletDisplay}
+      network={btcNetwork}
+      reduceMotion={!!reduce}
+      disconnected={blockedByDisconnect}
+      ledgerBlocked={blockedByLedger}
+      loading={isLoading}
+      needsBinding={!!needsBinding}
+      needsSetup={!!needsSetup}
+      ready={!!ready}
+      setupPending={setupIntent.isPending}
+      setupSucceeded={setupIntent.isSuccess}
+      onSetup={() => setupIntent.mutate()}
+      setupRequest={
+        btcSetupPendingApproval
+          ? {
+              walletName: name,
+              proposal: btcSetupPendingApproval.proposal,
+              reason: btcSetupPendingApproval.reason,
             }
-            footer={
-              <>
-                <span>Wallet has </span>
-                <span className="font-numerals font-medium text-text-strong tabular-nums">
-                  {props.balanceLoading
-                    ? "checking..."
-                    : balanceBtc !== null
-                      ? balanceBtc
-                      : btcBalanceStatusLabel(props.balanceError, props.network)}
-                </span>
-                {balanceBtc !== null ? <span> BTC</span> : null}
-                {props.balanceSats !== null && (
-                  <UsdHint
-                    amount={props.balanceSats}
-                    smallestPerWhole={100_000_000n}
-                    ticker="BTC"
-                  />
-                )}
-                {props.amountError && (
-                  <span className="ml-1.5 text-warning">{props.amountError}</span>
-                )}
-                {props.selectedUtxo && props.effectiveFeeSats !== null && (
-                  <span className="block pt-1 text-[11px]">
-                    Fee {formatSats(props.effectiveFeeSats)} BTC
-                    {props.changeSats !== null && props.changeSats > 0n ? (
-                      <> · change {formatSats(props.changeSats)} BTC</>
-                    ) : null}
-                    <InfoTip
-                      label="How the fee is picked"
-                      width="md"
-                      size="xs"
-                      side="end"
-                    >
-                      <span className="block">
-                        Bitcoin sends the amount, pays the network fee, and
-                        returns the remainder to this wallet.
-                      </span>
-                    </InfoTip>
-                  </span>
-                )}
-              </>
-            }
-          />
-        </section>
-
-        {/* Recipient card. Same merged-mobile / split-lg+
-            treatment as Amount above. */}
-        <section
-          className={
-            "flex flex-col gap-3 " +
-            "lg:rounded-card lg:border lg:border-border-soft lg:bg-surface-raised lg:p-4 lg:shadow-card-rest"
-          }
-        >
-          <FormField label="To" error={props.destinationError}>
-            <TextInput
-              id="btc-destination"
-              type="text"
-              value={props.destination}
-              onChange={(e) => props.setDestination(e.target.value)}
-              placeholder={props.network === "mainnet" ? "bc1q…" : "tb1q…"}
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              autoComplete="off"
-              className="font-mono"
-            />
-          </FormField>
-
-          <FormField label={SEND_NOTE_LABEL}>
-            <TextInput
-              id="btc-note"
-              type="text"
-              value={props.note}
-              onChange={(e) =>
-                props.setNote(e.target.value.slice(0, SEND_NOTE_MAX_LENGTH))
-              }
-              placeholder={SEND_NOTE_PLACEHOLDER}
-              maxLength={SEND_NOTE_MAX_LENGTH}
-            />
-          </FormField>
-        </section>
-      </div>
-
-      {/* Action footer. Sticky CTA mirrors the other send pages. */}
-      <div className="flex flex-col gap-2 pt-1">
-        <div
-          className={
-            "-mx-3 sm:mx-0 px-3 sm:px-0 " +
-            "sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] z-20 sm:static sm:bottom-auto " +
-            "border-t border-border-soft bg-canvas pt-3 sm:border-0 sm:bg-transparent sm:pt-0"
-          }
-        >
-          <Button
-            onClick={props.onSend}
-            disabled={props.sending || !props.canSubmit}
-            variant="primary"
-            fullWidth
-            size="lg"
-          >
-            {props.sending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Sending…
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" aria-hidden="true" />
-                Send request
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function BitcoinSetupPendingCard({
-  walletName,
-  proposal,
-  reason,
-}: {
-  walletName: string;
-  proposal: string | null;
-  reason: BtcSetupPendingReason;
-}) {
-  const body =
-    reason === "approval"
-      ? "Waiting for approval. After that, Bitcoin sends will work normally."
-      : "Almost done. ClearSig is checking for the final confirmation.";
-  return (
-    <aside className="rounded-card border border-accent/35 bg-accent/[0.07] p-4 text-sm text-text-soft shadow-card-rest">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="font-semibold text-text-strong">
-            Bitcoin is turning on
-          </p>
-          <p className="mt-1">{body}</p>
-          {proposal ? (
-            <details className="mt-2">
-              <summary className="cursor-pointer text-[11px] text-text-soft hover:text-text-strong">
-                Details
-              </summary>
-              <p className="mt-1 font-mono text-[11px] text-text-soft">
-                {shortHash(proposal)}
-              </p>
-            </details>
-          ) : null}
-        </div>
-        <Link
-          href={`/app/wallet/${encodeURIComponent(walletName)}/activity`}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-accent/30 bg-accent/[0.12] px-4 text-xs font-semibold text-accent transition-colors hover:bg-accent/[0.18]"
-        >
-          View activity
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
-      </div>
-    </aside>
-  );
-}
-
-function SentCard({
-  sent,
-  walletDisplay,
-  walletName,
-  network,
-  onAnother,
-}: {
-  sent: {
-    amountBtc: string;
-    to: string;
-    note: string;
-    txid: string | null;
-    explorerUrl: string | null;
-  };
-  walletDisplay: string;
-  walletName: string;
-  network: string;
-  onAnother: () => void;
-}) {
-  const networkLabel =
-    network === "mainnet" ? "Bitcoin" : `Bitcoin ${network}`;
-  const details: ReceiptDetail[] = [
-    { label: "From", value: walletDisplay },
-    { label: "Network", value: networkLabel },
-  ];
-  if (sent.txid) {
-    details.push({
-      label: "Tx id",
-      value: shortHash(sent.txid),
-      mono: true,
-      copyText: sent.txid,
-    });
-  }
-  if (sent.note) {
-    details.push({ label: "Note", value: sent.note });
-  }
-  return (
-    <SendReceipt
-      status="confirmed"
-      statusLabel={`Broadcast on ${networkLabel}`}
-      amount={sent.amountBtc}
-      ticker="BTC"
-      recipientLabel={sent.to}
-      details={details}
-      explorerHref={sent.explorerUrl}
-      explorerLabel={bitcoinExplorerLabel(network as BitcoinNetwork)}
-      actions={[
-        {
-          label: "Send another",
-          hint: "Same wallet, different recipient.",
-          onClick: onAnother,
-          primary: true,
-          icon: ArrowRight,
-        },
-        {
-          label: "View activity",
-          hint: "See approvals coming in.",
-          href: `/app/wallet/${encodeURIComponent(walletName)}`,
-        },
-      ]}
+          : null
+      }
+      bindingAddress={dwalletAddress}
+      balanceSats={balanceSats}
+      balanceLoading={btcSnapshotQuery.isLoading}
+      balanceError={btcSnapshotQuery.error}
+      sendError={sendError}
+      onResetError={() => {
+        setSendError(null);
+        setDestination("");
+        setAmountBtc("");
+        setDestinationError(null);
+        setAmountError(null);
+      }}
+      onDismissError={() => setSendError(null)}
+      policyEvaluation={policyEvaluation}
+      compose={{
+        destination,
+        setDestination,
+        destinationError,
+        amountBtc,
+        setAmountBtc,
+        note,
+        setNote,
+        amountError,
+        balanceSats,
+        balanceLoading: btcSnapshotQuery.isLoading,
+        balanceError: btcSnapshotQuery.error,
+        maxSpendableSats: largestSpendableSats,
+        selectedUtxo,
+        effectiveFeeSats,
+        changeSats,
+        address: dwalletAddress,
+        network: btcNetwork,
+        sending: send.isPending,
+        canSubmit,
+        walletDisplay,
+        onSend: handleSend,
+      }}
+      approvalThreshold={btcIntent?.approvalThreshold ?? 1}
+      timelockSeconds={btcIntent?.timelockSeconds ?? 0}
+      sent={sentLabel}
+      awaitingApproval={awaitingApprovalLabel}
+      onSendAnother={() => {
+        setSentLabel(null);
+        setDestination("");
+        setAmountBtc("");
+        setNote("");
+      }}
+      onRequestAnother={() => {
+        setAwaitingApprovalLabel(null);
+        setDestination("");
+        setAmountBtc("");
+        setNote("");
+      }}
     />
   );
-}
-
-function AwaitingApprovalCard({
-  request,
-  walletDisplay,
-  walletName,
-  onAnother,
-}: {
-  request: {
-    amountBtc: string;
-    to: string;
-    proposal: string;
-  };
-  walletDisplay: string;
-  walletName: string;
-  onAnother: () => void;
-}) {
-  const details: ReceiptDetail[] = [
-    { label: "From", value: walletDisplay },
-    { label: "Status", value: "Waiting for approvals" },
-    {
-      label: "Proposal",
-      value: shortHash(request.proposal),
-      mono: true,
-      copyText: request.proposal,
-    },
-  ];
-  return (
-    <SendReceipt
-      status="pending"
-      statusLabel="Request created"
-      amount={request.amountBtc}
-      ticker="BTC"
-      recipientLabel={request.to}
-      details={details}
-      actions={[
-        {
-          label: "View activity",
-          hint: "See the request and approval status.",
-          href: `/app/wallet/${encodeURIComponent(walletName)}/activity`,
-          primary: true,
-          icon: ArrowRight,
-        },
-        {
-          label: "New request",
-          hint: "Compose another Bitcoin request.",
-          onClick: onAnother,
-        },
-      ]}
-    />
-  );
-}
-
-function shortHash(s: string): string {
-  if (s.length <= 16) return s;
-  return `${s.slice(0, 8)}…${s.slice(-6)}`;
-}
-
-function buildBtcPreviewDetails(args: {
-  walletDisplay: string;
-  destination: string;
-  amountBtc: string;
-  selectedUtxo: EsploraUtxo | null;
-  effectiveFeeSats: bigint | null;
-  changeSats: bigint | null;
-  note: string;
-  approvalThreshold: number;
-  timelockSeconds: number;
-}): SignPayloadDetail[] {
-  const details: SignPayloadDetail[] = [
-    { label: "From wallet", value: args.walletDisplay },
-    { label: "Network", value: "Bitcoin" },
-    {
-      label: "Approval threshold",
-      value: `${args.approvalThreshold} ${args.approvalThreshold === 1 ? "approval" : "approvals"}`,
-    },
-    {
-      label: "Timelock",
-      value:
-        args.timelockSeconds > 0
-          ? `${args.timelockSeconds} seconds after approval`
-          : "Immediately after approval",
-    },
-  ];
-  const destination = args.destination.trim();
-  if (destination) {
-    details.push({
-      label: "Recipient address",
-      value: shortBtcAddress(destination),
-      emphasis: "mono",
-    });
-  }
-  if (args.amountBtc.trim()) {
-    details.push({
-      label: "Amount",
-      value: `${args.amountBtc.trim()} BTC`,
-      emphasis: "amount",
-    });
-  }
-  if (args.selectedUtxo && args.effectiveFeeSats !== null) {
-    details.push({
-      label: "Network fee",
-      value: `${formatSats(args.effectiveFeeSats)} BTC`,
-    });
-    if (args.changeSats !== null && args.changeSats > 0n) {
-      details.push({
-        label: "Change",
-        value: `${formatSats(args.changeSats)} BTC back to this wallet`,
-      });
-    }
-  }
-  if (args.note.trim()) {
-    details.push({
-      label: "Note",
-      value: args.note.trim(),
-    });
-  }
-  return details;
-}
-
-// ─── error banner ─────────────────────────────────────────────────
-// ─── helpers ─────────────────────────────────────────────────────────
-
-function shortBtcAddress(addr: string): string {
-  if (addr.length <= 16) return addr;
-  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
-}
-
-function btcBalanceStatusLabel(
-  error: Error | null | undefined,
-  _network: BitcoinNetwork,
-): string {
-  if (!error) return "Balance unavailable";
-  const message = error.message.toLowerCase();
-  if (message.includes("404")) return "No Bitcoin found";
-  if (message.includes("failed to fetch") || message.includes("network")) {
-    return "Balance unavailable";
-  }
-  if (message.includes("429") || message.includes("rate")) {
-    return "Balance temporarily unavailable";
-  }
-  if (message.includes("500") || message.includes("502") || message.includes("503")) {
-    return "Balance temporarily unavailable";
-  }
-  return "Check balance";
 }

@@ -22,9 +22,11 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import {
+  findVaultAddress,
   IntentType,
   type IntentAccount,
 } from "@/lib/msig";
+import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { CHAIN_CATALOG, chainByKind, type ChainMeta } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
@@ -78,6 +80,13 @@ export function useSendChains(walletName: string) {
     staleTime: 30_000,
   });
   const bindingsQuery = useWalletChains(walletName);
+  const solanaVaultAddress = useMemo(() => {
+    if (!walletQuery.data) return null;
+    return findVaultAddress(
+      walletQuery.data.pda,
+      CLEAR_WALLET_PROGRAM_ID,
+    )[0].toBase58();
+  }, [walletQuery.data]);
 
   const customIntents = useMemo<IntentAccount[]>(() => {
     return (intentsQuery.data ?? [])
@@ -100,7 +109,7 @@ export function useSendChains(walletName: string) {
       const binding = bindingByKind.get(chain.kind) ?? null;
       const hasBinding = isSolana || !!binding;
       const address = isSolana
-        ? null // /send already knows it's Solana; no per-row address needed.
+        ? solanaVaultAddress
         : binding
           ? chainAddress(binding)
           : null;
@@ -130,7 +139,7 @@ export function useSendChains(walletName: string) {
         status,
       };
     });
-  }, [bindingsQuery.data, customIntents]);
+  }, [bindingsQuery.data, customIntents, solanaVaultAddress]);
 
   return {
     options,

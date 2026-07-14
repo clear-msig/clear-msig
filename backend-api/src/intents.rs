@@ -6,7 +6,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::clearsign::{format_expiry, normalize_expiry_arg, push_pre_signed_flags, PreSigned};
+use crate::clearsign::{format_expiry, normalize_expiry_arg, PreSigned};
 use crate::{
     ensure_base58_pubkey, ensure_intent_filename, ensure_non_empty_vec, ensure_wallet_name,
     ApiError, AppState,
@@ -97,17 +97,13 @@ async fn list_intents(
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    Ok(Json(
-        state
-            .runner
-            .run_json(vec![
-                "intent".to_string(),
-                "list".to_string(),
-                "--wallet".to_string(),
-                name,
-            ])
-            .await?,
-    ))
+    run_intent_command(
+        &state,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
+        clear_msig_command_contract::DirectCommand::IntentList { wallet: name },
+        None,
+    )
+    .await
 }
 
 async fn add_intent(
@@ -118,24 +114,22 @@ async fn add_intent(
     ensure_wallet_name(&name, "name")?;
     ensure_intent_filename(&body.file, "file")?;
     body.pre_signed.ensure_valid()?;
-    state
-        .rate_limiter
-        .check(&body.pre_signed.signer_pubkey)
-        .await?;
 
-    let mut args = Vec::with_capacity(16);
-    push_pre_signed_flags(&mut args, &body.pre_signed);
-    args.extend([
-        "intent".into(),
-        "add".into(),
-        "--wallet".into(),
-        name,
-        "--file".into(),
-        body.file,
-        "--expiry".into(),
-        format_expiry(body.pre_signed.expiry)?,
-    ]);
-    Ok(Json(state.runner.run_json(args).await?))
+    let expiry = format_expiry(body.pre_signed.expiry)?;
+    let rate_key = body.pre_signed.signer_pubkey.clone();
+    let context = presigned_context(body.pre_signed);
+    let command = clear_msig_command_contract::DirectCommand::IntentAdd {
+        wallet: name,
+        file: Some(body.file),
+        proposers: Vec::new(),
+        approvers: Vec::new(),
+        threshold: None,
+        cancellation_threshold: 1,
+        timelock: 0,
+        expiry: Some(expiry),
+        policy_ciphertexts: Vec::new(),
+    };
+    run_intent_command(&state, context, command, Some(&rate_key)).await
 }
 
 async fn remove_intent(
@@ -145,24 +139,16 @@ async fn remove_intent(
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
     body.pre_signed.ensure_valid()?;
-    state
-        .rate_limiter
-        .check(&body.pre_signed.signer_pubkey)
-        .await?;
 
-    let mut args = Vec::with_capacity(12);
-    push_pre_signed_flags(&mut args, &body.pre_signed);
-    args.extend([
-        "intent".into(),
-        "remove".into(),
-        "--wallet".into(),
-        name,
-        "--index".into(),
-        body.index.to_string(),
-        "--expiry".into(),
-        format_expiry(body.pre_signed.expiry)?,
-    ]);
-    Ok(Json(state.runner.run_json(args).await?))
+    let expiry = format_expiry(body.pre_signed.expiry)?;
+    let rate_key = body.pre_signed.signer_pubkey.clone();
+    let context = presigned_context(body.pre_signed);
+    let command = clear_msig_command_contract::DirectCommand::IntentRemove {
+        wallet: name,
+        index: body.index,
+        expiry: Some(expiry),
+    };
+    run_intent_command(&state, context, command, Some(&rate_key)).await
 }
 
 async fn update_intent(
@@ -173,26 +159,23 @@ async fn update_intent(
     ensure_wallet_name(&name, "name")?;
     ensure_intent_filename(&body.file, "file")?;
     body.pre_signed.ensure_valid()?;
-    state
-        .rate_limiter
-        .check(&body.pre_signed.signer_pubkey)
-        .await?;
 
-    let mut args = Vec::with_capacity(14);
-    push_pre_signed_flags(&mut args, &body.pre_signed);
-    args.extend([
-        "intent".into(),
-        "update".into(),
-        "--wallet".into(),
-        name,
-        "--index".into(),
-        body.index.to_string(),
-        "--file".into(),
-        body.file,
-        "--expiry".into(),
-        format_expiry(body.pre_signed.expiry)?,
-    ]);
-    Ok(Json(state.runner.run_json(args).await?))
+    let expiry = format_expiry(body.pre_signed.expiry)?;
+    let rate_key = body.pre_signed.signer_pubkey.clone();
+    let context = presigned_context(body.pre_signed);
+    let command = clear_msig_command_contract::DirectCommand::IntentUpdate {
+        wallet: name,
+        index: body.index,
+        file: Some(body.file),
+        proposers: Vec::new(),
+        approvers: Vec::new(),
+        threshold: None,
+        cancellation_threshold: 1,
+        timelock: 0,
+        expiry: Some(expiry),
+        policy_ciphertexts: Vec::new(),
+    };
+    run_intent_command(&state, context, command, Some(&rate_key)).await
 }
 
 async fn prepare_intent_add(
@@ -213,31 +196,28 @@ async fn prepare_intent_add(
     if body.threshold == 0 {
         return Err(ApiError::BadRequest("threshold must be >= 1".into()));
     }
-    let mut args = vec!["--dry-run".into()];
-    args.extend([
-        "intent".into(),
-        "add".into(),
-        "--wallet".into(),
-        name,
-        "--file".into(),
-        body.file,
-        "--proposers".into(),
-        body.proposers.join(","),
-        "--approvers".into(),
-        body.approvers.join(","),
-        "--threshold".into(),
-        body.threshold.to_string(),
-        "--cancellation-threshold".into(),
-        body.cancellation_threshold.unwrap_or(1).to_string(),
-        "--timelock".into(),
-        body.timelock.unwrap_or(0).to_string(),
-    ]);
-    if let Some(e) = body.expiry {
-        args.push("--expiry".into());
-        args.push(normalize_expiry_arg(&e)?);
-    }
-    push_policy_ciphertexts(&mut args, &body.policy_ciphertexts);
-    Ok(Json(state.runner.run_json(args).await?))
+    let expiry = body
+        .expiry
+        .map(|value| normalize_expiry_arg(&value))
+        .transpose()?;
+    let command = clear_msig_command_contract::DirectCommand::IntentAdd {
+        wallet: name,
+        file: Some(body.file),
+        proposers: body.proposers,
+        approvers: body.approvers,
+        threshold: Some(body.threshold),
+        cancellation_threshold: body.cancellation_threshold.unwrap_or(1),
+        timelock: body.timelock.unwrap_or(0),
+        expiry,
+        policy_ciphertexts: body.policy_ciphertexts,
+    };
+    run_intent_command(
+        &state,
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey: None },
+        command,
+        None,
+    )
+    .await
 }
 
 async fn prepare_intent_remove(
@@ -246,20 +226,22 @@ async fn prepare_intent_remove(
     Json(body): Json<PrepareIntentRemoveRequest>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    let mut args = vec!["--dry-run".into()];
-    args.extend([
-        "intent".into(),
-        "remove".into(),
-        "--wallet".into(),
-        name,
-        "--index".into(),
-        body.index.to_string(),
-    ]);
-    if let Some(e) = body.expiry {
-        args.push("--expiry".into());
-        args.push(normalize_expiry_arg(&e)?);
-    }
-    Ok(Json(state.runner.run_json(args).await?))
+    let expiry = body
+        .expiry
+        .map(|value| normalize_expiry_arg(&value))
+        .transpose()?;
+    let command = clear_msig_command_contract::DirectCommand::IntentRemove {
+        wallet: name,
+        index: body.index,
+        expiry,
+    };
+    run_intent_command(
+        &state,
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey: None },
+        command,
+        None,
+    )
+    .await
 }
 
 async fn prepare_intent_update(
@@ -280,39 +262,49 @@ async fn prepare_intent_update(
     if body.threshold == 0 {
         return Err(ApiError::BadRequest("threshold must be >= 1".into()));
     }
-    let mut args = vec!["--dry-run".into()];
-    args.extend([
-        "intent".into(),
-        "update".into(),
-        "--wallet".into(),
-        name,
-        "--index".into(),
-        body.index.to_string(),
-        "--file".into(),
-        body.file,
-        "--proposers".into(),
-        body.proposers.join(","),
-        "--approvers".into(),
-        body.approvers.join(","),
-        "--threshold".into(),
-        body.threshold.to_string(),
-        "--cancellation-threshold".into(),
-        body.cancellation_threshold.unwrap_or(1).to_string(),
-        "--timelock".into(),
-        body.timelock.unwrap_or(0).to_string(),
-    ]);
-    if let Some(e) = body.expiry {
-        args.push("--expiry".into());
-        args.push(normalize_expiry_arg(&e)?);
-    }
-    push_policy_ciphertexts(&mut args, &body.policy_ciphertexts);
-    Ok(Json(state.runner.run_json(args).await?))
+    let expiry = body
+        .expiry
+        .map(|value| normalize_expiry_arg(&value))
+        .transpose()?;
+    let command = clear_msig_command_contract::DirectCommand::IntentUpdate {
+        wallet: name,
+        index: body.index,
+        file: Some(body.file),
+        proposers: body.proposers,
+        approvers: body.approvers,
+        threshold: Some(body.threshold),
+        cancellation_threshold: body.cancellation_threshold.unwrap_or(1),
+        timelock: body.timelock.unwrap_or(0),
+        expiry,
+        policy_ciphertexts: body.policy_ciphertexts,
+    };
+    run_intent_command(
+        &state,
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey: None },
+        command,
+        None,
+    )
+    .await
 }
 
-fn push_policy_ciphertexts(args: &mut Vec<String>, ids: &[String]) {
-    if ids.is_empty() {
-        return;
+fn presigned_context(pre_signed: PreSigned) -> clear_msig_command_contract::DirectExecutionContext {
+    clear_msig_command_contract::DirectExecutionContext::PreSigned {
+        signer_pubkey: pre_signed.signer_pubkey,
+        signature: pre_signed.signature,
+        params_data: pre_signed.params_data_hex,
+        message_flavor: pre_signed.message_flavor,
+        signed_message: pre_signed.signed_message_hex,
     }
-    args.push("--policy-ciphertexts".to_string());
-    args.push(ids.join(","));
+}
+
+async fn run_intent_command(
+    state: &AppState,
+    context: clear_msig_command_contract::DirectExecutionContext,
+    command: clear_msig_command_contract::DirectCommand,
+    rate_limit_key: Option<&str>,
+) -> Result<Json<Value>, ApiError> {
+    if let Some(key) = rate_limit_key {
+        state.rate_limiter.check(key).await?;
+    }
+    Ok(Json(state.runner.run_direct(context, command).await?))
 }

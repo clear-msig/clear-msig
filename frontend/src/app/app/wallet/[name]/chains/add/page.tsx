@@ -229,7 +229,7 @@ function AddChainPage() {
       });
     },
     onSuccess: () => {
-      // Two query keys, two prefixes - useWalletWorkflow uses
+      // Two query keys and two prefixes keep each remote setup flow isolated.
       // ["wallet-chains", name] (read-only chain list from chain),
       // useWalletChains uses ["wallet-chains-api", name] (the
       // backend's address-enriched list that the /chains page

@@ -6,7 +6,7 @@ import type {
   ClearSignEnvelope,
   EscrowReturnPayload,
   MilestonePayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import { sha256, toHex } from "@/lib/msig/hash";
 
 export type ProEscrowStatus = "active" | "disputed" | "returned" | "complete";
@@ -511,7 +511,7 @@ function batchPrefillKey(walletName: string, id: string): string {
 
 function clearSignMeta(input: ProEscrowClearSignOptions) {
   return {
-    version: 2 as const,
+    version: 3 as const,
     walletName: input.walletName.trim(),
     walletId: input.walletId?.trim(),
     actionId: input.actionId?.trim() || randomId(),

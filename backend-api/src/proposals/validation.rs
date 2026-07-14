@@ -1,6 +1,4 @@
-use crate::{ensure_base58, ensure_hex_exact_len, ensure_non_empty, ApiError};
-
-use crate::clearsign::PreSigned;
+use crate::{ensure_hex_exact_len, ensure_non_empty, ApiError};
 
 pub(super) fn validate_typed_create_fields(
     action_kind: u8,
@@ -23,43 +21,16 @@ pub(super) fn validate_typed_create_fields(
     Ok(())
 }
 
-pub(super) fn push_typed_pre_signed_flags(args: &mut Vec<String>, ps: &PreSigned) {
-    args.push("--signer-pubkey".into());
-    args.push(ps.signer_pubkey.clone());
-    args.push("--signature".into());
-    args.push(ps.signature.clone());
-    if let Some(flavor) = &ps.message_flavor {
-        args.push("--message-flavor".into());
-        args.push(flavor.clone());
-    }
-    if let Some(hex) = &ps.signed_message_hex {
-        args.push("--signed-message".into());
-        args.push(hex.clone());
-    }
-}
-
-pub(super) fn push_actor_pubkey(
-    args: &mut Vec<String>,
-    actor: &Option<String>,
-) -> Result<(), ApiError> {
-    let Some(pk) = actor.as_deref() else {
-        return Ok(());
-    };
-    let trimmed = pk.trim();
-    if trimmed.is_empty() {
-        return Ok(());
-    }
-    ensure_base58(trimmed, "actor_pubkey", 32, 44)?;
-    args.push("--signer-pubkey".to_string());
-    args.push(trimmed.to_string());
-    Ok(())
-}
-
 fn ensure_typed_text(value: &str, field: &str) -> Result<(), ApiError> {
     ensure_non_empty(value, field)?;
-    if value.as_bytes().len() > 128 {
+    if value.len() > 128 {
         return Err(ApiError::BadRequest(format!(
             "{field} must be 128 bytes or fewer"
+        )));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must not contain control characters"
         )));
     }
     Ok(())

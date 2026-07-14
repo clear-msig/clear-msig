@@ -15,8 +15,10 @@ import {
   Play,
   TrendingUp,
   Trophy,
+  Wallet,
 } from "lucide-react";
-import { type AgentFundingRecommendation, buildAgentFundingPlan } from "@/features/agents/domain/runtime";
+import { type AgentFundingRecommendation, buildAgentFundingPlan, buildAgentVaultAllocationHref } from "@/features/agents/domain/runtime";
+import { useAgentVaultFunding } from "@/features/agents/controllers/useAgentVaultFunding";
 import { agentLeaderboard, getAgentVaultPolicy, listAgents, listAgentScorecards, listAgentSessions } from "@/features/agents/infrastructure/agentStore";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
@@ -25,6 +27,7 @@ export default function AgentFundingPage() {
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
   const encoded = encodeURIComponent(name);
   const display = toDisplayName(name);
+  const { vaultAddress, proSources } = useAgentVaultFunding(name);
   const policy = getAgentVaultPolicy(name);
   const plan = buildAgentFundingPlan({
     agents: listAgents(name),
@@ -72,6 +75,46 @@ export default function AgentFundingPage() {
           )}
         </div>
       </header>
+
+      <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-text-strong">Fund this Agent vault</p>
+            <p className="mt-1 text-xs leading-relaxed text-text-soft">
+              Allocate a bounded amount from a Pro treasury, or deposit test funds directly.
+            </p>
+          </div>
+          <Link href={`/app/wallet/${encoded}/receive`} className={SECONDARY_BUTTON}>
+            <CircleDollarSign className="h-3.5 w-3.5" aria-hidden="true" />
+            Deposit address
+          </Link>
+        </div>
+        {vaultAddress ? (
+          <p className="mt-3 break-all rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong">
+            {vaultAddress}
+          </p>
+        ) : (
+          <div className="mt-3 h-9 animate-pulse rounded-soft bg-border-soft" />
+        )}
+        {vaultAddress && proSources.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {proSources.map((source) => (
+              <Link
+                key={source}
+                href={buildAgentVaultAllocationHref({
+                  sourceWallet: source,
+                  destinationAddress: vaultAddress,
+                  agentVaultName: display,
+                })}
+                className={PRIMARY_BUTTON}
+              >
+                <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
+                Allocate from {toDisplayName(source)}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric

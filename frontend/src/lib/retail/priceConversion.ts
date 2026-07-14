@@ -32,6 +32,7 @@ const STATIC_PRICES_USD: Readonly<Record<string, number>> = {
   ZEC: 30,
   HYPE: 100,
   USDC: 1,
+  USDT: 1,
 };
 
 /// Mutable map populated by `priceFeed.ts::useLivePrices()`. Module-

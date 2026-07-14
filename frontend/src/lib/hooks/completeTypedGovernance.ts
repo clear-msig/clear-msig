@@ -1,4 +1,4 @@
-// Shared path for ClearSign v2 membership / threshold / timelock updates.
+// Shared path for typed ClearSign membership / threshold / timelock updates.
 // Replaces legacy UpdateIntent + signDescriptor with typed proposals that
 // bind the final governance state on-chain (execute_typed_intent_governance).
 
@@ -15,7 +15,7 @@ import {
   type ClearSignEnvelope,
   type MemberPayload,
   type ThresholdPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import type { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import {
   encodeTypedGovernancePayload,
@@ -94,7 +94,7 @@ export async function completeTypedGovernance(
   let envelope: ClearSignEnvelope<MemberPayload | ThresholdPayload>;
   if (input.kind === "change_threshold") {
     envelope = {
-      version: 2,
+      version: 3,
       kind: "change_threshold",
       walletName: input.walletName,
       walletId: input.walletId,
@@ -113,7 +113,7 @@ export async function completeTypedGovernance(
     };
   } else {
     envelope = {
-      version: 2,
+      version: 3,
       kind: input.kind as Extract<ClearSignActionKind, "add_member" | "remove_member">,
       walletName: input.walletName,
       walletId: input.walletId,
@@ -150,6 +150,11 @@ export async function completeTypedGovernance(
   });
   const signed = await input.signTypedDescriptor(dry, {
     preferSigner: input.proposerPk,
+    expectedTyped: {
+      envelopeHash: summary.envelopeHash,
+      payloadHash: summary.payloadHash,
+      signableText: summary.signableText,
+    },
   });
   const submitted = await backendApi.submit.createTypedProposal(input.walletName, {
     ...signed,

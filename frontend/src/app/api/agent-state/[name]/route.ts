@@ -19,7 +19,7 @@ import {
   saveAgentServerVaultPolicy,
   setAgentServerEmergencyPause,
   updateAgentServerSessionStatus,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import { readHyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
 import {
   submitHyperliquidTestnetKillSwitch,

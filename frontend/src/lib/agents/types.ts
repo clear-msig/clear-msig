@@ -228,16 +228,16 @@ export interface AgentTradeProposal {
   /// SHA-256 commitment to the vault policy used when this signal was
   /// evaluated. Future Solana/Ika grants can bind execution to this digest.
   policyHash?: string;
-  /// ClearSign v2 binding prepared when the proposal is created. This keeps
-  /// the readable agent decision, payload hash, and executor fields together.
-  clearSignV2?: AgentTradeClearSignV2Snapshot;
+  /// ClearSign binding prepared when the proposal is created. The persisted
+  /// property name is retained for compatibility with existing local records.
+  clearSignV2?: AgentTradeClearSignSnapshot;
   status: AgentProposalStatus;
   createdAt: number;
   updatedAt: number;
   version: AgentVersion;
 }
 
-export interface AgentTradeClearSignV2Snapshot {
+export interface AgentTradeClearSignSnapshot {
   actionId: string;
   nonce: string;
   expiresAt: number;
@@ -433,6 +433,16 @@ export interface AgentSessionGrant {
     proposalIndex: number;
     intentIndex: number;
     operation: "active" | "revoked";
+    status: "created" | "approved" | "executed";
+    txid?: string;
+    updatedAt: number;
+  };
+  riskOnchain?: {
+    proposalAddress: string;
+    proposalIndex: number;
+    intentIndex: number;
+    policyHash: string;
+    operation: "active" | "paused";
     status: "created" | "approved" | "executed";
     txid?: string;
     updatedAt: number;

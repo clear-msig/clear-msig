@@ -23,7 +23,7 @@ pub(crate) fn ensure_hex(value: &str, field: &str) -> Result<(), ApiError> {
     if hex.is_empty() {
         return Err(ApiError::BadRequest(format!("{field} must not be empty")));
     }
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return Err(ApiError::BadRequest(format!(
             "{field} must have an even number of hex characters"
         )));

@@ -1,38 +1,46 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     routing::{get, post},
     Json, Router,
 };
 use serde_json::Value;
 
-use crate::clearsign::{format_expiry, normalize_expiry_arg, push_pre_signed_flags};
+use crate::clearsign::{format_expiry, normalize_expiry_arg, PreSigned};
 use crate::{
-    ensure_base58, ensure_hex, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name,
-    ApiError, AppState,
+    ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
 };
 
+mod typed_agent_risk;
 mod typed_execution;
+mod typed_lifecycle;
 mod types;
 mod validation;
 
+use typed_agent_risk::{
+    execute_typed_agent_risk_policy as build_typed_agent_risk_policy,
+    execute_typed_agent_trade_settlement as build_typed_agent_trade_settlement,
+};
 use typed_execution::{
-    execute_typed_agent_session_grant_args, execute_typed_agent_trade_approval_args,
-    execute_typed_chain_send_args, execute_typed_escrow_release_args,
-    execute_typed_escrow_return_args, execute_typed_intent_governance_args,
-    execute_typed_sol_batch_send_args, execute_typed_sol_send_args,
-    execute_typed_wallet_policy_update_args,
+    execute_typed_agent_session_grant as build_typed_agent_session_grant,
+    execute_typed_agent_trade_approval as build_typed_agent_trade_approval,
+    execute_typed_chain_send as build_typed_chain_send,
+    execute_typed_escrow_release as build_typed_escrow_release,
+    execute_typed_escrow_return as build_typed_escrow_return,
+    execute_typed_intent_governance as build_typed_intent_governance,
+    execute_typed_sol_batch_send as build_typed_sol_batch_send,
+    execute_typed_sol_send as build_typed_sol_send,
+    execute_typed_wallet_policy_update as build_typed_wallet_policy_update,
 };
 use types::{
-    ExecuteProposalRequest, ExecuteTypedAgentSessionGrantRequest,
-    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
+    ExecuteProposalRequest, ExecuteTypedAgentRiskPolicyRequest,
+    ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
+    ExecuteTypedAgentTradeSettlementRequest, ExecuteTypedChainSendRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
     ExecuteTypedIntentGovernanceRequest, ExecuteTypedSolBatchSendRequest,
     ExecuteTypedSolSendRequest, ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
     PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest, SignedApproveCancelRequest,
     SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
 };
-use validation::{push_actor_pubkey, push_typed_pre_signed_flags, validate_typed_create_fields};
-
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -104,8 +112,12 @@ pub(crate) fn router() -> Router<AppState> {
             post(execute_typed_agent_session_grant),
         )
         .route(
-            "/wallets/{name}/proposals/{proposal}/execute/stream",
-            get(stream_execute_proposal),
+            "/wallets/{name}/proposals/{proposal}/typed-agent-risk-policy",
+            post(execute_typed_agent_risk_policy),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-agent-trade-settlement",
+            post(execute_typed_agent_trade_settlement),
         )
         .route("/proposals/{proposal}", get(show_proposal))
         .route("/proposals/{proposal}/cleanup", post(cleanup_proposal))
@@ -142,29 +154,27 @@ async fn create_proposal(
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
     body.pre_signed.ensure_valid()?;
-    state
-        .rate_limiter
-        .check(&body.pre_signed.signer_pubkey)
-        .await?;
     if body.pre_signed.params_data_hex.is_none() {
         return Err(ApiError::BadRequest(
             "params_data_hex is required for proposal create — build it via /prepare first".into(),
         ));
     }
 
-    let mut args = Vec::with_capacity(14);
-    push_pre_signed_flags(&mut args, &body.pre_signed);
-    args.extend([
-        "proposal".into(),
-        "create".into(),
-        "--wallet".into(),
-        name,
-        "--intent-index".into(),
-        body.intent_index.to_string(),
-        "--expiry".into(),
-        format_expiry(body.pre_signed.expiry)?,
-    ]);
-    Ok(Json(state.runner.run_json(args).await?))
+    let rate_limit_key = body.pre_signed.signer_pubkey.clone();
+    let expiry = format_expiry(body.pre_signed.expiry)?;
+    let command = clear_msig_command_contract::DirectCommand::ProposalCreate {
+        wallet: name,
+        intent_index: body.intent_index,
+        params: Vec::new(),
+        expiry: Some(expiry),
+    };
+    run_direct_proposal(
+        state,
+        presigned_context(body.pre_signed),
+        command,
+        Some(&rate_limit_key),
+    )
+    .await
 }
 
 async fn create_typed_proposal(
@@ -172,55 +182,7 @@ async fn create_typed_proposal(
     Path(name): Path<String>,
     Json(body): Json<SignedTypedProposalCreateRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    validate_typed_create_fields(
-        body.action_kind,
-        &body.policy_commitment,
-        &body.payload_hash,
-        &body.envelope_hash,
-        &body.action_id,
-        &body.nonce,
-    )?;
-    body.pre_signed.ensure_valid()?;
-    if body.pre_signed.signed_message_hex.is_none() {
-        return Err(ApiError::BadRequest(
-            "signed_message_hex is required for typed proposal create".into(),
-        ));
-    }
-    state
-        .rate_limiter
-        .check(&body.pre_signed.signer_pubkey)
-        .await?;
-
-    let mut args = Vec::with_capacity(26);
-    push_typed_pre_signed_flags(&mut args, &body.pre_signed);
-    args.extend([
-        "proposal".into(),
-        "typed-create".into(),
-        "--wallet".into(),
-        name,
-        "--intent-index".into(),
-        body.intent_index.to_string(),
-        "--action-kind".into(),
-        body.action_kind.to_string(),
-        "--policy-commitment".into(),
-        body.policy_commitment,
-        "--payload-hash".into(),
-        body.payload_hash,
-        "--envelope-hash".into(),
-        body.envelope_hash,
-        "--action-id".into(),
-        body.action_id,
-        "--nonce".into(),
-        body.nonce,
-        "--expiry".into(),
-        format_expiry(body.pre_signed.expiry)?,
-    ]);
-    if let Some(policy_bytes_hex) = body.policy_bytes_hex {
-        ensure_hex(&policy_bytes_hex, "policyBytesHex")?;
-        args.extend(["--policy-bytes-hex".into(), policy_bytes_hex]);
-    }
-    Ok(Json(state.runner.run_json(args).await?))
+    run_typed_lifecycle(state, typed_lifecycle::signed_create(name, body)?).await
 }
 
 async fn list_proposals(
@@ -228,17 +190,14 @@ async fn list_proposals(
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    Ok(Json(
-        state
-            .runner
-            .run_json(vec![
-                "proposal".to_string(),
-                "list".to_string(),
-                "--wallet".to_string(),
-                name,
-            ])
-            .await?,
-    ))
+    let command = clear_msig_command_contract::DirectCommand::ProposalList { wallet: name };
+    run_direct_proposal(
+        state,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
+        command,
+        None,
+    )
+    .await
 }
 
 async fn show_proposal(
@@ -246,17 +205,14 @@ async fn show_proposal(
     Path(proposal): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_base58(&proposal, "proposal", 32, 88)?;
-    Ok(Json(
-        state
-            .runner
-            .run_json(vec![
-                "proposal".to_string(),
-                "show".to_string(),
-                "--proposal".to_string(),
-                proposal,
-            ])
-            .await?,
-    ))
+    let command = clear_msig_command_contract::DirectCommand::ProposalShow { proposal };
+    run_direct_proposal(
+        state,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
+        command,
+        None,
+    )
+    .await
 }
 
 async fn approve_proposal(
@@ -272,24 +228,20 @@ async fn approve_proposal(
             "signed_message_hex is required for typed proposal vote".into(),
         ));
     }
-    state
-        .rate_limiter
-        .check(&body.pre_signed.signer_pubkey)
-        .await?;
-
-    let mut args = Vec::with_capacity(12);
-    push_pre_signed_flags(&mut args, &body.pre_signed);
-    args.extend([
-        "proposal".into(),
-        "approve".into(),
-        "--wallet".into(),
-        name,
-        "--proposal".into(),
+    let rate_limit_key = body.pre_signed.signer_pubkey.clone();
+    let expiry = format_expiry(body.pre_signed.expiry)?;
+    let command = clear_msig_command_contract::DirectCommand::ProposalApprove {
+        wallet: name,
         proposal,
-        "--expiry".into(),
-        format_expiry(body.pre_signed.expiry)?,
-    ]);
-    Ok(Json(state.runner.run_json(args).await?))
+        expiry: Some(expiry),
+    };
+    run_direct_proposal(
+        state,
+        presigned_context(body.pre_signed),
+        command,
+        Some(&rate_limit_key),
+    )
+    .await
 }
 
 async fn approve_typed_proposal(
@@ -297,7 +249,11 @@ async fn approve_typed_proposal(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<SignedApproveCancelRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    typed_approve_or_cancel(state, name, proposal, body, true).await
+    run_typed_lifecycle(
+        state,
+        typed_lifecycle::signed_vote(name, proposal, body, typed_lifecycle::VoteKind::Approve)?,
+    )
+    .await
 }
 
 async fn cancel_proposal(
@@ -308,24 +264,20 @@ async fn cancel_proposal(
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
     body.pre_signed.ensure_valid()?;
-    state
-        .rate_limiter
-        .check(&body.pre_signed.signer_pubkey)
-        .await?;
-
-    let mut args = Vec::with_capacity(12);
-    push_pre_signed_flags(&mut args, &body.pre_signed);
-    args.extend([
-        "proposal".into(),
-        "cancel".into(),
-        "--wallet".into(),
-        name,
-        "--proposal".into(),
+    let rate_limit_key = body.pre_signed.signer_pubkey.clone();
+    let expiry = format_expiry(body.pre_signed.expiry)?;
+    let command = clear_msig_command_contract::DirectCommand::ProposalCancel {
+        wallet: name,
         proposal,
-        "--expiry".into(),
-        format_expiry(body.pre_signed.expiry)?,
-    ]);
-    Ok(Json(state.runner.run_json(args).await?))
+        expiry: Some(expiry),
+    };
+    run_direct_proposal(
+        state,
+        presigned_context(body.pre_signed),
+        command,
+        Some(&rate_limit_key),
+    )
+    .await
 }
 
 async fn cancel_typed_proposal(
@@ -333,7 +285,11 @@ async fn cancel_typed_proposal(
     Path((name, proposal)): Path<(String, String)>,
     Json(body): Json<SignedApproveCancelRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    typed_approve_or_cancel(state, name, proposal, body, false).await
+    run_typed_lifecycle(
+        state,
+        typed_lifecycle::signed_vote(name, proposal, body, typed_lifecycle::VoteKind::Cancel)?,
+    )
+    .await
 }
 
 async fn prepare_proposal_create(
@@ -343,26 +299,27 @@ async fn prepare_proposal_create(
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
     ensure_non_empty_vec(&body.params, "params")?;
-    let mut args = vec!["--dry-run".into()];
-    push_actor_pubkey(&mut args, &body.actor_pubkey)?;
-    args.extend([
-        "proposal".into(),
-        "create".into(),
-        "--wallet".into(),
-        name,
-        "--intent-index".into(),
-        body.intent_index.to_string(),
-    ]);
-    for p in body.params {
-        ensure_non_empty(&p, "param item")?;
-        args.push("--param".into());
-        args.push(p);
+    for p in &body.params {
+        ensure_non_empty(p, "param item")?;
     }
-    if let Some(e) = body.expiry {
-        args.push("--expiry".into());
-        args.push(normalize_expiry_arg(&e)?);
-    }
-    Ok(Json(state.runner.run_json(args).await?))
+    let actor_pubkey = validate_actor_pubkey(body.actor_pubkey)?;
+    let expiry = body
+        .expiry
+        .map(|value| normalize_expiry_arg(&value))
+        .transpose()?;
+    let command = clear_msig_command_contract::DirectCommand::ProposalCreate {
+        wallet: name,
+        intent_index: body.intent_index,
+        params: body.params,
+        expiry,
+    };
+    run_direct_proposal(
+        state,
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey },
+        command,
+        None,
+    )
+    .await
 }
 
 async fn prepare_typed_proposal_create(
@@ -370,49 +327,7 @@ async fn prepare_typed_proposal_create(
     Path(name): Path<String>,
     Json(body): Json<PrepareTypedProposalCreateRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    validate_typed_create_fields(
-        body.action_kind,
-        &body.policy_commitment,
-        &body.payload_hash,
-        &body.envelope_hash,
-        &body.action_id,
-        &body.nonce,
-    )?;
-    ensure_non_empty(&body.signable_text, "signable_text")?;
-    let mut args = vec!["--dry-run".into()];
-    push_actor_pubkey(&mut args, &body.actor_pubkey)?;
-    args.extend([
-        "proposal".into(),
-        "typed-create".into(),
-        "--wallet".into(),
-        name,
-        "--intent-index".into(),
-        body.intent_index.to_string(),
-        "--action-kind".into(),
-        body.action_kind.to_string(),
-        "--policy-commitment".into(),
-        body.policy_commitment,
-        "--payload-hash".into(),
-        body.payload_hash,
-        "--envelope-hash".into(),
-        body.envelope_hash,
-        "--action-id".into(),
-        body.action_id,
-        "--nonce".into(),
-        body.nonce,
-        "--signable-text".into(),
-        body.signable_text,
-    ]);
-    if let Some(policy_bytes_hex) = body.policy_bytes_hex {
-        ensure_hex(&policy_bytes_hex, "policyBytesHex")?;
-        args.extend(["--policy-bytes-hex".into(), policy_bytes_hex]);
-    }
-    if let Some(e) = body.expiry {
-        args.push("--expiry".into());
-        args.push(normalize_expiry_arg(&e)?);
-    }
-    Ok(Json(state.runner.run_json(args).await?))
+    run_typed_lifecycle(state, typed_lifecycle::prepare_create(name, body)?).await
 }
 
 async fn prepare_proposal_approve(
@@ -456,25 +371,31 @@ async fn prepare_approve_or_cancel(
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
-    let mut args = vec!["--dry-run".into()];
-    push_actor_pubkey(&mut args, &body.actor_pubkey)?;
-    args.extend([
-        "proposal".into(),
-        if is_approve {
-            "approve".into()
-        } else {
-            "cancel".into()
-        },
-        "--wallet".into(),
-        name,
-        "--proposal".into(),
-        proposal,
-    ]);
-    if let Some(e) = body.expiry {
-        args.push("--expiry".into());
-        args.push(normalize_expiry_arg(&e)?);
-    }
-    Ok(Json(state.runner.run_json(args).await?))
+    let actor_pubkey = validate_actor_pubkey(body.actor_pubkey)?;
+    let expiry = body
+        .expiry
+        .map(|value| normalize_expiry_arg(&value))
+        .transpose()?;
+    let command = if is_approve {
+        clear_msig_command_contract::DirectCommand::ProposalApprove {
+            wallet: name,
+            proposal,
+            expiry,
+        }
+    } else {
+        clear_msig_command_contract::DirectCommand::ProposalCancel {
+            wallet: name,
+            proposal,
+            expiry,
+        }
+    };
+    run_direct_proposal(
+        state,
+        clear_msig_command_contract::DirectExecutionContext::DryRun { actor_pubkey },
+        command,
+        None,
+    )
+    .await
 }
 
 async fn prepare_typed_approve_or_cancel(
@@ -484,23 +405,31 @@ async fn prepare_typed_approve_or_cancel(
     body: PrepareApproveCancelRequest,
     is_approve: bool,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    let mut args = vec!["--dry-run".into()];
-    push_actor_pubkey(&mut args, &body.actor_pubkey)?;
-    args.extend([
-        "proposal".into(),
-        if is_approve {
-            "typed-approve".into()
-        } else {
-            "typed-cancel".into()
-        },
-        "--wallet".into(),
-        name,
-        "--proposal".into(),
-        proposal,
-    ]);
-    Ok(Json(state.runner.run_json(args).await?))
+    let vote = if is_approve {
+        typed_lifecycle::VoteKind::Approve
+    } else {
+        typed_lifecycle::VoteKind::Cancel
+    };
+    run_typed_lifecycle(
+        state,
+        typed_lifecycle::prepare_vote(name, proposal, body, vote)?,
+    )
+    .await
+}
+
+async fn run_typed_lifecycle(
+    state: AppState,
+    invocation: typed_lifecycle::LifecycleInvocation,
+) -> Result<Json<Value>, ApiError> {
+    if let Some(key) = invocation.rate_limit_key.as_deref() {
+        state.rate_limiter.check(key).await?;
+    }
+    Ok(Json(
+        state
+            .runner
+            .run_typed_lifecycle(invocation.context, invocation.lifecycle)
+            .await?,
+    ))
 }
 
 async fn execute_proposal(
@@ -511,29 +440,21 @@ async fn execute_proposal(
     ensure_wallet_name(&name, "name")?;
     ensure_base58(&proposal, "proposal", 32, 88)?;
 
-    let args = build_execute_args(&state, name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let command = build_execute_command(&state, name, proposal, body)?;
+    run_direct_proposal(
+        state,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
+        command,
+        None,
+    )
+    .await
 }
 
 async fn execute_typed_proposal(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    Ok(Json(
-        state
-            .runner
-            .run_json(vec![
-                "proposal".into(),
-                "typed-execute".into(),
-                "--wallet".into(),
-                name,
-                "--proposal".into(),
-                proposal,
-            ])
-            .await?,
-    ))
+    run_typed_lifecycle(state, typed_lifecycle::execute(name, proposal)?).await
 }
 
 async fn execute_typed_escrow_release(
@@ -545,8 +466,8 @@ async fn execute_typed_escrow_release(
         .rate_limiter
         .check(&format!("execute:escrow-release:{name}"))
         .await?;
-    let args = execute_typed_escrow_release_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_escrow_release(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_escrow_return(
@@ -558,8 +479,8 @@ async fn execute_typed_escrow_return(
         .rate_limiter
         .check(&format!("execute:escrow-return:{name}"))
         .await?;
-    let args = execute_typed_escrow_return_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_escrow_return(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_sol_send(
@@ -571,8 +492,8 @@ async fn execute_typed_sol_send(
         .rate_limiter
         .check(&format!("execute:sol-send:{name}"))
         .await?;
-    let args = execute_typed_sol_send_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_sol_send(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_wallet_policy_update(
@@ -584,8 +505,8 @@ async fn execute_typed_wallet_policy_update(
         .rate_limiter
         .check(&format!("execute:wallet-policy:{name}"))
         .await?;
-    let args = execute_typed_wallet_policy_update_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_wallet_policy_update(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_intent_governance(
@@ -597,8 +518,8 @@ async fn execute_typed_intent_governance(
         .rate_limiter
         .check(&format!("execute:governance:{name}"))
         .await?;
-    let args = execute_typed_intent_governance_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_intent_governance(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_chain_send(
@@ -611,7 +532,7 @@ async fn execute_typed_chain_send(
         .rate_limiter
         .check(&format!("execute:chain-send:{name}"))
         .await?;
-    let args = execute_typed_chain_send_args(
+    let execution = build_typed_chain_send(
         name,
         proposal,
         body,
@@ -619,7 +540,7 @@ async fn execute_typed_chain_send(
         state.runner.default_grpc_url.clone(),
         state.runner.default_destination_rpc_url.clone(),
     )?;
-    Ok(Json(state.runner.run_json(args).await?))
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_sol_batch_send(
@@ -631,8 +552,8 @@ async fn execute_typed_sol_batch_send(
         .rate_limiter
         .check(&format!("execute:sol-batch:{name}"))
         .await?;
-    let args = execute_typed_sol_batch_send_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_sol_batch_send(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_agent_trade_approval(
@@ -644,8 +565,8 @@ async fn execute_typed_agent_trade_approval(
         .rate_limiter
         .check(&format!("execute:agent-trade:{name}"))
         .await?;
-    let args = execute_typed_agent_trade_approval_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_agent_trade_approval(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn execute_typed_agent_session_grant(
@@ -657,132 +578,34 @@ async fn execute_typed_agent_session_grant(
         .rate_limiter
         .check(&format!("execute:agent-session:{name}"))
         .await?;
-    let args = execute_typed_agent_session_grant_args(name, proposal, body)?;
-    Ok(Json(state.runner.run_json(args).await?))
+    let execution = build_typed_agent_session_grant(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
-async fn stream_execute_proposal(
+async fn execute_typed_agent_risk_policy(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
-    Query(body): Query<ExecuteProposalRequest>,
-) -> Result<
-    axum::response::sse::Sse<
-        impl futures_core::Stream<
-            Item = std::result::Result<axum::response::sse::Event, std::convert::Infallible>,
-        >,
-    >,
-    ApiError,
-> {
-    use axum::response::sse::{Event, KeepAlive, Sse};
-    use futures_util::StreamExt;
+    Json(body): Json<ExecuteTypedAgentRiskPolicyRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:agent-risk:{name}"))
+        .await?;
+    let execution = build_typed_agent_risk_policy(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
 
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    let args = build_execute_args(&state, name, proposal, body)?;
-
-    let (tx, rx) = tokio::sync::mpsc::channel::<Event>(32);
-    let runner = state.runner.clone();
-    tokio::spawn(async move {
-        use std::process::Stdio;
-        use tokio::io::{AsyncBufReadExt, BufReader};
-        use tokio::process::Command;
-
-        let mut cmd = Command::new(&runner.cli_bin);
-        cmd.args(&runner.base_args)
-            .args(&args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        let child =
-            match cmd.spawn() {
-                Ok(c) => c,
-                Err(e) => {
-                    let _ = tx
-                        .send(Event::default().event("error").data(
-                            serde_json::json!({ "error": format!("spawn: {e}") }).to_string(),
-                        ))
-                        .await;
-                    return;
-                }
-            };
-        let mut child = child;
-        let stderr =
-            match child.stderr.take() {
-                Some(s) => s,
-                None => {
-                    let _ = tx
-                        .send(Event::default().event("error").data(
-                            serde_json::json!({ "error": "missing stderr pipe" }).to_string(),
-                        ))
-                        .await;
-                    return;
-                }
-            };
-        let stdout = child.stdout.take();
-
-        let tx_err = tx.clone();
-        let stderr_task = tokio::spawn(async move {
-            let mut lines = BufReader::new(stderr).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                let _ = tx_err
-                    .send(
-                        Event::default()
-                            .event("progress")
-                            .data(serde_json::json!({ "line": line }).to_string()),
-                    )
-                    .await;
-            }
-        });
-
-        let stdout_bytes = if let Some(mut stdout) = stdout {
-            use tokio::io::AsyncReadExt;
-            let mut buf = Vec::new();
-            let _ = stdout.read_to_end(&mut buf).await;
-            buf
-        } else {
-            Vec::new()
-        };
-
-        let status =
-            match child.wait().await {
-                Ok(s) => s,
-                Err(e) => {
-                    let _ =
-                        tx.send(Event::default().event("error").data(
-                            serde_json::json!({ "error": format!("wait: {e}") }).to_string(),
-                        ))
-                        .await;
-                    return;
-                }
-            };
-
-        let _ = stderr_task.await;
-
-        let stdout_str = String::from_utf8_lossy(&stdout_bytes).to_string();
-        if status.success() {
-            let parsed: serde_json::Value = serde_json::from_str(&stdout_str)
-                .unwrap_or_else(|_| serde_json::json!({ "raw_stdout": stdout_str }));
-            let _ = tx
-                .send(Event::default().event("done").data(parsed.to_string()))
-                .await;
-        } else {
-            let _ = tx
-                .send(
-                    Event::default().event("error").data(
-                        serde_json::json!({
-                            "code": status.code(),
-                            "stdout": stdout_str,
-                        })
-                        .to_string(),
-                    ),
-                )
-                .await;
-        }
-    });
-
-    let stream = tokio_stream::wrappers::ReceiverStream::new(rx)
-        .map(std::result::Result::<_, std::convert::Infallible>::Ok);
-    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+async fn execute_typed_agent_trade_settlement(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedAgentTradeSettlementRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:agent-settlement:{name}"))
+        .await?;
+    let execution = build_typed_agent_trade_settlement(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
 async fn cleanup_proposal(
@@ -790,94 +613,83 @@ async fn cleanup_proposal(
     Path(proposal): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_base58(&proposal, "proposal", 32, 88)?;
-    Ok(Json(
-        state
-            .runner
-            .run_json(vec![
-                "proposal".to_string(),
-                "cleanup".to_string(),
-                "--proposal".to_string(),
-                proposal,
-            ])
-            .await?,
-    ))
+    let command = clear_msig_command_contract::DirectCommand::ProposalCleanup { proposal };
+    run_direct_proposal(
+        state,
+        clear_msig_command_contract::DirectExecutionContext::Backend,
+        command,
+        None,
+    )
+    .await
 }
 
-fn build_execute_args(
+fn build_execute_command(
     state: &AppState,
     name: String,
     proposal: String,
     body: ExecuteProposalRequest,
-) -> Result<Vec<String>, ApiError> {
-    let mut args = vec![
-        "proposal".to_string(),
-        "execute".to_string(),
-        "--wallet".to_string(),
-        name,
-        "--proposal".to_string(),
-        proposal,
-    ];
-
+) -> Result<clear_msig_command_contract::DirectCommand, ApiError> {
     let dwallet_program = body
         .dwallet_program
         .or_else(|| state.runner.default_dwallet_program.clone());
-    if let Some(dwallet_program) = dwallet_program {
-        ensure_non_empty(&dwallet_program, "dwallet_program")?;
-        args.push("--dwallet-program".to_string());
-        args.push(dwallet_program);
+    if let Some(dwallet_program) = &dwallet_program {
+        ensure_non_empty(dwallet_program, "dwallet_program")?;
     }
 
     let grpc_url = body
         .grpc_url
         .or_else(|| state.runner.default_grpc_url.clone());
-    if let Some(grpc_url) = grpc_url {
-        ensure_non_empty(&grpc_url, "grpc_url")?;
-        args.push("--grpc-url".to_string());
-        args.push(grpc_url);
+    if let Some(grpc_url) = &grpc_url {
+        ensure_non_empty(grpc_url, "grpc_url")?;
     }
     let rpc_url = body
         .rpc_url
         .or_else(|| state.runner.default_destination_rpc_url.clone());
-    if let Some(rpc_url) = rpc_url {
-        ensure_non_empty(&rpc_url, "rpc_url")?;
-        args.push("--rpc-url".to_string());
-        args.push(rpc_url);
+    if let Some(rpc_url) = &rpc_url {
+        ensure_non_empty(rpc_url, "rpc_url")?;
     }
-    if body.broadcast.unwrap_or(false) {
-        args.push("--broadcast".to_string());
-    }
-
-    Ok(args)
+    Ok(
+        clear_msig_command_contract::DirectCommand::ProposalExecute {
+            wallet: name,
+            proposal,
+            dwallet_program,
+            grpc_url,
+            rpc_url,
+            broadcast: body.broadcast.unwrap_or(false),
+        },
+    )
 }
 
-async fn typed_approve_or_cancel(
-    state: AppState,
-    name: String,
-    proposal: String,
-    body: SignedApproveCancelRequest,
-    is_approve: bool,
-) -> Result<Json<Value>, ApiError> {
-    ensure_wallet_name(&name, "name")?;
-    ensure_base58(&proposal, "proposal", 32, 88)?;
-    body.pre_signed.ensure_valid()?;
-    state
-        .rate_limiter
-        .check(&body.pre_signed.signer_pubkey)
-        .await?;
+fn presigned_context(pre_signed: PreSigned) -> clear_msig_command_contract::DirectExecutionContext {
+    clear_msig_command_contract::DirectExecutionContext::PreSigned {
+        signer_pubkey: pre_signed.signer_pubkey,
+        signature: pre_signed.signature,
+        params_data: pre_signed.params_data_hex,
+        message_flavor: pre_signed.message_flavor,
+        signed_message: pre_signed.signed_message_hex,
+    }
+}
 
-    let mut args = Vec::with_capacity(10);
-    push_typed_pre_signed_flags(&mut args, &body.pre_signed);
-    args.extend([
-        "proposal".into(),
-        if is_approve {
-            "typed-approve".into()
-        } else {
-            "typed-cancel".into()
-        },
-        "--wallet".into(),
-        name,
-        "--proposal".into(),
-        proposal,
-    ]);
-    Ok(Json(state.runner.run_json(args).await?))
+fn validate_actor_pubkey(actor_pubkey: Option<String>) -> Result<Option<String>, ApiError> {
+    let Some(actor_pubkey) = actor_pubkey else {
+        return Ok(None);
+    };
+    let actor_pubkey = actor_pubkey.trim();
+    if actor_pubkey.is_empty() {
+        return Ok(None);
+    }
+    ensure_base58(actor_pubkey, "actor_pubkey", 32, 44)?;
+    Ok(Some(actor_pubkey.to_string()))
+}
+
+async fn run_direct_proposal(
+    state: AppState,
+    context: clear_msig_command_contract::DirectExecutionContext,
+    command: clear_msig_command_contract::DirectCommand,
+    rate_limit_key: Option<&str>,
+) -> Result<Json<Value>, ApiError> {
+    if let Some(key) = rate_limit_key {
+        state.rate_limiter.check(key).await?;
+    }
+    Ok(Json(state.runner.run_direct(context, command).await?))
 }

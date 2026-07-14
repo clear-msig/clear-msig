@@ -12,7 +12,7 @@ env:
 
 jobs:
   host-checks:
-    name: fmt + clippy + test (host)
+    name: architecture + fmt + backend clippy + test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,20 +32,27 @@ jobs:
         with:
           shared-key: host
 
-      # TODO(format): re-enable after a one-time `cargo fmt --all` pass on the
-      # whole workspace (currently produces a ~2700-line diff because the
-      # codebase predates any rustfmt enforcement).
-      #
-      # TODO(clippy): re-enable with -D warnings after triaging the existing
-      # clippy noise. Run `cargo clippy --workspace --all-targets` locally to
-      # see what's outstanding.
+      # Backend, command-contract, and thin-CLI clippy are strict below. The
+      # execution library and program still have a documented warning backlog,
+      # so do not describe the workspace as globally clippy-clean yet.
       #
       # The on-chain crate (`clear-wallet`) is meant for the SBF target and
       # uses nightly features gated to target_os="solana"; host clippy/test
       # only cover the off-chain pieces.
 
+      - name: Backend architecture
+        run: |
+          bash scripts/check-repository-governance.sh
+          bash scripts/check-backend-architecture.sh
+
+      - name: Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Backend + contract + thin CLI clippy (strict, dependencies excluded)
+        run: cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-cli --all-targets --no-deps -- -D warnings
+
       - name: cargo test (host crates)
-        run: cargo test -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
+        run: cargo test -p clear-msig-command-contract -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
 
   frontend-tests:
     name: frontend unit tests

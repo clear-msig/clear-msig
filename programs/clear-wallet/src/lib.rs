@@ -337,6 +337,58 @@ pub mod clear_wallet {
             })
     }
 
+    /// Configure or pause the loss/oracle policy for one agent session.
+    #[instruction(discriminator = 29)]
+    pub fn execute_typed_agent_risk_policy(
+        ctx: Ctx<ExecuteTypedAgentRiskPolicy>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        session_id_hash: [u8; 32],
+        oracle_policy_hash: [u8; 32],
+        max_loss_raw_le: [u8; 16],
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_agent_risk_policy(ExecuteTypedAgentRiskPolicyArgs {
+                policy_commitment,
+                envelope_hash,
+                session_id_hash,
+                oracle_policy_hash,
+                max_loss_raw_le,
+                status,
+            })
+    }
+
+    /// Close agent exposure using an owner-approved, artifact-bound settlement.
+    #[instruction(discriminator = 30)]
+    pub fn execute_typed_agent_trade_settlement(
+        ctx: Ctx<ExecuteTypedAgentTradeSettlement>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        session_id_hash: [u8; 32],
+        execution_id_hash: [u8; 32],
+        settlement_artifact_hash: [u8; 32],
+        oracle_policy_hash: [u8; 32],
+        closed_notional_raw_le: [u8; 16],
+        outcome: u8,
+        pnl_abs_raw_le: [u8; 16],
+        settlement_sequence: u64,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_agent_trade_settlement(ExecuteTypedAgentTradeSettlementArgs {
+                policy_commitment,
+                envelope_hash,
+                session_id_hash,
+                execution_id_hash,
+                settlement_artifact_hash,
+                oracle_policy_hash,
+                closed_notional_raw_le,
+                outcome,
+                pnl_abs_raw_le,
+                settlement_sequence,
+            })
+    }
+
     #[instruction(discriminator = 24)]
     pub fn execute_typed_chain_send(
         ctx: Ctx<ExecuteTypedChainSend>,

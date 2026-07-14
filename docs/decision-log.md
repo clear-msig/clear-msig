@@ -24,7 +24,10 @@ Read-only diagnosis is allowed without approval. Code changes, destructive git a
 | 2026-07-08 | Wallet navigation | Remove the global Back chip from selected wallet home screens and prevent browser back from reopening the product wallet chooser. | Once a user chooses a product wallet, the wallet home should be the entry point, not a reversible selection step. | Done |
 | 2026-07-08 | Auth boundary | Redirect authenticated users away from public/product pages back into the wallet shell. | Browser history should not let a connected user leave the protected wallet experience without disconnecting. | Done |
 | 2026-07-08 | Connect routing | Let connected wallets redirect even while the Dynamic SDK is finishing hydration. | A real connected session should not get stuck on `/connect` when a safe `next` wallet route is already known. | Done |
+| 2026-07-12 | Agent Vault product | Treat Agent Vault as an independent governed-capital wallet: explicit Pro allocation, bounded policy-bound sessions, owner withdrawal, and kill/revoke paths. | Agent authority must derive from transferred capital and trusted policy, not a Pro Automation submenu or local budget. | Active |
 | 2026-07-10 | Wallet entry | Remove the exact `/app/wallet` hub and make `/app` resolve into a selected wallet, with switching handled inside the wallet balance card. | Keeps desktop and mobile focused on the active wallet workspace instead of a duplicate workspace list. | Done |
+| 2026-07-14 | Clear signing | Migrate new typed proposals to canonical ClearSign v3 documents; retain v2 only for existing proposal approval/cancel. | Readable intent, signer, threshold, resulting vote state, expiry, and proof must be bound without stranding existing funds. | Active |
+| 2026-07-14 | Ika integration | Adopt the staged repository, intent-library, hardware-template, and Ika infrastructure plan in `docs/ika-integration-decisions-2026-07-14.md`. | Device constraints and upstream timelines must not weaken canonical intent verification or become unsupported security claims. | Active |
 
 ## Pending Decisions
 

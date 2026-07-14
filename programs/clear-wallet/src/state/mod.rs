@@ -22,6 +22,9 @@ pub use member_allowance::*;
 pub mod agent_session;
 pub use agent_session::*;
 
+pub mod agent_risk;
+pub use agent_risk::*;
+
 pub mod ika_config;
 pub use ika_config::*;
 

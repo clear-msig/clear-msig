@@ -1,6 +1,6 @@
 import {
   newAgentProposalId,
-} from "@/lib/agents/storage";
+} from "@/features/agents/local-state/store";
 import type {
   AgentProfile,
   AgentTradeProposal,

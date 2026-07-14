@@ -9,6 +9,9 @@ function source(path: string): string {
 describe("wallet-first information architecture", () => {
   const sidebar = source("src/components/layout/WorkspaceSidebar.tsx");
   const walletHome = source("src/features/wallet/routes/WalletHomePage.tsx");
+  const walletSwitcher = source(
+    "src/features/wallet/ui/home/MobileWalletSwitchModal.tsx",
+  );
 
   it("uses wallets, not product workspaces, as primary navigation", () => {
     expect(sidebar).toContain('label="Wallets"');
@@ -24,9 +27,9 @@ describe("wallet-first information architecture", () => {
   });
 
   it("keeps the wallet switcher flat and capability-neutral", () => {
-    expect(walletHome).toContain("Your wallets");
-    expect(walletHome).toContain("ordered.map((membership)");
-    expect(walletHome).not.toContain("const grouped = useMemo");
-    expect(walletHome).not.toContain("Choose workspace");
+    expect(walletSwitcher).toContain("Your wallets");
+    expect(walletSwitcher).toContain("ordered.map((membership)");
+    expect(walletSwitcher).not.toContain("const grouped = useMemo");
+    expect(walletSwitcher).not.toContain("Choose workspace");
   });
 });

@@ -1,3 +1,38 @@
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+type BundleStats = {
+  toJson(options: Record<string, boolean>): unknown;
+};
+
+type WebpackCompiler = {
+  hooks: {
+    done: {
+      tap(name: string, callback: (stats: BundleStats) => void): void;
+    };
+  };
+};
+
+class ClientBundleStatsPlugin {
+  apply(compiler: WebpackCompiler) {
+    compiler.hooks.done.tap("ClearSigClientBundleStats", (stats) => {
+      writeFileSync(
+        resolve(process.cwd(), ".next/client-bundle-stats.json"),
+        JSON.stringify(
+          stats.toJson({
+            all: false,
+            assets: true,
+            chunks: true,
+            chunkModules: true,
+            ids: true,
+            modules: true,
+          }),
+        ),
+      );
+    });
+  }
+}
+
 // Next.js config for production frontend with remote asset support.
 //
 // Security headers are applied at the platform edge to every response.
@@ -117,13 +152,32 @@ const nextConfig = {
       encoding: "./src/empty-module.ts",
     },
   },
-  webpack: (config: { externals?: unknown[] }) => {
+  webpack: (
+    config: {
+      cache?: unknown;
+      externals?: unknown[];
+      plugins?: Array<{ apply(compiler: WebpackCompiler): void }>;
+    },
+    context: { isServer: boolean; nextRuntime?: string },
+  ) => {
     config.externals = [
       ...(config.externals ?? []),
       "pino-pretty",
       "lokijs",
       "encoding",
     ];
+    if (
+      process.env.CLEARSIG_BUNDLE_PROFILE === "1" &&
+      !context.isServer &&
+      !context.nextRuntime
+    ) {
+      // Cached production modules are emitted as opaque summary rows in
+      // Webpack stats, which makes SDK attribution read as 0 kB. Profiling
+      // trades build speed for complete module ownership; normal builds keep
+      // Next's filesystem cache.
+      config.cache = false;
+      config.plugins = [...(config.plugins ?? []), new ClientBundleStatsPlugin()];
+    }
     return config;
   },
   async headers() {
@@ -134,17 +188,18 @@ const nextConfig = {
       },
     ];
   },
-  // Local-dev proxy for the deployed backend on Render. The browser
+  // Local-dev proxy for the deployed backend on Railway. The browser
   // sees a same-origin /backend/* request, Next.js forwards it to
-  // the Render backend, and CORS never enters the picture.
+  // the Railway backend, and CORS never enters the picture.
   // Activated by setting NEXT_PUBLIC_BACKEND_API_URL=/backend in
   // .env.local. In production NEXT_PUBLIC_BACKEND_API_URL points
-  // straight at the Render service and this rewrite is unused.
+  // straight at the Railway service and this rewrite is unused.
   async rewrites() {
     return [
       {
         source: "/backend/:path*",
-        destination: "https://clear-msig-backend.onrender.com/:path*",
+        destination:
+          "https://clear-msig-backend-production.up.railway.app/:path*",
       },
     ];
   },

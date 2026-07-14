@@ -38,7 +38,7 @@ import {
 import {
   prepareClearSignAction,
   type BackendClearSignSummary,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import { IntentType } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -559,6 +559,11 @@ function EscrowProjectCard({
     try {
       const signed = await signTypedDescriptor(prepared.dry, {
         preferSigner: proposerPk,
+        expectedTyped: {
+          envelopeHash: prepared.summary.envelopeHash,
+          payloadHash: prepared.summary.payloadHash,
+          signableText: prepared.summary.signableText,
+        },
       });
       const created = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,

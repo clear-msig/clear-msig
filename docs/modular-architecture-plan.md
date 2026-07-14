@@ -30,16 +30,28 @@ This work has started:
   future product surfaces.
 - `backend-api/src/intents.rs`: intent list, prepare, add, remove, update.
 - `backend-api/src/proposals.rs`: proposal create/list/show, approve, cancel,
-  execute, streaming execute, cleanup.
+  execute, cleanup.
 - `backend-api/src/clearsign.rs`: pre-signed request validation and expiry
   formatting, the first slice of the future ClearSign core.
+- `crates/clear-msig-command-contract`: backend-independent command and signer
+  contracts with bounded validation.
+- `crates/clear-msig-execution`: reusable execution library shared by the
+  backend worker and thin CLI binary. It owns concrete handlers, cancellation,
+  and destination infrastructure without making the backend depend on a CLI.
+- `crates/clear-msig-execution/src/chains/transport.rs`: mockable,
+  cancellation-aware destination HTTP port shared by BTC, EVM, and Zcash.
+- `crates/clear-msig-execution/src/rpc.rs`: narrow injectable Solana account,
+  scan, blockhash, and transaction port with a cancellation-aware live adapter.
+- `crates/clear-msig-execution/src/ika.rs`: narrow injectable Ika submission
+  port with a cancellation-aware tonic adapter and opaque response boundary.
+- `cli`: thin binary package that only launches `clear-msig-execution`.
 
-`backend-api/src/main.rs` should remain small: shared state, CLI runner,
+`backend-api/src/main.rs` should remain small: shared state, execution runner,
 generic validation, CORS/tracing, and route mounting.
 
 ## Program Shape
 
-ClearSign Policy Engine v2 should be modular from day one:
+ClearSign Policy Engine should be modular from day one:
 
 - typed action schema module
 - policy commitment module
@@ -68,3 +80,6 @@ adapter implementation, not product flows or action schemas.
 
 Browser explains. Backend prepares. Solana verifies. Signer understands. Chain
 enforces. Each layer should have a small module boundary and tests.
+
+The staged Ika integration and repository consolidation decisions are tracked
+in `docs/ika-integration-decisions-2026-07-14.md`.

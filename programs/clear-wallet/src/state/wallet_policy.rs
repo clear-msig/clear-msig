@@ -67,7 +67,11 @@ impl WalletPolicy {
         Ok(())
     }
 
-    pub fn write(&self, ptr: *mut u8) {
+    /// # Safety
+    ///
+    /// `ptr` must be non-null and writable for at least `WALLET_POLICY_LEN`
+    /// bytes. The caller must hold exclusive access to that account buffer.
+    pub unsafe fn write(&self, ptr: *mut u8) {
         unsafe {
             *ptr = WALLET_POLICY_DISCRIMINATOR;
             core::ptr::copy_nonoverlapping(self.wallet.as_ref().as_ptr(), ptr.add(1), 32);

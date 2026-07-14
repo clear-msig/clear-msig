@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Banknote,
   Bell,
-  Bot,
   Coins,
   Download,
   FileCheck2,
@@ -18,7 +17,6 @@ import {
   Send,
   Settings as SettingsIcon,
   ShieldCheck,
-  TrendingDown,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -48,6 +46,7 @@ import {
   useProSchedules,
   type ProSchedule,
 } from "@/lib/pro/treasury";
+import { useProAuditEvents } from "@/lib/pro/audit";
 
 export interface ProTreasuryPanelProps {
   name: string;
@@ -82,7 +81,6 @@ function ProOperationsPanel({
     | "payments"
     | "recurring"
     | "protection"
-    | "automation"
     | "audit"
     | "admin";
   const motionProps = reduce
@@ -91,6 +89,7 @@ function ProOperationsPanel({
   const encoded = encodeURIComponent(name);
   const runtime = useMemo(() => getProTreasuryRuntime(), []);
   const schedules = useProSchedules(name);
+  const auditEvents = useProAuditEvents(name);
   const budgetUsage = useWalletBudgetUsage(name);
   const [activePanel, setActivePanel] = useState<ProPanelKey | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState({
@@ -125,12 +124,6 @@ function ProOperationsPanel({
       label: "Protection",
       value: limitsReady ? "Set" : "Set up",
       icon: ShieldCheck,
-    },
-    {
-      key: "automation",
-      label: "Automation",
-      value: "Agents",
-      icon: Bot,
     },
     {
       key: "admin",
@@ -217,14 +210,14 @@ function ProOperationsPanel({
             </Link>
           ) : null}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-3">
           {commandTiles.map(({ key, label, value, icon: Icon }) => {
             const selected = activePanel === key;
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setActivePanel(selected ? null : key)}
+                onClick={() => setActivePanel(key)}
                 className={
                   "flex min-h-[76px] items-center gap-3 rounded-card border px-3 py-3 text-left transition-[border-color,background-color,transform] duration-base ease-out-soft active:scale-[0.98] " +
                   (selected
@@ -322,35 +315,11 @@ function ProOperationsPanel({
         </ActionGroup>
       ) : null}
 
-      {activePanel === "automation" ? (
-        <ActionGroup label="Automation">
-          <ActionRow
-            href={`/app/wallet/${encoded}/agents`}
-            icon={Bot}
-            title="Agent vaults"
-          />
-          <ActionRow
-            href={`/app/wallet/${encoded}/agents/funding`}
-            icon={TrendingDown}
-            title="Trading budget"
-          />
-          <ActionRow
-            href={`/app/wallet/${encoded}/swap`}
-            icon={Repeat2}
-            title="Swap crypto"
-          />
-          <ActionRow
-            href={`/app/wallet/${encoded}/receive`}
-            icon={Download}
-            title="Receive funds"
-          />
-        </ActionGroup>
-      ) : null}
-
       {activePanel === "audit" ? (
         <ProAuditCard
-          activityCount={activityRows.length}
+          activityCount={activityRows.length + (auditEvents.data?.length ?? 0)}
           lastReceipt={lastReceipt}
+          latestBackendEvent={auditEvents.data?.[0]?.title ?? null}
           onExport={exportAudit}
           onExportAccounting={exportAccounting}
           activityHref={`/app/wallet/${encoded}/activity`}
@@ -655,6 +624,7 @@ function formatScheduleAddress(address: string): string {
 function ProAuditCard({
   activityCount,
   lastReceipt,
+  latestBackendEvent,
   onExport,
   onExportAccounting,
   activityHref,
@@ -663,6 +633,7 @@ function ProAuditCard({
 }: {
   activityCount: number;
   lastReceipt: TxAttempt | null;
+  latestBackendEvent: string | null;
   onExport: () => void;
   onExportAccounting: () => void;
   activityHref: string;
@@ -671,7 +642,7 @@ function ProAuditCard({
 }) {
   const receiptCopy = lastReceipt
     ? humanReceipt(lastReceipt)
-    : "Receipts appear after sends and approvals.";
+    : latestBackendEvent ?? "Receipts appear after sends and approvals.";
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">

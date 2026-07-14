@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 #
-# Builds the clear-msig backend-api + CLI as a single container image for Fly.io.
+# Builds the clear-msig backend API as a provider-neutral container image.
 # Multi-stage: cache-friendly builder layer, slim runtime layer.
 
 FROM rust:1.95-bookworm AS builder
@@ -20,7 +20,8 @@ WORKDIR /build
 # build cache (or local Docker layer cache) for re-builds.
 COPY . .
 
-RUN cargo build --release -p clear-msig-cli -p clear-msig-backend-api
+RUN cargo build --release -p clear-msig-backend-api \
+    && cp target/release/clear-msig-backend-api /clear-msig-backend-api
 
 # ----------------------------------------------------------------------
 
@@ -32,22 +33,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libudev1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/target/release/clear-msig          /usr/local/bin/clear-msig
-COPY --from=builder /build/target/release/clear-msig-backend-api /usr/local/bin/clear-msig-backend-api
+COPY --from=builder /clear-msig-backend-api /usr/local/bin/clear-msig-backend-api
 COPY ops/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Intent JSON templates the CLI loads at prepare-time. The backend
-# forwards a relative path like `examples/intents/solana_transfer.json`
-# from the frontend straight into the spawned CLI, so the CLI's CWD
-# has to contain that tree. WORKDIR below pins it.
+# Intent JSON templates loaded by the shared execution library.
 COPY examples /app/examples
 
 WORKDIR /app
 
-ENV CLEAR_MSIG_BIN=/usr/local/bin/clear-msig
 ENV CLEAR_MSIG_ENV=production
-ENV BACKEND_API_BIND=0.0.0.0:8080
 ENV RUST_LOG=info
 EXPOSE 8080
 

@@ -1,0 +1,52 @@
+# ClearSig trust boundaries
+
+This document assumes each component is malicious or unavailable in isolation.
+It describes the current pre-alpha system, not the intended production system.
+
+| Component | What compromise can do today | What it must not be able to do | Detection and recovery | Remaining gap |
+| --- | --- | --- | --- | --- |
+| Frontend | Misdescribe a request, hide state, choose a hostile recipient, or refuse service. | Change bytes after the wallet signature or bypass program policy. | Client reconstructs signable bytes from on-chain state; Ledger can display the canonical text; use another client or CLI. | Same-origin XSS can initiate a new misleading request. Hardware display coverage is incomplete. |
+| Backend / relayer | Censor, delay, reorder independent requests, return errors, or withhold broadcast. | Forge a user signature, change committed payload fields, lower thresholds, or execute an unapproved proposal. | Compare proposal/envelope/payload hashes on chain; any fee payer can submit an approved execution directly. Backend execution uses direct domain contracts, a bounded worker pool, timeout-triggered cancellation, response caps, and structured outcome logs. | Backend convenience workflows can still be unavailable, but are not an authorization dependency. |
+| Execution library / client adapter | Refuse execution, fail after a partial step, or submit the wrong transaction attempt. | Make a destination transaction with fields different from the approved preimage. | The command-contract crate owns bounded domain values. The reusable execution crate owns concrete handlers and cancellation-aware Solana, Ika, BTC, EVM, and Zcash adapters. Solana, Ika, and destination HTTP are injected through narrow ports carried by typed requests; backend and CLI call the same library directly. Program and destination chains verify committed bytes. | The live Ika adapter still targets an experimental pre-alpha service; injection improves testability and replacement, not signer trust. |
+| Redis / notification storage | Drop, duplicate, delay, or fabricate notifications. | Create approvals, sessions, policies, or transfers. | Rebuild UI state from Solana and destination chains. | Notifications are convenience data and must never become authorization inputs. |
+| Solana RPC | Censor reads/writes, serve stale data, or lie to one client about account state. | Change finalized ledger state or produce a valid user signature. | Retry another RPC, verify account owners/discriminators, compare finalized transaction signatures. | Production clients need multi-provider/quorum reads for high-value decisions. |
+| Destination-chain RPC/indexer | Hide balances, misreport UTXOs, reject broadcasts, or return stale fees. | Mutate a signed destination transaction. | Cross-check another provider or broadcast the same raw transaction elsewhere. | Fee and UTXO selection still depend on external indexed data before signing. |
+| Ika / dWallet signer | Refuse signing, delay signing, or return an invalid signature. In the current mock model, signer compromise is a critical key-control risk. | In production, sign outside an approved ClearSig/Ika policy session. | Destination verification rejects invalid signatures; pause the wallet and rotate/rebind when supported. | The current single/mock signer is not acceptable for real funds. Production threshold MPC and independent audit are release blockers. |
+| Agent venue / oracle adapter | Withhold data or present false fills, prices, P/L, or settlement artifacts to owners. | Change an already approved risk policy, trade, or settlement payload; replay a consumed settlement artifact; bypass session loss/open-exposure accounting. | Typed ClearSign binds source commitments and accounting fields. Program-owned risk ledgers, settlement sequences, and artifact receipt PDAs enforce atomic accounting and replay protection. | Settlement is owner-attested. Native venue/oracle signature verification is not implemented and remains a production blocker. |
+| Solana program | A bug can incorrectly authorize, reject, or account for execution. | Nothing can compensate for a program authorization bug. | Deterministic tests, reproducible builds, upgrade-authority controls, monitoring, and emergency client pause. | External Solana/Rust audit and a hardened upgrade-governance process are required before mainnet. |
+
+## Execution properties
+
+- **Payload integrity:** typed proposal execution recomputes the action payload
+  and envelope commitments. A relayer cannot substitute recipient, amount,
+  chain, route, session, or policy bytes without rejection.
+- **Replay resistance:** proposal index is part of the signed vote and proposal
+  PDA. Finalized proposals reject a second execution. Action IDs, nonces, and
+  expiry are hash-bound and length/time validated.
+- **Idempotent recovery:** an interrupted Ika flow reuses an already-signed
+  MessageApproval instead of requesting another signature. BTC, EVM, and Zcash
+  execution derives a deterministic identity from the signed transaction,
+  persists the raw bytes before submission, and queries the destination chain
+  before a retry. A successful or pending lookup returns the prior receipt; a
+  not-found lookup permits rebroadcast of only the identical bytes; an
+  unavailable lookup leaves delivery `unknown` and blocks rebroadcast.
+- **Explicit delivery state:** destination results expose the execution ID,
+  attempt count, and `submitted` or `confirmed` state. Transport failures and
+  malformed responses persist `unknown`; deterministic rejection or a
+  mismatched transaction ID persists `failed` and fails closed.
+- **Replaceable relayer:** approval and policy state live on Solana. An
+  unrelated fee payer can submit an approved execution; execution does not
+  require proposer or approver membership. Any participant can run `clear-msig`
+  directly with the same proposal and destination RPC. Backend availability is
+  not an authorization primitive.
+
+## Production blockers
+
+1. Replace the mock Ika signer with production distributed MPC.
+2. Add multi-provider RPC verification for high-value reads, reconciliation,
+   and broadcasts. Production receipts and per-execution leases use Upstash
+   Redis, so multiple backend instances share delivery state and cannot
+   concurrently broadcast the same deterministic execution.
+3. Complete adversarial/property testing and commission an external audit.
+4. Put program upgrades behind reviewed, multi-party operational governance.
+5. Verify native venue/oracle settlement attestations before Agent Vault can use real funds.

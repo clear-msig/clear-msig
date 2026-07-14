@@ -14,7 +14,7 @@ import { agentLeaderboard, agentRiskSnapshot, approveAgentProposal, closeMockAge
 import { loadAgentMarketDataSnapshots } from "@/features/agents/infrastructure/marketDataClient";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { cleanOptional, decodeParam, moderationLabel, publishedProfileText } from "@/features/agents/ui/detail/presentation";
-import { useAgentTypedSessionGrant } from "@/lib/agents/useAgentTypedSessionGrant";
+import { useAgentTypedSessionGrant } from "@/features/agents/infrastructure/sessionGrantClient";
 
 export function useAgentDetailController() {
   const params = useParams<{ name: string; agent: string }>();

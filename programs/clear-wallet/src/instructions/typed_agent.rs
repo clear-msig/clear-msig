@@ -4,6 +4,7 @@ use crate::{
     error::WalletError,
     instructions::typed_proposal::{mark_typed_executed, verify_typed_execution_ready},
     state::{
+        agent_risk::AgentRiskLedger,
         agent_session::{AgentSession, AGENT_SESSION_STATUS_ACTIVE, AGENT_SESSION_STATUS_REVOKED},
         intent::Intent,
         proposal::ProposalStatus,
@@ -41,6 +42,10 @@ pub struct ExecuteTypedAgentTradeApproval<'info> {
     #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
     #[account(mut)]
     pub session: &'info mut UncheckedAccount,
+    /// Program-owned loss and open-exposure ledger for this session.
+    #[cfg_attr(target_os = "solana", allow(quasar::unchecked_account))]
+    #[account(mut)]
+    pub risk_ledger: &'info mut UncheckedAccount,
 }
 
 pub struct ExecuteTypedAgentTradeApprovalArgs {
@@ -67,6 +72,10 @@ impl<'info> ExecuteTypedAgentTradeApproval<'info> {
         require!(amount_raw > 0, ProgramError::InvalidInstructionData);
         require!(
             args.max_leverage_x100 > 0,
+            ProgramError::InvalidInstructionData
+        );
+        require!(
+            args.risk_check_hash != [0u8; 32],
             ProgramError::InvalidInstructionData
         );
 
@@ -109,6 +118,24 @@ impl<'info> ExecuteTypedAgentTradeApproval<'info> {
         );
         require!(
             self.session.to_account_view().owned_by(&crate::ID),
+            ProgramError::IncorrectProgramId
+        );
+
+        let (expected_risk_ledger, _) = Address::find_program_address(
+            &[
+                crate::state::AGENT_RISK_LEDGER_SEED,
+                self.wallet.address().as_ref(),
+                &args.session_id_hash,
+            ],
+            &crate::ID,
+        );
+        require_keys_eq!(
+            *self.risk_ledger.address(),
+            expected_risk_ledger,
+            ProgramError::InvalidSeeds
+        );
+        require!(
+            self.risk_ledger.to_account_view().owned_by(&crate::ID),
             ProgramError::IncorrectProgramId
         );
 
@@ -164,8 +191,33 @@ impl<'info> ExecuteTypedAgentTradeApproval<'info> {
             .spent_notional_raw()
             .checked_add(amount_raw)
             .ok_or(WalletError::AgentSessionLimitExceeded)?;
+
+        let risk_view =
+            unsafe { &mut *(self.risk_ledger as *mut UncheckedAccount as *mut AccountView) };
+        let risk_data = unsafe { risk_view.borrow_unchecked() };
+        let mut risk = AgentRiskLedger::read(risk_data)?;
+        require_keys_eq!(
+            risk.wallet,
+            *self.wallet.address(),
+            WalletError::AgentRiskPolicyDenied
+        );
+        require!(
+            risk.session_id_hash == args.session_id_hash && risk.is_active(),
+            WalletError::AgentRiskPolicyDenied
+        );
+        let next_open = risk
+            .open_notional_raw()
+            .checked_add(amount_raw)
+            .ok_or(WalletError::AgentRiskPolicyDenied)?;
+        require!(
+            next_open <= session.max_notional_raw(),
+            WalletError::AgentRiskPolicyDenied
+        );
+
         session.set_spent_notional_raw(next_spent);
-        session.write(view.data_mut_ptr());
+        risk.set_open_notional_raw(next_open);
+        unsafe { session.write(view.data_mut_ptr()) };
+        unsafe { risk.write(risk_view.data_mut_ptr()) };
 
         mark_typed_executed(&mut self.intent, &mut self.proposal);
         Ok(())
@@ -328,7 +380,7 @@ impl<'info> ExecuteTypedAgentSessionGrant<'info> {
             next.status = AGENT_SESSION_STATUS_ACTIVE;
             next.spent_notional_raw_le = [0u8; 16];
         }
-        next.write(view.data_mut_ptr());
+        unsafe { next.write(view.data_mut_ptr()) };
 
         mark_typed_executed(&mut self.intent, &mut self.proposal);
         Ok(())

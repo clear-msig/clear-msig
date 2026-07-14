@@ -4,7 +4,7 @@ This is the operator checklist for the Private Swap MVP. Keep it on testnet/pre-
 
 ## Data To Provide
 
-Add these to `frontend/.env.local` for local testing and to Vercel/Render env when deploying:
+Add these to `frontend/.env.local` for local testing and to Vercel/Railway env when deploying:
 
 ```bash
 CLEARSIG_SWAP_IKA_ENABLED=0

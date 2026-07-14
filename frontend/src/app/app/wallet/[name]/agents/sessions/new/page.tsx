@@ -16,7 +16,8 @@ import { useSignWithWallet } from "@/features/agents/infrastructure/walletSignin
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { Button } from "@/components/retail/Button";
 import { FormField, NativeSelect, TextInput } from "@/components/retail/FormField";
-import { useAgentTypedSessionGrant } from "@/lib/agents/useAgentTypedSessionGrant";
+import { useAgentTypedSessionGrant } from "@/features/agents/infrastructure/sessionGrantClient";
+import { useAgentTypedRiskPolicy } from "@/features/agents/infrastructure/riskPolicyClient";
 
 const VENUES: Array<{ value: TradingVenue; label: string }> = [
   { value: "mock_perps", label: "Built-in practice" },
@@ -42,6 +43,7 @@ export default function NewAgentSessionPage() {
   const display = toDisplayName(name);
   const encoded = encodeURIComponent(name);
   const grantTypedSession = useAgentTypedSessionGrant(name);
+  const applyTypedRiskPolicy = useAgentTypedRiskPolicy(name);
   const requestedAgentId = search.get("agent")?.trim() ?? "";
   const requestedTier = agentAllocationTierById(search.get("allocationTier"));
   const requestedVenue = venueFromSearch(search.get("venue"));
@@ -187,13 +189,19 @@ export default function NewAgentSessionPage() {
         market: pending.grant.allowedMarkets?.[0] ?? "BTC-PERP",
         status: "active",
       });
-      const saved = saveAgentSession(onchainGrant);
+      const governedGrant =
+        onchainGrant.onchain?.status === "executed" && policy
+          ? await applyTypedRiskPolicy(onchainGrant, policy)
+          : onchainGrant;
+      const saved = saveAgentSession(governedGrant);
       setSessions(listAgentSessions(name));
       const synced = await syncAgentSession(saved);
-      if (onchainGrant.onchain?.status !== "executed") {
+      if (governedGrant.onchain?.status !== "executed") {
         toast.info("Practice budget is waiting for on-chain approval");
+      } else if (governedGrant.riskOnchain?.status !== "executed") {
+        toast.info("Max-loss rules are waiting for on-chain approval");
       } else if (synced.ok) {
-        toast.success("Practice budget is ready");
+        toast.success("Practice budget and max-loss rules are ready");
       } else {
         toast.info("Practice budget saved on this device for now", {
           details: synced.message,
@@ -213,10 +221,12 @@ export default function NewAgentSessionPage() {
     }
   }, [
     approvalRequest,
+    applyTypedRiskPolicy,
     canSign,
     encoded,
     grantTypedSession,
     name,
+    policy,
     router,
     signLocalClearText,
     toast,

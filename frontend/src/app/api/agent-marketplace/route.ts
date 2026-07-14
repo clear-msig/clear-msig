@@ -6,7 +6,7 @@ import {
 import {
   AgentServerStatePersistenceError,
   agentServerStatePersistenceStatus,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 
 export async function GET(request: NextRequest) {
   try {

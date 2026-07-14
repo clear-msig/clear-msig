@@ -7,7 +7,6 @@
 //
 // Reads are unchanged: GETs + the /health probe.
 import { apiRequest } from "@/lib/api/client";
-import { appConfig } from "@/lib/config";
 import { withFreshExpiry } from "@/lib/api/expiry";
 import { withRetry } from "@/lib/api/retry";
 import type {
@@ -32,7 +31,12 @@ import type {
 } from "@/lib/api/types";
 
 export const backendApi = {
-  health: () => apiRequest<{ status: string; cli_bin: string }>("/health", "GET"),
+  health: () =>
+    apiRequest<{
+      status: string;
+      execution_mode: string;
+      execution_workers: number;
+    }>("/health", "GET"),
   memberships: (address: string) =>
     apiRequest<Record<string, unknown>>(`/memberships?address=${encodeURIComponent(address)}`, "GET"),
 
@@ -406,6 +410,48 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedAgentRiskPolicy: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      sessionIdHash: string;
+      oraclePolicyHash: string;
+      maxLossRaw: string;
+      status: 1 | 2;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-risk-policy`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedAgentTradeSettlement: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      sessionIdHash: string;
+      executionIdHash: string;
+      settlementArtifactHash: string;
+      oraclePolicyHash: string;
+      closedNotionalRaw: string;
+      outcome: 1 | 2 | 3;
+      pnlAbsRaw: string;
+      settlementSequence: number;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-agent-trade-settlement`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   cleanupProposal: (proposalAddress: string) =>
     apiRequest<Record<string, unknown>, Record<string, never>>(
       `/proposals/${encodeURIComponent(proposalAddress)}/cleanup`,
@@ -413,23 +459,3 @@ export const backendApi = {
       {}
     )
 };
-
-// ── SSE URL builder for streaming execute ──────────────────────────────
-//
-// The browser opens an EventSource to this URL; the backend pipes
-// `clear-msig proposal execute` stderr as `progress` events, then emits
-// a final `done` event with the JSON result. UI wiring in Phase 5.5.
-export function executeProposalStreamUrl(
-  walletName: string,
-  proposalAddress: string,
-  params: ExecuteProposalInput
-): string {
-  const q = new URLSearchParams();
-  if (params.dwallet_program) q.set("dwallet_program", params.dwallet_program);
-  if (params.grpc_url) q.set("grpc_url", params.grpc_url);
-  if (params.rpc_url) q.set("rpc_url", params.rpc_url);
-  if (params.broadcast !== undefined) q.set("broadcast", String(params.broadcast));
-  const base = typeof window === "undefined" ? appConfig.backendApiUrl : "/api/backend";
-  const path = `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/execute/stream`;
-  return `${base}${path}${q.toString() ? "?" + q.toString() : ""}`;
-}

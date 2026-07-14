@@ -9,7 +9,7 @@ import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { buildAgentSessionClearSign } from "@/lib/agents/sessionClearSign";
 import type { AgentSessionGrant } from "@/lib/agents/types";
-import { clearSignActionKindCode, prepareClearSignAction } from "@/lib/clearsign-v2";
+import { clearSignActionKindCode, prepareClearSignAction } from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType } from "@/lib/msig";
 import { useConnection, useWallet } from "@/lib/wallet";
@@ -105,7 +105,14 @@ export function useAgentTypedSessionGrant(walletName: string) {
         expiry: formatUnixSigningExpiry(binding.envelope.expiresAt),
         actor_pubkey: proposer.toBase58(),
       });
-      const signed = await signTypedDescriptor(dry, { preferSigner: proposer });
+      const signed = await signTypedDescriptor(dry, {
+        preferSigner: proposer,
+        expectedTyped: {
+          envelopeHash: prepared.envelopeHash,
+          payloadHash: prepared.payloadHash,
+          signableText: prepared.signableText,
+        },
+      });
       const submitted = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,
         expiry: dry.expiry,

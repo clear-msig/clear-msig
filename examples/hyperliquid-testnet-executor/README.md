@@ -14,6 +14,9 @@ again before placing the practice trade.
 3. This helper checks the approved idea one more time.
 4. Hyperliquid places the practice trade.
 5. ClearSig receives proof that the trade was placed.
+6. A wallet-approved close uses the recorded filled size, reads realized P/L
+   from Hyperliquid fills, and commits the normalized artifact to typed
+   on-chain settlement.
 
 ## What Owns What
 
@@ -56,6 +59,7 @@ Use these three values for `frontend/.env.local`:
 
 ```env
 CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS=<1-main-practice-account-address>
+CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS=<2-api-wallet-public-address>
 CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL=http://127.0.0.1:4010
 CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN=<3-shared-password-you-created>
 ```
@@ -130,6 +134,11 @@ setting whose name starts with `NEXT_PUBLIC_`. Never use your main wallet here.
 - Low borrowing only, with a default maximum of `2x`.
 - Old approvals are refused.
 - Repeated requests cannot place the same trade twice.
+- Closing uses the exact recorded fill size and refuses old opening artifacts
+  that do not contain one.
+- Venue-reported closing fills, P/L, order ids, and transaction hashes are
+  normalized and hashed before threshold-approved on-chain accounting.
+- The kill switch cancels outstanding orders. It does not close positions.
 - The helper is available only on this computer unless you deliberately change it.
 
 ## Advanced Setup
@@ -163,6 +172,7 @@ password by adding these to `frontend/.env.local`:
 
 ```env
 CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS=<main-practice-account-address>
+CLEARSIG_HYPERLIQUID_TESTNET_AGENT_WALLET_ADDRESS=<api-wallet-public-address>
 CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_URL=http://127.0.0.1:4010
 CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN=<same-shared-password>
 ```
@@ -175,5 +185,8 @@ Check the helper’s safety rules:
 python3 -m unittest test_server.py
 ```
 
-Before using real money, this helper still needs lasting records, stronger
-access protection, alerts, and a full safety review.
+Before using real money, this helper still needs durable idempotency across
+executor restarts, native venue/oracle attestation that the Solana program can
+verify, stronger access protection, alerts, and a full safety review. Redis
+persists the ClearSig request and artifact records, but the helper's response
+cache itself is process-local.

@@ -3,7 +3,7 @@
 // Batch send - one input, one typed proposal.
 //
 // The shared-wallet equivalent of payroll: a proposer enters a list
-// of {recipient, amount} rows, then signs one ClearSign v2 action.
+// of {recipient, amount} rows, then signs one typed ClearSign action.
 // The Solana program verifies the exact recipient list + lamports
 // before moving funds, so the UI and program now share one truth.
 
@@ -24,7 +24,7 @@ import {
   prepareClearSignAction,
   type BatchSendPayload,
   type ClearSignEnvelope,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
@@ -151,7 +151,7 @@ export function useBatchSend() {
             `rows:${rows.length}`,
           ]);
         const envelope: ClearSignEnvelope<BatchSendPayload> = {
-          version: 2,
+          version: 3,
           kind: "batch_send",
           walletName,
           walletId: walletData.pda.toBase58(),
@@ -198,6 +198,11 @@ export function useBatchSend() {
         });
         const signed = await signTypedDescriptor(dry, {
           preferSigner: proposerPk,
+          expectedTyped: {
+            envelopeHash: summary.envelopeHash,
+            payloadHash: summary.payloadHash,
+            signableText: summary.signableText,
+          },
         });
         const submitted = await backendApi.submit.createTypedProposal(walletName, {
           ...signed,

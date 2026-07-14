@@ -2,7 +2,7 @@
 
 import { PublicKey } from "@solana/web3.js";
 import { sha256 } from "@/lib/msig/hash";
-import { pkhClearSignRecipient } from "@/lib/clearsign-v2";
+import { pkhClearSignRecipient } from "@/lib/clearsign";
 import { decodeSegwitAddress } from "@/lib/chain/btc";
 import { decodeZcashTransparentAddress } from "@/lib/chain/zcash";
 import {

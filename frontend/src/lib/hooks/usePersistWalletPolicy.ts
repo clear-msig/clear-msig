@@ -13,7 +13,7 @@ import {
   randomActionLabel,
   type ClearSignEnvelope,
   type ProtectionPayload,
-} from "@/lib/clearsign-v2";
+} from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import {
   buildPersistentPersonalPolicyTargets,
@@ -45,7 +45,7 @@ export function usePersistPersonalWalletPolicy() {
     }): Promise<"updated" | "waiting"> => {
       const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
       const envelope: ClearSignEnvelope<ProtectionPayload> = {
-        version: 2,
+        version: 3,
         kind: "set_protection",
         walletName: input.walletName,
         walletId: input.walletId,
@@ -75,6 +75,11 @@ export function usePersistPersonalWalletPolicy() {
       });
       const signed = await signTypedDescriptor(dry, {
         preferSigner: input.proposerPk,
+        expectedTyped: {
+          envelopeHash: summary.envelopeHash,
+          payloadHash: summary.payloadHash,
+          signableText: summary.signableText,
+        },
       });
       const submitted = await backendApi.submit.createTypedProposal(
         input.walletName,

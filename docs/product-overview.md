@@ -288,7 +288,7 @@ settle the corresponding asset transfer.
 - chain binding routes,
 - cleanup and lookup routes,
 - standardized JSON error envelopes,
-- CLI timeout control and validation.
+- shared-library execution timeout, concurrency, and response-size controls.
 
 ### Implemented in the CLI and program
 
@@ -391,7 +391,8 @@ The stronger claim is product novelty, not cryptographic novelty:
 ## Operating Assumptions
 
 - Solana devnet is the primary demonstration environment.
-- The CLI and backend are expected to be present together for the full flow.
+- The backend links the shared execution library; the standalone CLI is an
+  optional operator client, not a backend runtime dependency.
 - Frontend and backend communicate over JSON HTTP.
 - The app assumes browser-based signing for the common path, with Ledger as an
   alternative.
@@ -401,7 +402,7 @@ The stronger claim is product novelty, not cryptographic novelty:
 ## Repository Map
 
 - `frontend/` Next.js app and browser logic
-- `backend-api/` JSON adapter over the CLI
+- `backend-api/` JSON adapter over the shared Rust execution library
 - `cli/` transaction assembly and broadcast
 - `programs/clear-wallet/` Solana program
 - `rust-settlement/` buy/sell settlement sidecar

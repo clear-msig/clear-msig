@@ -39,4 +39,4 @@ export {
   updateAgentConnectionSettings,
   updateAgentSessionStatus,
   updateAgentStatus,
-} from "@/lib/agents/storage";
+} from "@/features/agents/local-state/store";

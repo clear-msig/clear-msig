@@ -17,6 +17,48 @@ export interface EncodedSolPolicy {
   commitmentHex: string;
 }
 
+export interface DecodedMemberAllowanceCap {
+  member: string;
+  capRaw: bigint;
+  windowSeconds: number;
+}
+
+export function decodeMemberAllowanceCaps(
+  bytes: Uint8Array,
+): DecodedMemberAllowanceCap[] {
+  if (bytes.length < 19 || !MAGIC.every((value, index) => bytes[index] === value)) {
+    throw new Error("Invalid CSP1 policy bytes.");
+  }
+  const recipientCount = bytes[17] ?? 0;
+  const approverCount = bytes[18] ?? 0;
+  let offset = 19 + (recipientCount + approverCount) * 32;
+  if (offset > bytes.length) throw new Error("Invalid CSP1 policy key section.");
+
+  const caps: DecodedMemberAllowanceCap[] = [];
+  while (offset < bytes.length) {
+    if (offset + 3 > bytes.length) throw new Error("Invalid CSP1 extension header.");
+    const tag = bytes[offset];
+    const length = bytes[offset + 1] | (bytes[offset + 2] << 8);
+    offset += 3;
+    const end = offset + length;
+    if (end > bytes.length) throw new Error("Invalid CSP1 extension length.");
+    if (tag === EXT_MEMBER_ALLOWANCE) {
+      if (length === 0 || length % MEMBER_ALLOWANCE_ENTRY_LEN !== 0) {
+        throw new Error("Invalid member allowance extension.");
+      }
+      for (let row = offset; row < end; row += MEMBER_ALLOWANCE_ENTRY_LEN) {
+        caps.push({
+          member: new PublicKey(bytes.slice(row, row + 32)).toBase58(),
+          capRaw: readU64Le(bytes, row + 32),
+          windowSeconds: readU32Le(bytes, row + 40),
+        });
+      }
+    }
+    offset = end;
+  }
+  return caps;
+}
+
 export function encodeTypedSolPolicy(
   plan: PolicyEnforcementPlan,
 ): EncodedSolPolicy | null {
@@ -485,4 +527,23 @@ class ByteWriter {
   bytes(): Uint8Array {
     return new Uint8Array(this.chunks);
   }
+}
+
+function readU32Le(bytes: Uint8Array, offset: number): number {
+  if (offset + 4 > bytes.length) throw new Error("Policy u32 is out of bounds.");
+  return (
+    bytes[offset] |
+    (bytes[offset + 1] << 8) |
+    (bytes[offset + 2] << 16) |
+    (bytes[offset + 3] << 24)
+  ) >>> 0;
+}
+
+function readU64Le(bytes: Uint8Array, offset: number): bigint {
+  if (offset + 8 > bytes.length) throw new Error("Policy u64 is out of bounds.");
+  let value = 0n;
+  for (let index = 0; index < 8; index += 1) {
+    value |= BigInt(bytes[offset + index]) << BigInt(index * 8);
+  }
+  return value;
 }

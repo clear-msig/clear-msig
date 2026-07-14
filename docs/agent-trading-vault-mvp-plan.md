@@ -205,7 +205,7 @@ Current local slice:
   signals, paper trades, scorecard, and audit log,
 - audit events are recorded locally,
 - scorecards update from proposal/action transitions and closed paper trades.
-- agent trade approval has a ClearSign v2 typed program finalizer for the
+- agent trade approval has a typed ClearSign program finalizer for the
   approved decision digest. It is not yet a direct venue order executor.
 - external agents can submit signals into `/api/agent-signals/[wallet]/[agent]`
   after the UI registers the agent signal key.
@@ -858,7 +858,8 @@ This is not ready for real capital yet. The remaining hard blockers are:
 
 - agent-state mutations still need Solana wallet/member authorization instead
   of relying on same-origin browser requests,
-- session grants and revocation state need an on-chain authority account,
+- session authority is on-chain, but live venue execution still needs a
+  settlement receipt/reconciliation path that cannot be forged by the relayer,
 - live/testnet adapters must return verified exchange order artifacts before an
   execution is marked placed,
 - Encrypt pre-alpha is wired but is not yet real confidentiality,

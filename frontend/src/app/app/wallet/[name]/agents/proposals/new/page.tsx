@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, BrainCircuit, Lock, Send } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { type AgentPolicyEvaluation, type AgentProfile, type AgentProposalStatus, type AgentTradeProposal, bindAgentProposalPolicyHash, buildAgentTradeClearSignV2, buildAgentTradeDecisionJournal, evaluateAgentTradeProposal, type TradeOrderType, type TradeSide, type TradingVenue } from "@/features/agents/domain/runtime";
+import { type AgentPolicyEvaluation, type AgentProfile, type AgentProposalStatus, type AgentTradeProposal, bindAgentProposalPolicyHash, buildAgentTradeClearSign, buildAgentTradeDecisionJournal, evaluateAgentTradeProposal, type TradeOrderType, type TradeSide, type TradingVenue } from "@/features/agents/domain/runtime";
 import { syncAgentExecution, syncAgentProposal } from "@/features/agents/infrastructure/stateClient";
 import { agentRiskSnapshot, findAgent, getAgentVaultPolicy, listAgents, listAgentSessions, newAgentProposalId, saveAgentProposal, saveAgentProposalAndExecuteIfAllowed } from "@/features/agents/infrastructure/agentStore";
 import { decryptAgentVaultPolicy, encryptAgentTradeProposal } from "@/features/agents/infrastructure/vaultCrypto";
@@ -189,7 +189,7 @@ export default function NewAgentProposalPage() {
       };
       const proposal: AgentTradeProposal = {
         ...proposalBase,
-        clearSignV2: buildAgentTradeClearSignV2(proposalBase),
+        clearSignV2: buildAgentTradeClearSign(proposalBase),
       };
       try {
         const encrypted = await encryptAgentTradeProposal(proposal);

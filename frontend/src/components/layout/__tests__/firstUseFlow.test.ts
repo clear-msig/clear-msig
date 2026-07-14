@@ -8,14 +8,17 @@ function source(path: string): string {
 
 describe("first-use wallet creation", () => {
   const walletHome = source("src/features/wallet/routes/WalletHomePage.tsx");
+  const walletDashboard = source(
+    "src/features/wallet/ui/home/WalletDashboardSections.tsx",
+  );
   const newWallet = source("src/app/app/wallet/new/page.tsx");
   const chooser = source("src/app/choose/page.tsx");
   const sidebar = source("src/components/layout/WorkspaceSidebar.tsx");
 
   it("opens wallet creation directly from the empty state", () => {
-    expect(walletHome).toContain("Create your first wallet");
-    expect(walletHome).toContain('href="/app/wallet/new"');
-    expect(walletHome).not.toContain("Choose your ClearSig product");
+    expect(walletDashboard).toContain("Create your first wallet");
+    expect(walletDashboard).toContain('href="/app/wallet/new"');
+    expect(walletDashboard).not.toContain("Choose your ClearSig product");
   });
 
   it("defaults creation to Personal and keeps advanced purposes inline", () => {
@@ -27,9 +30,9 @@ describe("first-use wallet creation", () => {
     expect(newWallet).not.toContain("function ProductChoiceCard");
   });
 
-  it("retires the standalone product chooser", () => {
-    expect(chooser).toContain('redirect("/app/wallet/new")');
-    expect(chooser).not.toContain("ProductChooserPage");
+  it("renders the public product chooser before sign-in", () => {
+    expect(chooser).toContain("<ProductChooser />");
+    expect(chooser).not.toContain("redirect(");
   });
 
   it("keeps wallet creation available in desktop wallet-scoped navigation", () => {

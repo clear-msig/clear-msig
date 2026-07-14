@@ -18,7 +18,9 @@ use membership::{lookup_memberships, MembershipQuery, MembershipResponse};
 #[derive(Serialize)]
 struct HealthResponse {
     status: &'static str,
-    cli_bin: String,
+    execution_mode: &'static str,
+    execution_workers: usize,
+    destination_receipt_storage: &'static str,
 }
 
 #[derive(Deserialize)]
@@ -65,7 +67,9 @@ pub(crate) fn router() -> Router<AppState> {
 async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, ApiError> {
     Ok(Json(HealthResponse {
         status: "ok",
-        cli_bin: state.runner.cli_bin.clone(),
+        execution_mode: state.runner.execution_mode(),
+        execution_workers: state.runner.worker_limit,
+        destination_receipt_storage: state.runner.destination_receipt_storage,
     }))
 }
 
@@ -86,29 +90,24 @@ async fn create_wallet(
         return Err(ApiError::BadRequest("threshold must be >= 1".into()));
     }
 
-    let mut args = vec![
-        "wallet".to_string(),
-        "create".to_string(),
-        "--name".to_string(),
-        body.name,
-        "--proposers".to_string(),
-        body.proposers.join(","),
-        "--approvers".to_string(),
-        body.approvers.join(","),
-        "--threshold".to_string(),
-        body.threshold.to_string(),
-    ];
-
-    args.extend([
-        "--cancellation-threshold".to_string(),
-        body.cancellation_threshold.unwrap_or(1).to_string(),
-        "--timelock".to_string(),
-        body.timelock.unwrap_or(0).to_string(),
-    ]);
-
-    push_policy_ciphertexts(&mut args, &body.policy_ciphertexts);
-
-    Ok(Json(state.runner.run_json(args).await?))
+    let command = clear_msig_command_contract::DirectCommand::WalletCreate {
+        name: body.name,
+        proposers: body.proposers,
+        approvers: body.approvers,
+        threshold: body.threshold,
+        cancellation_threshold: body.cancellation_threshold.unwrap_or(1),
+        timelock: body.timelock.unwrap_or(0),
+        policy_ciphertexts: body.policy_ciphertexts,
+    };
+    Ok(Json(
+        state
+            .runner
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                command,
+            )
+            .await?,
+    ))
 }
 
 async fn show_wallet(
@@ -116,15 +115,14 @@ async fn show_wallet(
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
+    let command = clear_msig_command_contract::DirectCommand::WalletShow { name };
     Ok(Json(
         state
             .runner
-            .run_json(vec![
-                "wallet".to_string(),
-                "show".to_string(),
-                "--name".to_string(),
-                name,
-            ])
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                command,
+            )
             .await?,
     ))
 }
@@ -135,18 +133,22 @@ async fn list_wallet_chains(
     Query(query): Query<ChainsQuery>,
 ) -> Result<Json<Value>, ApiError> {
     ensure_wallet_name(&name, "name")?;
-    let mut args = vec![
-        "wallet".to_string(),
-        "chains".to_string(),
-        "--wallet".to_string(),
-        name,
-    ];
-    if let Some(program) = query.dwallet_program {
-        ensure_non_empty(&program, "dwallet_program")?;
-        args.push("--dwallet-program".to_string());
-        args.push(program);
+    if let Some(program) = &query.dwallet_program {
+        ensure_non_empty(program, "dwallet_program")?;
     }
-    Ok(Json(state.runner.run_json(args).await?))
+    let command = clear_msig_command_contract::DirectCommand::WalletChains {
+        wallet: name,
+        dwallet_program: query.dwallet_program,
+    };
+    Ok(Json(
+        state
+            .runner
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                command,
+            )
+            .await?,
+    ))
 }
 
 async fn add_wallet_chain(
@@ -172,34 +174,32 @@ async fn add_wallet_chain(
         .grpc_url
         .or_else(|| state.runner.default_grpc_url.clone());
 
-    let mut args = vec![
-        "wallet".to_string(),
-        "add-chain".to_string(),
-        "--wallet".to_string(),
-        name,
-        "--chain".to_string(),
-        body.chain,
-        "--dwallet-program".to_string(),
+    if let Some(grpc_url) = &grpc_url {
+        ensure_non_empty(grpc_url, "grpc_url")?;
+    }
+    if let Some(value) = &body.existing_dwallet_pubkey {
+        ensure_non_empty(value, "existing_dwallet_pubkey")?;
+    }
+    if let Some(value) = &body.existing_dwallet_addr {
+        ensure_non_empty(value, "existing_dwallet_addr")?;
+    }
+    let command = clear_msig_command_contract::DirectCommand::WalletAddChain {
+        wallet: name,
+        chain: body.chain,
         dwallet_program,
-    ];
-
-    if let Some(grpc_url) = grpc_url {
-        ensure_non_empty(&grpc_url, "grpc_url")?;
-        args.push("--grpc-url".to_string());
-        args.push(grpc_url);
-    }
-    if let Some(value) = body.existing_dwallet_pubkey {
-        ensure_non_empty(&value, "existing_dwallet_pubkey")?;
-        args.push("--existing-dwallet-pubkey".to_string());
-        args.push(value);
-    }
-    if let Some(value) = body.existing_dwallet_addr {
-        ensure_non_empty(&value, "existing_dwallet_addr")?;
-        args.push("--existing-dwallet-addr".to_string());
-        args.push(value);
-    }
-
-    Ok(Json(state.runner.run_json(args).await?))
+        grpc_url,
+        existing_dwallet_pubkey: body.existing_dwallet_pubkey,
+        existing_dwallet_addr: body.existing_dwallet_addr,
+    };
+    Ok(Json(
+        state
+            .runner
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                command,
+            )
+            .await?,
+    ))
 }
 
 async fn membership_lookup(
@@ -207,12 +207,4 @@ async fn membership_lookup(
     Query(query): Query<MembershipQuery>,
 ) -> Result<Json<MembershipResponse>, ApiError> {
     Ok(Json(lookup_memberships(&state, query.address).await?))
-}
-
-fn push_policy_ciphertexts(args: &mut Vec<String>, ids: &[String]) {
-    if ids.is_empty() {
-        return;
-    }
-    args.push("--policy-ciphertexts".to_string());
-    args.push(ids.join(","));
 }

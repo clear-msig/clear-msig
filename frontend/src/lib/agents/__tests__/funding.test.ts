@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAgentVaultAllocationHref,
   buildAgentFundingPlan,
   defaultAgentVaultPolicy,
   type AgentLeaderboardEntry,
@@ -61,6 +62,18 @@ function leader(agentId: string, score: number): AgentLeaderboardEntry {
 }
 
 describe("agent funding plan", () => {
+  it("routes a governed Pro allocation to the Agent vault address", () => {
+    expect(
+      buildAgentVaultAllocationHref({
+        sourceWallet: "Team treasury#abc",
+        destinationAddress: "AgentVaultAddress1111111111111111111111111",
+        agentVaultName: "Research vault",
+      }),
+    ).toBe(
+      "/app/wallet/Team%20treasury%23abc/send?recipient=AgentVaultAddress1111111111111111111111111&note=Allocate+to+Research+vault",
+    );
+  });
+
   it("prioritizes traders that earned a larger allowance", () => {
     const agents = [agent("starter"), agent("winner")];
     const policy = { ...defaultAgentVaultPolicy("vault"), policyHash: "policy-1" };
