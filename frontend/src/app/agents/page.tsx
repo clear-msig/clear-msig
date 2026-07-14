@@ -18,7 +18,7 @@ import {
   marketplaceWalletsFromSearch,
 } from "@/lib/agents/serverMarketplaceRegistry";
 import { creatorRegistryStatusLabel } from "@/lib/agents/creatorRegistry";
-import { AgentServerStatePersistenceError } from "@/lib/agents/serverState";
+import { AgentServerStatePersistenceError } from "@/features/agents/server/serverState";
 import type { AgentTrackRecordSource } from "@/lib/agents/types";
 
 export const dynamic = "force-dynamic";

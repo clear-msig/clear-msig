@@ -6,7 +6,7 @@ import {
   saveAgentServerProfile,
   saveAgentServerSession,
   saveAgentServerVaultPolicy,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import type {
   AgentProfile,
   AgentSessionGrant,

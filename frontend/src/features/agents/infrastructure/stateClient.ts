@@ -14,4 +14,4 @@ export {
   syncAgentVaultPolicy,
 } from "@/lib/agents/clientState";
 export type { AgentKillSwitchHandoff } from "@/lib/agents/clientState";
-export type { AgentServerWalletState } from "@/lib/agents/serverState";
+export type { AgentServerWalletState } from "@/features/agents/server/serverState";

@@ -10,7 +10,7 @@ import type {
   AgentTradeProposal,
   AgentVaultPolicy,
 } from "@/lib/agents/types";
-import type { AgentServerWalletState } from "@/lib/agents/serverState";
+import type { AgentServerWalletState } from "@/features/agents/server/serverState";
 
 export interface AgentBackendStateSnapshot {
   storage: "redis" | "memory";

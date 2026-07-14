@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET as readMarketplace } from "@/app/api/agent-marketplace/route";
-import { saveAgentServerProfile } from "@/lib/agents/serverState";
+import { saveAgentServerProfile } from "@/features/agents/server/serverState";
 import type { AgentProfile } from "@/lib/agents/types";
 
 const now = Date.UTC(2026, 5, 1, 12, 0, 0);

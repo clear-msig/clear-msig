@@ -9,7 +9,7 @@ import {
   listAgents,
   listAgentProposals,
   setAgentVaultEmergencyPause,
-} from "@/lib/agents/storage";
+} from "@/features/agents/local-state/store";
 
 const now = Date.UTC(2026, 5, 1, 12, 0, 0);
 

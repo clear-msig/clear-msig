@@ -6,7 +6,7 @@ import {
 import {
   agentServerStatePersistenceStatus,
   getAgentServerWalletState,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 
 export interface AgentMarketplaceRegistryLoadResult {
   registry: AgentMarketplaceRegistry;

@@ -3,7 +3,7 @@
 import {
   getAgentConnectionKit,
   updateAgentConnectionSettings,
-} from "@/lib/agents/storage";
+} from "@/features/agents/local-state/store";
 import type {
   AgentConnectionKit,
   AgentPolicyEvaluation,

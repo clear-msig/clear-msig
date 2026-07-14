@@ -9,39 +9,43 @@ function source(path: string): string {
 const sendReviewOwners = [
   [
     "src/features/send/routes/SolanaSendPage.tsx",
-    "src/features/send/ui/solana/solanaSendPreview.ts",
+    ["src/features/send/ui/solana/solanaSendPreview.ts"],
   ],
   [
     "src/features/send/routes/EthSendPage.tsx",
-    "src/features/send/routes/EthSendPage.tsx",
+    ["src/features/send/ui/evm/EvmNativeSendStages.tsx"],
   ],
   [
     "src/features/send/routes/Erc20SendPage.tsx",
-    "src/features/send/routes/Erc20SendPage.tsx",
+    ["src/features/send/ui/evm/Erc20SendStages.tsx"],
   ],
   [
     "src/features/send/routes/BtcSendPage.tsx",
-    "src/features/send/ui/bitcoin/bitcoinPreview.ts",
+    ["src/features/send/ui/bitcoin/bitcoinPreview.ts"],
   ],
   [
     "src/features/send/routes/ZecSendPage.tsx",
-    "src/features/send/routes/ZecSendPage.tsx",
+    ["src/features/send/ui/zcash/ZcashSendStages.tsx"],
   ],
   [
     "src/features/send/routes/BatchSendPage.tsx",
-    "src/features/send/routes/BatchSendPage.tsx",
+    ["src/features/send/routes/BatchSendPage.tsx"],
   ],
 ] as const;
 
+function sources(paths: readonly string[]): string {
+  return paths.map(source).join("\n");
+}
+
 describe("transaction review contract", () => {
-  it.each(sendReviewOwners)("shows quorum and timing on %s", (_route, owner) => {
-    const review = source(owner);
+  it.each(sendReviewOwners)("shows quorum and timing on %s", (_route, owners) => {
+    const review = sources(owners);
     expect(review).toContain('label: "Approval threshold"');
     expect(review).toContain('label: "Timelock"');
   });
 
-  it.each(sendReviewOwners)("shows network fee information on %s", (_route, owner) => {
-    const review = source(owner);
+  it.each(sendReviewOwners)("shows network fee information on %s", (_route, owners) => {
+    const review = sources(owners);
     expect(review).toMatch(/label: "(Network fee|Gas reserve)"/);
   });
 
@@ -61,10 +65,16 @@ describe("transaction review contract", () => {
   });
 
   it.each([
-    "src/features/send/routes/EthSendPage.tsx",
-    "src/features/send/routes/Erc20SendPage.tsx",
-  ])("renders an under-approved remote send as pending on %s", (path) => {
-    const page = source(path);
+    [
+      "src/features/send/routes/EthSendPage.tsx",
+      "src/features/send/ui/evm/EvmNativeSendResults.tsx",
+    ],
+    [
+      "src/features/send/routes/Erc20SendPage.tsx",
+      "src/features/send/ui/evm/Erc20SendResults.tsx",
+    ],
+  ])("renders an under-approved remote send as pending on %s", (path, result) => {
+    const page = sources([path, result]);
     expect(page).toContain("waitForProposalApproval(connection, proposal)");
     expect(page).toContain("Waiting for remaining approvals");
     expect(page).toContain('status={pending ? "pending" : "confirmed"}');

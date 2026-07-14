@@ -4,7 +4,7 @@ import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
   AgentServerStatePersistenceError,
   agentServerStatePersistenceStatus,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import { runAgentAutonomyTick } from "@/lib/agents/serverAutonomousTrading";
 import type { TradingVenue } from "@/lib/agents/types";
 

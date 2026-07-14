@@ -21,7 +21,7 @@ import {
 import {
   hasAgentServerWalletSignedOwnerApproval,
   validateAgentServerExecutionHandoff,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import { buildAgentVenueReconciliationSummary } from "@/lib/agents/venueReconciliation";
 import type { TradingVenue } from "@/lib/agents/types";
 

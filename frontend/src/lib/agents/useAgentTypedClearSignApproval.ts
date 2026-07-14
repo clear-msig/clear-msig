@@ -14,7 +14,7 @@ import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType } from "@/lib/msig";
 import { useConnection, useWallet } from "@/lib/wallet";
 import type { AgentTradeProposal } from "@/lib/agents/types";
-import { listAgentSessions } from "@/lib/agents/storage";
+import { listAgentSessions } from "@/features/agents/local-state/store";
 
 export interface AgentTypedClearSignApprovalResult {
   proposal: AgentTradeProposal;

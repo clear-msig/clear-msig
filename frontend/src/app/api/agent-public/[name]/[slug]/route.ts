@@ -4,7 +4,7 @@ import {
   AgentServerStatePersistenceError,
   agentServerStatePersistenceStatus,
   getAgentServerWalletState,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 
 interface RouteContext {
   params: Promise<{ name: string; slug: string }>;

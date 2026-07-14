@@ -12,7 +12,7 @@ export * from "@/lib/agents/decisionJournal";
 export * from "@/lib/agents/postTradeReview";
 export * from "@/lib/agents/traderLibrary";
 export * from "@/lib/agents/demoHistory";
-export * from "@/lib/agents/storage";
+export * from "@/features/agents/local-state/store";
 export * from "@/lib/agents/readiness";
 export * from "@/lib/agents/launchReadiness";
 export * from "@/lib/agents/betaReadiness";

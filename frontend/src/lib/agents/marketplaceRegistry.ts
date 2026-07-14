@@ -9,7 +9,7 @@ import type {
   AgentCreatorRegistryReadiness,
   AgentCreatorType,
 } from "@/lib/agents/creatorRegistry";
-import type { AgentServerWalletState } from "@/lib/agents/serverState";
+import type { AgentServerWalletState } from "@/features/agents/server/serverState";
 import type { AgentTrackRecordSource, TradingVenue } from "@/lib/agents/types";
 
 export interface AgentMarketplaceEntry {

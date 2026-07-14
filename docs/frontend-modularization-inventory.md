@@ -6,33 +6,36 @@ visible and gives each split a boundary.
 
 | Lines | Module | Required split |
 | ---: | --- | --- |
-| 1,974 | `features/send/routes/SolanaSendPage.tsx` | form/view state, typed proposal controller, transaction receipt UI |
-| 1,923 | `features/settings/routes/AppSettingsPage.tsx` | account, appearance, notifications, security settings |
-| 1,864 | `features/wallet/routes/WalletHomePage.tsx` | data controller, balances/actions, protection summary, activity |
 | 1,833 | `features/landing/routes/LandingPage.tsx` | product sections and page composition |
-| 1,634 | `lib/agents/storage.ts` | profiles, policies, proposals, sessions, executions, audit storage repositories |
-| 1,568 | `features/send/routes/BtcSendPage.tsx` | UTXO preparation, ClearSign lifecycle, wallet signing, receipt UI |
 | 1,522 | `features/secure/routes/RecoverySweepPage.tsx` | recovery state machine, chain adapters, signing, receipt UI |
-| 1,308 | `features/send/routes/EthSendPage.tsx` | EVM preparation, typed lifecycle, signing, receipt UI |
-| 1,247 | `lib/agents/serverState.ts` | repositories, validation, owner approvals, scorecards, audit events |
-| 1,144 | `features/send/routes/BatchSendPage.tsx` | row editor, validation, typed lifecycle, receipt UI |
-| 1,137 | `features/send/routes/Erc20SendPage.tsx` | token metadata, EVM preparation, typed lifecycle, receipt UI |
 | 1,086 | `features/secure/routes/ImportKeyPage.tsx` | parser, validation, import controller, confirmation UI |
 | 1,059 | `components/landing/SecureSection.tsx` | content data and independent visual sections |
-| 1,054 | `features/send/routes/ZecSendPage.tsx` | UTXO preparation, typed lifecycle, signing, receipt UI |
 | 1,047 | `features/secure/routes/NewRecoveryPage.tsx` | form domain, creation controller, enrollment handoff |
 | 1,037 | `features/secure/routes/RecoveryThresholdPage.tsx` | threshold domain, signing controller, confirmation UI |
-| 1,028 | `features/treasury/routes/EscrowPage.tsx` | project repository, escrow controller, release/return views |
+| 1,033 | `features/treasury/routes/EscrowPage.tsx` | project repository, escrow controller, release/return views |
+
+## Completed in this phase
+
+- All six send routes are below 1,000 lines. Chain orchestration remains in
+  routes while compose/result rendering, batch parsing, and CSV download live
+  in UI, domain, and infrastructure modules respectively.
+- Browser Agent state moved from the 1,634-line `lib/agents/storage.ts` into
+  feature-owned repositories. The largest active local-state module is 648
+  lines; the legacy entry is a 44-line compatibility facade.
+- Server Agent state moved from the 1,246-line `lib/agents/serverState.ts` into
+  feature-owned persistence, validation, signature, scorecard, and state
+  modules. The largest active server-state module is 664 lines; the legacy
+  entry is a 26-line compatibility facade.
+- CI caps send routes at 1,000 lines, Agent state modules at 700, and rejects
+  imports that bypass the feature-owned state boundary.
 
 ## Priority
 
-1. Split `storage.ts` and `serverState.ts` first because they are shared mutable
-   Agent boundaries with the widest correctness blast radius.
-2. Split send routes around a common typed proposal state machine while keeping
-   chain-specific transaction preparation in separate adapters.
-3. Split Secure routes around an explicit recovery state machine before adding
+1. Split Secure routes around an explicit recovery state machine before adding
    more recovery methods.
-4. Split wallet/settings pages after their read models are extracted; visual
+2. Continue moving pure Agent domain implementations out of `lib/agents`; the
+   state boundary is migrated, but the wider domain migration is not complete.
+3. Split wallet/settings pages after their read models are extracted; visual
    decomposition alone will not reduce coupling.
 
 CI already caps route entries at 1,000 lines, all modules at 2,000, Agent

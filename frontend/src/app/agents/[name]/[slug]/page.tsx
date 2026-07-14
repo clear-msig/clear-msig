@@ -25,7 +25,7 @@ import {
 import {
   AgentServerStatePersistenceError,
   getAgentServerWalletState,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import {
   creatorRegistryStatusLabel,
   type AgentCreatorRegistryReadiness,

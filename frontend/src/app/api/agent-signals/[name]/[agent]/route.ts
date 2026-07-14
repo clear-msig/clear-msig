@@ -19,7 +19,7 @@ import {
   AgentServerStatePersistenceError,
   agentServerStatePersistenceStatus,
   hasAgentServerWalletSignedOwnerApproval,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 
 const MAX_BODY_BYTES = 8_000;
 const MAX_SIGNAL_KEY_BYTES = 160;

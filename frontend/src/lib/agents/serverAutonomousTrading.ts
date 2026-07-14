@@ -10,7 +10,7 @@ import { executeAllowedAgentProposal } from "@/lib/agents/serverAutomaticExecuti
 import {
   getAgentServerWalletState,
   saveAgentServerProposal,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import type {
   AgentAutomaticExecutionResult,
 } from "@/lib/agents/serverAutomaticExecution";

@@ -15,7 +15,7 @@ import { decimalToAgentUsdRaw } from "@/lib/agents/agentClearSignEncoding";
 import {
   getAgentServerWalletState,
   hasAgentServerWalletSignedOwnerApproval,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import { CLEAR_WALLET_PROGRAM_ID, DEFAULT_COMMITMENT, getConnection } from "@/lib/chain/client";
 import { parseAnyProposal, ProposalStatus } from "@/lib/msig";
 import { fetchWalletByName } from "@/lib/chain/wallets";

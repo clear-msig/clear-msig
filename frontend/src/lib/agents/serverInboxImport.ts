@@ -5,7 +5,7 @@ import {
   getAgentServerWalletState,
   saveAgentServerProposal,
   type AgentServerProposalSaveResult,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import {
   listAgentInboxSignals,
   removeAgentInboxSignals,

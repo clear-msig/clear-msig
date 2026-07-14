@@ -5,7 +5,7 @@ import {
   publicProfileUrl,
 } from "@/lib/agents/publicProfile";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
-import type { AgentServerWalletState } from "@/lib/agents/serverState";
+import type { AgentServerWalletState } from "@/features/agents/server/serverState";
 import type {
   AgentExecutionRecord,
   AgentProfile,

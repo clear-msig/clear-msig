@@ -19,7 +19,7 @@ import {
   getAgentServerWalletState,
   saveAgentServerExecution,
   validateAgentServerExecutionHandoff,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import type {
   AgentExecutionRecord,
   AgentTradeProposal,

@@ -7,7 +7,7 @@ import {
   saveAgentServerProfile,
   saveAgentServerSession,
   saveAgentServerVaultPolicy,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import type { AgentProfile, AgentSessionGrant } from "@/lib/agents/types";
 
 const now = Date.UTC(2026, 5, 1, 12, 0, 0);

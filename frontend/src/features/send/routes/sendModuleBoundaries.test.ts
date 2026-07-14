@@ -8,13 +8,17 @@ function source(path: string): string {
 
 describe("BTC and Solana send module boundaries", () => {
   const btcRoute = source("src/features/send/routes/BtcSendPage.tsx");
+  const btcScreen = source(
+    "src/features/send/ui/bitcoin/BtcSendScreen.tsx",
+  );
   const solanaRoute = source("src/features/send/routes/SolanaSendPage.tsx");
 
   it("keeps BTC rendering in focused UI modules", () => {
-    expect(btcRoute).toContain("/bitcoin/BtcSetupStates");
-    expect(btcRoute).toContain("/bitcoin/BtcComposeForm");
-    expect(btcRoute).toContain("/bitcoin/BtcSendResults");
+    expect(btcRoute).toContain("/bitcoin/BtcSendScreen");
     expect(btcRoute).toContain("/bitcoin/bitcoinPreview");
+    expect(btcScreen).toContain("/bitcoin/BtcSetupStates");
+    expect(btcScreen).toContain("/bitcoin/BtcComposeForm");
+    expect(btcScreen).toContain("/bitcoin/BtcSendResults");
     expect(btcRoute).not.toContain("function ComposeForm(");
   });
 
@@ -31,6 +35,7 @@ describe("BTC and Solana send module boundaries", () => {
       "src/features/send/ui/bitcoin/BtcSetupStates.tsx",
       "src/features/send/ui/bitcoin/BtcComposeForm.tsx",
       "src/features/send/ui/bitcoin/BtcSendResults.tsx",
+      "src/features/send/ui/bitcoin/BtcSendScreen.tsx",
       "src/features/send/ui/solana/SolanaComposeStage.tsx",
     ];
     for (const path of uiFiles) {

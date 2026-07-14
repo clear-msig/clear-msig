@@ -59,6 +59,32 @@ for (const file of metrics) {
   if (file.path.includes("/features/agents/controllers/") && file.lines > 700) {
     failures.push(`${label(file.path)} has ${file.lines} lines; agent controllers are capped at 700`);
   }
+  if (
+    /\/features\/agents\/(?:local-state|server)\//.test(file.path) &&
+    file.lines > 700
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; agent state modules are capped at 700`,
+    );
+  }
+  if (
+    /\/lib\/agents\/(?:storage|serverState)\.ts$/.test(file.path) &&
+    file.lines > 80
+  ) {
+    failures.push(
+      `${label(file.path)} has ${file.lines} lines; legacy agent state entries must remain compatibility facades`,
+    );
+  }
+  if (
+    !/\/lib\/agents\/(?:storage|serverState)\.ts$/.test(file.path) &&
+    importStatements(file.source).some((statement) =>
+      /@\/lib\/agents\/(?:storage|serverState)/.test(statement),
+    )
+  ) {
+    failures.push(
+      `${label(file.path)} imports legacy agent state instead of the feature-owned boundary`,
+    );
+  }
   if (file.path.includes("/features/agents/infrastructure/")) {
     if (/^\s*export\s+\*/m.test(file.source)) {
       failures.push(`${label(file.path)} uses a wildcard export; infrastructure ports must be explicit`);
@@ -83,17 +109,9 @@ for (const file of metrics) {
       `${label(file.path)} has ${file.lines} lines; wallet home is capped at 1,100`,
     );
   }
-  if (file.path.includes("/features/send/routes/") && file.lines > 1_600) {
+  if (file.path.includes("/features/send/routes/") && file.lines > 1_000) {
     failures.push(
-      `${label(file.path)} has ${file.lines} lines; send routes are capped at 1,600`,
-    );
-  }
-  if (
-    /\/features\/send\/routes\/(?:Btc|Solana)SendPage\.tsx$/.test(file.path) &&
-    file.lines > 1_100
-  ) {
-    failures.push(
-      `${label(file.path)} has ${file.lines} lines; BTC and Solana send routes are capped at 1,100`,
+      `${label(file.path)} has ${file.lines} lines; send routes are capped at 1,000`,
     );
   }
   if (file.path.includes("/features/send/ui/") && file.lines > 450) {

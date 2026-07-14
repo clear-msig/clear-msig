@@ -13,7 +13,7 @@ import {
   saveAgentProposal,
   saveAgentProposalAndExecuteIfAllowed,
   saveAgentSession,
-} from "@/lib/agents/storage";
+} from "@/features/agents/local-state/store";
 import type { AgentProfile, AgentTradeProposal } from "@/lib/agents/types";
 
 const DEMO_AGENT_PREFIX = "clearsig-demo-agent:";

@@ -12,7 +12,7 @@ import {
   saveAgentServerProfile,
   saveAgentServerProposal,
   saveAgentServerVaultPolicy,
-} from "@/lib/agents/serverState";
+} from "@/features/agents/server/serverState";
 import type {
   AgentOwnerApproval,
   AgentProfile,
