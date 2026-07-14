@@ -7,7 +7,7 @@
 | Live demo | **[clearsig.xyz](https://clearsig.xyz)** |
 | GitHub | [clear-msig/clear-msig](https://github.com/clear-msig/clear-msig) |
 | Program ID (devnet) | [`53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v`](https://explorer.solana.com/address/53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v?cluster=devnet) |
-| Backend (Render) | [clear-msig-backend.onrender.com](https://clear-msig-backend.onrender.com/health) |
+| Backend (Railway) | Railway domain pending migration verification |
 
 > **Pre-alpha — do not use with real funds.** Devnet only. Ika is currently a single mock signer, not production distributed MPC.
 
@@ -218,4 +218,4 @@ The full attack-surface walkthrough lives in [SECURITY.md](SECURITY.md). Read it
 - [Agent trading vault MVP plan](docs/agent-trading-vault-mvp-plan.md)
 - [Encrypt pre-alpha integration notes](docs/encrypt-prealpha-testing.md)
 - [Current deploy runbook](docs/deploy-current.md)
-- [Render and Vercel deploy notes](docs/render-migration.md)
+- [Railway and Vercel deploy notes](docs/railway-migration.md)

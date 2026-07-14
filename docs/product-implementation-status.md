@@ -19,7 +19,7 @@ adapter.
 | Agent connected trade approval | Clear Wallet program | Reserves session allowance and open exposure on-chain; venue submission still uses an operator-controlled testnet API wallet. |
 | Agent connected settlement | Hyperliquid testnet executor, Redis artifact, Clear Wallet program | Product-wired owner-attested settlement. Venue fill creates a trusted-server artifact; chain sequence/exposure are read from the risk ledger; threshold approval updates accounting and replay receipt. Hyperliquid signatures are not verified by the program. |
 | Agent profiles, strategies, marketplace, scoring | Browser and Redis/backend | Application state, not on-chain truth. |
-| Agent automatic trading | Next/Render process and Redis | Centralized pre-alpha automation; not permissionless, durable autonomous execution. |
+| Agent automatic trading | Next/Railway process and Redis | Centralized pre-alpha automation; not permissionless, durable autonomous execution. |
 | Built-in and bulk mock venues | Browser/backend paper records | Simulation only. No funds or venue settlement. |
 | Agent Vault funding | Governed wallet transfer | Allocation can be a real governed transfer, but production autonomous custody/use is blocked on distributed MPC and audited adapters. |
 | Secure recovery | Separate Ikavery program plus device/passkey flows | Devnet/pre-alpha implementation. It is not the Clear Wallet policy program and has not completed an external audit. |
@@ -34,7 +34,7 @@ adapter.
 - The frontend can prepare requests but cannot make a browser-only rule a
   security boundary. Program-owned accounts and destination-chain validation
   are authoritative.
-- Render and Redis are still trusted for Agent venue artifacts, automation,
+- Railway and Redis are still trusted for Agent venue artifacts, automation,
   notifications, and application state. Settlement hashes stop post-approval
   substitution; they do not prove the server originally reported truthful data.
 - Ika integration remains experimental. Production distributed MPC, native

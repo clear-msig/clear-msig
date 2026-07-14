@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 #
-# Builds the clear-msig backend API as a single container image for Render.
+# Builds the clear-msig backend API as a provider-neutral container image.
 # Multi-stage: cache-friendly builder layer, slim runtime layer.
 
 FROM rust:1.95-bookworm AS builder
@@ -20,7 +20,11 @@ WORKDIR /build
 # build cache (or local Docker layer cache) for re-builds.
 COPY . .
 
-RUN cargo build --release -p clear-msig-backend-api
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release -p clear-msig-backend-api \
+    && cp target/release/clear-msig-backend-api /clear-msig-backend-api
 
 # ----------------------------------------------------------------------
 
@@ -32,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libudev1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/target/release/clear-msig-backend-api /usr/local/bin/clear-msig-backend-api
+COPY --from=builder /clear-msig-backend-api /usr/local/bin/clear-msig-backend-api
 COPY ops/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
@@ -42,7 +46,6 @@ COPY examples /app/examples
 WORKDIR /app
 
 ENV CLEAR_MSIG_ENV=production
-ENV BACKEND_API_BIND=0.0.0.0:8080
 ENV RUST_LOG=info
 EXPOSE 8080
 

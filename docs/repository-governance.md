@@ -35,6 +35,6 @@ with focused compatibility and security tests.
 ## Release evidence
 
 Every release records the commit SHA, CI run, artifact checksum, program
-deployment signature when bytecode changes, Render/Vercel deployment records,
+deployment signature when bytecode changes, Railway/Vercel deployment records,
 and live smoke result. Repository governance increases review assurance; it
 does not replace an external protocol audit.

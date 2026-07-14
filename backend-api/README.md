@@ -63,7 +63,7 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM` (optional default `--dwallet-program` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_GRPC_URL` (optional default `--grpc-url` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (optional default `--rpc-url` for execute)
-- `CLEAR_MSIG_PRO_STORE_PATH` (optional Pro schedules/audit JSON store; defaults to `/data/pro-store.json` on Render when `/data` exists)
+- `CLEAR_MSIG_PRO_STORE_PATH` (optional Pro schedules/audit JSON store; production uses `/data/pro-store.json` on the mounted Railway volume)
 - `CLEAR_MSIG_DELIVERY_STORE_PATH` (development-only BTC/EVM/Zcash receipt file)
 - `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (required production Redis REST store for distributed delivery receipts/leases, notifications, agent state, and shared rate-limit paths)
 
@@ -127,7 +127,8 @@ no tonic or experimental Ika SDK types; only the live adapter owns that stack.
 
 - Deploy `clear-wallet` on Solana.
 - Use the current deploy source of truth in `docs/deploy-current.md`.
-- Backend production runs on Render from `render.yaml`.
+- Backend production runs on Railway from the root `Dockerfile` and
+  `railway.json`.
 - Frontend production runs on Vercel from `frontend/vercel.json`.
 - Production Redis is Upstash Redis REST.
 - Run `clear-msig-backend-api` as your backend service.

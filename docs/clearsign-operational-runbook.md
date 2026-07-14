@@ -35,7 +35,7 @@ npx vitest run src/lib/clearsign/__tests__ src/lib/api/__tests__/errors.test.ts
 npm run typecheck
 ```
 
-For a live smoke test, send a small SOL amount on devnet after Render and
+For a live smoke test, send a small SOL amount on devnet after Railway and
 Vercel are both redeployed from the same commit. Do not reuse an old request.
 
 ## Dynamic Embedded Wallet Notes
@@ -71,7 +71,7 @@ Usually `InvalidClearSignEnvelope`. Check hash parity between:
 - `backend-api/src/clearsign/hash.rs`
 - `frontend/src/lib/clearsign/actions.ts`
 
-This can also happen when Render or Vercel is still serving old code, or when
+This can also happen when Railway or Vercel is still serving old code, or when
 the user retries an old proposal created before the latest deploy.
 
 `ClearSign details did not verify`
@@ -94,7 +94,7 @@ or program error. Do not debug browser console noise first.
 
 Current infra details live in `docs/deploy-current.md`: program deploys use the
 Alchemy devnet RPC and `target/deploy/clear_wallet-keypair.json`, backend deploys
-to Render, frontend deploys to Vercel, and Redis is Upstash REST.
+to Railway, frontend deploys to Vercel, and Redis is Upstash REST.
 
 Before deploy:
 
@@ -106,7 +106,7 @@ npm run typecheck
 
 After deploy:
 
-- Render backend must point at the same Solana program id as the frontend.
+- Railway backend must point at the same Solana program id as the frontend.
 - Vercel frontend must be redeployed after backend/API contract or frontend
   ClearSign hash changes.
 - Upstash Redis env must be present in production for cross-device notification
