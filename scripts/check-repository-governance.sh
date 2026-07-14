@@ -6,9 +6,10 @@ grep -q '^/programs/clear-wallet/' .github/CODEOWNERS
 grep -q '^/crates/clear-msig-execution/' .github/CODEOWNERS
 grep -q '^/frontend/src/lib/agents/' .github/CODEOWNERS
 
-grep -q 'package-ecosystem: cargo' .github/dependabot.yml
-grep -q 'package-ecosystem: npm' .github/dependabot.yml
-grep -q 'package-ecosystem: github-actions' .github/dependabot.yml
+if [[ -e .github/dependabot.yml ]]; then
+  echo "Repository governance check failed: automated Dependabot PRs are disabled during active development." >&2
+  exit 1
+fi
 
 grep -q 'github/codeql-action/init@v3' .github/workflows/security.yml
 grep -q 'actions/dependency-review-action@v4' .github/workflows/security.yml
@@ -20,4 +21,4 @@ fi
 
 grep -q "GitHub's private" SECURITY.md
 
-echo "Repository governance: code owners, dependency updates, CodeQL, dependency review, and private reporting policy."
+echo "Repository governance: code owners, manual dependency triage, CodeQL, dependency review, and private reporting policy."

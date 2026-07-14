@@ -79,8 +79,8 @@ move.
 Render uses `autoDeployTrigger: commit`. The `main` branch protection is the
 release gate: required CI must pass before a change can merge. Do not switch the
 service to `checksPass`; Render waits for every check attached to the commit,
-including unrelated Dependabot update jobs, so a failed dependency refresh can
-block an otherwise green backend release indefinitely.
+including unrelated automation, so an external failed check can block an
+otherwise green backend release indefinitely.
 
 ## Frontend deploy
 

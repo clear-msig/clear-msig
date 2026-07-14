@@ -12,8 +12,9 @@ this hardening release.
 - Block force pushes and branch deletion.
 - Require the four CI jobs, CodeQL, and dependency review.
 - Require branches to be current with `main` before merge.
-- Enable dependency graph, Dependabot alerts and fixes, secret scanning, push
-  protection, CodeQL upload, and private vulnerability reporting.
+- Enable dependency graph and Dependabot alerts without automated update PRs,
+  plus secret scanning, push protection, CodeQL upload, and private
+  vulnerability reporting.
 
 Administrators are subject to the same rules. Emergency changes use a pull
 request with the smallest possible diff and a second maintainer review; there
@@ -26,11 +27,10 @@ for the Solana program, signing/execution crates, backend, Agent Vault,
 workflows, deployment definitions, and program deployment scripts. Multiple
 maintainers are listed so the author cannot satisfy their own review.
 
-Dependabot groups routine minor and patch updates once per month, with at most
-one open pull request per ecosystem. Automatic major-version PRs are disabled:
-framework, Solana, cryptography, and CI runtime majors require planned
-migration reviews. Dependabot security alerts remain enabled for explicit
-triage.
+Automated Dependabot pull requests are disabled during active development.
+Dependabot security alerts remain enabled for explicit manual triage. Framework,
+Solana, cryptography, and CI runtime updates require planned migration reviews
+with focused compatibility and security tests.
 
 ## Release evidence
 
