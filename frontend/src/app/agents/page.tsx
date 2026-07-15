@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -20,14 +19,15 @@ import {
 import { creatorRegistryStatusLabel } from "@/lib/agents/creatorRegistry";
 import { AgentServerStatePersistenceError } from "@/features/agents/server/serverState";
 import type { AgentTrackRecordSource } from "@/lib/agents/types";
+import { createPageMetadata } from "@/lib/metadata/site";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "ClearSig Agent Marketplace · Clear",
-  description:
-    "Browse approved ClearSig trading agents with separated paper, testnet, and verified live track records.",
-};
+export const metadata = createPageMetadata({
+  title: "Agent Marketplace",
+  description: "Browse approved ClearSig trading agents with separated paper, testnet, and verified live track records.",
+  path: "/agents",
+});
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

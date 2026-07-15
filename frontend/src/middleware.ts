@@ -85,6 +85,6 @@ export const config = {
   // their own JSON-only response shape and don't render HTML, so a
   // CSP nonce isn't meaningful for them).
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon|apple-icon|opengraph-image).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|robots.txt|sitemap.xml|icon|apple-icon|social).*)",
   ],
 };

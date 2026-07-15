@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
 import { ProductSurfaceLanding } from "@/components/product/ProductSurfaceLanding";
+import { createPageMetadata } from "@/lib/metadata/site";
 
-export const metadata: Metadata = {
-  title: "ClearSig Payments · Clear",
-  description:
-    "Payment approvals and payout review are being folded into ClearSig Personal, Pro, and Agents workflows.",
-};
+export const metadata = createPageMetadata({
+  title: "Payments",
+  description: "Readable payment approvals and payout review across ClearSig Personal, Pro, and Agent workflows.",
+  path: "/payments",
+});
 
 export default function PaymentsPage() {
   return <ProductSurfaceLanding id="payments" />;

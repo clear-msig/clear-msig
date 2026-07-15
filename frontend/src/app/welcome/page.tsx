@@ -1,4 +1,7 @@
 import { redirect } from "next/navigation";
+import { createPrivateMetadata } from "@/lib/metadata/site";
+
+export const metadata = createPrivateMetadata("Welcome");
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
