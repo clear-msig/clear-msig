@@ -2,7 +2,7 @@
 set -euo pipefail
 
 forbidden='tokio::process|std::process::Command|Command::new|CLEAR_MSIG_BIN|cli_bin|CliRunner|clear_msig_cli|clear-msig-cli'
-if grep -REn "$forbidden" backend-api/src backend-api/Cargo.toml Dockerfile render.yaml; then
+if grep -REn "$forbidden" backend-api/src backend-api/Cargo.toml Dockerfile railway.json; then
   echo "Backend architecture check failed: a forbidden execution coupling was introduced." >&2
   exit 1
 fi
@@ -106,11 +106,11 @@ grep -q 'acquire_execution_lease' crates/clear-msig-execution/src/chains/deliver
 grep -q 'production destination delivery requires UPSTASH_REDIS_REST_URL' backend-api/src/runner.rs
 grep -q 'destination_receipt_storage":"redis"' scripts/smoke-live.sh
 grep -q 'ReconciledDestinationTransport' crates/clear-msig-execution/src/chains/delivery.rs
-grep -q 'UPSTASH_REDIS_REST_URL' render.yaml
+grep -q 'UPSTASH_REDIS_REST_URL' ops/entrypoint.sh
 grep -q 'unknown_delivery_refuses_rebroadcast_when_reconciliation_is_down' crates/clear-msig-execution/src/chains/delivery.rs
 grep -q 'control.cancel()' backend-api/src/runner.rs
-grep -q 'cargo test -p clear-msig-command-contract -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api' .github/workflows/ci.yml
-grep -q 'cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-cli' .github/workflows/ci.yml
+grep -q 'cargo test -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api' .github/workflows/ci.yml
+grep -q 'cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-cli' .github/workflows/ci.yml
 
 bash scripts/check-execution-properties.sh
 

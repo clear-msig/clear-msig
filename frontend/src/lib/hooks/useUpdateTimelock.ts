@@ -16,32 +16,13 @@ import {
   type IntentAccount,
 } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
+export { templateFileForChainKind } from "@/lib/intents/generatedRegistry";
 
 interface UpdateArgs {
   walletName: string;
   intentIndex: number;
   newTimelockSeconds: number;
   templateFile: string;
-}
-
-/// Maps on-chain chainKind to the canonical template file path.
-export function templateFileForChainKind(chainKind: number): string {
-  switch (chainKind) {
-    case 0:
-      return "examples/intents/solana_transfer.json";
-    case 1:
-      return "examples/intents/evm_transfer_sepolia.json";
-    case 2:
-      return "examples/intents/btc_transfer.json";
-    case 3:
-      return "examples/intents/zcash_transfer.json";
-    case 4:
-      return "examples/intents/erc20_transfer_sepolia.json";
-    case 5:
-      return "examples/intents/hyperliquid_transfer.json";
-    default:
-      throw new Error(`No editable template for chainKind ${chainKind}`);
-  }
 }
 
 export function useUpdateTimelock() {

@@ -44,11 +44,12 @@ import { ChainBadge } from "@/components/retail/ChainBadge";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
 import { chainByKind } from "@/lib/retail/chains";
 import { shortEvmAddress } from "@/lib/chain/eth";
+import { templateFileForId } from "@/lib/intents/generatedRegistry";
 
 // Chain kind 4 = ERC-20 (EIP-1559 envelope, ERC-20 transfer calldata).
 // The same dWallet that signs ETH on chain_kind=1 signs ERC-20 calls
 // on chain_kind=4 - same secp256k1 key, different preimage builder.
-const ERC20_TEMPLATE = "examples/intents/erc20_transfer_sepolia.json";
+const ERC20_TEMPLATE = templateFileForId("erc20_transfer_sepolia_v1");
 const ERC20_CHAIN_KIND = 4;
 // We piggy-back on the Ethereum binding (chain_kind=1) for the
 // "is the wallet ready" pre-flight, since the same dWallet serves

@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "template_id": "bitcoin_p2wpkh_transfer_v1",
   "chain": "bitcoin_p2wpkh",
   "tx_template": {
     "bitcoin_p2wpkh": {

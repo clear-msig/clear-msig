@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/clear-msig-command-contract",
     "crates/clear-msig-execution",
+    "crates/clear-msig-intent",
     "programs/clear-wallet",
     "programs/clear-wallet/client",
     "cli",

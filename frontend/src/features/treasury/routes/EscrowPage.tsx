@@ -456,7 +456,7 @@ function EscrowProjectCard({
         }));
         signingProject = { ...project, policy: preview.policy };
       } catch {
-        // Render may not be redeployed yet. Keep the existing local preview
+        // The backend may not be redeployed yet. Keep the existing local preview
         // path alive, but prefer backend-owned math whenever it is available.
       }
       const { summary, dry } = await prepareTypedAction(

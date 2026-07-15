@@ -44,15 +44,16 @@ jobs:
         run: |
           bash scripts/check-repository-governance.sh
           bash scripts/check-backend-architecture.sh
+          bash scripts/check-intent-architecture.sh
 
       - name: Rust formatting
         run: cargo fmt --all -- --check
 
-      - name: Backend + contract + thin CLI clippy (strict, dependencies excluded)
-        run: cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-cli --all-targets --no-deps -- -D warnings
+      - name: Backend + contracts + thin CLI clippy (strict, dependencies excluded)
+        run: cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-cli --all-targets --no-deps -- -D warnings
 
       - name: cargo test (host crates)
-        run: cargo test -p clear-msig-command-contract -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
+        run: cargo test -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
 
   frontend-tests:
     name: frontend unit tests

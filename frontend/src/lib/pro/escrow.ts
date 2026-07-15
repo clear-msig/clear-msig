@@ -145,7 +145,7 @@ export function useProEscrows(walletName: string) {
         });
       })
       .catch(() => {
-        // Render persistence is progressive. Local escrow records still
+        // Backend persistence is progressive. Local escrow records still
         // work before the backend routes are deployed.
       });
 

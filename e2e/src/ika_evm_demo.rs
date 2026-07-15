@@ -60,8 +60,9 @@ use solana_sdk::system_program;
 use ika_dwallet_types::*;
 use ika_grpc::d_wallet_service_client::DWalletServiceClient;
 
+use clear_msig_intent::{IntentDefinitionJson, IntentTransactionJson};
 use clear_wallet_client::chains::evm::Tx1559;
-use clear_wallet_client::intent_json::{IntentDefinitionJson, IntentTransactionJson};
+use clear_wallet_client::intent_json::IntentDefinitionBuildExt;
 use clear_wallet_client::pda::{
     compute_name_hash, find_ika_config_address, find_intent_address, find_proposal_address,
     find_vault_address, find_wallet_address,

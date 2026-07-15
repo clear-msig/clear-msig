@@ -3,7 +3,7 @@
 # Quick smoke test for the live deployment.
 #
 # Verifies:
-#   - Render backend /health
+#   - Railway backend /health
 #   - Vercel frontend /api/prices
 #   - Optional backend membership lookup when an address is supplied
 #

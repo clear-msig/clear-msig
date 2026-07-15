@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "vectors": [
+    {
+      "id": "scaled_u64",
+      "template": "{0:10^9} SOL",
+      "paramTypes": [
+        "u64"
+      ],
+      "paramsDataHex": "00ca9a3b00000000",
+      "expected": "1 SOL"
+    },
+    {
+      "id": "evm_transfer",
+      "template": "send {2:10^18} ETH to {1} (nonce {0})",
+      "paramTypes": [
+        "u64",
+        "bytes20",
+        "u64"
+      ],
+      "paramsDataHex": "2a00000000000000000000000000000000000000000000000000dead00407a10f35a0000",
+      "expected": "send 0.0001 ETH to 0x000000000000000000000000000000000000dead (nonce 42)"
+    },
+    {
+      "id": "base58_address",
+      "template": "to {0}",
+      "paramTypes": [
+        "address"
+      ],
+      "paramsDataHex": "abababababababababababababababababababababababababababababababab",
+      "expected": "to CZ8YUVdk7znjrUmnb5n7kgySk9yRAsQDYmyCxzfSky9t"
+    },
+    {
+      "id": "all_scalar_types",
+      "template": "{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}",
+      "paramTypes": [
+        "i64",
+        "string",
+        "bool",
+        "u8",
+        "u16",
+        "u32",
+        "u128",
+        "bytes32"
+      ],
+      "paramsDataHex": "f9ffffffffffffff05436c65617201ff01020102030479dfe23d44a6360f6e05010000000000abababababababababababababababababababababababababababababababab",
+      "expected": "-7|Clear|true|255|513|67305985|1234567890123456789012345|0xabababababababababababababababababababababababababababababababab"
+    }
+  ]
+}

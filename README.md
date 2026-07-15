@@ -193,7 +193,11 @@ programs/clear-wallet/src/
                   cleanup, bind_dwallet, ika_sign
   chains/         Per-chain preimage builders
   utils/          Message building, ika_cpi, hashing
-  client/         PDA derivation, intent builder, JSON parsing
+  client/         PDA derivation and Solana intent-byte adapter
+
+crates/clear-msig-intent/src/
+  lib.rs          Versioned schemas, template registry, validation,
+                  canonicalization, and shared render vectors
 
 crates/clear-msig-execution/src/
   commands/       wallet, intent, proposal, config execution handlers

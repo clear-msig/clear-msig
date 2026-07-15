@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "template_id": "cb_update_account_config_v1",
   "params": [
     { "name": "circuit_breaker", "type": "address" },
     { "name": "window_size_seconds", "type": "u64" },

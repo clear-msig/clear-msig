@@ -1,8 +1,8 @@
 # Railway + Vercel production deploy
 
-The production frontend is Vercel at `https://clearsig.xyz`. The backend is
-migrating to the Railway `clear-msig-backend` service; shared distributed state
-continues to use Upstash Redis REST.
+The production frontend is Vercel at `https://clearsig.xyz`. The backend runs on
+the Railway `clear-msig-backend` service; shared distributed state continues to
+use Upstash Redis REST.
 
 Use `docs/deploy-current.md` as the source of truth for the current program id,
 Alchemy RPC, and upgrade authority.
@@ -66,7 +66,7 @@ Next.js will proxy `/backend/*` to the configured backend via
 - Railway HTTP health checks use `/health`.
 - A successful health check proves process readiness, not ClearSign contract
   compatibility. Probe `/v1/clearsign/v3/prepare` before the Vercel cutover.
-- Keep Render available only as a temporary rollback until Railway health,
-  membership lookup, v3 preparation, and one governed testnet action pass.
-- After cutover, remove `render.yaml`, the Render fallback URL, and the old
-  service credentials in a separate cleanup commit.
+- Railway health, membership lookup, ClearSign v3 preparation, and the governed
+  devnet v3 smoke passed before the Vercel production cutover.
+- The obsolete Render blueprint and frontend fallback were removed after both
+  Railway and Vercel reported successful deployment.

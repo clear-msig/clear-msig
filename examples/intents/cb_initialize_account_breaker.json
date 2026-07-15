@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "template_id": "cb_initialize_account_breaker_v1",
   "params": [
     { "name": "token_account", "type": "address" },
     { "name": "authority", "type": "address" },

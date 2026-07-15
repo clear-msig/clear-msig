@@ -151,7 +151,7 @@ export function useProSchedules(walletName: string) {
       })
       .catch(() => {
         // Backend persistence is progressive. Local schedules remain
-        // usable before Render has the Pro routes deployed.
+        // usable before the backend has the Pro routes deployed.
       });
 
     return () => {

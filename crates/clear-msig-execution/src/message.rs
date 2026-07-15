@@ -205,205 +205,27 @@ pub fn build_message(
     Ok(wrap_offchain(raw))
 }
 
-/// Render a template string with parameter substitution.
-/// Must produce byte-for-byte identical output to the on-chain renderer.
+/// Render through the shared, versioned intent library.
 fn render_template(template: &str, intent: &IntentAccount, params_data: &[u8]) -> Result<String> {
-    let mut result = String::new();
-    let bytes = template.as_bytes();
-    let mut i = 0;
-
-    while i < bytes.len() {
-        if bytes[i] == b'{' {
-            let start = i + 1;
-            let end = bytes[start..]
-                .iter()
-                .position(|&b| b == b'}')
-                .ok_or(anyhow!("unclosed {{ in template"))?
-                + start;
-            let inner = &template[start..end];
-            // inner = "<idx>" or "<idx>:10^<digits>" (decimal-shift format spec)
-            let (idx_str, fmt) = match inner.find(':') {
-                Some(pos) => (&inner[..pos], Some(&inner[pos + 1..])),
-                None => (inner, None),
-            };
-            let idx: usize = idx_str
-                .parse()
-                .with_context(|| format!("invalid param index: {idx_str}"))?;
-            result.push_str(&render_param(intent, params_data, idx, fmt)?);
-            i = end + 1;
-        } else {
-            result.push(bytes[i] as char);
-            i += 1;
-        }
-    }
-
-    Ok(result)
-}
-
-/// Parse a `10^N` format spec into the decimal shift `N`.
-fn parse_decimal_spec(spec: &str) -> Result<u8> {
-    let rest = spec.strip_prefix("10^").ok_or(anyhow!(
-        "invalid format spec '{spec}': only '10^N' is supported"
-    ))?;
-    let n: usize = rest
-        .parse()
-        .with_context(|| format!("invalid decimal shift: {rest}"))?;
-    if n > 19 {
-        return Err(anyhow!("decimal shift too large (max 19): {n}"));
-    }
-    Ok(n as u8)
-}
-
-/// Render a u64 scaled by 10^decimals as a fixed-decimal string.
-/// Mirrors `MessageBuilder::push_decimal_u64` in the on-chain renderer.
-fn format_decimal_u64(val: u64, decimals: u8) -> String {
-    if decimals == 0 {
-        return val.to_string();
-    }
-    let scale: u128 = (0..decimals).fold(1u128, |a, _| a * 10);
-    let v = val as u128;
-    let int_part = (v / scale) as u64;
-    let frac_part = v % scale;
-    let mut s = int_part.to_string();
-    if frac_part > 0 {
-        s.push('.');
-        // Build leading-zero-padded fractional digits, then trim trailing zeros.
-        let mut buf = vec![b'0'; decimals as usize];
-        let mut tmp = frac_part;
-        for i in (0..decimals as usize).rev() {
-            buf[i] = b'0' + (tmp % 10) as u8;
-            tmp /= 10;
-        }
-        let mut end = decimals as usize;
-        while end > 0 && buf[end - 1] == b'0' {
-            end -= 1;
-        }
-        s.push_str(std::str::from_utf8(&buf[..end]).unwrap());
-    }
-    s
-}
-
-fn render_param(
-    intent: &IntentAccount,
-    params_data: &[u8],
-    idx: usize,
-    fmt: Option<&str>,
-) -> Result<String> {
-    let param = intent
+    let params = intent
         .params
-        .get(idx)
-        .ok_or(anyhow!("param index {idx} out of bounds"))?;
-    let offset = param_offset(&intent.params, params_data, idx)?;
-
-    match param.param_type {
-        ParamType::Address => {
-            let addr_bytes = param_bytes(params_data, offset, 32, "address")?;
-            Ok(bs58::encode(addr_bytes).into_string())
-        }
-        ParamType::U64 => {
-            let bytes: [u8; 8] = param_bytes(params_data, offset, 8, "u64")?.try_into()?;
-            let v = u64::from_le_bytes(bytes);
-            if let Some(spec) = fmt {
-                let decimals = parse_decimal_spec(spec)?;
-                Ok(format_decimal_u64(v, decimals))
-            } else {
-                Ok(v.to_string())
-            }
-        }
-        ParamType::I64 => {
-            let bytes: [u8; 8] = param_bytes(params_data, offset, 8, "i64")?.try_into()?;
-            Ok(i64::from_le_bytes(bytes).to_string())
-        }
-        ParamType::String => {
-            let len = *params_data
-                .get(offset)
-                .ok_or(anyhow!("not enough param data for string length"))?
-                as usize;
-            let s = std::str::from_utf8(param_bytes(params_data, offset + 1, len, "string")?)?;
-            Ok(s.to_string())
-        }
-        ParamType::Bool => {
-            let v = *params_data
-                .get(offset)
-                .ok_or(anyhow!("not enough param data for bool"))?;
-            Ok(if v != 0 { "true" } else { "false" }.to_string())
-        }
-        ParamType::U8 => {
-            let v = *params_data
-                .get(offset)
-                .ok_or(anyhow!("not enough param data for u8"))?;
-            Ok(v.to_string())
-        }
-        ParamType::U16 => {
-            let bytes: [u8; 2] = param_bytes(params_data, offset, 2, "u16")?.try_into()?;
-            Ok(u16::from_le_bytes(bytes).to_string())
-        }
-        ParamType::U32 => {
-            let bytes: [u8; 4] = param_bytes(params_data, offset, 4, "u32")?.try_into()?;
-            Ok(u32::from_le_bytes(bytes).to_string())
-        }
-        ParamType::U128 => {
-            let bytes: [u8; 16] = param_bytes(params_data, offset, 16, "u128")?.try_into()?;
-            Ok(u128::from_le_bytes(bytes).to_string())
-        }
-        ParamType::Bytes20 => {
-            let bytes = param_bytes(params_data, offset, 20, "bytes20")?;
-            Ok(format!("0x{}", encode_hex(bytes)))
-        }
-        ParamType::Bytes32 => {
-            let bytes = param_bytes(params_data, offset, 32, "bytes32")?;
-            Ok(format!("0x{}", encode_hex(bytes)))
-        }
-    }
-}
-
-fn param_bytes<'a>(data: &'a [u8], offset: usize, len: usize, label: &str) -> Result<&'a [u8]> {
-    let end = offset
-        .checked_add(len)
-        .ok_or_else(|| anyhow!("param {label} range overflow at offset {offset} len {len}"))?;
-    data.get(offset..end).ok_or_else(|| {
-        anyhow!(
-            "not enough param data for {label}: need bytes {offset}..{end}, have {}",
-            data.len()
-        )
-    })
-}
-
-fn encode_hex(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        s.push(HEX[(b >> 4) as usize] as char);
-        s.push(HEX[(b & 0x0f) as usize] as char);
-    }
-    s
-}
-
-fn param_offset(params: &[ParamEntry], params_data: &[u8], target: usize) -> Result<usize> {
-    let mut offset = 0usize;
-    for i in 0..target {
-        let param = params.get(i).ok_or(anyhow!("param index out of bounds"))?;
-        offset += param_size(param.param_type, params_data, offset)?;
-    }
-    Ok(offset)
-}
-
-fn param_size(param_type: ParamType, data: &[u8], offset: usize) -> Result<usize> {
-    match param_type {
-        ParamType::Address | ParamType::Bytes32 => Ok(32),
-        ParamType::U64 | ParamType::I64 => Ok(8),
-        ParamType::Bytes20 => Ok(20),
-        ParamType::String => {
-            let len = *data
-                .get(offset)
-                .ok_or(anyhow!("unexpected end of params"))? as usize;
-            Ok(1 + len)
-        }
-        ParamType::Bool | ParamType::U8 => Ok(1),
-        ParamType::U16 => Ok(2),
-        ParamType::U32 => Ok(4),
-        ParamType::U128 => Ok(16),
-    }
+        .iter()
+        .map(|param| match param.param_type {
+            ParamType::Address => clear_msig_intent::ParamTypeJson::Address,
+            ParamType::U64 => clear_msig_intent::ParamTypeJson::U64,
+            ParamType::I64 => clear_msig_intent::ParamTypeJson::I64,
+            ParamType::String => clear_msig_intent::ParamTypeJson::String,
+            ParamType::Bool => clear_msig_intent::ParamTypeJson::Bool,
+            ParamType::U8 => clear_msig_intent::ParamTypeJson::U8,
+            ParamType::U16 => clear_msig_intent::ParamTypeJson::U16,
+            ParamType::U32 => clear_msig_intent::ParamTypeJson::U32,
+            ParamType::U128 => clear_msig_intent::ParamTypeJson::U128,
+            ParamType::Bytes20 => clear_msig_intent::ParamTypeJson::Bytes20,
+            ParamType::Bytes32 => clear_msig_intent::ParamTypeJson::Bytes32,
+        })
+        .collect::<Vec<_>>();
+    clear_msig_intent::render_template(template, &params, params_data)
+        .map_err(|error| anyhow!("{error}"))
 }
 
 /// Parse an expiry string like "2030-01-01 00:00:00" into unix timestamp.

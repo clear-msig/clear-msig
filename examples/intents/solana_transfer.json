@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "template_id": "solana_transfer_v1",
   "chain": "solana",
   "params": [
     { "name": "destination",  "type": "address" },
