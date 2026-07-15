@@ -36,6 +36,7 @@ import {
   type ProEscrowProject,
 } from "@/lib/pro/escrow";
 import {
+  clearSignProfileForSigner,
   prepareClearSignAction,
   type BackendClearSignSummary,
 } from "@/lib/clearsign";
@@ -415,6 +416,7 @@ function EscrowProjectCard({
     }
     const summary = await prepareClearSignAction(envelope, {
       fallback: false,
+      deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
     });
     const dry = await backendApi.prepare.createTypedProposal(walletName, {
       intent_index: intent.intentIndex,

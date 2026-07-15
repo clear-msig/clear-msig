@@ -21,6 +21,7 @@ import { fetchIntent } from "@/lib/chain/intents";
 import { fetchProposal } from "@/lib/chain/proposals";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import {
+  clearSignProfileForSigner,
   prepareClearSignAction,
   type BatchSendPayload,
   type ClearSignEnvelope,
@@ -72,7 +73,8 @@ const BATCH_LOG_KEY = "clear-msig:batches:v1";
 
 export function useBatchSend() {
   const { signTypedDescriptor } = useSignWithWallet();
-  const { pickSigner } = useWallet();
+  const wallet = useWallet();
+  const { pickSigner } = wallet;
   const { connection } = useConnection();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<BatchSendProgress | null>(null);
@@ -153,6 +155,7 @@ export function useBatchSend() {
         const envelope: ClearSignEnvelope<BatchSendPayload> = {
           version: 3,
           kind: "batch_send",
+          network: "Solana devnet",
           walletName,
           walletId: walletData.pda.toBase58(),
           actionId,
@@ -170,6 +173,7 @@ export function useBatchSend() {
         };
         const summary = await prepareClearSignAction(envelope, {
           fallback: false,
+          deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
         });
         const dry = await backendApi.prepare.createTypedProposal(walletName, {
           intent_index: intentIndex,
@@ -308,7 +312,7 @@ export function useBatchSend() {
 
       return { batchId, succeeded, failed, proposalPdas };
     },
-    [signTypedDescriptor, queryClient, connection, pickSigner],
+    [signTypedDescriptor, queryClient, connection, pickSigner, wallet],
   );
 
   const cancel = useCallback(() => {

@@ -2,6 +2,7 @@ import {
   summarizeClearSignAction,
   type AgentTradeSettlementPayload,
   type ClearSignEnvelope,
+  type ClearSignDeviceProfileRequest,
 } from "@/lib/clearsign";
 import { decimalToAgentUsdRaw, hashAgentText, normalizeAgentHash } from "@/lib/agents/agentClearSignEncoding";
 import type { AgentRiskLedgerAccount } from "@/lib/agents/agentRiskLedger";
@@ -23,6 +24,7 @@ export function buildAgentSettlementClearSign({
   policyHash,
   ledger,
   settlement,
+  deviceProfile,
 }: {
   walletName: string;
   walletId: string;
@@ -30,6 +32,7 @@ export function buildAgentSettlementClearSign({
   policyHash: string;
   ledger: AgentRiskLedgerAccount;
   settlement: TrustedAgentSettlementInput;
+  deviceProfile?: ClearSignDeviceProfileRequest;
 }) {
   if (!/^[0-9a-f]{64}$/i.test(policyHash) || !/^[0-9a-f]{64}$/i.test(settlement.settlementArtifactHash)) {
     throw new Error("Settlement policy or artifact commitment is invalid.");
@@ -55,6 +58,7 @@ export function buildAgentSettlementClearSign({
   const envelope: ClearSignEnvelope<AgentTradeSettlementPayload> = {
     version: 3,
     kind: "agent_trade_settlement",
+    network: "Hyperliquid testnet",
     walletName,
     walletId,
     actionId: `settlement:${settlement.requestId}:${payload.settlementSequence}`,
@@ -65,7 +69,7 @@ export function buildAgentSettlementClearSign({
   };
   return {
     envelope,
-    summary: summarizeClearSignAction(envelope),
+    summary: summarizeClearSignAction(envelope, deviceProfile),
     executor: {
       sessionIdHash: hashAgentText(sessionId),
       executionIdHash: hashAgentText(settlement.requestId),

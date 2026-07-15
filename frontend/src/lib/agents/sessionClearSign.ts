@@ -2,6 +2,7 @@ import {
   summarizeClearSignAction,
   type AgentSessionGrantPayload,
   type ClearSignEnvelope,
+  type ClearSignDeviceProfileRequest,
 } from "@/lib/clearsign";
 import type { AgentSessionGrant } from "@/lib/agents/types";
 import {
@@ -17,6 +18,7 @@ export function buildAgentSessionClearSign(
     venue: string;
     market: string;
     status: "active" | "revoked";
+    deviceProfile?: ClearSignDeviceProfileRequest;
   },
 ) {
   const expiresAt = Math.floor(session.expiresAt / 1000);
@@ -33,6 +35,7 @@ export function buildAgentSessionClearSign(
   const envelope: ClearSignEnvelope<AgentSessionGrantPayload> = {
     version: 3,
     kind: "agent_session_grant",
+    network: "Hyperliquid testnet",
     walletName: session.walletName,
     walletId: input.walletId,
     actionId: `${input.status}:${session.id}`,
@@ -41,7 +44,7 @@ export function buildAgentSessionClearSign(
     policyCommitment: normalizeAgentHash(session.policyHash),
     payload,
   };
-  const summary = summarizeClearSignAction(envelope);
+  const summary = summarizeClearSignAction(envelope, input.deviceProfile);
   return {
     envelope,
     summary,

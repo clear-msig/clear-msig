@@ -22,6 +22,7 @@ export interface WalletValue {
   disconnecting: boolean;
   loggedInWithoutSolana: boolean;
   isLedger: boolean;
+  ledgerAppVersion: string | null;
   isUnsupportedSigner: boolean;
   isLossySigner: boolean;
   signerIssue: "waas" | null;
@@ -40,6 +41,7 @@ export const disconnectedWalletValue: WalletValue = {
   disconnecting: false,
   loggedInWithoutSolana: false,
   isLedger: false,
+  ledgerAppVersion: null,
   isUnsupportedSigner: false,
   isLossySigner: false,
   signerIssue: null,

@@ -49,6 +49,7 @@ import {
 } from "@/lib/policies/onchain";
 import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import {
+  clearSignProfileForSigner,
   pkhClearSignRecipient,
   prepareClearSignAction,
   randomActionLabel,
@@ -394,6 +395,7 @@ export default function ZcashSendPage() {
       const envelope: ClearSignEnvelope<SendPayload> = {
         version: 3,
         kind: "send",
+        network: "Zcash testnet",
         walletName: name,
         walletId: walletQuery.data?.pda.toBase58(),
         actionId,
@@ -412,6 +414,7 @@ export default function ZcashSendPage() {
       };
       const summary = await prepareClearSignAction(envelope, {
         fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
       });
       const dry = await backendApi.prepare.createTypedProposal(name, {
         intent_index: zcashIntent.intentIndex,

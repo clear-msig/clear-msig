@@ -9,7 +9,11 @@ import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { buildAgentSessionClearSign } from "@/lib/agents/sessionClearSign";
 import type { AgentSessionGrant } from "@/lib/agents/types";
-import { clearSignActionKindCode, prepareClearSignAction } from "@/lib/clearsign";
+import {
+  clearSignActionKindCode,
+  clearSignProfileForSigner,
+  prepareClearSignAction,
+} from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType } from "@/lib/msig";
 import { useConnection, useWallet } from "@/lib/wallet";
@@ -43,6 +47,7 @@ export function useAgentTypedSessionGrant(walletName: string) {
 
       const binding = buildAgentSessionClearSign(session, {
         walletId: walletData.pda.toBase58(),
+        deviceProfile: clearSignProfileForSigner(wallet, proposer),
         ...input,
       });
       const pending = session.onchain;
@@ -86,7 +91,10 @@ export function useAgentTypedSessionGrant(walletName: string) {
           },
         };
       }
-      const prepared = await prepareClearSignAction(binding.envelope, { fallback: false });
+      const prepared = await prepareClearSignAction(binding.envelope, {
+        fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, proposer),
+      });
       if (
         prepared.payloadHash !== binding.summary.payloadHash ||
         prepared.envelopeHash !== binding.summary.envelopeHash

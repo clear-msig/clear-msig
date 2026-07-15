@@ -6,6 +6,10 @@ import {
   type ClearSignPayload,
   type ClearSignSummary,
 } from "@/lib/clearsign/actions";
+import {
+  FULL_CLEARSIGN_PROFILE,
+  type ClearSignDeviceProfileRequest,
+} from "@/lib/clearsign/deviceProfiles";
 
 export interface BackendClearSignSummary extends ClearSignSummary {
   version: 3;
@@ -19,19 +23,22 @@ export async function prepareClearSignAction(
   options?: {
     signal?: AbortSignal;
     fallback?: boolean;
+    deviceProfile?: ClearSignDeviceProfileRequest;
   },
 ): Promise<BackendClearSignSummary> {
-  const local = summarizeClearSignAction(envelope);
+  const deviceProfile = options?.deviceProfile ?? FULL_CLEARSIGN_PROFILE;
+  const local = summarizeClearSignAction(envelope, deviceProfile);
   try {
     const response = await apiRequest<
       Omit<BackendClearSignSummary, "source">,
       {
         envelope: ClearSignEnvelope<ClearSignPayload>;
+        deviceProfile: ClearSignDeviceProfileRequest;
       }
     >(
       "/v1/clearsign/v3/prepare",
       "POST",
-      { envelope },
+      { envelope, deviceProfile },
       { timeoutMs: 10_000, signal: options?.signal },
     );
     assertBackendSummaryMatchesLocal(response, local, envelope);
@@ -66,7 +73,12 @@ function assertBackendSummaryMatchesLocal(
     !sameLines ||
     response.payloadHash.toLowerCase() !== local.payloadHash ||
     response.envelopeHash.toLowerCase() !== local.envelopeHash ||
-    response.signableText !== local.signableText
+    response.signableText !== local.signableText ||
+    response.deviceProfile.id !== local.deviceProfile.id ||
+    response.deviceProfile.version !== local.deviceProfile.version ||
+    response.deviceProfile.mode !== local.deviceProfile.mode ||
+    response.deviceProfile.maxDocumentBytes !==
+      local.deviceProfile.maxDocumentBytes
   ) {
     throw new Error(
       "ClearSign verification failed: the backend prepared different transaction details.",

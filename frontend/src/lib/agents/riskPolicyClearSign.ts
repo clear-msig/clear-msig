@@ -2,6 +2,7 @@ import {
   summarizeClearSignAction,
   type AgentRiskPolicyPayload,
   type ClearSignEnvelope,
+  type ClearSignDeviceProfileRequest,
 } from "@/lib/clearsign";
 import type { AgentSessionGrant, AgentVaultPolicy } from "@/lib/agents/types";
 import {
@@ -18,6 +19,7 @@ export function buildAgentRiskPolicyClearSign(
   session: AgentSessionGrant,
   policy: AgentVaultPolicy,
   walletId: string,
+  deviceProfile?: ClearSignDeviceProfileRequest,
 ) {
   const status = policy.enabled && !policy.emergencyPaused ? "active" : "paused";
   const payload: AgentRiskPolicyPayload = {
@@ -29,6 +31,7 @@ export function buildAgentRiskPolicyClearSign(
   const envelope: ClearSignEnvelope<AgentRiskPolicyPayload> = {
     version: 3,
     kind: "agent_risk_policy",
+    network: "Hyperliquid testnet",
     walletName: session.walletName,
     walletId,
     actionId: `risk:${status}:${session.id}`,
@@ -39,7 +42,7 @@ export function buildAgentRiskPolicyClearSign(
   };
   return {
     envelope,
-    summary: summarizeClearSignAction(envelope),
+    summary: summarizeClearSignAction(envelope, deviceProfile),
     executor: {
       sessionIdHash: hashAgentText(session.id),
       oraclePolicyHash: payload.oraclePolicyHash,

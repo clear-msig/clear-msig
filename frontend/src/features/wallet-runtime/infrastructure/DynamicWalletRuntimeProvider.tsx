@@ -368,6 +368,7 @@ function useDynamicWalletValue(
     /// "your wallet shows hex" copy for "your Ledger shows the full
     /// message". See `<WalletPopupNarration>`.
     isLedger: !!ledger.session,
+    ledgerAppVersion: ledger.session?.appVersion ?? null,
     /// True when the active signer cannot sign clear-msig's offchain-
     /// wrapped messages. Render an upfront "use a different wallet"
     /// banner so users don't hit a doomed signing flow. See

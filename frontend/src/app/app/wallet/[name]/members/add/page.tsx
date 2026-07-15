@@ -23,6 +23,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
 import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
+import { clearSignProfileForSigner } from "@/lib/clearsign";
 import { IntentType, ProposalStatus } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useContacts } from "@/lib/hooks/useContacts";
@@ -265,6 +266,7 @@ export default function AddFriendPage() {
         proposerPk: signerPk!,
         signTypedDescriptor,
         pickApprover: (approvers) => wallet.pickSigner(approvers),
+        deviceProfile: clearSignProfileForSigner(wallet, signerPk),
       });
       if (result.kind === "awaiting_approvals") {
         throw new Error(

@@ -9,14 +9,17 @@ import {
   type AgentRiskPolicyPayload,
   type AgentTradePayload,
   type AgentTradeSettlementPayload,
+  type BatchSendPayload,
   type ClearSignEnvelope,
   type EscrowReturnPayload,
   type SendPayload,
+  LEDGER_SOLANA_CLEARSIGN_PROFILE_ID,
 } from "@/lib/clearsign";
 import { fromHex, sha256, toHex } from "@/lib/msig/hash";
 
 const base = {
   version: 3 as const,
+  network: "Solana devnet" as const,
   walletName: "Team",
   walletId: "WalletPda111",
   actionId: "action-1",
@@ -50,7 +53,7 @@ describe("ClearSign v3 actions", () => {
       "POLICY\nApproval: Wallet's onchain threshold must be met",
     );
     expect(summary.signableText).toContain("RISK\nCategory: Funds movement");
-    expect(summary.signableText).not.toContain("Payload ");
+    expect(summary.signableText).toContain("Payload: ");
     expect(summary.payloadHash).toMatch(/^[0-9a-f]{64}$/);
     expect(summary.envelopeHash).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -156,7 +159,7 @@ describe("ClearSign v3 actions", () => {
     };
 
     expect(() => summarizeClearSignAction(envelope)).toThrow(
-      "exceeds the onchain 2048-byte limit",
+      "exceeds the 2048-byte limit for profile clearsig-full-v1",
     );
   });
 
@@ -177,7 +180,7 @@ describe("ClearSign v3 actions", () => {
       "46290ba00263bd72ef7ccf364cfc1222515aee3aa03944a4f3f5cac8b92b87af",
     );
     expect(summary.envelopeHash).toBe(
-      "3875c7425ff911d0b127d66b4ed96c7bacd8c7fa0c74ccd8544ec26fd1246b56",
+      "5eec2cc8ba342b258528ddc489f91e2f34081f0b6c81554c40ce05c3007b3ce6",
     );
     expect(summary.signableText).toBe([
       "ClearSig Proposal",
@@ -187,22 +190,58 @@ describe("ClearSign v3 actions", () => {
       "",
       "DETAILS",
       "From wallet: Team",
+      "Network: Solana devnet",
       "Amount: 2.5 SOL",
       "To: Sarah",
+      "Payload: 46290ba00263...cac8b92b87af",
       "",
       "POLICY",
       "Approval: Wallet's onchain threshold must be met",
       "Execution: Onchain policy and timelock must pass",
       "Commitment: 4efe872d78c9...b695d631382c",
       "Enforcement: Exact payload and policy must match onchain",
+      "Display profile: clearsig-full-v1@1",
       "",
       "RISK",
       "Category: Funds movement",
-      "Signer check: Verify amount, asset, and every destination",
+      "Signer check: Verify amount, asset, network, and every destination",
       "",
       "PURPOSE",
       "July contractor payment",
     ].join("\n"));
+  });
+
+  it("uses the allowlisted compact Ledger profile without dropping critical facts", () => {
+    const envelope: ClearSignEnvelope<SendPayload> = {
+      ...base,
+      kind: "send",
+      payload: {
+        amount: "2.5",
+        asset: "SOL",
+        recipient: "Sarah",
+        note: "Payroll",
+        estimatedUsd: "250",
+      },
+    };
+    const summary = summarizeClearSignAction(envelope, {
+      id: LEDGER_SOLANA_CLEARSIGN_PROFILE_ID,
+      capability: {
+        vendor: "Ledger",
+        app: "Solana",
+        appVersion: "1.14.0",
+      },
+    });
+
+    expect(summary.deviceProfile.mode).toBe("compact");
+    expect(summary.signableText).toContain("Network: Solana devnet");
+    expect(summary.signableText).toContain("Amount: 2.5 SOL");
+    expect(summary.signableText).toContain("To: Sarah");
+    expect(summary.signableText).toContain("Payload: ");
+    expect(summary.signableText).toContain("PURPOSE\nPayroll");
+    expect(summary.signableText).toContain(
+      "Display profile: clearsig-ledger-solana-v1@1",
+    );
+    expect(summary.signableText).not.toContain("Estimated value:");
   });
 
   it("summarizes escrow return with each recipient visible", () => {
@@ -232,6 +271,27 @@ describe("ClearSign v3 actions", () => {
       "Bob receives 3 SOL",
       "Requires wallet approval",
     ]);
+  });
+
+  it("never truncates batch destinations from the signed document", () => {
+    const envelope: ClearSignEnvelope<BatchSendPayload> = {
+      ...base,
+      kind: "batch_send",
+      payload: {
+        recipients: Array.from({ length: 8 }, (_, index) => ({
+          recipient: `recipient-${index + 1}`,
+          amount: "0.1",
+          asset: "SOL",
+        })),
+      },
+    };
+    const summary = summarizeClearSignAction(envelope);
+
+    for (let index = 1; index <= 8; index += 1) {
+      expect(summary.signableText).toContain(
+        `recipient-${index} receives 0.1 SOL`,
+      );
+    }
   });
 
   it("hashes canonical payloads independent of harmless formatting", () => {

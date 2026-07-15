@@ -2,12 +2,14 @@
 
 mod canonical;
 mod error;
+mod managed_registry;
 mod registry;
 mod render;
 mod schema;
 mod validation;
 
 pub use error::IntentSchemaError;
+pub use managed_registry::*;
 pub use registry::*;
 pub use render::render_template;
 pub use schema::*;

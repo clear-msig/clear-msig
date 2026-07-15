@@ -10,6 +10,11 @@ use super::validation::validate_typed_create_fields;
 
 const CLEARSIGN_V3_DOCUMENT_PREFIX: &str = "ClearSig Proposal\n\nACTION\n";
 const MAX_CLEARSIGN_DOCUMENT_BYTES: usize = 2048;
+const MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES: usize = 1024;
+const CLEARSIGN_V3_PROFILES: [&str; 2] = [
+    "Display profile: clearsig-full-v1@1",
+    "Display profile: clearsig-ledger-solana-v1@1",
+];
 
 pub(super) struct LifecycleInvocation {
     pub(super) context: TypedExecutionContext,
@@ -234,6 +239,27 @@ fn validate_v3_signable_text(value: &str) -> Result<(), ApiError> {
             "signable_text has invalid or duplicate ClearSign v3 sections".into(),
         ));
     }
+    let policy = sections[3];
+    let profile_count = CLEARSIGN_V3_PROFILES
+        .iter()
+        .map(|profile| value.matches(profile).count())
+        .sum::<usize>();
+    if profile_count != 1
+        || !CLEARSIGN_V3_PROFILES
+            .iter()
+            .any(|profile| policy.lines().any(|line| line == *profile))
+    {
+        return Err(ApiError::BadRequest(
+            "signable_text must contain exactly one registered ClearSign display profile".into(),
+        ));
+    }
+    if policy.lines().any(|line| line == CLEARSIGN_V3_PROFILES[1])
+        && value.len() > MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES
+    {
+        return Err(ApiError::BadRequest(
+            "Ledger compact signable_text must be 1024 bytes or fewer".into(),
+        ));
+    }
     Ok(())
 }
 
@@ -257,7 +283,7 @@ mod tests {
     use super::*;
     use crate::clearsign::PreSigned;
 
-    const V3_DOCUMENT: &str = "ClearSig Proposal\n\nACTION\nSend 1 SOL\n\nDETAILS\nFrom wallet: Team\nAmount: 1 SOL\nTo: Sarah\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: 000000000000...000000000000\nEnforcement: Exact payload and policy must match onchain\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, and every destination\n\nPURPOSE\nPayroll";
+    const V3_DOCUMENT: &str = "ClearSig Proposal\n\nACTION\nSend 1 SOL\n\nDETAILS\nFrom wallet: Team\nNetwork: Solana devnet\nAmount: 1 SOL\nTo: Sarah\nPayload: 000000000000...000000000000\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: 000000000000...000000000000\nEnforcement: Exact payload and policy must match onchain\nDisplay profile: clearsig-full-v1@1\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, network, and every destination\n\nPURPOSE\nPayroll";
 
     #[test]
     fn prepare_vote_rejects_invalid_actor_before_execution() {

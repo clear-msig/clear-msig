@@ -1222,7 +1222,7 @@ fn sign_typed_vote_with_approval(
     signature
 }
 
-const TEST_CLEAR_TEXT: &[u8] = b"ClearSig Proposal\n\nACTION\nSend 1 SOL\n\nDETAILS\nFrom wallet: test wallet\nAmount: 1 SOL\nTo: test recipient\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: test\nEnforcement: Exact payload and policy must match onchain\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, and every destination\n\nPURPOSE\nProgram test";
+const TEST_CLEAR_TEXT: &[u8] = b"ClearSig Proposal\n\nACTION\nSend 1 SOL\n\nDETAILS\nFrom wallet: test wallet\nNetwork: Solana devnet\nAmount: 1 SOL\nTo: test recipient\nPayload: test\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: test\nEnforcement: Exact payload and policy must match onchain\nDisplay profile: clearsig-full-v1@1\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, network, and every destination\n\nPURPOSE\nProgram test";
 
 fn typed_sol_policy_bytes(
     mode: u8,

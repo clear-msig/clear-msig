@@ -9,6 +9,7 @@ import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { waitForProposalApproval } from "@/lib/chain/proposals";
 import {
+  clearSignProfileForSigner,
   prepareClearSignAction,
   randomActionLabel,
   type ClearSignEnvelope,
@@ -47,6 +48,7 @@ export function usePersistPersonalWalletPolicy() {
       const envelope: ClearSignEnvelope<ProtectionPayload> = {
         version: 3,
         kind: "set_protection",
+        network: "Solana devnet",
         walletName: input.walletName,
         walletId: input.walletId,
         actionId: randomActionLabel("set-protection"),
@@ -59,7 +61,10 @@ export function usePersistPersonalWalletPolicy() {
           chainKind: input.target.chainKind,
         },
       };
-      const summary = await prepareClearSignAction(envelope, { fallback: false });
+      const summary = await prepareClearSignAction(envelope, {
+        fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, input.proposerPk),
+      });
       const dry = await backendApi.prepare.createTypedProposal(input.walletName, {
         intent_index: input.intentIndex,
         action_kind: summary.actionKindCode,
