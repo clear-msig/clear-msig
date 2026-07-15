@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
-const imagePath = resolve(root, "public/social/clearsig-og.png");
+const socialImagePath = "/social/clearsig-og-ab3a0865.png";
+const imagePath = resolve(root, `public${socialImagePath}`);
 const retiredRoute = resolve(root, "src/app/opengraph-image.tsx");
 const sourcePaths = [
   "src/lib/metadata/site.ts",
@@ -12,7 +13,7 @@ const sourcePaths = [
 const failures = [];
 
 if (!existsSync(imagePath)) {
-  failures.push("missing public/social/clearsig-og.png");
+  failures.push(`missing public${socialImagePath}`);
 } else {
   const image = readFileSync(imagePath);
   const pngSignature = "89504e470d0a1a0a";
@@ -38,7 +39,7 @@ const metadataSource = sourcePaths.map((path) => readFileSync(path, "utf8")).joi
 for (const required of [
   "ClearSig — Sign intents. Not hex.",
   "Policy-driven shared wallets for teams, businesses, DAOs, and AI agents.",
-  "/social/clearsig-og.png",
+  socialImagePath,
   "summary_large_image",
   "canonical",
 ]) {

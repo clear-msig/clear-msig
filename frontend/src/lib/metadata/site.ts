@@ -5,7 +5,7 @@ export const SITE_ORIGIN = "https://clearsig.xyz";
 export const SITE_TITLE = "ClearSig — Sign intents. Not hex.";
 export const SITE_DESCRIPTION =
   "Policy-driven shared wallets for teams, businesses, DAOs, and AI agents. Approve readable actions instead of blind-signing transaction hashes.";
-export const SITE_SOCIAL_IMAGE_PATH = "/social/clearsig-og.png";
+export const SITE_SOCIAL_IMAGE_PATH = "/social/clearsig-og-ab3a0865.png";
 export const SITE_SOCIAL_IMAGE_ALT =
   "ClearSig — Sign intents. Not hex. One treasury. Multiple chains. Zero blind-signing.";
 
