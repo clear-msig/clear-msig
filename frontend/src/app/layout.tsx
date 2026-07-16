@@ -15,6 +15,7 @@ import { AppProviders } from "@/components/providers/AppProviders";
 import { THEME_INIT_SCRIPT } from "@/lib/security/theme-init-script";
 import { solanaClusterDefaultRpcOrigin } from "@/lib/solana/cluster";
 import { siteMetadata } from "@/lib/metadata/site";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = siteMetadata;
 
@@ -48,12 +49,7 @@ export default function RootLayout({
       </head>
       <body className="clear-ui-root font-sans antialiased">
         <AppProviders>{children}</AppProviders>
-        {/* Vercel Analytics removed: the bundled <Analytics /> component
-            requests /_vercel/insights/script.js which 404s unless Web
-            Analytics is explicitly enabled on the Vercel project. To
-            re-enable: turn on Analytics in the Vercel project settings,
-            then re-add `import { Analytics } from "@vercel/analytics/react"`
-            and `<Analytics />` here. */}
+        <Analytics />
       </body>
     </html>
   );
