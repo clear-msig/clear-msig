@@ -6,10 +6,12 @@ use crate::output::{print_json, print_typed_dry_run};
 use crate::signing::sign_message_with_flavor;
 use crate::{accounts, ika, message, params, resolve, rpc};
 use clap::Subcommand;
+use clear_msig_intent::IntentTransactionJson;
 use clear_wallet::utils::clearsign::{
     extract_clear_text_from_vote_message, is_v3_document, validate_v3_document,
     ClearSignActionKind, ClearSignVoteKind,
 };
+use clear_wallet_client::intent_json::IntentDefinitionBuildExt;
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::pubkey::Pubkey;
@@ -987,9 +989,8 @@ pub fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<()> {
                     })?;
                     let json_str = std::fs::read_to_string(&file)
                         .with_context(|| format!("reading intent file: {file}"))?;
-                    let tx_json: clear_wallet_client::intent_json::IntentTransactionJson =
-                        serde_json::from_str(&json_str)
-                            .with_context(|| "parsing intent transaction JSON")?;
+                    let tx_json: IntentTransactionJson = serde_json::from_str(&json_str)
+                        .with_context(|| "parsing intent transaction JSON")?;
                     let full_json = tx_json.with_governance(
                         proposers,
                         approvers,
@@ -2658,7 +2659,7 @@ fn execute_via_ika(
     } else {
         // Load the DKG attestation saved during `wallet add-chain` and use its
         // session_identifier as the dwallet_addr — this must match the value
-        // the mock stored the key under during DKG. If the Render disk does
+        // the mock stored the key under during DKG. If the persistent volume does
         // not have the old file, fall back to the on-chain DWalletAttestation
         // PDA and reconstruct the same payload from chain state.
         let local_attestation = ika::load_attestation(_wallet_name, chain_kind);

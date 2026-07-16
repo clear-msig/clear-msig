@@ -36,6 +36,7 @@ import {
   type ProEscrowProject,
 } from "@/lib/pro/escrow";
 import {
+  clearSignProfileForSigner,
   prepareClearSignAction,
   type BackendClearSignSummary,
 } from "@/lib/clearsign";
@@ -415,6 +416,7 @@ function EscrowProjectCard({
     }
     const summary = await prepareClearSignAction(envelope, {
       fallback: false,
+      deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
     });
     const dry = await backendApi.prepare.createTypedProposal(walletName, {
       intent_index: intent.intentIndex,
@@ -456,7 +458,7 @@ function EscrowProjectCard({
         }));
         signingProject = { ...project, policy: preview.policy };
       } catch {
-        // Render may not be redeployed yet. Keep the existing local preview
+        // The backend may not be redeployed yet. Keep the existing local preview
         // path alive, but prefer backend-owned math whenever it is available.
       }
       const { summary, dry } = await prepareTypedAction(

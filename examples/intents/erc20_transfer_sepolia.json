@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "template_id": "erc20_transfer_sepolia_v1",
   "chain": "evm_1559_erc20",
   "tx_template": {
     "evm_1559": {

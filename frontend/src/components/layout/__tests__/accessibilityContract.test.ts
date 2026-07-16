@@ -7,7 +7,7 @@ function source(path: string): string {
 }
 
 describe("application accessibility contract", () => {
-  const appLayout = source("src/app/app/layout.tsx");
+  const appLayout = source("src/app/app/WorkspaceLayoutClient.tsx");
   const globals = source("src/app/globals.css");
   const button = source("src/components/retail/Button.tsx");
   const eslint = source("eslint.config.mjs");

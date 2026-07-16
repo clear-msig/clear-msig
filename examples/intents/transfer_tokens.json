@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "template_id": "spl_token_transfer_v1",
   "params": [
     { "name": "destination", "type": "address" },
     { "name": "mint", "type": "address" },

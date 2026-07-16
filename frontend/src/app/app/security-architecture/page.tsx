@@ -10,7 +10,7 @@ const LAYERS = [
   },
   {
     title: "Backend verifies",
-    body: "Render validates policy, simulates, rate-limits, logs, and prepares transactions.",
+    body: "Railway validates policy, simulates, rate-limits, logs, and prepares transactions.",
     Icon: Server,
   },
   {

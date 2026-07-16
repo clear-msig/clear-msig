@@ -56,6 +56,7 @@ import { listIntents } from "@/lib/chain/intents";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { waitForProposalApproval } from "@/lib/chain/proposals";
 import {
+  clearSignProfileForSigner,
   prepareClearSignAction,
   randomActionLabel,
   textCommitmentHex,
@@ -434,6 +435,7 @@ function SendEthPage() {
       const envelope: ClearSignEnvelope<SendPayload> = {
         version: 3,
         kind: "send",
+        network: "Ethereum Sepolia",
         walletName,
         walletId: walletQuery.data?.pda.toBase58(),
         actionId,
@@ -452,6 +454,7 @@ function SendEthPage() {
       };
       const summary = await prepareClearSignAction(envelope, {
         fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
       });
       const dry = await backendApi.prepare.createTypedProposal(walletName, {
         intent_index: ethIntent.account.intentIndex,

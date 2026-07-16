@@ -345,7 +345,7 @@ pub fn load_attestation(wallet_name: &str, chain_kind: u8) -> Result<NetworkSign
 
 /// Load an attestation from chain state when no local file exists.
 ///
-/// This recovers old Fly-era wallets on Render without manual file copy:
+/// This recovers old Fly-era wallets after infrastructure migrations without manual file copy:
 /// the DKG attestation lives in the `DWalletAttestation` PDA, while the
 /// `network_pubkey` and `epoch` come from the dWallet account.
 pub fn load_attestation_from_chain(

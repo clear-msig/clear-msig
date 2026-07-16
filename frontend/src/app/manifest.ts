@@ -5,21 +5,8 @@
 // icon files in this directory it behaves like a native shell.
 
 import type { MetadataRoute } from "next";
+import { createSiteManifest } from "@/lib/metadata/site";
 
 export default function manifest(): MetadataRoute.Manifest {
-  return {
-    name: "Clear",
-    short_name: "Clear",
-    description:
-      "A shared wallet for friends, family, or your team. Anyone can ask, everyone agrees, and nobody has to handle keys alone.",
-    start_url: "/",
-    display: "standalone",
-    background_color: "#000000",
-    theme_color: "#16a34a",
-    orientation: "portrait",
-    categories: ["finance", "productivity", "utilities"],
-    icons: [
-      { src: "/appLogoPWA/pwaLogo.svg", sizes: "512x512", type: "image/svg+xml" },
-    ],
-  };
+  return createSiteManifest();
 }

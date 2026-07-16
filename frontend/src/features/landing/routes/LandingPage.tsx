@@ -5,10 +5,9 @@
 // Floating shell architecture: black viewport → rounded #0c0c0c
 // container with grid + noise + glow-sphere atmospherics. Replaces
 // the previous calm-retail layout with a high-contrast tech-industrial
-// design language while preserving the original copy hierarchy:
+// design language with ClearSig's intent-first positioning:
 //
-//   1. Hero - same headline ("Send money with people you trust"),
-//      same subhead, same single CTA.
+//   1. Hero - brand, clear-signing promise, audience, and treasury scope.
 //   2. Bento grid - features re-cast from the old Trust / How-it-works
 //      content into a 4-col bento with lime accent + glass cards.
 //   3. Footer - black CTA, 3-col policy/social/copyright block.
@@ -148,22 +147,34 @@ function Hero({ fadeIn }: { fadeIn: FadeInFn }) {
             {...fadeIn(0.06)}
             className="landing-section-heading text-[clamp(3rem,8.4vw,7.25rem)] font-medium leading-[0.88] tracking-[-0.04em] text-white drop-shadow-[0_18px_50px_rgba(0,0,0,0.55)] sm:mt-7 sm:leading-[0.85] sm:tracking-[-0.05em]"
           >
-            Control money
-            <br />
-            with people
-            <br />
-            and <span className="italic-skew">agents</span>.
+            ClearSig
           </motion.h1>
 
           <motion.p
-            {...fadeIn(0.14)}
-            className="mx-auto mt-6 max-w-lg text-[15px] leading-relaxed text-white/68 sm:mt-8 sm:text-lg lg:mx-0"
+            {...fadeIn(0.1)}
+            className="landing-section-heading mx-auto mt-5 max-w-2xl text-[clamp(2rem,4.4vw,4.4rem)] font-light leading-[0.96] text-white sm:mt-7 lg:mx-0"
           >
-            ClearSig turns wallets, policies, approvals, recovery, and agent
-            trading into one readable signing flow.
+            Sign intents. <span className="italic-skew text-[#ccff00]">Not hex.</span>
           </motion.p>
 
-          <motion.div {...fadeIn(0.2)} className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:mt-10 sm:gap-4 lg:justify-start">
+          <motion.p
+            {...fadeIn(0.15)}
+            className="mx-auto mt-6 max-w-xl text-[15px] leading-relaxed text-white/68 sm:text-lg lg:mx-0"
+          >
+            Policy-driven shared wallets for teams,
+            <br className="hidden sm:block" /> businesses, DAOs, and AI agents.
+          </motion.p>
+
+          <motion.div
+            {...fadeIn(0.19)}
+            className="mx-auto mt-5 flex max-w-xl flex-wrap justify-center gap-x-4 gap-y-1 text-sm font-semibold text-white/84 sm:text-base lg:mx-0 lg:justify-start"
+          >
+            <span>One treasury.</span>
+            <span>Multiple chains.</span>
+            <span>Zero blind-signing.</span>
+          </motion.div>
+
+          <motion.div {...fadeIn(0.23)} className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:mt-9 sm:gap-4 lg:justify-start">
             <Link
               href="/choose"
               className="neon-cta inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-[13px] font-bold tracking-tight sm:px-7 sm:py-4 sm:text-[14px]"

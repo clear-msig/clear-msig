@@ -10,6 +10,7 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
 import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
+import { clearSignProfileForSigner } from "@/lib/clearsign";
 import {
   IntentType,
   ProposalStatus,
@@ -131,6 +132,7 @@ export function useRemoveMember() {
         proposerPk: signerPk,
         signTypedDescriptor,
         pickApprover: (approvers) => wallet.pickSigner(approvers),
+        deviceProfile: clearSignProfileForSigner(wallet, signerPk),
       });
       removeWatcher(walletName, friendAddress);
       return result.kind === "executed"

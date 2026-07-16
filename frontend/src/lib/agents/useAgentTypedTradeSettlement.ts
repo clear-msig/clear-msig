@@ -10,7 +10,10 @@ import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { listIntents } from "@/lib/chain/intents";
 import { waitForProposalApproval, waitForProposalStatus } from "@/lib/chain/proposals";
 import { fetchWalletByName } from "@/lib/chain/wallets";
-import { prepareClearSignAction } from "@/lib/clearsign";
+import {
+  clearSignProfileForSigner,
+  prepareClearSignAction,
+} from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType, ProposalStatus } from "@/lib/msig";
 import { useConnection, useWallet } from "@/lib/wallet";
@@ -103,7 +106,10 @@ export function useAgentTypedTradeSettlement(walletName: string) {
     const proposer = wallet.pickSigner(intent.account.proposers);
     if (!proposer) throw new Error("Your connected wallet cannot propose agent settlement.");
 
-    const prepared = await prepareClearSignAction(binding.envelope, { fallback: false });
+    const prepared = await prepareClearSignAction(binding.envelope, {
+      fallback: false,
+      deviceProfile: clearSignProfileForSigner(wallet, proposer),
+    });
     const dry = await backendApi.prepare.createTypedProposal(walletName, {
       intent_index: intent.account.intentIndex,
       action_kind: prepared.actionKindCode,

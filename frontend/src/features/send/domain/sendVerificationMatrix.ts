@@ -1,5 +1,6 @@
 import type {
   ClearSignEnvelope,
+  ClearSignNetwork,
   SendPayload,
 } from "@/lib/clearsign/actions";
 
@@ -96,6 +97,7 @@ export function sendVerificationEnvelope(
   return {
     version: 3,
     kind: "send",
+    network: sendVerificationNetwork(asset.id),
     walletName: "Signing matrix",
     actionId: `send-matrix:${asset.id}`,
     nonce: `send-matrix:${asset.id}:nonce`,
@@ -103,4 +105,20 @@ export function sendVerificationEnvelope(
     policyCommitment: "00".repeat(32),
     payload: asset.payload,
   };
+}
+
+function sendVerificationNetwork(
+  id: SendAssetVerification["id"],
+): ClearSignNetwork {
+  switch (id) {
+    case "sol":
+      return "Solana devnet";
+    case "btc":
+      return "Bitcoin testnet";
+    case "zec":
+      return "Zcash testnet";
+    case "eth":
+    case "sepolia-usdc":
+      return "Ethereum Sepolia";
+  }
 }

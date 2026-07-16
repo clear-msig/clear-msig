@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "template_id": "zcash_transparent_transfer_v1",
   "chain": "zcash_transparent",
   "tx_template": {
     "zcash_transparent": {

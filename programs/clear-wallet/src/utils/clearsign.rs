@@ -11,6 +11,9 @@ pub const CLEARSIGN_V2_POLICY_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:policy
 pub const MAX_ACTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
 pub const MAX_CLEARSIGN_VOTE_MESSAGE_BYTES: usize = MAX_CLEARSIGN_TEXT_BYTES + 512;
 pub const CLEARSIGN_V3_DOCUMENT_PREFIX: &[u8] = b"ClearSig Proposal\n\nACTION\n";
+pub const CLEARSIGN_V3_FULL_PROFILE: &[u8] = b"Display profile: clearsig-full-v1@1";
+pub const CLEARSIGN_V3_LEDGER_PROFILE: &[u8] = b"Display profile: clearsig-ledger-solana-v1@1";
+pub const MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES: usize = 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -224,7 +227,43 @@ pub fn validate_v3_document(clear_text: &[u8]) -> Result<(), ClearSignError> {
     if purpose.is_empty() || find_bytes(purpose, b"\n\n").is_some() {
         return Err(ClearSignError::InvalidVoteMessage);
     }
+    validate_v3_display_profile(clear_text)?;
     Ok(())
+}
+
+fn validate_v3_display_profile(clear_text: &[u8]) -> Result<(), ClearSignError> {
+    let policy_marker = b"\n\nPOLICY\n";
+    let risk_marker = b"\n\nRISK\n";
+    let policy_start = find_bytes(clear_text, policy_marker)
+        .ok_or(ClearSignError::InvalidVoteMessage)?
+        + policy_marker.len();
+    let policy_end = policy_start
+        + find_bytes(&clear_text[policy_start..], risk_marker)
+            .ok_or(ClearSignError::InvalidVoteMessage)?;
+    let policy = &clear_text[policy_start..policy_end];
+    let full = count_bytes(clear_text, CLEARSIGN_V3_FULL_PROFILE);
+    let compact = count_bytes(clear_text, CLEARSIGN_V3_LEDGER_PROFILE);
+    if full + compact != 1
+        || (full == 1 && find_bytes(policy, CLEARSIGN_V3_FULL_PROFILE).is_none())
+        || (compact == 1 && find_bytes(policy, CLEARSIGN_V3_LEDGER_PROFILE).is_none())
+        || (compact == 1 && clear_text.len() > MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES)
+    {
+        return Err(ClearSignError::InvalidVoteMessage);
+    }
+    Ok(())
+}
+
+fn count_bytes(haystack: &[u8], needle: &[u8]) -> usize {
+    if needle.is_empty() {
+        return 0;
+    }
+    let mut count = 0;
+    let mut cursor = haystack;
+    while let Some(offset) = find_bytes(cursor, needle) {
+        count += 1;
+        cursor = &cursor[offset + needle.len()..];
+    }
+    count
 }
 
 pub fn hash_clear_text(clear_text: &[u8]) -> Result<[u8; 32], ClearSignError> {
@@ -920,7 +959,7 @@ mod tests {
 
     use super::*;
 
-    const V3_SEND_DOCUMENT: &[u8] = b"ClearSig Proposal\n\nACTION\nSend 2.5 SOL from Team to Sarah\n\nDETAILS\nFrom wallet: Team\nAmount: 2.5 SOL\nTo: Sarah\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: 111111111111...111111111111\nEnforcement: Exact payload and policy must match onchain\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, and every destination\n\nPURPOSE\nPayroll";
+    const V3_SEND_DOCUMENT: &[u8] = b"ClearSig Proposal\n\nACTION\nSend 2.5 SOL from Team to Sarah\n\nDETAILS\nFrom wallet: Team\nNetwork: Solana devnet\nAmount: 2.5 SOL\nTo: Sarah\nPayload: 222222222222...222222222222\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: 111111111111...111111111111\nEnforcement: Exact payload and policy must match onchain\nDisplay profile: clearsig-full-v1@1\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, network, and every destination\n\nPURPOSE\nPayroll";
 
     fn amount(asset: &'static [u8], raw_amount: u128) -> ClearSignAmount<'static> {
         ClearSignAmount { asset, raw_amount }
@@ -930,6 +969,16 @@ mod tests {
         let mut hasher = sha2::Sha256::new();
         hasher.update(label);
         finish_hash(hasher)
+    }
+
+    fn replace_once(source: &[u8], needle: &[u8], replacement: &[u8]) -> Vec<u8> {
+        let offset = find_bytes(source, needle).expect("test fixture contains marker");
+        source[..offset]
+            .iter()
+            .copied()
+            .chain(replacement.iter().copied())
+            .chain(source[offset + needle.len()..].iter().copied())
+            .collect()
     }
 
     fn test_envelope<'a>(
@@ -1003,6 +1052,48 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             validate_v3_document(&control_character),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+
+        let missing_profile = V3_SEND_DOCUMENT
+            .split(|byte| *byte == b'\n')
+            .filter(|line| !line.starts_with(b"Display profile:"))
+            .collect::<Vec<_>>()
+            .join(&b'\n');
+        assert_eq!(
+            validate_v3_document(&missing_profile),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+
+        let unknown_profile = replace_once(
+            V3_SEND_DOCUMENT,
+            CLEARSIGN_V3_FULL_PROFILE,
+            b"Display profile: browser-custom-v9@1",
+        );
+        assert_eq!(
+            validate_v3_document(&unknown_profile),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+
+        let duplicate_profile = replace_once(
+            V3_SEND_DOCUMENT,
+            CLEARSIGN_V3_FULL_PROFILE,
+            b"Display profile: clearsig-full-v1@1\nDisplay profile: clearsig-ledger-solana-v1@1",
+        );
+        assert_eq!(
+            validate_v3_document(&duplicate_profile),
+            Err(ClearSignError::InvalidVoteMessage)
+        );
+
+        let mut oversized_compact = replace_once(
+            V3_SEND_DOCUMENT,
+            CLEARSIGN_V3_FULL_PROFILE,
+            CLEARSIGN_V3_LEDGER_PROFILE,
+        );
+        oversized_compact.extend(core::iter::repeat(b'x').take(700));
+        assert!(oversized_compact.len() > MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES);
+        assert_eq!(
+            validate_v3_document(&oversized_compact),
             Err(ClearSignError::InvalidVoteMessage)
         );
     }

@@ -16,6 +16,7 @@ export {
   type BatchSendPayload,
   type ClearSignActionKind,
   type ClearSignEnvelope,
+  type ClearSignNetwork,
   type ClearSignPayload,
   type ClearSignSummary,
   type ClearSignVoteKind,
@@ -43,3 +44,15 @@ export {
   randomActionLabel,
   textCommitmentHex,
 } from "@/lib/clearsign/commitments";
+
+export {
+  FULL_CLEARSIGN_PROFILE,
+  FULL_CLEARSIGN_PROFILE_ID,
+  LEDGER_SOLANA_CLEARSIGN_PROFILE_ID,
+  clearSignProfileForSigner,
+  resolveClearSignDeviceProfile,
+  type ClearSignDeviceCapability,
+  type ClearSignDeviceProfile,
+  type ClearSignDeviceProfileId,
+  type ClearSignDeviceProfileRequest,
+} from "@/lib/clearsign/deviceProfiles";

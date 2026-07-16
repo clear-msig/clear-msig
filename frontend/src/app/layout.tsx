@@ -14,55 +14,13 @@ import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { THEME_INIT_SCRIPT } from "@/lib/security/theme-init-script";
 import { solanaClusterDefaultRpcOrigin } from "@/lib/solana/cluster";
+import { siteMetadata } from "@/lib/metadata/site";
 
-export const metadata: Metadata = {
-  metadataBase: new URL("https://clearsig.xyz"),
-  title: {
-    default: "Clear · Send money with people you trust",
-    template: "%s · Clear",
-  },
-  description:
-    "A shared wallet for friends, family, or your team. Everyone sees the request, anyone can approve, and nobody has to handle keys alone.",
-  keywords: [
-    "shared wallet",
-    "send money",
-    "split a wallet",
-    "group wallet",
-    "family wallet",
-  ],
-  applicationName: "Clear",
-  authors: [{ name: "Clear" }],
-  openGraph: {
-    type: "website",
-    title: "Clear · Send money with people you trust",
-    description:
-      "A shared wallet for friends, family, or your team. Everyone sees the request, anyone can approve.",
-    siteName: "Clear",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Clear · Send money with people you trust",
-    description:
-      "A shared wallet for friends, family, or your team. Everyone sees the request.",
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  icons: {
-    icon: [
-      { url: "/clearmark-light.svg", type: "image/svg+xml" },
-    ],
-    apple: [
-      { url: "/clearmark-light.svg", type: "image/svg+xml" },
-    ],
-  },
-};
+export const metadata: Metadata = siteMetadata;
 
 export const viewport: Viewport = {
-  // Brand lime - drives the iOS Safari address-bar tint and the
-  // Android Chrome status bar. The previous #16a34a was the legacy
-  // brand-green from before the Obsidian & Lime pivot (2026-05-08).
+  // Brand lime drives the iOS Safari address-bar tint and the
+  // Android Chrome status bar.
   themeColor: "#ccff00",
   width: "device-width",
   initialScale: 1,

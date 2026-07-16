@@ -55,7 +55,6 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
             )];
             lines.extend(
                 rows.iter()
-                    .take(4)
                     .map(|row| format!("{} receives {}", row.recipient, format_money(&row.money))),
             );
             lines.push("Requires wallet approval".into());
@@ -92,7 +91,6 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
             )];
             lines.extend(
                 rows.iter()
-                    .take(6)
                     .map(|row| format!("{} receives {}", row.recipient, format_money(&row.money))),
             );
             lines.push("Requires wallet approval".into());

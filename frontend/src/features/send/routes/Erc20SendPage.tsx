@@ -79,6 +79,7 @@ import {
   policyCommitmentHexForParts,
 } from "@/lib/policies/onchain";
 import {
+  clearSignProfileForSigner,
   prepareClearSignAction,
   randomActionLabel,
   textCommitmentHex,
@@ -359,6 +360,7 @@ function SendErc20Page() {
       const envelope: ClearSignEnvelope<SendPayload> = {
         version: 3,
         kind: "send",
+        network: "Ethereum Sepolia",
         walletName,
         walletId: walletQuery.data?.pda.toBase58(),
         actionId,
@@ -377,7 +379,10 @@ function SendErc20Page() {
           estimatedUsd: liveUsdEstimate(amount, meta.symbol),
         },
       };
-      const summary = await prepareClearSignAction(envelope, { fallback: false });
+      const summary = await prepareClearSignAction(envelope, {
+        fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
+      });
       const dry = await backendApi.prepare.createTypedProposal(walletName, {
         intent_index: erc20Intent.account.intentIndex,
         action_kind: summary.actionKindCode,

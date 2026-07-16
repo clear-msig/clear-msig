@@ -57,6 +57,7 @@ import {
 } from "@/lib/policies/enforce";
 import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import {
+  clearSignProfileForSigner,
   prepareClearSignAction,
   type ClearSignEnvelope,
   type SendPayload,
@@ -440,6 +441,7 @@ function SendPage() {
       const envelope: ClearSignEnvelope<SendPayload> = {
         version: 3,
         kind: "send",
+        network: "Solana devnet",
         walletName,
         walletId: walletPda.toBase58(),
         actionId,
@@ -457,6 +459,7 @@ function SendPage() {
       };
       const summary = await prepareClearSignAction(envelope, {
         fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
       });
       const dry = await backendApi.prepare.createTypedProposal(walletName, {
         intent_index: firstIntent.account.intentIndex,

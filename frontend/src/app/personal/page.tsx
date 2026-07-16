@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
 import { ProductSurfaceLanding } from "@/components/product/ProductSurfaceLanding";
+import { createPageMetadata } from "@/lib/metadata/site";
 
-export const metadata: Metadata = {
-  title: "ClearSig Personal · Clear",
-  description:
-    "Personal shared wallet protection with multiple devices or wallets and no policy setup required.",
-};
+export const metadata = createPageMetadata({
+  title: "Personal",
+  description: "Readable shared-wallet protection for individuals and families across multiple devices and wallets.",
+  path: "/personal",
+});
 
 export default function PersonalPage() {
   return <ProductSurfaceLanding id="personal" />;

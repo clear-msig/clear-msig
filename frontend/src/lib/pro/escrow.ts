@@ -145,7 +145,7 @@ export function useProEscrows(walletName: string) {
         });
       })
       .catch(() => {
-        // Render persistence is progressive. Local escrow records still
+        // Backend persistence is progressive. Local escrow records still
         // work before the backend routes are deployed.
       });
 
@@ -512,6 +512,7 @@ function batchPrefillKey(walletName: string, id: string): string {
 function clearSignMeta(input: ProEscrowClearSignOptions) {
   return {
     version: 3 as const,
+    network: "Solana devnet" as const,
     walletName: input.walletName.trim(),
     walletId: input.walletId?.trim(),
     actionId: input.actionId?.trim() || randomId(),

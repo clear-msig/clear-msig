@@ -193,6 +193,24 @@ export function verifyTypedClearSignMessageText(
       );
     }
   }
+  const policyLines = sections[3].split("\n").slice(1);
+  const profiles = [
+    "Display profile: clearsig-full-v1@1",
+    "Display profile: clearsig-ledger-solana-v1@1",
+  ];
+  const profileCount = profiles.reduce(
+    (count, profile) =>
+      count + text.split(profile).length - 1,
+    0,
+  );
+  if (
+    profileCount !== 1 ||
+    !profiles.some((profile) => policyLines.includes(profile))
+  ) {
+    throw new TypedClearSignMessageVerificationError(
+      "Typed ClearSign request does not use a registered display profile.",
+    );
+  }
 }
 
 function verifyApprovalContext(

@@ -30,6 +30,7 @@ import {
   creatorRegistryStatusLabel,
   type AgentCreatorRegistryReadiness,
 } from "@/lib/agents/creatorRegistry";
+import { createPageMetadata } from "@/lib/metadata/site";
 
 export const dynamic = "force-dynamic";
 
@@ -38,22 +39,23 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const profile = await loadProfile(params);
+  const route = await params;
+  const profile = await loadProfile(Promise.resolve(route));
+  const path = `/agents/${encodeURIComponent(decodeRouteParam(route.name))}/${encodeURIComponent(decodeRouteParam(route.slug))}` as const;
   if (!profile.ok) {
-    return {
-      title: "Agent profile unavailable · Clear",
-      robots: { index: false, follow: false },
-    };
+    return createPageMetadata({
+      title: "Agent profile unavailable",
+      description: "This ClearSig agent profile is not currently available.",
+      path,
+      index: false,
+    });
   }
-  return {
-    title: `${profile.value.name} · ClearSig Agent`,
+  return createPageMetadata({
+    title: `${profile.value.name} Agent`,
     description: profile.value.summary,
-    openGraph: {
-      title: `${profile.value.name} · ClearSig Agent`,
-      description: profile.value.summary,
-      type: "profile",
-    },
-  };
+    path,
+    type: "profile",
+  });
 }
 
 export default async function PublicAgentProfilePage({ params }: PageProps) {

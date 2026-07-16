@@ -521,6 +521,7 @@ mod tests {
     fn envelope_hash_length_prefixes_replay_commitments() {
         let envelope = NormalizedEnvelope {
             kind: ClearSignActionKind::Send,
+            network: "Solana devnet".into(),
             wallet_name: "Team".into(),
             wallet_id: "WalletPda111".into(),
             action_id: "action-1".into(),

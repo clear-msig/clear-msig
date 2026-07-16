@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "template_id": "solana_transfer_legacy_v1",
   "params": [
     { "name": "destination", "type": "address" },
     { "name": "amount", "type": "u64" }

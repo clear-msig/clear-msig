@@ -13,6 +13,7 @@ import {
   randomActionLabel,
   type ClearSignActionKind,
   type ClearSignEnvelope,
+  type ClearSignDeviceProfileRequest,
   type MemberPayload,
   type ThresholdPayload,
 } from "@/lib/clearsign";
@@ -53,6 +54,7 @@ export interface TypedGovernanceInput {
   proposerPk: PublicKey;
   signTypedDescriptor: SignTyped;
   pickApprover: (approvers: string[]) => PublicKey | null;
+  deviceProfile: ClearSignDeviceProfileRequest;
 }
 
 export type TypedGovernanceResult =
@@ -96,6 +98,7 @@ export async function completeTypedGovernance(
     envelope = {
       version: 3,
       kind: "change_threshold",
+      network: "Solana devnet",
       walletName: input.walletName,
       walletId: input.walletId,
       actionId: randomActionLabel("change-threshold"),
@@ -115,6 +118,7 @@ export async function completeTypedGovernance(
     envelope = {
       version: 3,
       kind: input.kind as Extract<ClearSignActionKind, "add_member" | "remove_member">,
+      network: "Solana devnet",
       walletName: input.walletName,
       walletId: input.walletId,
       actionId: randomActionLabel(input.kind),
@@ -134,7 +138,10 @@ export async function completeTypedGovernance(
     };
   }
 
-  const summary = await prepareClearSignAction(envelope, { fallback: false });
+  const summary = await prepareClearSignAction(envelope, {
+    fallback: false,
+    deviceProfile: input.deviceProfile,
+  });
   const dry = await backendApi.prepare.createTypedProposal(input.walletName, {
     intent_index: input.voteIntentIndex,
     action_kind: summary.actionKindCode,

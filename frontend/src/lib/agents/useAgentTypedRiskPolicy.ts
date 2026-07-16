@@ -9,7 +9,10 @@ import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { buildAgentRiskPolicyClearSign } from "@/lib/agents/riskPolicyClearSign";
 import type { AgentSessionGrant, AgentVaultPolicy } from "@/lib/agents/types";
-import { prepareClearSignAction } from "@/lib/clearsign";
+import {
+  clearSignProfileForSigner,
+  prepareClearSignAction,
+} from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType } from "@/lib/msig";
 import { useConnection, useWallet } from "@/lib/wallet";
@@ -51,6 +54,7 @@ export function useAgentTypedRiskPolicy(walletName: string) {
         session,
         policy,
         walletData.pda.toBase58(),
+        clearSignProfileForSigner(wallet, proposer),
       );
       const operation = binding.envelope.payload.status;
       const pending = session.riskOnchain;
@@ -79,7 +83,10 @@ export function useAgentTypedRiskPolicy(walletName: string) {
         };
       }
 
-      const prepared = await prepareClearSignAction(binding.envelope, { fallback: false });
+      const prepared = await prepareClearSignAction(binding.envelope, {
+        fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, proposer),
+      });
       const dry = await backendApi.prepare.createTypedProposal(walletName, {
         intent_index: intent.account.intentIndex,
         action_kind: prepared.actionKindCode,

@@ -81,11 +81,13 @@ import {
 } from "@/lib/policies/onchain";
 import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import {
+  clearSignProfileForSigner,
   pkhClearSignRecipient,
   prepareClearSignAction,
   randomActionLabel,
   textCommitmentHex,
   type ClearSignEnvelope,
+  type ClearSignNetwork,
   type SendPayload,
 } from "@/lib/clearsign";
 import {
@@ -498,6 +500,7 @@ function BitcoinSendPage() {
       const envelope: ClearSignEnvelope<SendPayload> = {
         version: 3,
         kind: "send",
+        network: clearSignBitcoinNetwork(btcNetwork),
         walletName: name,
         walletId: walletQuery.data?.pda.toBase58(),
         actionId,
@@ -516,6 +519,7 @@ function BitcoinSendPage() {
       };
       const summary = await prepareClearSignAction(envelope, {
         fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
       });
       const dry = await backendApi.prepare.createTypedProposal(name, {
         intent_index: btcIntent.intentIndex,
@@ -897,4 +901,17 @@ function BitcoinSendPage() {
       }}
     />
   );
+}
+
+function clearSignBitcoinNetwork(network: BitcoinNetwork): ClearSignNetwork {
+  switch (network) {
+    case "testnet":
+      return "Bitcoin testnet";
+    case "signet":
+      return "Bitcoin signet";
+    default:
+      throw new Error(
+        `Bitcoin ${network} is not registered for ClearSign execution.`,
+      );
+  }
 }

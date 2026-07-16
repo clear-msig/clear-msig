@@ -4,7 +4,7 @@ use crate::state::intent::Intent;
 use crate::utils::{
     base58::encode_base58,
     datetime::format_timestamp,
-    definition::{param_byte_size, ParamType},
+    definition::{param_byte_size, ParamEntry, ParamType},
 };
 
 const MSG_BUF_SIZE: usize = 2048;
@@ -289,6 +289,15 @@ impl MessageBuilder {
         params_data: &[u8],
     ) -> Result<(), ProgramError> {
         let template = intent.template_str()?;
+        self.render_template_parts(template, intent.params(), params_data)
+    }
+
+    fn render_template_parts(
+        &mut self,
+        template: &str,
+        params: &[ParamEntry],
+        params_data: &[u8],
+    ) -> Result<(), ProgramError> {
         let bytes = template.as_bytes();
         let mut i = 0;
         while i < bytes.len() {
@@ -306,7 +315,7 @@ impl MessageBuilder {
                     None => (inner, None),
                 };
                 let idx = parse_usize(idx_str)? as u8;
-                self.render_param(intent, params_data, idx, fmt)?;
+                self.render_param(params, params_data, idx, fmt)?;
                 i = end + 1;
             } else {
                 self.push_bytes(&bytes[i..i + 1])?;
@@ -384,16 +393,15 @@ impl MessageBuilder {
 
     fn render_param(
         &mut self,
-        intent: &Intent<'_>,
+        params: &[ParamEntry],
         data: &[u8],
         idx: u8,
         fmt: Option<&str>,
     ) -> Result<(), ProgramError> {
-        let param = intent
-            .params()
+        let param = params
             .get(idx as usize)
             .ok_or(ProgramError::InvalidInstructionData)?;
-        let offset = param_offset(intent, data, idx)?;
+        let offset = param_offset(params, data, idx)?;
         match param.param_type {
             ParamType::Address => self.push_base58(&data[offset..offset + 32]),
             ParamType::U64 => {
@@ -477,14 +485,102 @@ impl MessageBuilder {
     }
 }
 
-fn param_offset(intent: &Intent<'_>, data: &[u8], target: u8) -> Result<usize, ProgramError> {
-    let params = intent.params();
+fn param_offset(params: &[ParamEntry], data: &[u8], target: u8) -> Result<usize, ProgramError> {
     let mut off = 0usize;
     for i in 0..target as usize {
         let p = params.get(i).ok_or(ProgramError::InvalidInstructionData)?;
         off += param_byte_size(p.param_type, data, off)?;
     }
     Ok(off)
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::*;
+    use crate::utils::definition::ConstraintType;
+    use serde::Deserialize;
+    use std::{string::String as StdString, vec::Vec as StdVec};
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct RenderVectors {
+        schema_version: u16,
+        vectors: StdVec<RenderVector>,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct RenderVector {
+        id: StdString,
+        template: StdString,
+        param_types: StdVec<StdString>,
+        params_data_hex: StdString,
+        expected: StdString,
+    }
+
+    #[test]
+    fn shared_render_vectors_match_the_program_renderer() {
+        let artifact: RenderVectors = serde_json::from_str(include_str!(
+            "../../../../examples/intents/render-vectors-v1.json"
+        ))
+        .unwrap();
+        assert_eq!(artifact.schema_version, 1);
+
+        for vector in artifact.vectors {
+            let params = vector
+                .param_types
+                .iter()
+                .map(|name| ParamEntry {
+                    param_type: param_type(name),
+                    name_offset: PodU16::from(0),
+                    name_len: PodU16::from(0),
+                    constraint_type: ConstraintType::None,
+                    constraint_value: PodU64::from(0),
+                })
+                .collect::<StdVec<_>>();
+            let data = decode_hex(&vector.params_data_hex);
+            let mut builder = MessageBuilder::new();
+            builder
+                .render_template_parts(&vector.template, &params, &data)
+                .unwrap_or_else(|error| panic!("{}: {error:?}", vector.id));
+            assert_eq!(
+                std::str::from_utf8(&builder.as_bytes()[OFFCHAIN_HEADER_LEN..]).unwrap(),
+                vector.expected,
+                "{}",
+                vector.id
+            );
+        }
+    }
+
+    fn param_type(name: &str) -> ParamType {
+        match name {
+            "address" => ParamType::Address,
+            "u64" => ParamType::U64,
+            "i64" => ParamType::I64,
+            "string" => ParamType::String,
+            "bool" => ParamType::Bool,
+            "u8" => ParamType::U8,
+            "u16" => ParamType::U16,
+            "u32" => ParamType::U32,
+            "u128" => ParamType::U128,
+            "bytes20" => ParamType::Bytes20,
+            "bytes32" => ParamType::Bytes32,
+            other => panic!("unknown render vector parameter type {other}"),
+        }
+    }
+
+    fn decode_hex(value: &str) -> StdVec<u8> {
+        value
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| {
+                let pair = std::str::from_utf8(pair).unwrap();
+                u8::from_str_radix(pair, 16).unwrap()
+            })
+            .collect()
+    }
 }
 
 fn parse_usize(s: &str) -> Result<usize, ProgramError> {

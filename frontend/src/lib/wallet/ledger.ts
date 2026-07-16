@@ -116,6 +116,9 @@ export interface LedgerSession {
   pubkeyBase58: string;
   /// BIP44 derivation path used for this session (mostly for display).
   derivationPath: string;
+  /// Solana app version reported by the device. Null means capability
+  /// discovery failed, which deliberately keeps ClearSign on the full profile.
+  appVersion: string | null;
   /// Sign an offchain-wrapped message. Returns 64-byte ed25519 sig.
   /// Pass the OUTPUT of `wrapOffchain(body)` here, not the raw body -
   /// the Solana app insists on the offchain envelope and uses it to
@@ -161,6 +164,14 @@ export async function connectLedger(
   }
 
   const solana = new Solana(transport);
+  let appVersion: string | null = null;
+  try {
+    const configuration = await solana.getAppConfiguration();
+    appVersion = configuration.version;
+  } catch {
+    // Address/signing support can still work on older SDK/app combinations.
+    // Unknown capability must never opt the signer into a compact profile.
+  }
 
   let pubkey: Uint8Array;
   try {
@@ -182,6 +193,7 @@ export async function connectLedger(
     pubkey,
     pubkeyBase58: bs58.encode(pubkey),
     derivationPath: path,
+    appVersion,
     async signOffchainMessage(bytes: Uint8Array) {
       try {
         const result = await solana.signOffchainMessage(

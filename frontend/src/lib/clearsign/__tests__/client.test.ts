@@ -10,6 +10,7 @@ import {
 const envelope: ClearSignEnvelope<SendPayload> = {
   version: 3,
   kind: "send",
+  network: "Solana devnet",
   walletName: "Team",
   walletId: "Team#abc",
   actionId: "send-1",
@@ -64,6 +65,34 @@ describe("prepareClearSignAction", () => {
             actionKindCode: 1,
             ...local,
             headline: "Send 25 SOL from Team to Sarah",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+
+    await expect(prepareClearSignAction(envelope)).rejects.toThrow(
+      "backend prepared different transaction details",
+    );
+  });
+
+  it("rejects a backend response that substitutes the display profile", async () => {
+    const local = summarizeClearSignAction(envelope);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            version: 3,
+            kind: "send",
+            actionKindCode: 1,
+            ...local,
+            deviceProfile: {
+              id: "clearsig-ledger-solana-v1",
+              version: 1,
+              mode: "compact",
+              maxDocumentBytes: 1024,
+            },
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),

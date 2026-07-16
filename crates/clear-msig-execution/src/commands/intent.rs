@@ -4,8 +4,9 @@ use crate::output::{print_dry_run, print_json, DryRunDescriptor};
 use crate::signing::sign_message_with_flavor;
 use crate::{accounts, message, rpc};
 use clap::Subcommand;
+use clear_msig_intent::IntentTransactionJson;
 use clear_wallet_client::intent_builder::BuiltIntent;
-use clear_wallet_client::intent_json::IntentTransactionJson;
+use clear_wallet_client::intent_json::IntentDefinitionBuildExt;
 use solana_address::Address;
 use solana_pubkey::Pubkey;
 

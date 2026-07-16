@@ -2,6 +2,7 @@ import {
   summarizeClearSignAction,
   type AgentTradePayload,
   type ClearSignEnvelope,
+  type ClearSignDeviceProfileRequest,
 } from "@/lib/clearsign";
 import { sha256, toHex } from "@/lib/msig/hash";
 import type {
@@ -15,7 +16,11 @@ const USD_DECIMALS = 6;
 
 export function buildAgentTradeClearSign(
   proposal: AgentTradeProposal,
-  options: { walletId?: string; sessionId?: string } = {},
+  options: {
+    walletId?: string;
+    sessionId?: string;
+    deviceProfile?: ClearSignDeviceProfileRequest;
+  } = {},
 ): AgentTradeClearSignSnapshot {
   const market = proposal.market.trim().toUpperCase();
   const venue = proposal.venue;
@@ -55,6 +60,7 @@ export function buildAgentTradeClearSign(
   const envelope: ClearSignEnvelope<AgentTradePayload> = {
     version: 3,
     kind: "agent_trade_approval",
+    network: "Hyperliquid testnet",
     walletName: proposal.walletName,
     walletId: options.walletId ?? proposal.clearSignV2?.walletId ?? "",
     actionId: proposal.id,
@@ -63,7 +69,7 @@ export function buildAgentTradeClearSign(
     policyCommitment: normalizePolicyCommitment(proposal.policyHash),
     payload,
   };
-  const summary = summarizeClearSignAction(envelope);
+  const summary = summarizeClearSignAction(envelope, options.deviceProfile);
 
   return {
     actionId: envelope.actionId,

@@ -5,7 +5,11 @@ import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { buildAgentTradeClearSign } from "@/lib/agents/clearsign";
 import type { AgentTradePayload, ClearSignEnvelope } from "@/lib/clearsign";
-import { clearSignActionKindCode, prepareClearSignAction } from "@/lib/clearsign";
+import {
+  clearSignActionKindCode,
+  clearSignProfileForSigner,
+  prepareClearSignAction,
+} from "@/lib/clearsign";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { waitForProposalApproval } from "@/lib/chain/proposals";
 import { fetchWalletByName } from "@/lib/chain/wallets";
@@ -69,10 +73,12 @@ export function useAgentTypedClearSignApproval(walletName: string) {
       const binding = buildAgentTradeClearSign(proposal, {
         walletId: walletData.pda.toBase58(),
         sessionId: activeSession.id,
+        deviceProfile: clearSignProfileForSigner(wallet, proposer),
       });
       const envelope: ClearSignEnvelope<AgentTradePayload> = {
         version: 3,
         kind: "agent_trade_approval",
+        network: "Hyperliquid testnet",
         walletName,
         walletId: binding.walletId,
         actionId: binding.actionId,
@@ -83,6 +89,7 @@ export function useAgentTypedClearSignApproval(walletName: string) {
       };
       const summary = await prepareClearSignAction(envelope, {
         fallback: false,
+        deviceProfile: clearSignProfileForSigner(wallet, proposer),
       });
       if (
         summary.payloadHash !== binding.payloadHash ||
