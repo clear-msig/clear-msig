@@ -40,8 +40,8 @@ function isMaybeLandedCreateError(err: unknown): boolean {
 }
 
 export async function walletExistsAfterCreateFailure(walletSlug: string, err: unknown): Promise<boolean> {
-  if (!isMaybeLandedCreateError(err)) return false;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  const attempts = isMaybeLandedCreateError(err) ? 4 : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (attempt > 0) {
       await new Promise((resolve) => window.setTimeout(resolve, 2_000));
     }

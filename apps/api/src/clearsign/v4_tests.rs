@@ -125,6 +125,100 @@ fn sepolia_native_and_erc20_use_distinct_canonical_network_ids() {
 }
 
 #[test]
+fn every_supported_send_network_renders_bound_readable_details() {
+    let cases = [
+        (
+            0,
+            "Solana devnet",
+            pubkey(12).1,
+            "solana_pubkey",
+            "SOL",
+            None,
+        ),
+        (
+            1,
+            "Ethereum Sepolia",
+            "0x1111111111111111111111111111111111111111".into(),
+            "sha256_text",
+            "ETH",
+            None,
+        ),
+        (
+            2,
+            "Bitcoin testnet",
+            "tb1qexampledestination000000000000000000000".into(),
+            "sha256_text",
+            "BTC",
+            None,
+        ),
+        (
+            2,
+            "Bitcoin signet",
+            "tb1qsignetdestination0000000000000000000000".into(),
+            "sha256_text",
+            "BTC",
+            None,
+        ),
+        (
+            2,
+            "Bitcoin testnet4",
+            "tb1qtestnet4destination00000000000000000000".into(),
+            "sha256_text",
+            "BTC",
+            None,
+        ),
+        (
+            3,
+            "Zcash testnet",
+            "tmExampleTransparentDestination1111111111111".into(),
+            "sha256_text",
+            "ZEC",
+            None,
+        ),
+        (
+            4,
+            "Ethereum Sepolia",
+            "0x2222222222222222222222222222222222222222".into(),
+            "sha256_text",
+            "0x3333333333333333333333333333333333333333",
+            Some("USDC"),
+        ),
+        (
+            5,
+            "Hyperliquid testnet",
+            "0x4444444444444444444444444444444444444444".into(),
+            "sha256_text",
+            "HYPE",
+            None,
+        ),
+    ];
+
+    for (chain_kind, network, recipient, recipient_encoding, asset, display_asset) in cases {
+        let mut send = request(&recipient, "0.3");
+        send.envelope.network = network.into();
+        send.envelope.payload = serde_json::json!({
+            "recipient": recipient,
+            "recipientEncoding": recipient_encoding,
+            "amount": "0.3",
+            "asset": asset,
+            "assetEncoding": if chain_kind == 0 { "text" } else { "sha256_text" },
+            "displayAsset": display_asset,
+            "note": "Cross-chain test"
+        });
+        let mut context = trusted();
+        context.chain_kind = chain_kind;
+        let response = prepare_clearsign_v4_response(send, context).unwrap();
+        let shown_asset = display_asset.unwrap_or(asset);
+        assert!(response
+            .signable_text
+            .contains(&format!("Send 0.3 {shown_asset}")));
+        assert!(response.signable_text.contains(&format!("To: {recipient}")));
+        assert!(response.signable_text.contains("Cross-chain test"));
+        assert!(response.signable_text.contains("clearsig-intent-v4@1"));
+    }
+}
+
+#[test]
 fn batch_rows_and_governance_final_state_are_canonical() {
     let (_, first) = pubkey(12);
     let (_, second) = pubkey(13);

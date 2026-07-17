@@ -178,6 +178,11 @@ export function verifyTypedClearSignMessageText(
     );
   }
 
+  if (isV4 && body.includes("\nPROFILE clearsig-ledger-solana-v2@1\n")) {
+    verifyCompactV4Document(descriptor, body);
+    return;
+  }
+
   const sections = body.split("\n\n");
   const expectedSections = [
     isV4 ? "ClearSig Approval" : "ClearSig Proposal",
@@ -206,10 +211,7 @@ export function verifyTypedClearSignMessageText(
   }
   const policyLines = sections[3].split("\n").slice(1);
   const profiles = isV4
-    ? [
-        "Display profile: clearsig-full-v2@1",
-        "Display profile: clearsig-ledger-solana-v2@1",
-      ]
+    ? ["Display profile: clearsig-full-v2@1"]
     : [
         "Display profile: clearsig-full-v1@1",
         "Display profile: clearsig-ledger-solana-v1@1",
@@ -233,6 +235,50 @@ export function verifyTypedClearSignMessageText(
   ) {
     throw new TypedClearSignMessageVerificationError(
       "ClearSign v4 request is missing its canonical protocol marker.",
+    );
+  }
+}
+
+function verifyCompactV4Document(
+  descriptor: TypedDryRunDescriptor,
+  body: string,
+): void {
+  const lines = body.split("\n");
+  const protocol = "Protocol: clearsig-intent-v4@1";
+  const profile = "PROFILE clearsig-ledger-solana-v2@1";
+  const policy = `POLICY ${normalizeHex(descriptor.policy_commitment_hex)}`;
+  const expectedFooter = [
+    `FROM ${descriptor.wallet_name}`,
+    null,
+    `PROPOSAL ${BigInt(descriptor.proposal_index).toString()}`,
+    `EXPIRES ${BigInt(descriptor.expiry).toString()}`,
+    policy,
+    profile,
+    protocol,
+  ] as const;
+  const footerStart = lines.length - 8;
+  const approval = lines[footerStart + 2] ?? "";
+  const validApproval = /^APPROVAL (?:[1-9]|1[0-6])$/.test(approval);
+  const validFooter =
+    footerStart > 0 &&
+    lines[footerStart]?.startsWith("NET ") &&
+    lines[footerStart] !== "NET " &&
+    lines[footerStart + 1] === expectedFooter[0] &&
+    validApproval &&
+    lines[footerStart + 3] === expectedFooter[2] &&
+    lines[footerStart + 4] === expectedFooter[3] &&
+    lines[footerStart + 5] === expectedFooter[4] &&
+    lines[footerStart + 6] === expectedFooter[5] &&
+    lines[footerStart + 7] === expectedFooter[6];
+  if (
+    !validFooter ||
+    lines.some((line) => line.length === 0) ||
+    new TextEncoder().encode(body).length > 1024 ||
+    body.split(profile).length - 1 !== 1 ||
+    body.split(protocol).length - 1 !== 1
+  ) {
+    throw new TypedClearSignMessageVerificationError(
+      "Typed ClearSign request has an invalid compact device document.",
     );
   }
 }

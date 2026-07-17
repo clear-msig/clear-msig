@@ -453,10 +453,12 @@ export function friendlyError(
   }
 
   // ── Wallet name conflicts ─────────────────────────────────────
-  // The on-chain program derives the wallet PDA from sha256(name)
-  // alone (not creator-scoped), so names are globally unique on
-  // devnet - any name a previous user took is permanently locked.
-  // Anchor surfaces the conflict three different ways: as a system
+  // Wallet PDAs are creator-scoped, and the product name includes a
+  // short signer suffix. A conflict here therefore usually means a
+  // sponsored create landed before the browser cancelled or lost its
+  // response. The create flow recovers that wallet and resumes setup;
+  // this mapping remains a last-resort explanation for true conflicts.
+  // The runtime surfaces the conflict three different ways: as a system
   // error ("account already in use"), as an Anchor constraint
   // ("AlreadyInitialized"), and as a runtime error from the
   // create_account ix ("instruction requires an uninitialized
@@ -469,11 +471,10 @@ export function friendlyError(
       hay.includes("instruction requires an uninitialized account"))
   ) {
     return {
-      title: "That wallet name is already taken on devnet",
+      title: "That wallet already exists",
       body:
-        "Wallet names are globally unique across the network. Try a more " +
-        "specific name (your handle, a year, a couple of words) and create " +
-        "again.",
+        "Open the existing wallet or retry once to finish its setup. " +
+        "You do not need to rename it.",
     };
   }
 

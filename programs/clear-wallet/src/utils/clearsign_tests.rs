@@ -3,6 +3,8 @@ use alloc::vec::Vec;
 use super::*;
 
 const V3_SEND_DOCUMENT: &[u8] = b"ClearSig Proposal\n\nACTION\nSend 2.5 SOL from Team to Sarah\n\nDETAILS\nFrom wallet: Team\nNetwork: Solana devnet\nAmount: 2.5 SOL\nTo: Sarah\nPayload: 222222222222...222222222222\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: 111111111111...111111111111\nEnforcement: Exact payload and policy must match onchain\nDisplay profile: clearsig-full-v1@1\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, network, and every destination\n\nPURPOSE\nPayroll";
+const V4_FULL_SEND_DOCUMENT: &[u8] = b"ClearSig Approval\n\nACTION\nSend 0.3 SOL\n\nDETAILS\nFrom wallet: Team\nNetwork: Solana Devnet\nAmount: 0.3 SOL\nTo: 11111111111111111111111111111111\n\nPOLICY\nApproval: 2 signatures required\nExecution: Exact canonical payload, policy, and timelock enforced onchain\nPolicy commitment: 1111111111111111111111111111111111111111111111111111111111111111\nDisplay profile: clearsig-full-v2@1\nProtocol: clearsig-intent-v4@1\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, network, and full destination\n\nPURPOSE\nPayroll";
+const V4_COMPACT_SEND_DOCUMENT: &[u8] = b"SEND 0.3 SOL\nTO 11111111111111111111111111111111\nNET Solana Devnet\nFROM Team\nAPPROVAL 2\nPROPOSAL 7\nEXPIRES 1800000000\nPOLICY 1111111111111111111111111111111111111111111111111111111111111111\nPROFILE clearsig-ledger-solana-v2@1\nProtocol: clearsig-intent-v4@1";
 
 fn amount(asset: &'static [u8], raw_amount: u128) -> ClearSignAmount<'static> {
     ClearSignAmount { asset, raw_amount }
@@ -187,6 +189,60 @@ fn v3_vote_message_round_trips_and_binds_expiry() {
         ),
         Err(ClearSignError::InvalidVoteMessage)
     );
+}
+
+#[test]
+fn v4_full_and_compact_vote_messages_round_trip_with_v4_proof() {
+    let envelope_hash = [0xabu8; 32];
+    for clear_text in [V4_FULL_SEND_DOCUMENT, V4_COMPACT_SEND_DOCUMENT] {
+        assert!(is_v4_document(clear_text));
+        let mut message = [0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
+        let len = write_vote_message_for_clear_text(
+            &mut message,
+            ClearSignVoteKind::Propose,
+            b"Team",
+            &[1u8; 32],
+            7,
+            envelope_hash,
+            1_800_000_000,
+            2,
+            1,
+            clear_text,
+        )
+        .unwrap();
+        assert!(find_bytes(&message[..len], b"\nClearSign: v4\n").is_some());
+        assert_eq!(
+            extract_clear_text_from_vote_message(
+                ClearSignVoteKind::Propose,
+                b"Team",
+                &[1u8; 32],
+                7,
+                envelope_hash,
+                1_800_000_000,
+                2,
+                1,
+                &message[..len],
+            ),
+            Ok(clear_text)
+        );
+    }
+}
+
+#[test]
+fn compact_v4_classification_rejects_oversize_or_duplicate_protocol_markers() {
+    let duplicate = V4_COMPACT_SEND_DOCUMENT
+        .iter()
+        .copied()
+        .chain(b"\nProtocol: clearsig-intent-v4@1".iter().copied())
+        .collect::<Vec<_>>();
+    assert!(!is_v4_document(&duplicate));
+
+    let oversized = V4_COMPACT_SEND_DOCUMENT
+        .iter()
+        .copied()
+        .chain(core::iter::repeat(b'x').take(MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES))
+        .collect::<Vec<_>>();
+    assert!(!is_v4_document(&oversized));
 }
 
 #[test]

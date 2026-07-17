@@ -85,7 +85,7 @@ pub(in crate::commands::proposal) fn typed_approve_or_cancel(
         approval_requirement,
         approval_count_after,
         &proposal_account.clear_text,
-    );
+    )?;
 
     if config.dry_run {
         print_typed_dry_run(&crate::output::TypedDryRunDescriptor {

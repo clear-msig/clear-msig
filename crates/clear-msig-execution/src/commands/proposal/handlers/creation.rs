@@ -272,7 +272,7 @@ pub(super) fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<(
                 intent_account.approval_threshold,
                 approval_count_after,
                 effective_text.as_ref(),
-            ));
+            )?);
 
             if config.dry_run {
                 let vote_message = vote_message.as_ref().ok_or_else(|| {

@@ -42,67 +42,23 @@ pub(in crate::commands::proposal) fn typed_vote_message(
     approvals_required: u8,
     approvals_after: u8,
     clear_text: &[u8],
-) -> Vec<u8> {
-    if is_v3_document(clear_text) {
-        let mut out = Vec::with_capacity(320 + clear_text.len());
-        out.extend_from_slice(clear_text);
-        out.extend_from_slice(b"\n\nAPPROVAL\nDecision: ");
-        out.extend_from_slice(match vote_kind {
-            ClearSignVoteKind::Propose => b"PROPOSE",
-            ClearSignVoteKind::Approve => b"APPROVE",
-            ClearSignVoteKind::Cancel => b"CANCEL",
-        });
-        out.extend_from_slice(b"\nProposal: #");
-        out.extend_from_slice(proposal_index.to_string().as_bytes());
-        out.extend_from_slice(b"\nWallet: ");
-        out.extend_from_slice(wallet_name.as_bytes());
-        out.extend_from_slice(b"\nRequested by: ");
-        out.extend_from_slice(bs58::encode(signer_pubkey).into_string().as_bytes());
-        out.extend_from_slice(b"\nRequirement: ");
-        out.extend_from_slice(approvals_required.to_string().as_bytes());
-        out.extend_from_slice(approval_requirement_label(vote_kind, approvals_required));
-        out.extend_from_slice(b"\nStatus if accepted: ");
-        out.extend_from_slice(approvals_after.to_string().as_bytes());
-        out.extend_from_slice(b" of ");
-        out.extend_from_slice(approvals_required.to_string().as_bytes());
-        out.extend_from_slice(approval_requirement_label(vote_kind, approvals_required));
-        out.extend_from_slice(b"\n\nEXPIRY\n");
-        let mut expiry = [0u8; 19];
-        clear_wallet::utils::datetime::format_timestamp(expires_at, &mut expiry)
-            .expect("fixed expiry buffer must fit");
-        out.extend_from_slice(&expiry);
-        out.extend_from_slice(b" UTC\n\nPROOF\nClearSign: v3\nEnvelope: ");
-        out.extend_from_slice(crate::output::hex_of(&envelope_hash).as_bytes());
-        return out;
-    }
-    let mut out = Vec::with_capacity(128 + clear_text.len());
-    out.extend_from_slice(b"ClearSign v2 ");
-    out.extend_from_slice(match vote_kind {
-        ClearSignVoteKind::Propose => b"propose",
-        ClearSignVoteKind::Approve => b"approve",
-        ClearSignVoteKind::Cancel => b"cancel",
-    });
-    out.extend_from_slice(b"\nWallet ");
-    out.extend_from_slice(wallet_name.as_bytes());
-    out.extend_from_slice(b"\nProposal ");
-    out.extend_from_slice(proposal_index.to_string().as_bytes());
-    out.extend_from_slice(b"\nEnvelope ");
-    out.extend_from_slice(crate::output::hex_of(&envelope_hash).as_bytes());
-    out.extend_from_slice(b"\n\n");
-    out.extend_from_slice(clear_text);
-    out
-}
-
-pub(in crate::commands::proposal) fn approval_requirement_label(
-    kind: ClearSignVoteKind,
-    required: u8,
-) -> &'static [u8] {
-    match (kind, required) {
-        (ClearSignVoteKind::Cancel, 1) => b" cancellation",
-        (ClearSignVoteKind::Cancel, _) => b" cancellations",
-        (_, 1) => b" approval",
-        _ => b" approvals",
-    }
+) -> Result<Vec<u8>> {
+    let mut out = vec![0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
+    let len = write_vote_message_for_clear_text(
+        &mut out,
+        vote_kind,
+        wallet_name.as_bytes(),
+        signer_pubkey,
+        proposal_index,
+        envelope_hash,
+        expires_at,
+        approvals_required,
+        approvals_after,
+        clear_text,
+    )
+    .map_err(|error| anyhow!("could not build canonical ClearSign vote message: {error:?}"))?;
+    out.truncate(len);
+    Ok(out)
 }
 
 pub(in crate::commands::proposal) fn typed_message_flavor(clear_text: &[u8]) -> &'static str {

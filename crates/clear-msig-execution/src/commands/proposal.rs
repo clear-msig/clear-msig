@@ -12,7 +12,8 @@ use clear_msig_signing::{
 };
 use clear_wallet::utils::clearsign::{
     extract_clear_text_from_vote_message, is_v3_document, is_v4_document, validate_v3_document,
-    ClearSignActionKind, ClearSignVoteKind,
+    write_vote_message_for_clear_text, ClearSignActionKind, ClearSignVoteKind,
+    MAX_CLEARSIGN_VOTE_MESSAGE_BYTES,
 };
 use clear_wallet_client::intent_json::IntentDefinitionBuildExt;
 use ika_dwallet_types::{NetworkSignedAttestation, VersionedDWalletDataAttestation};

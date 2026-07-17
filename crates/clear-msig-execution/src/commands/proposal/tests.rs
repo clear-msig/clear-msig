@@ -69,3 +69,29 @@ fn interrupted_ika_execution_reuses_only_a_signed_message_approval() {
     assert!(message_approval_is_signed(&signed));
     assert!(!message_approval_is_signed(&[]));
 }
+
+#[test]
+fn typed_vote_message_uses_v4_wrapper_for_full_and_compact_documents() {
+    let full = b"ClearSig Approval\n\nACTION\nSend 1 SOL\n\nDETAILS\nAmount: 1 SOL\n\nPOLICY\nDisplay profile: clearsig-full-v2@1\nProtocol: clearsig-intent-v4@1\n\nRISK\nCategory: Funds movement\n\nPURPOSE\nTest";
+    let compact = b"SEND 1 SOL\nTO 11111111111111111111111111111111\nNET Solana Devnet\nFROM Team\nAPPROVAL 1\nPROPOSAL 4\nEXPIRES 1800000000\nPOLICY 1111111111111111111111111111111111111111111111111111111111111111\nPROFILE clearsig-ledger-solana-v2@1\nProtocol: clearsig-intent-v4@1";
+
+    for document in [full.as_slice(), compact.as_slice()] {
+        let message = typed_vote_message(
+            ClearSignVoteKind::Propose,
+            "Team",
+            &[1; 32],
+            4,
+            [2; 32],
+            1_800_000_000,
+            1,
+            1,
+            document,
+        )
+        .unwrap();
+        let text = core::str::from_utf8(&message).unwrap();
+        assert!(text.starts_with(core::str::from_utf8(document).unwrap()));
+        assert!(text.contains("\n\nAPPROVAL\nDecision: PROPOSE"));
+        assert!(text.contains("\nPROOF\nClearSign: v4\n"));
+        assert!(!text.starts_with("ClearSign v2"));
+    }
+}

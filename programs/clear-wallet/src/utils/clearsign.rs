@@ -14,6 +14,8 @@ pub const CLEARSIGN_V3_DOCUMENT_PREFIX: &[u8] = b"ClearSig Proposal\n\nACTION\n"
 pub const CLEARSIGN_V4_DOCUMENT_PREFIX: &[u8] = b"ClearSig Approval\n\nACTION\n";
 pub const CLEARSIGN_V3_FULL_PROFILE: &[u8] = b"Display profile: clearsig-full-v1@1";
 pub const CLEARSIGN_V3_LEDGER_PROFILE: &[u8] = b"Display profile: clearsig-ledger-solana-v1@1";
+pub const CLEARSIGN_V4_FULL_PROFILE: &[u8] = b"Display profile: clearsig-full-v2@1";
+pub const CLEARSIGN_V4_LEDGER_PROFILE: &[u8] = b"PROFILE clearsig-ledger-solana-v2@1";
 pub const MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES: usize = 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -201,8 +203,16 @@ pub fn is_v3_document(clear_text: &[u8]) -> bool {
 }
 
 pub fn is_v4_document(clear_text: &[u8]) -> bool {
-    clear_text.starts_with(CLEARSIGN_V4_DOCUMENT_PREFIX)
-        && find_bytes(clear_text, clear_msig_signing::DOCUMENT_PROTOCOL_MARKER).is_some()
+    if count_bytes(clear_text, clear_msig_signing::DOCUMENT_PROTOCOL_MARKER) != 1 {
+        return false;
+    }
+    let full = clear_text.starts_with(CLEARSIGN_V4_DOCUMENT_PREFIX)
+        && count_bytes(clear_text, CLEARSIGN_V4_FULL_PROFILE) == 1;
+    let compact = clear_text.len() <= MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES
+        && !clear_text.is_empty()
+        && find_bytes(clear_text, b"\n\n").is_none()
+        && count_bytes(clear_text, CLEARSIGN_V4_LEDGER_PROFILE) == 1;
+    full || compact
 }
 
 pub fn validate_v3_document(clear_text: &[u8]) -> Result<(), ClearSignError> {
@@ -297,7 +307,11 @@ pub fn extract_clear_text_from_vote_message<'a>(
     approvals_after: u8,
     vote_message: &'a [u8],
 ) -> Result<&'a [u8], ClearSignError> {
-    let document_version = if is_v4_document(vote_message) {
+    let approval_marker = b"\n\nAPPROVAL\n";
+    let compact_v4 = find_bytes(vote_message, approval_marker)
+        .map(|split| is_v4_document(&vote_message[..split]))
+        .unwrap_or(false);
+    let document_version = if is_v4_document(vote_message) || compact_v4 {
         Some(4)
     } else if vote_message.starts_with(CLEARSIGN_V3_DOCUMENT_PREFIX) {
         Some(3)
@@ -305,10 +319,10 @@ pub fn extract_clear_text_from_vote_message<'a>(
         None
     };
     if let Some(document_version) = document_version {
-        let marker = b"\n\nAPPROVAL\n";
-        let split = find_bytes(vote_message, marker).ok_or(ClearSignError::InvalidVoteMessage)?;
+        let split =
+            find_bytes(vote_message, approval_marker).ok_or(ClearSignError::InvalidVoteMessage)?;
         let clear_text = &vote_message[..split];
-        let mut cursor = &vote_message[split + marker.len()..];
+        let mut cursor = &vote_message[split + approval_marker.len()..];
         cursor = strip_prefix(cursor, b"Decision: ")?;
         cursor = strip_prefix(cursor, vote_decision(vote_kind))?;
         cursor = strip_prefix(cursor, b"\nProposal: #")?;

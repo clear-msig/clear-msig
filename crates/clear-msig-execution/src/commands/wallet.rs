@@ -223,12 +223,34 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             });
 
             let client = rpc::client(config);
-            let sig = rpc::send_instruction(&client, config, ix)?;
+            let mut already_exists =
+                wallet_exists_at_address(&client, &wallet, &name, &payer_pubkey)?;
+            let sig = if already_exists {
+                None
+            } else {
+                match rpc::send_instruction(&client, config, ix) {
+                    Ok(signature) => Some(signature),
+                    Err(error) => {
+                        // A cancelled or disconnected browser can miss the
+                        // successful response after the sponsored create has
+                        // landed. Re-reading the deterministic PDA makes the
+                        // command idempotent without replaying create_account.
+                        already_exists =
+                            wallet_exists_at_address(&client, &wallet, &name, &payer_pubkey)?;
+                        if already_exists {
+                            None
+                        } else {
+                            return Err(error);
+                        }
+                    }
+                }
+            };
 
             print_json(&serde_json::json!({
-                "txid": sig.to_string(),
+                "txid": sig.map(|signature| signature.to_string()),
                 "wallet": wallet.to_string(),
                 "vault": vault.to_string(),
+                "already_exists": already_exists,
             }));
         }
         WalletAction::AddChain {
@@ -648,6 +670,25 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn wallet_exists_at_address(
+    client: &rpc::Client,
+    wallet: &Pubkey,
+    expected_name: &str,
+    expected_creator: &Pubkey,
+) -> Result<bool> {
+    let Some(data) = rpc::fetch_account_optional(client, wallet)? else {
+        return Ok(false);
+    };
+    let existing = accounts::parse_wallet(&data)
+        .with_context(|| format!("existing wallet account {wallet} is malformed"))?;
+    if existing.name != expected_name || existing.creator != expected_creator.to_string() {
+        return Err(anyhow!(
+            "existing wallet account {wallet} does not match its deterministic name and creator"
+        ));
+    }
+    Ok(true)
 }
 
 fn build_atomic_dwallet_bind_plan(

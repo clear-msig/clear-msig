@@ -47,6 +47,37 @@ describe("typed ClearSign message verification", () => {
     ).toThrow("missing its canonical intent bytes");
   });
 
+  it("accepts a transaction-bound compact v4 device document", () => {
+    const body = compactV4DocumentText();
+    const text = descriptorTextForBody(body, 4);
+    const descriptor = typedDescriptor({
+      canonical_intent_hex: "44".repeat(64),
+      message_flavor: "clearsign_v4_document",
+      message_hex: toHex(fromText(text)),
+    });
+
+    expect(
+      verifiedTypedClearSignMessageBytes(descriptor, {
+        envelopeHash,
+        payloadHash,
+        signableText: body,
+      }),
+    ).toEqual(fromText(text));
+  });
+
+  it("rejects compact v4 documents with substituted proposal context", () => {
+    const body = compactV4DocumentText().replace("PROPOSAL 1", "PROPOSAL 9");
+    const descriptor = typedDescriptor({
+      canonical_intent_hex: "44".repeat(64),
+      message_flavor: "clearsign_v4_document",
+      message_hex: toHex(fromText(descriptorTextForBody(body, 4))),
+    });
+
+    expect(() => verifiedTypedClearSignMessageBytes(descriptor)).toThrow(
+      "invalid compact device document",
+    );
+  });
+
   it("rejects a vote message with a swapped envelope hash", () => {
     const descriptor = typedDescriptor({
       message_hex: toHex(
@@ -231,6 +262,27 @@ function descriptorText(
   ].join("\n");
 }
 
+function descriptorTextForBody(body: string, version: 3 | 4): string {
+  return [
+    body,
+    "",
+    "APPROVAL",
+    "Decision: PROPOSE",
+    "Proposal: #1",
+    "Wallet: Team treasury#5qxnc7",
+    "Requested by: Signer1111111111111111111111111111111111",
+    "Requirement: 2 approvals",
+    "Status if accepted: 1 of 2 approvals",
+    "",
+    "EXPIRY",
+    "2026-07-07 12:15:31 UTC",
+    "",
+    "PROOF",
+    `ClearSign: v${version}`,
+    `Envelope: ${envelopeHash}`,
+  ].join("\n");
+}
+
 function documentText(): string {
   return [
     "ClearSig Proposal",
@@ -268,6 +320,21 @@ function v4DocumentText(): string {
       "Display profile: clearsig-full-v1@1",
       "Display profile: clearsig-full-v2@1\nProtocol: clearsig-intent-v4@1",
     );
+}
+
+function compactV4DocumentText(): string {
+  return [
+    "SEND 1 SOL",
+    "TO 886vDaZFUheowbYv4j7mU54QSvzATKr8Lb7ySuoTVXKp",
+    "NET Solana Devnet",
+    "FROM Team treasury#5qxnc7",
+    "APPROVAL 2",
+    "PROPOSAL 1",
+    "EXPIRES 1783426531",
+    `POLICY ${"22".repeat(32)}`,
+    "PROFILE clearsig-ledger-solana-v2@1",
+    "Protocol: clearsig-intent-v4@1",
+  ].join("\n");
 }
 
 function fromText(text: string): Uint8Array {
