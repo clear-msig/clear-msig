@@ -15,11 +15,11 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight } from "lucide-react";
 import { friendlyError } from "@/lib/api/errors";
 import { IntentType, findVaultAddress } from "@/lib/msig";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -34,7 +34,6 @@ import { useContacts } from "@/lib/hooks/useContacts";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
-import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { SendProgressStage } from "@/features/send/ui/SendProgressStage";
 import { RouteSkeleton } from "@/components/retail/RouteSkeleton";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
@@ -59,6 +58,14 @@ import { executeSolanaSend } from "@/features/send/infrastructure/executeSolanaS
 type ResolvedRecipient = ResolvedSolanaRecipient;
 
 type Stage = "compose" | "sending" | "sent";
+
+const PolicyMatchBanner = dynamic(
+  () =>
+    import("@/components/security/PolicyMatchBanner").then(
+      (module) => module.PolicyMatchBanner,
+    ),
+  { ssr: false, loading: () => null },
+);
 
 export default function SendPageWrapper() {
   return (
@@ -537,7 +544,7 @@ function SendPage() {
                   }
                 >
                   Turn on sending
-                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span aria-hidden="true">-&gt;</span>
                 </Link>
               </div>
             </div>

@@ -14,7 +14,7 @@
 // (Dynamic auth, Ledger WebHID, post-connect bridge state) is unchanged
 // from the prior retail version.
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
@@ -22,13 +22,9 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   Check,
-  Loader2,
   Lock,
   ShieldCheck,
 } from "lucide-react";
-import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { useWalletGate } from "@/lib/hooks/useWalletGate";
-import { useWallet } from "@/lib/wallet";
 import {
   LandingAtmospherics,
   LandingNav,
@@ -40,19 +36,8 @@ import {
 } from "@/lib/productSurfaces";
 import { rememberProductSurfaceChoice } from "@/lib/productSession";
 
-const ProductWalletSelectionScreen = dynamic(
-  () =>
-    import("@/features/onboarding/ui/ProductWalletSelectionScreen").then(
-      (module) => module.ProductWalletSelectionScreen,
-    ),
-  { ssr: false, loading: () => null },
-);
-
-const LedgerConnectRow = dynamic(
-  () =>
-    import("@/features/onboarding/ui/LedgerConnectRow").then(
-      (module) => module.LedgerConnectRow,
-    ),
+const ConnectRuntimeIsland = dynamic(
+  () => import("./ConnectRuntimeIsland"),
   { ssr: false, loading: () => null },
 );
 
@@ -67,44 +52,35 @@ export default function ConnectPageWrapper() {
 }
 
 function ConnectPage() {
-  // The gate handles the post-connect redirect (?next or /app).
-  // We just render the connect UI; the gate fires once `connected` flips.
-  const gate = useWalletGate();
   const search = useSearchParams();
-  const wallet = useWallet();
   const reduce = useReducedMotion();
+  const [authRequested, setAuthRequested] = useState(false);
+  const [hydrateAuthRuntime, setHydrateAuthRuntime] = useState(false);
   const selectedSurface =
     productSurfaceFromSearch(search.get("surface")) ??
     productSurfaceFromNext(search.get("next"));
+  const destination = connectDestinationFromNext(search.get("next"));
 
   useEffect(() => {
     if (!selectedSurface) return;
     rememberProductSurfaceChoice(selectedSurface.id);
   }, [selectedSurface]);
 
-  // Bridge state: Dynamic auth is done, wallet.connected is true, but
-  // useWalletGate is still waiting for the memberships RPC to settle
-  // before redirecting. Without an explicit "signed in, loading"
-  // surface here, the user stares at the unchanged sign-in card for
-  // 5-10s and assumes the click did nothing. Swap to a confident
-  // success state.
-  if (wallet.connected) {
-    if (gate.productSelection) {
-      return (
-        <ProductWalletSelectionScreen
-          selection={gate.productSelection}
-          address={wallet.publicKey?.toBase58() ?? null}
-          reduce={!!reduce}
-        />
-      );
-    }
-    return (
-      <SignedInWaiting
-        reduce={!!reduce}
-        destination={connectDestinationFromNext(search.get("next"))}
-      />
-    );
-  }
+  useEffect(() => {
+    if (authRequested || hydrateAuthRuntime) return;
+    const hydrate = () => setHydrateAuthRuntime(true);
+    const idleHandle =
+      "requestIdleCallback" in window
+        ? window.requestIdleCallback(hydrate, { timeout: 1600 })
+        : null;
+    const timeoutHandle = window.setTimeout(hydrate, 2200);
+    return () => {
+      window.clearTimeout(timeoutHandle);
+      if (idleHandle !== null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleHandle);
+      }
+    };
+  }, [authRequested, hydrateAuthRuntime]);
 
   const fadeIn = (delay = 0, y = 12) =>
     reduce
@@ -222,14 +198,24 @@ function ConnectPage() {
                       : "Use your email, your phone, or a wallet you already have. We will set the rest up for you."}
                   </p>
 
-                  {/* setShowAuthFlow opens the provider-owned Dynamic auth
-                      modal directly; no hidden widget is required. */}
                   <div className="mt-7 w-full">
-                    <ConnectCta />
-                  </div>
-
-                  <div className="w-full">
-                    <LedgerConnectRow />
+                    {authRequested || hydrateAuthRuntime ? (
+                      <ConnectRuntimeIsland
+                        environmentId={
+                          process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID ?? ""
+                        }
+                        autoOpen={authRequested}
+                        reduce={!!reduce}
+                        destination={destination}
+                      />
+                    ) : (
+                      <FastConnectCta
+                        onClick={() => {
+                          setAuthRequested(true);
+                          setHydrateAuthRuntime(true);
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -305,126 +291,16 @@ function connectDestinationFromNext(
   }
 }
 
-// ─── Brand-aligned Dynamic CTA ─────────────────────────────────────
-//
-// Dynamic's default CTA is a small white outline button that ignored
-// our scoped CSS overrides. Replacing it with a neon-cta button that
-// calls `setShowAuthFlow` opens the same modal - Dynamic doesn't care
-// who opens it.
-
-function ConnectCta() {
-  const { setShowAuthFlow } = useDynamicContext();
+function FastConnectCta({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      onClick={() => setShowAuthFlow(true)}
+      onClick={onClick}
       className="neon-cta inline-flex w-full items-center justify-center gap-2 rounded-full px-7 py-4 text-[14px] font-bold tracking-tight"
     >
       Continue
       <ArrowRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
     </button>
-  );
-}
-
-// ─── Signed-in bridge state ────────────────────────────────────────
-//
-// Dynamic auth completed, wallet.connected is true, but the wallet
-// gate is still fetching memberships before deciding whether to send
-// the user to /app (returning) or /welcome (first-timer). That
-// fetch can take 5-10s on devnet. Render a dedicated "we got you"
-// state so the user knows the click worked.
-
-function SignedInWaiting({
-  reduce,
-  destination,
-}: {
-  reduce: boolean;
-  destination: "wallet" | "secure" | "app" | null;
-}) {
-  const MotionCheck = motion(Check);
-  const copy =
-    destination === "wallet"
-      ? {
-          body: "Opening the wallet you selected.",
-          label: "Opening wallet",
-        }
-      : destination === "secure"
-        ? {
-            body: "Opening your recovery workspace.",
-            label: "Opening secure",
-          }
-        : destination === "app"
-          ? {
-              body: "Opening your ClearSig workspace.",
-              label: "Opening app",
-            }
-          : {
-              body: "Loading your shared wallets. This usually takes a few seconds on devnet.",
-              label: "Loading wallets",
-            };
-
-  return (
-    // Flat landing-shell with NO nav. Wallets are loading - the user
-    // can't act on anything else, so the chrome would just be noise
-    // around the loading state. Bringing the loading content to the
-    // front of the user's attention is the whole point of this view.
-    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <LandingAtmospherics />
-      </div>
-      <main className="relative mx-auto w-full max-w-[1600px]">
-        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] as const }}
-            className="flex w-full max-w-sm flex-col items-center text-center"
-          >
-            <motion.div
-              initial={reduce ? false : { scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{
-                type: "spring",
-                damping: 18,
-                stiffness: 220,
-                delay: 0.05,
-              }}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_40px_rgba(204, 255, 0,0.5)]"
-            >
-              <MotionCheck
-                className="h-8 w-8"
-                strokeWidth={2.5}
-                aria-hidden="true"
-                initial={reduce ? false : { pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ duration: 0.45, ease: "easeOut", delay: 0.18 }}
-              />
-            </motion.div>
-
-            <div className="mt-6 flex items-center gap-2">
-              <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
-                session ready
-              </span>
-            </div>
-            <h1 className="landing-section-heading mt-3 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">
-              You&rsquo;re <span className="italic-skew">in</span>.
-            </h1>
-            <p className="mt-3 text-base leading-relaxed text-white/60">
-              {copy.body}
-            </p>
-            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-border-soft bg-glass-soft px-4 py-2 backdrop-blur-md">
-              <Loader2
-                className="h-3.5 w-3.5 animate-spin text-[#ccff00]"
-                aria-hidden="true"
-              />
-              <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/70">
-                {copy.label}
-              </span>
-            </div>
-          </motion.div>
-        </div>
-      </main>
-    </div>
   );
 }
 
