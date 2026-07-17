@@ -1,13 +1,22 @@
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { u64 } from "@solana/buffer-layout-utils";
 import {
   toBigIntBE,
   toBigIntLE,
   toBufferBE,
   toBufferLE,
 } from "bigint-buffer";
+
+interface BigIntLayout {
+  encode(value: bigint, buffer: Uint8Array, offset?: number): number;
+  decode(buffer: Uint8Array, offset?: number): bigint;
+}
+
+const { u64 } = createRequire(import.meta.url)("@solana/buffer-layout-utils") as {
+  u64(property?: string): BigIntLayout;
+};
 
 describe("audited bigint-buffer replacement", () => {
   it.each([0n, 1n, 255n, 256n, 65_535n, 18_446_744_073_709_551_615n])(
