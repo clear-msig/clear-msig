@@ -20,6 +20,12 @@ const programId =
   args.programId ?? process.env.PROGRAM_ID ?? process.env.CLEAR_MSIG_PROGRAM_ID ?? DEFAULT_PROGRAM_ID;
 const devnetUrl =
   args.devnetUrl ?? process.env.DEVNET_URL ?? process.env.CLEAR_MSIG_URL ?? DEFAULT_DEVNET_URL;
+const solanaKeypair =
+  args.keypair ??
+  process.env.SOLANA_KEYPAIR ??
+  process.env.ANCHOR_WALLET ??
+  process.env.PAYER_KEYPAIR ??
+  null;
 
 const checks = [];
 let failures = 0;
@@ -110,8 +116,9 @@ function parseArgs(values) {
     else if (value === "--frontend-url") parsed.frontendUrl = values[++index];
     else if (value === "--program-id") parsed.programId = values[++index];
     else if (value === "--devnet-url") parsed.devnetUrl = values[++index];
+    else if (value === "--keypair") parsed.keypair = values[++index];
     else if (value === "--help") {
-      console.log(`Usage: node scripts/release-verify.mjs [--backend-url URL] [--frontend-url URL] [--program-id PUBKEY] [--devnet-url URL]`);
+      console.log(`Usage: node scripts/release-verify.mjs [--backend-url URL] [--frontend-url URL] [--program-id PUBKEY] [--devnet-url URL] [--keypair PATH]`);
       process.exit(0);
     } else {
       console.error(`Unknown argument: ${value}`);
@@ -190,17 +197,21 @@ async function checkClearSignV4(url) {
 }
 
 function checkProgram(expectedProgramId, rpcUrl, backendVersion, frontendVersion) {
-  const output = commandOrNull("solana", [
+  const solanaArgs = [
     "program",
     "show",
     expectedProgramId,
     "--url",
     rpcUrl,
-  ]);
-  if (!output) {
-    warn("solana program", "could not inspect program with solana CLI");
+  ];
+  if (solanaKeypair) solanaArgs.push("--keypair", solanaKeypair);
+
+  const result = commandResult("solana", solanaArgs);
+  if (!result.ok) {
+    warn("solana program", result.error ?? "could not inspect program with solana CLI");
     return;
   }
+  const output = result.stdout;
   const slot = output.match(/Last Deployed In Slot:\s*(\d+)/)?.[1] ?? null;
   const dataLength = output.match(/Data Length:\s*([0-9]+)/)?.[1] ?? null;
   if (slot) pass("solana program", `slot ${slot}${dataLength ? `, ${dataLength} bytes` : ""}`);
@@ -251,13 +262,29 @@ function checkLocalArtifact(backendVersion, frontendVersion) {
 }
 
 function commandOrNull(command, args) {
+  const result = commandResult(command, args);
+  return result.ok ? result.stdout.trim() : null;
+}
+
+function commandResult(command, args) {
   try {
-    return execFileSync(command, args, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    return null;
+    return {
+      ok: true,
+      stdout: execFileSync(command, args, {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }).trim(),
+    };
+  } catch (error) {
+    const stderr =
+      error && typeof error === "object" && "stderr" in error
+        ? String(error.stderr).trim()
+        : "";
+    return {
+      ok: false,
+      stdout: "",
+      error: stderr.split("\n")[0] || null,
+    };
   }
 }
 
