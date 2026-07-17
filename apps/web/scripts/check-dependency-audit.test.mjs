@@ -24,31 +24,11 @@ function report(vulnerabilities = {}) {
   };
 }
 
-test("accepts only the registered high-risk dependency chain", () => {
-  const names = evaluateDependencyAudit(
-    report({
-      "@dynamic-labs/solana-core": {
-        name: "@dynamic-labs/solana-core",
-        severity: "high",
-      },
-      "@solana/spl-token": { name: "@solana/spl-token", severity: "high" },
-      "@solana/buffer-layout-utils": {
-        name: "@solana/buffer-layout-utils",
-        severity: "high",
-      },
-      "bigint-buffer": { name: "bigint-buffer", severity: "high" },
-    }),
-  );
-
-  assert.deepEqual(names.sort(), [
-    "@dynamic-labs/solana-core",
-    "@solana/buffer-layout-utils",
-    "@solana/spl-token",
-    "bigint-buffer",
-  ]);
+test("accepts a production graph with no high or critical findings", () => {
+  assert.deepEqual(evaluateDependencyAudit(report()), []);
 });
 
-test("rejects critical or unregistered high-risk packages", () => {
+test("rejects every critical or high-risk package", () => {
   assert.throws(() =>
     evaluateDependencyAudit(
       report({ unexpected: { name: "unexpected", severity: "high" } }),

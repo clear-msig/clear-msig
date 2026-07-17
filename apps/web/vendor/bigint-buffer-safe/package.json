@@ -1,0 +1,13 @@
+{
+  "name": "bigint-buffer",
+  "version": "1.1.6-clearsig.1",
+  "description": "ClearSig audited pure-JavaScript bigint-buffer compatibility layer",
+  "main": "index.js",
+  "browser": "index.js",
+  "types": "index.d.ts",
+  "license": "Apache-2.0",
+  "private": true,
+  "dependencies": {
+    "buffer": "^6.0.3"
+  }
+}
