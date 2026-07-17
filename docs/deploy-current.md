@@ -102,10 +102,9 @@ state, and rate-limit store; do not provision a second Redis service.
 
 Vercel builds `apps/web/` with `apps/web/vercel.json`.
 
-The repository currently retains `frontend -> apps/web` as a compatibility
-symlink for the already-linked Vercel project. Change the Vercel project Root
-Directory to `apps/web`, verify a production deployment, then remove the
-symlink in a dedicated release.
+The production `clear-msig` project Root Directory is `apps/web`. Do not add a
+top-level `frontend` alias or symlink: Vercel validates the configured root as
+a real repository directory before it starts the build.
 
 Required Vercel environment:
 

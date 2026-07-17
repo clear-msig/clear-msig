@@ -9,18 +9,12 @@ for app in "${required_apps[@]}"; do
   fi
 done
 
-for legacy in backend-api cli e2e rust-settlement; do
+for legacy in backend-api cli e2e frontend rust-settlement; do
   if [[ -e "$legacy" ]]; then
     echo "Repository boundary check failed: legacy top-level path $legacy still exists." >&2
     exit 1
   fi
 done
-
-# Keep this alias only while the existing Vercel project root is migrated.
-if [[ ! -L frontend || "$(readlink frontend)" != "apps/web" ]]; then
-  echo "Repository boundary check failed: frontend must be the documented apps/web compatibility symlink." >&2
-  exit 1
-fi
 
 grep -q '"apps/api"' Cargo.toml
 grep -q '"apps/cli"' Cargo.toml

@@ -94,9 +94,8 @@ a distinct privileged path.
 - `scripts/check-repository-boundaries.sh` rejects legacy top-level apps,
   browser-to-service source imports, trusted-code imports from the web app, and
   duplicate generated program clients.
-- `frontend` is a temporary symlink to `apps/web` for the existing Vercel root
-  setting. Remove it after Vercel is explicitly changed to `apps/web` and a
-  production deployment passes.
+- The Vercel project root is `apps/web`; legacy top-level application aliases
+  are rejected by the repository boundary gate.
 
 This layout makes private extraction mechanically possible. It does not make
 the current GitHub monorepo private, erase public history, or turn source
