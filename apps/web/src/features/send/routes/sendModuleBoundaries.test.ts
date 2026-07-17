@@ -12,6 +12,9 @@ describe("BTC and Solana send module boundaries", () => {
     "src/features/send/ui/bitcoin/BtcSendScreen.tsx",
   );
   const solanaRoute = source("src/features/send/routes/SolanaSendPage.tsx");
+  const solanaExecution = source(
+    "src/features/send/infrastructure/executeSolanaSend.ts",
+  );
 
   it("keeps BTC rendering in focused UI modules", () => {
     expect(btcRoute).toContain("/bitcoin/BtcSendScreen");
@@ -25,7 +28,8 @@ describe("BTC and Solana send module boundaries", () => {
   it("keeps Solana composition and RPC polling outside the route", () => {
     expect(solanaRoute).toContain("/solana/SolanaComposeStage");
     expect(solanaRoute).toContain("/domain/solanaSendProgress");
-    expect(solanaRoute).toContain("/infrastructure/solanaProposalStatus");
+    expect(solanaRoute).toContain("/infrastructure/executeSolanaSend");
+    expect(solanaExecution).toContain("/infrastructure/solanaProposalStatus");
     expect(solanaRoute).not.toContain("function ComposeStage(");
     expect(solanaRoute).not.toContain("async function waitForProposalStatus(");
   });

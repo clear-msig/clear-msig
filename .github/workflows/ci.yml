@@ -25,7 +25,7 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libssl-dev pkg-config libudev-dev
+          sudo apt-get install -y protobuf-compiler libssl-dev pkg-config libudev-dev ripgrep
 
       - name: Cache cargo registry + target
         uses: Swatinem/rust-cache@v2

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const sendPages = [
-  "src/features/send/routes/SolanaSendPage.tsx",
+  "src/features/send/infrastructure/prepareSolanaSendProposal.ts",
   "src/features/send/routes/BtcSendPage.tsx",
   "src/features/send/routes/EthSendPage.tsx",
   "src/features/send/routes/Erc20SendPage.tsx",
