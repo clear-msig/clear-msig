@@ -44,6 +44,13 @@ pub enum WalletAction {
         #[arg(long)]
         name: String,
     },
+    /// Read the active on-chain policy commitment for one destination chain.
+    PolicyCommitment {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        chain_kind: u8,
+    },
     /// Give the wallet an identity on a remote chain via Ika dWallet.
     ///
     /// Performs the full DKG → transfer-authority → bind sequence in one
@@ -602,6 +609,41 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 "name": account.name,
                 "proposal_index": account.proposal_index,
                 "intent_index": account.intent_index,
+            }));
+        }
+        WalletAction::PolicyCommitment {
+            wallet: wallet_name,
+            chain_kind,
+        } => {
+            const CHAIN_SLOTS: usize = 6;
+            const POLICY_LEN: usize = 1 + 32 + (32 * CHAIN_SLOTS) + 8 + 8 + 1;
+            if chain_kind as usize >= CHAIN_SLOTS {
+                return Err(anyhow!("chain-kind must be between 0 and 5"));
+            }
+            let client = rpc::client(config);
+            let (wallet, _) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet.to_bytes());
+            let program_id = crate::instructions::program_id();
+            let pid = solana_address::Address::new_from_array(program_id.to_bytes());
+            let (policy_addr, _) =
+                clear_wallet_client::pda::find_wallet_policy_address(&wallet_addr, &pid);
+            let policy = Pubkey::new_from_array(policy_addr.to_bytes());
+            let commitment = match rpc::fetch_account_optional(&client, &policy)? {
+                None => [0u8; 32],
+                Some(data) => {
+                    if data.len() < POLICY_LEN || data[0] != 8 || data[1..33] != wallet.to_bytes() {
+                        return Err(anyhow!("wallet policy account is malformed"));
+                    }
+                    let offset = 33 + chain_kind as usize * 32;
+                    data[offset..offset + 32]
+                        .try_into()
+                        .map_err(|_| anyhow!("wallet policy commitment is malformed"))?
+                }
+            };
+            print_json(&serde_json::json!({
+                "wallet": wallet.to_string(),
+                "chain_kind": chain_kind,
+                "commitment": hex_encode(&commitment),
             }));
         }
     }

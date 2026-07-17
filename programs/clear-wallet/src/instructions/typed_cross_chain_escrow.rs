@@ -1,3 +1,7 @@
+use clear_msig_signing::{
+    committed_escrow_release_payload_hash, committed_escrow_return_payload_hash,
+    execution_commitment,
+};
 use quasar_lang::prelude::*;
 use sha2::{Digest, Sha256};
 
@@ -9,10 +13,7 @@ use crate::{
         ika_config::IkaConfig, intent::Intent, proposal::ProposalStatus,
         typed_proposal::TypedProposal, wallet::ClearWallet,
     },
-    utils::clearsign::{
-        hash_cross_chain_escrow_release_payload, hash_cross_chain_escrow_return_payload,
-        ClearSignActionKind, ClearSignAmount,
-    },
+    utils::clearsign::ClearSignActionKind,
 };
 
 #[derive(Accounts)]
@@ -142,21 +143,23 @@ impl<'info> ExecuteTypedCrossChainEscrowRelease<'info> {
             WalletError::InvalidClearSignEnvelope
         );
 
-        let amount = ClearSignAmount {
-            asset: &args.asset_id_hash,
-            raw_amount: amount_raw,
-        };
-        let payload_hash = hash_cross_chain_escrow_release_payload(
-            &args.escrow_id_hash,
-            &args.milestone_id_hash,
-            args.chain_kind,
+        let chain_byte = [args.chain_kind];
+        let execution_commitment = execution_commitment(&[
+            b"cross_chain_escrow_release",
+            &chain_byte,
             self.ika_config.address().as_ref(),
             self.dwallet.address().as_ref(),
-            &args.recipient_hash,
-            &amount,
             &args.route_hash,
             &args.tx_template_hash,
             &args.settlement_artifact_hash,
+        ]);
+        let payload_hash = committed_escrow_release_payload_hash(
+            &args.escrow_id_hash,
+            &args.milestone_id_hash,
+            &args.recipient_hash,
+            &args.asset_id_hash,
+            amount_raw,
+            execution_commitment,
         );
         verify_typed_execution_ready(
             &self.intent,
@@ -224,20 +227,25 @@ impl<'info> ExecuteTypedCrossChainEscrowReturn<'info> {
             WalletError::InvalidClearSignEnvelope
         );
 
-        let amount = ClearSignAmount {
-            asset: &args.asset_id_hash,
-            raw_amount: amount_raw,
-        };
-        let payload_hash = hash_cross_chain_escrow_return_payload(
-            &args.escrow_id_hash,
-            args.chain_kind,
+        let chain_byte = [args.chain_kind];
+        let execution_commitment = execution_commitment(&[
+            b"cross_chain_escrow_return",
+            &chain_byte,
             self.ika_config.address().as_ref(),
             self.dwallet.address().as_ref(),
-            &args.refund_recipient_hash,
-            &amount,
             &args.route_hash,
             &args.tx_template_hash,
             &args.settlement_artifact_hash,
+        ]);
+        let rows = [(
+            args.refund_recipient_hash.as_slice(),
+            args.asset_id_hash.as_slice(),
+            amount_raw,
+        )];
+        let payload_hash = committed_escrow_return_payload_hash(
+            &args.escrow_id_hash,
+            rows.into_iter(),
+            execution_commitment,
         );
         verify_typed_execution_ready(
             &self.intent,

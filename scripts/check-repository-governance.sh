@@ -4,7 +4,10 @@ set -euo pipefail
 grep -q '^\* @Almils @Prozymax @Rexzy2005 @HackingSpectre$' .github/CODEOWNERS
 grep -q '^/programs/clear-wallet/' .github/CODEOWNERS
 grep -q '^/crates/clear-msig-execution/' .github/CODEOWNERS
-grep -q '^/frontend/src/lib/agents/' .github/CODEOWNERS
+grep -q '^/apps/api/' .github/CODEOWNERS
+grep -q '^/apps/settlement/' .github/CODEOWNERS
+grep -q '^/apps/web/' .github/CODEOWNERS
+grep -q '^/apps/web/src/lib/agents/' .github/CODEOWNERS
 
 if [[ -e .github/dependabot.yml ]]; then
   echo "Repository governance check failed: automated Dependabot PRs are disabled during active development." >&2

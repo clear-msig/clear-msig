@@ -13,6 +13,46 @@ permissions:
   security-events: write
 
 jobs:
+  rust-dependency-policy:
+    name: Rust dependency security and license policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit,cargo-deny
+
+      # cargo-audit scans every lock entry, including optional entries that are
+      # unreachable in our build graph. cargo-deny below remains authoritative
+      # for reachability and carries reviewed unmaintained test/wire exceptions.
+      - name: Audit root lockfile
+        run: cargo audit --no-yanked
+
+      - name: Ratchet standalone settlement advisories
+        run: >-
+          cargo audit --no-yanked --file apps/settlement/Cargo.lock
+          --ignore RUSTSEC-2023-0071
+
+      - name: Enforce reachable advisories, licenses, sources, and duplicate visibility
+        run: cargo deny check
+
+  secret-scan:
+    name: Tracked secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reject committed credentials and private keys
+        run: bash scripts/check-secrets.sh
+
   codeql:
     name: CodeQL
     runs-on: ubuntu-latest
@@ -48,3 +88,23 @@ jobs:
         with:
           fail-on-severity: high
           deny-licenses: AGPL-1.0-only, AGPL-3.0-only
+
+  frontend-audit:
+    name: Frontend production dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+      - run: npm run audit:prod

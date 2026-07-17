@@ -22,7 +22,6 @@ mod lifecycle;
 mod message;
 mod output;
 mod params;
-mod quasar_client;
 mod resolve;
 mod rpc;
 mod signing;

@@ -4,11 +4,12 @@ members = [
     "crates/clear-msig-command-contract",
     "crates/clear-msig-execution",
     "crates/clear-msig-intent",
+    "crates/clear-msig-signing",
     "programs/clear-wallet",
     "programs/clear-wallet/client",
-    "cli",
-    "e2e",
-    "backend-api",
+    "apps/api",
+    "apps/cli",
+    "apps/e2e",
 ]
 default-members = [
     "programs/clear-wallet",

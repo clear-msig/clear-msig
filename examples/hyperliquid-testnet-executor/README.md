@@ -49,13 +49,13 @@ python3 generate_token.py
 Put the same result in two private, ignored files:
 
 - `CLEARSIG_EXECUTOR_TOKEN` in `examples/hyperliquid-testnet-executor/.env`
-- `CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN` in `frontend/.env.local`
+- `CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN` in `apps/web/.env.local`
 
 Never put the result in an `.env.example` file.
 
 ## Where To Get Each Value
 
-Use these three values for `frontend/.env.local`:
+Use these three values for `apps/web/.env.local`:
 
 ```env
 CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS=<1-main-practice-account-address>
@@ -84,7 +84,7 @@ CLEARSIG_EXECUTOR_TOKEN=<3-same-shared-password-you-created>
    - Get it from the separate API wallet approved by that main Hyperliquid
      practice account.
    - Keep it only in the helper `.env` file. Do not put it in
-     `frontend/.env.local`, browser code, chat, or GitHub.
+     `apps/web/.env.local`, browser code, chat, or GitHub.
    - If this value was ever pasted somewhere public, revoke that API wallet and
      create a fresh one.
 
@@ -168,7 +168,7 @@ Start the helper:
 ```
 
 Give ClearSig the practice account address, helper address, and same shared
-password by adding these to `frontend/.env.local`:
+password by adding these to `apps/web/.env.local`:
 
 ```env
 CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS=<main-practice-account-address>

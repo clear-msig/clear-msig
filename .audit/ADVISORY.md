@@ -40,7 +40,7 @@ The single most important finding in this audit is a **complete, unauthenticated
 
 ### 1. [CRITICAL] Unauthenticated `/v1/internal/chain/confirm` + self-asserted `x-user-id` — complete unauthenticated treasury theft
 - **Domain:** appsec, identity (both independently traced the full exploit chain end-to-end — high confidence)
-- **Location:** `rust-settlement/src/http/handlers.rs:65,500-556` (`chain_confirm`, no auth in `build_router:50-69` or `main.rs:103-105`); `handlers.rs:37-44` (`user_id_from_headers`), used in `create_intent:87-99`, `get_intent:170`, `prepare_signature:217`, `initialize_payment:270`
+- **Location:** `apps/settlement/src/http/handlers.rs:65,500-556` (`chain_confirm`, no auth in `build_router:50-69` or `main.rs:103-105`); `handlers.rs:37-44` (`user_id_from_headers`), used in `create_intent:87-99`, `get_intent:170`, `prepare_signature:217`, `initialize_payment:270`
 - **Confidence:** Confirmed — reachability traced from an unauthenticated HTTP request all the way to a real Paystack/Kora bank transfer, by two independent auditors
 - **Attack:** Create an offramp intent with own bank details and a self-chosen `x-user-id` → POST a fabricated finalized deposit confirmation with your own `intent_id` → intent flips to `settlement_completed` → real NGN payout dispatched. No crypto ever sent.
 - **Impact:** Direct theft of the settlement provider's fiat float, unauthenticated, repeatable, self-serve.
@@ -49,7 +49,7 @@ The single most important finding in this audit is a **complete, unauthenticated
 
 ### 2. [MEDIUM, part of Chain 1] Offramp payout amount never reconciled against actual confirmed transfer
 - **Domain:** appsec
-- **Location:** `rust-settlement/src/contracts/api.rs:22-35`, `services/intents.rs:88-236`, `workers/webhook_processing.rs:172-200`, `payout_dispatch.rs`
+- **Location:** `apps/settlement/src/contracts/api.rs:22-35`, `services/intents.rs:88-236`, `workers/webhook_processing.rs:172-200`, `payout_dispatch.rs`
 - **Confidence:** Confirmed
 - **Impact:** Even after finding #1 is fixed, payout amount is derived from client-supplied `usd_amount_cents` and paid unconditionally at `estimated_ngn_amount_minor` — no cross-check against a trusted deposit amount. Amplifies #1 (attacker can also inflate payout), and is a standalone reconciliation gap.
 - **Fix:** Re-verify actual settled amount from a trusted source before payout; reconcile against quote within tolerance; flag mismatches for manual review.
@@ -64,18 +64,18 @@ The single most important finding in this audit is a **complete, unauthenticated
 
 ### 4. [HIGH] Lifecycle scripts unrestricted in npm install (CI and local)
 - **Domain:** supply chain
-- **Location:** `.github/workflows/ci.yml:83` (`npm ci`, no `--ignore-scripts`), confirmed live example: `frontend/node_modules/bigint-buffer/package.json` `"install"` script → `node-gyp rebuild`
+- **Location:** `.github/workflows/ci.yml:83` (`npm ci`, no `--ignore-scripts`), confirmed live example: `apps/web/node_modules/bigint-buffer/package.json` `"install"` script → `node-gyp rebuild`
 - **Confidence:** Confirmed
 - **Impact:** Any compromised/malicious npm package can execute arbitrary code at install time in CI and on developer machines — the single highest-leverage supply-chain gap, independent of whether any currently-resolved package is malicious today.
-- **Fix:** `frontend/.npmrc` with `ignore-scripts=true`; CI `npm ci --ignore-scripts`; explicit allowlisted rebuild step for packages needing native builds (`bigint-buffer`, `bufferutil`, `utf-8-validate`, `sharp`).
+- **Fix:** `apps/web/.npmrc` with `ignore-scripts=true`; CI `npm ci --ignore-scripts`; explicit allowlisted rebuild step for packages needing native builds (`bigint-buffer`, `bufferutil`, `utf-8-validate`, `sharp`).
 - **Effort:** S–M (needs testing that native-build packages still work)
 
 ### 5. [HIGH] `axios` floating across three resolved versions in the browser wallet-signing bundle — reachability confirmed
 - **Domain:** supply chain
-- **Location:** `frontend/package-lock.json` — `axios@1.9.0/1.13.2/1.15.0`, traced via `npm ls axios` through `@dynamic-labs/sdk-react-core@4.79.0` → `@dynamic-labs-wallet/*` (multiple nested `core` versions 0.0.167/0.0.203/0.0.259/0.0.325)
+- **Location:** `apps/web/package-lock.json` — `axios@1.9.0/1.13.2/1.15.0`, traced via `npm ls axios` through `@dynamic-labs/sdk-react-core@4.79.0` → `@dynamic-labs-wallet/*` (multiple nested `core` versions 0.0.167/0.0.203/0.0.259/0.0.325)
 - **Confidence:** Confirmed reachable in production browser bundle, not a dev-only diamond dependency.
 - **Impact:** Each pre-patch axios version carries known SSRF-via-baseURL-bypass, credential-leakage-on-redirect, and ReDoS issues in code that runs client-side wallet operations.
-- **Fix:** `npm overrides` in `frontend/package.json` to force a single patched axios resolution; file upstream issue against `@dynamic-labs-wallet` to collapse `core` versions; verify wallet SDK still functions after override.
+- **Fix:** `npm overrides` in `apps/web/package.json` to force a single patched axios resolution; file upstream issue against `@dynamic-labs-wallet` to collapse `core` versions; verify wallet SDK still functions after override.
 - **Effort:** S (override) + follow-up upstream coordination
 
 ### 6. [MEDIUM] CI doesn't gate deploys, and CI doesn't scan the highest-value code — compounding gap
@@ -102,7 +102,7 @@ The single most important finding in this audit is a **complete, unauthenticated
 
 ### 9. [NEEDS-VERIFICATION, treat as prominent] `@encrypt.xyz/pre-alpha-solana-client@0.1.1` + vendored `@ika.xyz` sibling
 - **Domain:** supply chain
-- **Location:** `frontend/package.json:28`, referenced in `clearsign.rs` (`hash_private_escrow_*`); vendored sibling at `frontend/src/lib/ikavery/`
+- **Location:** `apps/web/package.json:28`, referenced in `clearsign.rs` (`hash_private_escrow_*`); vendored sibling at `apps/web/src/lib/ikavery/`
 - **Confidence:** Needs verification — no confirmed malicious behavior, but the trust profile is genuinely unusual: single maintainer (`omersadika@dwalletlabs.com`), 2 published versions ~2 months old, ~103 downloads/30 days, used for **confidential escrow/policy crypto operations** in a multisig wallet. No install-time lifecycle hooks and no `binding.gyp` were found (reduces, but does not eliminate, concern). The sibling `@ika.xyz` package is **vendored source, not installed** — absent from `package.json`/`package-lock.json` entirely, sidestepping lockfile integrity checks with no automated verification against upstream.
 - **What would confirm/deny:** manual review of the unpacked `@encrypt.xyz` tarball source for exfiltration code; diff the vendored `@ika.xyz` copy against its upstream publish; confirm maintainer 2FA where checkable.
 - **Fix direction:** exact-pin `@encrypt.xyz` (currently floating `^`); treat as a trust/blast-radius policy decision for the team, not a code fix.
@@ -118,7 +118,7 @@ The single most important finding in this audit is a **complete, unauthenticated
 
 ### 11. [MEDIUM, needs-verification] Non-constant-time Paystack HMAC comparison
 - **Domain:** appsec + identity (both flagged)
-- **Location:** `rust-settlement/src/paystack/signature.rs:37` — `if expected == provided_lower` (hex-string equality). Kora correctly uses `mac.verify_slice` (constant-time) at `kora/signature.rs:28`.
+- **Location:** `apps/settlement/src/paystack/signature.rs:37` — `if expected == provided_lower` (hex-string equality). Kora correctly uses `mac.verify_slice` (constant-time) at `kora/signature.rs:28`.
 - **Confidence:** Confirmed as written; exploitability low (network jitter dominates timing side-channels over HTTP), still worth fixing for defense-in-depth.
 - **Fix:** Use a constant-time byte comparison (`subtle`/`ct_codecs`) instead of string `==`.
 - **Effort:** S
@@ -132,7 +132,7 @@ The single most important finding in this audit is a **complete, unauthenticated
 
 ### 13. [INFO] Treasury signer key management: single eternal env-var secret, no rotation/HSM
 - **Domain:** identity
-- **Location:** `rust-settlement/src/signer/solana.rs:53-78`
+- **Location:** `apps/settlement/src/signer/solana.rs:53-78`
 - **Impact:** A leak of `TREASURY_SOL_KEYPAIR_BASE58` is a complete, silent, irrevocable treasury compromise. No live secret values found in repo. Already worsened by finding #1, which lets an attacker drive spends through the legitimate signer without ever needing the key.
 - **Fix:** KMS/HSM-backed signer or policy-limited co-signer, plus a hard per-tx/per-day spend cap enforced independently of ramp-intent business logic.
 - **Effort:** L
@@ -156,7 +156,7 @@ The single most important finding in this audit is a **complete, unauthenticated
 | 2 | `@encrypt.xyz`/`@ika.xyz` trust profile (finding #9) | Manual tarball source review for exfiltration code; diff vendored `@ika.xyz` against upstream publish; confirm maintainer 2FA where checkable |
 | 3 | Kora webhook HMAC computed over re-serialized `data` subset, not raw payload | Confirm against Kora's spec whether it signs `data` only or full raw body; check whether unsigned `event_type` driving payout/payment branches is a manipulable trust gap |
 | 4 | `backend-api` validation/rate-limit/CORS coverage across every route | Full route-by-route enumeration confirming middleware attachment (on-chain program independently re-verifies ClearSign signatures, so this is a defense-in-depth gap, not a bypass of authorization) |
-| 5 | `backend-api/src/cors.rs` permissive fallback (`CorsLayer::permissive()`) in misconfigured environments | Confirm production always sets `CLEAR_MSIG_ALLOWED_ORIGIN`; recommend fail-closed regardless |
+| 5 | `apps/api/src/cors.rs` permissive fallback (`CorsLayer::permissive()`) in misconfigured environments | Confirm production always sets `CLEAR_MSIG_ALLOWED_ORIGIN`; recommend fail-closed regardless |
 | 6 | `AgentTradeSettlement` replay-safety against oracle price manipulation | Full trace of settlement instruction handlers for staleness/replay protection — not completed by appsec or identity this pass |
 | 7 | Branch protection required-status-check configuration for `main` | Inspect via authenticated `gh` / repo admin settings — not accessible from this audit environment |
 | 8 | `git log -p -S 'PRIVATE KEY'` full history scan | Not run this pass; working-tree and full-history gitleaks scans were clean but a targeted historical grep for rotated-but-committed secrets was not performed |
@@ -187,8 +187,8 @@ The single most important finding in this audit is a **complete, unauthenticated
 - Third-party service internals (Dynamic Labs WaaS backend, Ledger firmware, Paystack/Kora infrastructure) — only the integration points in this repo were reviewed.
 - EVM/Bitcoin/Zcash signer paths in `rust-settlement` — only the Solana signer was reviewed in depth.
 - Frontend Dynamic Labs/Ledger token storage and client-side session handling.
-- `backend-api/src/{proposals,intents}.rs` route-level auth beyond wallet membership lookup.
+- `apps/api/src/{proposals,intents}.rs` route-level auth beyond wallet membership lookup.
 - `AgentTradeSettlement` oracle-price replay/staleness logic.
-- CLI (`cli/src`) and mobile wrapper (android/ios) code.
+- CLI (`apps/cli/src`) and mobile wrapper (android/ios) code.
 - Full `git log -p` historical secret scan (only working-tree + full-history gitleaks pattern scan was run).
 - GitHub org/repo-level branch protection and required-status-check configuration (no `gh` auth in this environment).

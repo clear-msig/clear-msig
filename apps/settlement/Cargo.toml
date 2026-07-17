@@ -1,0 +1,54 @@
+[package]
+name = "rust-settlement"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+license = "BSD-3-Clause-Clear"
+
+# rust-settlement is a sidecar service with its own deployment and lockfile.
+# Keep it as a standalone workspace so its release graph is audited separately
+# from the program, CLI, and backend API.
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+axum = "0.7"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+alloy = "2.1.1"
+futures = "0.3"
+hex = "0.4"
+hmac = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono", "json"] }
+thiserror = "2.0"
+tokio = { version = "1.38", features = ["macros", "rt-multi-thread", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+tower-http = { version = "0.5", features = ["cors"] }
+uuid = { version = "1.10", features = ["serde", "v4", "v5"] }
+
+# ── Solana treasury signer ─────────────────────────────────────────────
+# Versions match the workspace CLI in `apps/cli/Cargo.toml` so we share the
+# same precompiled artefacts in cargo's build cache when both are
+# resident in the workspace.
+solana-sdk = "3"
+solana-rpc-client = "3.1"
+solana-commitment-config = "3"
+solana-system-interface = { version = "3", features = ["bincode"] }
+bs58 = "0.5"
+
+# ── Bitcoin treasury signer ────────────────────────────────────────────
+# Local signing model: we hold a P2WPKH key, fetch UTXOs and broadcast
+# via Esplora HTTP (no full node required). Single-input → single-output
+# spend matches what the operator-side hot wallet needs for onramp
+# disbursements.
+bitcoin = { version = "0.32", features = ["std"] }
+
+[dev-dependencies]
+pretty_assertions = "1.4"

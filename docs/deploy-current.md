@@ -18,7 +18,7 @@ This is the current ClearSig production/devnet deployment shape.
   `UPSTASH_REDIS_REST_TOKEN`
 
 Do not use the older `XiVxc8...` authority notes for current deploys.
-Do not default program deploys to `backend-api/keys/payer.json`.
+Do not default program deploys to `apps/api/keys/payer.json`.
 
 ## Program deploy
 
@@ -40,7 +40,7 @@ The helper defaults to:
 PAYER_KEYPAIR=target/deploy/clear_wallet-keypair.json
 UPGRADE_AUTHORITY=target/deploy/clear_wallet-keypair.json
 PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
-DEVNET_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+DEVNET_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 DEPLOY_TRANSPORT=--use-rpc
 ```
 
@@ -58,7 +58,7 @@ and rerun the helper:
 solana program extend \
   53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v \
   10240 \
-  --url https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH \
+  --url https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY> \
   --keypair target/deploy/clear_wallet-keypair.json
 ```
 
@@ -76,7 +76,7 @@ Required Railway environment:
 
 ```text
 CLEAR_MSIG_ENV=production
-CLEAR_MSIG_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+CLEAR_MSIG_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 CLEAR_MSIG_PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
 CLEAR_MSIG_ALLOWED_ORIGIN=https://clearsig.xyz,https://www.clearsig.xyz
 CLEAR_MSIG_ATTESTATION_DIR=/data/attestations
@@ -100,14 +100,19 @@ state, and rate-limit store; do not provision a second Redis service.
 
 ## Frontend deploy
 
-Vercel builds `frontend/` with `frontend/vercel.json`.
+Vercel builds `apps/web/` with `apps/web/vercel.json`.
+
+The repository currently retains `frontend -> apps/web` as a compatibility
+symlink for the already-linked Vercel project. Change the Vercel project Root
+Directory to `apps/web`, verify a production deployment, then remove the
+symlink in a dedicated release.
 
 Required Vercel environment:
 
 ```text
 NEXT_PUBLIC_BACKEND_API_URL=https://clear-msig-backend-production.up.railway.app
 NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
-NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 UPSTASH_REDIS_REST_URL=<Upstash Redis REST URL>
 UPSTASH_REDIS_REST_TOKEN=<Upstash Redis REST token>
 ```

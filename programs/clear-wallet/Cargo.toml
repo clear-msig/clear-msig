@@ -2,6 +2,7 @@
 name = "clear-wallet"
 version = "0.1.0"
 edition = "2021"
+license = "BSD-3-Clause-Clear"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -13,19 +14,20 @@ client = []
 debug = []
 
 [dependencies]
-quasar-lang = { git = "https://github.com/blueshift-gg/quasar", branch = "master" }
+quasar-lang = { git = "https://github.com/blueshift-gg/quasar", rev = "0e7559496b86aebe300254d90baa7210672c1cbf" }
 solana-address = { version = "2.2.0", features = ["syscalls", "curve25519"] }
 solana-instruction = { version = "3.2.0" }
 solana-instruction-view = "2"
 brine-ed25519 = { git = "https://github.com/ChewingGlass/brine-ed25519", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 tiny-keccak = { version = "2.0", default-features = false, features = ["keccak"] }
+clear-msig-signing = { path = "../../crates/clear-msig-signing", default-features = false }
 
 [dev-dependencies]
 clear-wallet-client = { path = "client" }
 solana-address = { version = "2.2.0", features = ["curve25519"] }
 wincode = { version = "0.4", features = ["derive", "std"] }
-quasar-svm = { git = "https://github.com/blueshift-gg/quasar-svm" }
+quasar-svm = { git = "https://github.com/blueshift-gg/quasar-svm", rev = "cf3c06a08a9009631d42d7942a574da1eac6104d" }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }

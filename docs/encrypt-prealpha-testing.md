@@ -33,11 +33,11 @@ pre-alpha stub so local development still works.
 1. Install dependencies:
 
    ```bash
-   cd frontend
+   cd apps/web
    npm ci
    ```
 
-2. Add Encrypt config to `frontend/.env.local`:
+2. Add Encrypt config to `apps/web/.env.local`:
 
    ```bash
    NEXT_PUBLIC_ENCRYPT_GRPC_URL=https://<encrypt-grpc-web-endpoint>
@@ -80,4 +80,3 @@ pre-alpha stub so local development still works.
 - gRPC-Web endpoint unavailable/CORS-blocked: console warns
   `[encrypt] network createInput failed; using local stub`.
 - Invalid network key hex: config parsing throws during encryption.
-

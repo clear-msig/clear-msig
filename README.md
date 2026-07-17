@@ -33,20 +33,39 @@ Built with [Quasar](https://github.com/blueshift-gg/quasar).
 
 **Wallets** hold **intents** — pre-configured transaction blueprints. Each intent specifies its chain, parameters, proposers, approvers, threshold, and timelock.
 
-Every wallet is created with three meta-intents — **AddIntent** (0), **RemoveIntent** (1), **UpdateIntent** (2) — used to amend the wallet itself. Custom intents (index 3+) define chain-specific transactions. Approvers see a human-readable message:
+Every wallet is created with three meta-intents — **AddIntent** (0), **RemoveIntent** (1), **UpdateIntent** (2) — used to amend the wallet itself. Custom intents (index 3+) define chain-specific transactions. New proposals use canonical ClearSign v4 bytes. The backend and Solana program parse the same bytes, derive the same payload commitment, and render the same approval document:
 
 ```
-expires 2030-01-01 00:00:00: approve transfer 1000000000 lamports to 9abc... | wallet: treasury proposal: 42
+ClearSig Approval
+
+ACTION
+Send 0.3 SOL
+
+DETAILS
+From wallet: Team treasury
+Network: Solana Devnet
+Amount: 0.3 SOL
+To: <full destination>
+
+POLICY
+Approval: 2 signatures required
+Execution: Exact canonical payload, policy, and timelock enforced onchain
 ```
+
+The signed vote suffix binds the decision, proposal, requester, expiry, and v4
+envelope. At execution, the program recomputes the payload from actual accounts
+and instruction arguments. Existing v2/v3 proposals remain approvable for
+compatibility, but new v2/v3 proposal creation is rejected.
 
 ### Execution Flow
 
 ```
-propose → approve (threshold) → execute:
-  1. On-chain ika_sign builds chain preimage → keccak256 → MessageApproval PDA
-  2. CLI presign via Ika gRPC
-  3. CLI sign via Ika gRPC → 64-byte signature
-  4. CLI assembles chain-native transaction and broadcasts
+prepare canonical intent → sign readable typed vote → propose → approve → execute:
+  1. Backend derives wallet, intent, threshold, policy, and template state from Solana
+  2. Shared Rust crate serializes, commits, and renders ClearSign v4
+  3. Program parses and renders the same bytes before accepting the signature
+  4. Program enforces threshold, policy, timelock, replay, and exact payload match
+  5. Ika/destination adapter signs and broadcasts the committed remote transaction
 ```
 
 ## Architecture
@@ -98,7 +117,7 @@ cargo build -p clear-msig-cli       # CLI → target/debug/clear-msig
 ### Configure
 
 ```bash
-clear-msig config set --url https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+clear-msig config set --url https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 clear-msig config set --payer  ~/.config/solana/id.json
 clear-msig config set --signer ~/.config/solana/id.json
 clear-msig config set --expiry-seconds 600
@@ -145,7 +164,7 @@ clear-msig proposal approve --wallet "treasury" --proposal <P> --signer signer3.
 
 clear-msig proposal execute --wallet "treasury" --proposal <P> \
   --dwallet-program <DWALLET_PROGRAM_ID> \
-  --rpc-url https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH --broadcast
+  --rpc-url https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY> --broadcast
 ```
 
 ## Intent JSON
@@ -196,18 +215,21 @@ programs/clear-wallet/src/
   client/         PDA derivation and Solana intent-byte adapter
 
 crates/clear-msig-intent/src/
-  lib.rs          Versioned schemas, template registry, validation,
-                  canonicalization, and shared render vectors
+  lib.rs          Versioned executable transaction-template definitions
+
+crates/clear-msig-signing/src/
+  lib.rs          Canonical v4 codec, commitments, full/compact rendering
+  templates.rs    Executable versus review-only template registry
 
 crates/clear-msig-execution/src/
   commands/       wallet, intent, proposal, config execution handlers
   chains/         Per-chain broadcast adapters
   ika.rs          gRPC DKG / presign / sign, PDA + preimage helpers
 
-cli/src/          Thin `clear-msig` binary launcher only
+apps/cli/src/          Thin `clear-msig` binary launcher only
 
-backend-api/      Axum relayer linked to the shared Rust execution library
-frontend/         Next.js 15 + React 19 app
+apps/api/      Axum relayer linked to the shared Rust execution library
+apps/web/         Next.js 15 + React 19 app
 examples/intents/ Per-chain intent JSON templates
 ```
 
@@ -223,3 +245,6 @@ The full attack-surface walkthrough lives in [SECURITY.md](SECURITY.md). Read it
 - [Encrypt pre-alpha integration notes](docs/encrypt-prealpha-testing.md)
 - [Current deploy runbook](docs/deploy-current.md)
 - [Railway and Vercel deploy notes](docs/railway-migration.md)
+- [ClearSign v4 schema](docs/signing/intent-schema.md)
+- [Transaction-to-intent binding](docs/signing/intent-binding.md)
+- [Device capability profiles](docs/signing/device-capabilities.md)

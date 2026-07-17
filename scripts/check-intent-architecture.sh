@@ -28,7 +28,7 @@ fi
 
 grep -q 'clear-msig-intent = { path = "../../../crates/clear-msig-intent" }' programs/clear-wallet/client/Cargo.toml
 grep -q 'clear-msig-intent = { path = "../clear-msig-intent" }' crates/clear-msig-execution/Cargo.toml
-grep -q 'clear-msig-intent = { path = "../crates/clear-msig-intent" }' e2e/Cargo.toml
+grep -q 'clear-msig-intent = { path = "../../crates/clear-msig-intent" }' apps/e2e/Cargo.toml
 grep -q 'use clear_msig_intent::IntentTransactionJson' crates/clear-msig-execution/src/commands/intent.rs
 grep -q 'clear_msig_intent::render_template' crates/clear-msig-execution/src/message.rs
 
@@ -40,9 +40,9 @@ for file in examples/intents/*.json; do
   grep -q '"template_id":' "$file"
 done
 
-grep -q 'npm run check:intents' frontend/package.json
-grep -q '@/lib/intents/generatedRegistry' frontend/src/lib/hooks/useUpdateTimelock.ts
-grep -q 'render-vectors-v1.json' frontend/src/lib/intents/__tests__/renderVectors.test.ts
+grep -q 'npm run check:intents' apps/web/package.json
+grep -q '@/lib/intents/generatedRegistry' apps/web/src/lib/hooks/useUpdateTimelock.ts
+grep -q 'render-vectors-v1.json' apps/web/src/lib/intents/__tests__/renderVectors.test.ts
 grep -q 'render-vectors-v1.json' programs/clear-wallet/src/utils/message.rs
 
 echo "Intent architecture: versioned chain-neutral schema crate, generated browser registry, and shared render vectors."

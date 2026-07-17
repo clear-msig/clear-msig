@@ -1,3 +1,4 @@
+use clear_msig_signing::committed_transfer_payload_hash;
 use quasar_lang::prelude::*;
 use sha2::{Digest, Sha256};
 
@@ -10,7 +11,7 @@ use crate::{
         policy_spend::PolicySpendState, proposal::ProposalStatus, typed_proposal::TypedProposal,
         wallet::ClearWallet,
     },
-    utils::clearsign::{hash_send_payload, ClearSignActionKind, ClearSignAmount},
+    utils::clearsign::ClearSignActionKind,
     utils::policy::{enforce_typed_remote_send_policy, enforce_wallet_policy_account},
 };
 
@@ -121,11 +122,12 @@ impl<'info> ExecuteTypedChainSend<'info> {
             WalletError::InvalidClearSignEnvelope
         );
 
-        let amount = ClearSignAmount {
-            asset: &args.asset_id_hash,
-            raw_amount: amount_raw,
-        };
-        let payload_hash = hash_send_payload(&args.recipient_hash, &amount);
+        let payload_hash = committed_transfer_payload_hash(
+            &args.recipient_hash,
+            &args.asset_id_hash,
+            amount_raw,
+            args.tx_template_hash,
+        );
         verify_typed_execution_ready(
             &self.intent,
             &self.proposal,

@@ -1,5 +1,9 @@
 use core::mem::MaybeUninit;
 
+use clear_msig_signing::{
+    committed_escrow_release_payload_hash, committed_escrow_return_payload_hash,
+    execution_commitment, spl_escrow_return_execution_commitment,
+};
 use quasar_lang::prelude::*;
 use quasar_lang::remaining::RemainingAccounts;
 
@@ -10,10 +14,7 @@ use crate::{
         intent::Intent, proposal::ProposalStatus, typed_proposal::TypedProposal,
         wallet::ClearWallet,
     },
-    utils::clearsign::{
-        hash_release_token_milestone_payload, hash_return_token_escrow_payload_iter,
-        ClearSignActionKind, ClearSignAmount,
-    },
+    utils::clearsign::ClearSignActionKind,
 };
 
 const SPL_TOKEN_ID: Address = address!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
@@ -156,18 +157,19 @@ impl<'info> ExecuteTypedSplEscrowRelease<'info> {
             ProgramError::UninitializedAccount
         );
 
-        let amount = ClearSignAmount {
-            asset: self.mint.address().as_ref(),
-            raw_amount: args.amount_tokens as u128,
-        };
-        let payload_hash = hash_release_token_milestone_payload(
-            &args.escrow_id_hash,
-            &args.milestone_id_hash,
+        let execution_commitment = execution_commitment(&[
+            b"spl_escrow_release",
             self.mint.address().as_ref(),
             self.source_token.address().as_ref(),
             self.destination_token.address().as_ref(),
+        ]);
+        let payload_hash = committed_escrow_release_payload_hash(
+            &args.escrow_id_hash,
+            &args.milestone_id_hash,
             self.recipient_owner.address().as_ref(),
-            &amount,
+            self.mint.address().as_ref(),
+            args.amount_tokens as u128,
+            execution_commitment,
         );
         verify_typed_execution_ready(
             &self.intent,
@@ -277,19 +279,23 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
             WalletError::AccountCountMismatch
         );
 
-        let payload_hash = hash_return_token_escrow_payload_iter(
-            &args.escrow_id_hash,
+        let execution_commitment = spl_escrow_return_execution_commitment(
             self.mint.address().as_ref(),
             self.source_token.address().as_ref(),
+            (0..return_count)
+                .map(|index| unsafe { destinations[index].assume_init_ref().address().as_ref() }),
+        );
+        let payload_hash = committed_escrow_return_payload_hash(
+            &args.escrow_id_hash,
             (0..return_count).map(|index| {
-                let destination = unsafe { destinations[index].assume_init_ref() };
                 let funder = unsafe { funders[index].assume_init_ref() };
                 (
-                    destination.address().as_ref(),
                     funder.address().as_ref(),
-                    read_amount(args.amount_tokens_le, index),
+                    self.mint.address().as_ref(),
+                    read_amount(args.amount_tokens_le, index) as u128,
                 )
             }),
+            execution_commitment,
         );
         verify_typed_execution_ready(
             &self.intent,

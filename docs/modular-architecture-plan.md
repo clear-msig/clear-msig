@@ -24,14 +24,14 @@ crates:
 
 This work has started:
 
-- `backend-api/src/pro.rs`: Pro schedules, escrow, audit, B2B persistence.
-- `backend-api/src/wallet.rs`: health, wallet creation, chain setup,
+- `apps/api/src/pro.rs`: Pro schedules, escrow, audit, B2B persistence.
+- `apps/api/src/wallet.rs`: health, wallet creation, chain setup,
   membership discovery used by Personal, Pro, Agent, Secure, Swap, Ramp, and
   future product surfaces.
-- `backend-api/src/intents.rs`: intent list, prepare, add, remove, update.
-- `backend-api/src/proposals.rs`: proposal create/list/show, approve, cancel,
+- `apps/api/src/intents.rs`: intent list, prepare, add, remove, update.
+- `apps/api/src/proposals.rs`: proposal create/list/show, approve, cancel,
   execute, cleanup.
-- `backend-api/src/clearsign.rs`: pre-signed request validation and expiry
+- `apps/api/src/clearsign.rs`: pre-signed request validation and expiry
   formatting, the first slice of the future ClearSign core.
 - `crates/clear-msig-command-contract`: backend-independent command and signer
   contracts with bounded validation.
@@ -46,7 +46,7 @@ This work has started:
   port with a cancellation-aware tonic adapter and opaque response boundary.
 - `cli`: thin binary package that only launches `clear-msig-execution`.
 
-`backend-api/src/main.rs` should remain small: shared state, execution runner,
+`apps/api/src/main.rs` should remain small: shared state, execution runner,
 generic validation, CORS/tracing, and route mounting.
 
 ## Program Shape

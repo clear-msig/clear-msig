@@ -5,19 +5,36 @@ use {
     crate::clear_wallet::cpi::*,
     crate::state::ika_config::{IKA_CONFIG_DISCRIMINATOR, IKA_CONFIG_LEN},
     crate::utils::clearsign::{
-        hash_agent_risk_policy_payload, hash_agent_session_grant_payload,
-        hash_agent_trade_approval_payload, hash_agent_trade_settlement_payload,
-        hash_batch_send_sol_payload_iter, hash_clear_text, hash_cross_chain_escrow_release_payload,
-        hash_cross_chain_escrow_return_payload, hash_envelope, hash_policy_commitment,
-        hash_private_escrow_release_payload, hash_private_escrow_return_payload,
-        hash_release_milestone_payload, hash_release_token_milestone_payload,
-        hash_return_escrow_sol_payload_iter, hash_return_token_escrow_payload_iter,
-        hash_send_payload, hash_wallet_policy_update_payload, write_vote_message_for_clear_text,
-        ClearSignActionKind, ClearSignAmount, ClearSignEnvelope, ClearSignVoteKind,
-        MAX_CLEARSIGN_VOTE_MESSAGE_BYTES,
+        hash_clear_text, hash_envelope, hash_policy_commitment, hash_send_payload,
+        write_vote_message_for_clear_text, ClearSignActionKind, ClearSignAmount, ClearSignEnvelope,
+        ClearSignVoteKind, MAX_CLEARSIGN_VOTE_MESSAGE_BYTES,
     },
     crate::utils::policy::hash_typed_policy,
     alloc::vec,
+    clear_msig_signing::{
+        encode_agent_risk_policy as encode_v4_agent_risk_policy,
+        encode_agent_session as encode_v4_agent_session,
+        encode_agent_settlement as encode_v4_agent_settlement,
+        encode_agent_trade_approval as encode_v4_agent_trade_approval,
+        encode_batch_transfer as encode_v4_batch_transfer,
+        encode_escrow_release as encode_v4_escrow_release,
+        encode_escrow_return as encode_v4_escrow_return,
+        encode_policy_update as encode_v4_policy_update, encode_transfer as encode_v4_transfer,
+        envelope_hash as hash_v4_envelope, execution_commitment as v4_execution_commitment,
+        parse_intent as parse_v4_intent, policy_commitment as v4_policy_commitment,
+        render_document as render_v4_document,
+        spl_escrow_return_execution_commitment as v4_spl_return_execution_commitment,
+        wallet_policy_commitment as v4_wallet_policy_commitment,
+        AgentRiskPolicyInput as V4AgentRiskPolicyInput, AgentSessionInput as V4AgentSessionInput,
+        AgentSettlementInput as V4AgentSettlementInput,
+        AgentTradeApprovalInput as V4AgentTradeApprovalInput,
+        BatchTransferInput as V4BatchTransferInput, CommonFields as V4CommonFields,
+        DeviceProfile as V4DeviceProfile, EscrowReleaseInput as V4EscrowReleaseInput,
+        EscrowReturnInput as V4EscrowReturnInput, IdentityEncoding as V4IdentityEncoding,
+        Network as V4Network, PolicyUpdateInput as V4PolicyUpdateInput,
+        TransferInput as V4TransferInput, TransferRowInput as V4TransferRowInput,
+        MAX_CANONICAL_INTENT_BYTES, MAX_DOCUMENT_BYTES,
+    },
     clear_wallet_client::{
         intent_builder::IntentBuilder,
         intents,
@@ -33,7 +50,10 @@ use {
     quasar_svm::{Account, Instruction, Pubkey, QuasarSvm},
     sha2::{Digest, Sha256},
     solana_instruction::AccountMeta,
-    std::{format, println, string::String},
+    std::{
+        format, println,
+        string::{String, ToString},
+    },
 };
 
 // =========================================================================
@@ -382,6 +402,98 @@ fn build_propose_typed_ix(args: TypedProposalArgs) -> Instruction {
         ],
         data,
     }
+}
+
+struct TypedProposalV4Args {
+    payer: Pubkey,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    signature: [u8; 64],
+    policy_bytes: Vec<u8>,
+    canonical_intent: Vec<u8>,
+}
+
+fn build_propose_typed_v4_ix(args: TypedProposalV4Args) -> Instruction {
+    let (proposal, _) = find_typed_proposal_address(&args.intent, args.proposal_index, &crate::ID);
+    let mut data = vec![31u8];
+    wincode::serialize_into(&mut data, &args.proposal_index).unwrap();
+    wincode::serialize_into(&mut data, &args.signature).unwrap();
+    wincode::serialize_into(&mut data, &DynBytes::<u32>::new(args.policy_bytes)).unwrap();
+    wincode::serialize_into(&mut data, &TailBytes(args.canonical_intent)).unwrap();
+
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(args.payer, true),
+            AccountMeta::new(args.wallet, false),
+            AccountMeta::new(args.intent, false),
+            AccountMeta::new(proposal, false),
+            AccountMeta::new_readonly(quasar_svm::system_program::ID, false),
+        ],
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn submit_typed_v4_proposal(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    policy_bytes: &[u8],
+    canonical_intent: &[u8],
+    approvals_after: u8,
+) -> (Pubkey, [u8; 32], [u8; 32]) {
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let canonical = parse_v4_intent(canonical_intent).expect("valid canonical v4 test intent");
+    assert_eq!(canonical.common.wallet_id, wallet.to_bytes());
+    assert_eq!(canonical.common.actor, pubkey_bytes(proposer));
+    assert_eq!(canonical.common.proposal_index, proposal_index);
+
+    let mut clear_text = [0u8; MAX_DOCUMENT_BYTES];
+    let clear_text_len = render_v4_document(&canonical, wallet_name.as_bytes(), &mut clear_text)
+        .expect("canonical v4 test intent should render");
+    let clear_text = &clear_text[..clear_text_len];
+    let envelope_hash = hash_v4_envelope(
+        &canonical,
+        wallet_name.as_bytes(),
+        hash_clear_text(clear_text).expect("rendered v4 document should hash"),
+    )
+    .expect("canonical v4 test envelope should hash");
+    let signature = sign_typed_vote_for_text(
+        proposer,
+        ClearSignVoteKind::Propose,
+        wallet_name,
+        proposal_index,
+        envelope_hash,
+        canonical.common.approval_required,
+        approvals_after,
+        clear_text,
+    );
+    let instruction = build_propose_typed_v4_ix(TypedProposalV4Args {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        signature,
+        policy_bytes: policy_bytes.to_vec(),
+        canonical_intent: canonical_intent.to_vec(),
+    });
+    let result = svm.process_instruction(
+        &instruction,
+        &[funded_account(payer), empty_account(proposal)],
+    );
+    assert!(
+        result.is_ok(),
+        "canonical v4 proposal failed: {:?}",
+        result.raw_result
+    );
+
+    (proposal, canonical.common.policy_commitment, envelope_hash)
 }
 
 fn build_execute_typed_escrow_release_ix(
@@ -1198,6 +1310,29 @@ fn sign_typed_vote_with_approval(
     approvals_required: u8,
     approvals_after: u8,
 ) -> [u8; 64] {
+    sign_typed_vote_for_text(
+        key,
+        vote_kind,
+        wallet_name,
+        proposal_index,
+        envelope_hash,
+        approvals_required,
+        approvals_after,
+        TEST_CLEAR_TEXT,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn sign_typed_vote_for_text(
+    key: &ed25519_dalek::SigningKey,
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &str,
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+    approvals_required: u8,
+    approvals_after: u8,
+    clear_text: &[u8],
+) -> [u8; 64] {
     let mut message = [0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
     let message_len = write_vote_message_for_clear_text(
         &mut message,
@@ -1209,7 +1344,7 @@ fn sign_typed_vote_with_approval(
         typed_test_expiry(),
         approvals_required,
         approvals_after,
-        TEST_CLEAR_TEXT,
+        clear_text,
     )
     .expect("test ClearSign vote message should be valid");
     let signature = key.sign(&message[..message_len]).to_bytes();
@@ -1407,18 +1542,20 @@ fn propose_typed_sol_send_with_policy(
         &crate::ID,
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
-    let (proposal, policy_commitment, envelope_hash) = propose_typed_sol_send_on_wallet(
-        svm,
-        payer,
-        wallet_name,
-        wallet,
-        intent,
-        0,
-        proposer,
-        recipient,
-        amount_lamports,
-        policy_bytes,
-    );
+    let (proposal, policy_commitment, envelope_hash) =
+        propose_typed_sol_send_on_wallet_with_approval(
+            svm,
+            payer,
+            wallet_name,
+            wallet,
+            intent,
+            0,
+            proposer,
+            recipient,
+            amount_lamports,
+            policy_bytes,
+            threshold,
+        );
 
     (wallet, intent, proposal, policy_commitment, envelope_hash)
 }
@@ -1435,7 +1572,35 @@ fn propose_typed_sol_send_on_wallet(
     amount_lamports: u64,
     policy_bytes: &[u8],
 ) -> (Pubkey, [u8; 32], [u8; 32]) {
-    let proposal = get_typed_proposal_address(intent, proposal_index);
+    propose_typed_sol_send_on_wallet_with_approval(
+        svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        proposal_index,
+        proposer,
+        recipient,
+        amount_lamports,
+        policy_bytes,
+        1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn propose_typed_sol_send_on_wallet_with_approval(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    recipient: Pubkey,
+    amount_lamports: u64,
+    policy_bytes: &[u8],
+    approval_required: u8,
+) -> (Pubkey, [u8; 32], [u8; 32]) {
     let action_id = sha256_hash(
         &[
             wallet_name.as_bytes(),
@@ -1453,66 +1618,52 @@ fn propose_typed_sol_send_on_wallet(
         .concat(),
     );
     let expiry = typed_test_expiry();
-    let policy_commitment = if policy_bytes.is_empty() {
-        hash_policy_commitment(&[b"send:sol"])
-    } else {
-        hash_typed_policy(policy_bytes)
-    };
-    let payload_hash = hash_send_payload(
-        recipient.as_ref(),
-        &ClearSignAmount {
+    let policy_commitment = v4_policy_commitment(policy_bytes);
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_transfer(
+        &V4TransferInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment,
+                approval_required,
+            },
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: recipient.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
             asset: b"SOL",
             raw_amount: amount_lamports as u128,
+            decimals: 9,
+            display_asset: b"SOL",
+            execution_commitment: [0u8; 32],
+            fiat_estimate: None,
+            reason: b"Program execution test",
         },
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::Send,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+        &mut canonical,
+    )
+    .expect("SOL send should encode as canonical v4 intent");
+    submit_typed_v4_proposal(
+        svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::Send.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(proposer),
-        signature: sign_typed_vote(
-            proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: policy_bytes.to_vec(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed SOL policy proposal failed: {:?}",
-        result.raw_result
-    );
-
-    (proposal, policy_commitment, envelope_hash)
+        proposer,
+        policy_bytes,
+        &canonical[..canonical_len],
+        1,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
-fn execute_typed_remote_send_with_policy(
+fn propose_typed_remote_send_on_wallet(
     svm: &mut QuasarSvm,
     payer: Pubkey,
     wallet_name: &str,
@@ -1520,16 +1671,13 @@ fn execute_typed_remote_send_with_policy(
     intent: Pubkey,
     proposal_index: u64,
     proposer: &ed25519_dalek::SigningKey,
-    ika_config: Pubkey,
-    dwallet: Pubkey,
     chain_kind: u8,
     amount_raw: u128,
-    recipient_hash: [u8; 32],
-    asset_id_hash: [u8; 32],
+    recipient_text: &[u8],
+    asset_text: &[u8],
     tx_template_hash: [u8; 32],
     policy_bytes: &[u8],
-) -> bool {
-    let proposal = get_typed_proposal_address(intent, proposal_index);
+) -> (Pubkey, [u8; 32], [u8; 32]) {
     let action_id = sha256_hash(
         &[
             wallet_name.as_bytes(),
@@ -1547,54 +1695,93 @@ fn execute_typed_remote_send_with_policy(
         .concat(),
     );
     let expiry = typed_test_expiry();
-    let policy_commitment = hash_typed_policy(policy_bytes);
-    let payload_hash = hash_send_payload(
-        &recipient_hash,
-        &ClearSignAmount {
-            asset: &asset_id_hash,
+    let policy_commitment = v4_policy_commitment(policy_bytes);
+    let (network, display_asset, decimals) = match chain_kind {
+        1 => (V4Network::EthereumSepolia, b"ETH".as_slice(), 18),
+        2 => (V4Network::BitcoinTestnet, b"BTC".as_slice(), 8),
+        3 => (V4Network::ZcashTestnet, b"ZEC".as_slice(), 8),
+        4 => (V4Network::EthereumSepoliaErc20, b"USDC".as_slice(), 6),
+        5 => (V4Network::HyperliquidTestnet, b"HYPE".as_slice(), 18),
+        _ => panic!("unsupported remote chain kind in test fixture"),
+    };
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_transfer(
+        &V4TransferInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment,
+                approval_required: 1,
+            },
+            recipient_encoding: V4IdentityEncoding::Sha256Text,
+            recipient: recipient_text,
+            asset_encoding: V4IdentityEncoding::Sha256Text,
+            asset: asset_text,
             raw_amount: amount_raw,
+            decimals,
+            display_asset,
+            execution_commitment: tx_template_hash,
+            fiat_estimate: None,
+            reason: b"Remote policy execution test",
         },
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::Send,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+        &mut canonical,
+    )
+    .expect("remote send should encode as canonical v4 intent");
+    submit_typed_v4_proposal(
+        svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::Send.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(proposer),
-        signature: sign_typed_vote(
-            proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: policy_bytes.to_vec(),
-        action_id,
-        nonce,
-    });
-    if svm
-        .process_instruction(&propose, &[funded_account(payer), empty_account(proposal)])
-        .is_err()
-    {
-        return false;
-    }
+        proposer,
+        policy_bytes,
+        &canonical[..canonical_len],
+        1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_typed_remote_send_with_policy(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    ika_config: Pubkey,
+    dwallet: Pubkey,
+    chain_kind: u8,
+    amount_raw: u128,
+    recipient_text: &[u8],
+    asset_text: &[u8],
+    tx_template_hash: [u8; 32],
+    policy_bytes: &[u8],
+) -> bool {
+    let recipient_hash = sha256_hash(recipient_text);
+    let asset_id_hash = sha256_hash(asset_text);
+    let (proposal, policy_commitment, envelope_hash) = propose_typed_remote_send_on_wallet(
+        svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        proposal_index,
+        proposer,
+        chain_kind,
+        amount_raw,
+        recipient_text,
+        asset_text,
+        tx_template_hash,
+        policy_bytes,
+    );
 
     let execute = build_execute_typed_chain_send_ix(
         payer,
@@ -1625,74 +1812,63 @@ fn propose_typed_agent_session(
     proposal_index: u64,
     proposer: &ed25519_dalek::SigningKey,
     policy_commitment: [u8; 32],
-    session_id_hash: [u8; 32],
-    agent_id_hash: [u8; 32],
-    venue_hash: [u8; 32],
-    market_hash: [u8; 32],
+    session_id: &[u8],
+    agent_id: &[u8],
+    venue: &[u8],
+    market: &[u8],
     max_notional_raw: u128,
     max_leverage_x100: u32,
     session_expires_at: i64,
     status: u8,
 ) -> (Pubkey, [u8; 32]) {
-    let proposal = get_typed_proposal_address(intent, proposal_index);
-    let payload_hash = hash_agent_session_grant_payload(
-        &session_id_hash,
-        &agent_id_hash,
-        &venue_hash,
-        &market_hash,
-        max_notional_raw,
-        max_leverage_x100,
-        session_expires_at,
-        status,
-    );
     let action_id = sha256_hash(&[b"session-action".as_slice(), &[status]].concat());
     let nonce = sha256_hash(&proposal_index.to_le_bytes());
     let expiry = typed_test_expiry();
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::AgentSessionGrant,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let instruction = build_propose_typed_ix(TypedProposalArgs {
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_agent_session(
+        &V4AgentSessionInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment,
+                approval_required: 1,
+            },
+            session_id,
+            agent_id,
+            venue,
+            market,
+            max_notional_raw,
+            max_leverage_x100,
+            session_expires_at,
+            status,
+            reason: b"Program agent session test",
+        },
+        &mut canonical,
+    )
+    .expect("agent session should encode as canonical v4 intent");
+    let (proposal, _, envelope_hash) = submit_typed_v4_proposal(
+        svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::AgentSessionGrant.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(proposer),
-        signature: sign_typed_vote(
-            proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    assert!(svm
-        .process_instruction(
-            &instruction,
-            &[funded_account(payer), empty_account(proposal)]
-        )
-        .is_ok());
+        proposer,
+        &[],
+        &canonical[..canonical_len],
+        1,
+    );
     (proposal, envelope_hash)
 }
 
 #[allow(clippy::too_many_arguments)]
-fn propose_typed_agent_action(
+fn propose_typed_agent_risk_policy(
     svm: &mut QuasarSvm,
     payer: Pubkey,
     wallet_name: &str,
@@ -1701,14 +1877,14 @@ fn propose_typed_agent_action(
     proposal_index: u64,
     proposer: &ed25519_dalek::SigningKey,
     policy_commitment: [u8; 32],
-    action_kind: ClearSignActionKind,
-    payload_hash: [u8; 32],
+    session_id: &[u8],
+    oracle_policy_hash: [u8; 32],
+    max_loss_raw: u128,
+    status: u8,
 ) -> (Pubkey, [u8; 32]) {
-    let proposal = get_typed_proposal_address(intent, proposal_index);
     let action_id = sha256_hash(
         &[
             b"agent-risk-action:".as_slice(),
-            &[action_kind.code()],
             &proposal_index.to_le_bytes(),
         ]
         .concat(),
@@ -1721,48 +1897,117 @@ fn propose_typed_agent_action(
         .concat(),
     );
     let expiry = typed_test_expiry();
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: action_kind,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let instruction = build_propose_typed_ix(TypedProposalArgs {
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_agent_risk_policy(
+        &V4AgentRiskPolicyInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment,
+                approval_required: 1,
+            },
+            session_id,
+            oracle_policy_hash,
+            max_loss_raw,
+            status,
+            reason: b"Program agent risk test",
+        },
+        &mut canonical,
+    )
+    .expect("agent risk policy should encode as canonical v4 intent");
+    let (proposal, _, envelope_hash) = submit_typed_v4_proposal(
+        svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: action_kind.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(proposer),
-        signature: sign_typed_vote(
-            proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result = svm.process_instruction(
-        &instruction,
-        &[funded_account(payer), empty_account(proposal)],
+        proposer,
+        &[],
+        &canonical[..canonical_len],
+        1,
     );
-    assert!(
-        result.is_ok(),
-        "typed agent risk proposal failed: {:?}",
-        result.raw_result
+    (proposal, envelope_hash)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn propose_typed_agent_settlement(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    policy_commitment: [u8; 32],
+    session_id: &[u8],
+    execution_id: &[u8],
+    settlement_artifact_hash: [u8; 32],
+    oracle_policy_hash: [u8; 32],
+    closed_notional_raw: u128,
+    outcome: u8,
+    pnl_abs_raw: u128,
+    settlement_sequence: u64,
+) -> (Pubkey, [u8; 32]) {
+    let action_id = sha256_hash(
+        &[
+            b"agent-settlement-action:".as_slice(),
+            &proposal_index.to_le_bytes(),
+        ]
+        .concat(),
+    );
+    let nonce = sha256_hash(
+        &[
+            b"agent-settlement-nonce:".as_slice(),
+            &proposal_index.to_le_bytes(),
+        ]
+        .concat(),
+    );
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_agent_settlement(
+        &V4AgentSettlementInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id,
+                nonce,
+                expires_at: typed_test_expiry(),
+                policy_commitment,
+                approval_required: 1,
+            },
+            session_id,
+            execution_id,
+            settlement_artifact_hash,
+            oracle_policy_hash,
+            closed_notional_raw,
+            outcome,
+            pnl_abs_raw,
+            settlement_sequence,
+            reason: b"Program agent settlement test",
+        },
+        &mut canonical,
+    )
+    .expect("agent settlement should encode as canonical v4 intent");
+    let (proposal, _, envelope_hash) = submit_typed_v4_proposal(
+        svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        proposal_index,
+        proposer,
+        &[],
+        &canonical[..canonical_len],
+        1,
     );
     (proposal, envelope_hash)
 }
@@ -1779,7 +2024,6 @@ fn propose_typed_wallet_policy_update_on_wallet(
     chain_kind: u8,
     new_policy_bytes: &[u8],
 ) -> (Pubkey, [u8; 32]) {
-    let proposal = get_typed_proposal_address(intent, proposal_index);
     let action_id = sha256_hash(
         &[
             wallet_name.as_bytes(),
@@ -1797,49 +2041,39 @@ fn propose_typed_wallet_policy_update_on_wallet(
         .concat(),
     );
     let expiry = typed_test_expiry();
-    let new_policy_commitment = hash_typed_policy(new_policy_bytes);
-    let payload_hash = hash_wallet_policy_update_payload(chain_kind, &new_policy_commitment);
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::SetProtection,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment: current_policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_policy_update(
+        &V4PolicyUpdateInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment: current_policy_commitment,
+                approval_required: 1,
+            },
+            chain_kind,
+            new_policy_commitment: v4_wallet_policy_commitment(new_policy_bytes),
+            reason: b"Program wallet policy update test",
+        },
+        &mut canonical,
+    )
+    .expect("wallet policy update should encode as canonical v4 intent");
+    let (proposal, _, envelope_hash) = submit_typed_v4_proposal(
+        svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::SetProtection.code(),
-        policy_commitment: current_policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(proposer),
-        signature: sign_typed_vote(
-            proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed wallet policy update proposal failed: {:?}",
-        result.raw_result
+        proposer,
+        new_policy_bytes,
+        &canonical[..canonical_len],
+        1,
     );
 
     (proposal, envelope_hash)
@@ -1869,58 +2103,181 @@ fn propose_typed_sol_batch_with_policy(
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
     let action_id = sha256_hash(&[wallet_name.as_bytes(), b":batch"].concat());
     let nonce = sha256_hash(&[wallet_name.as_bytes(), b":nonce"].concat());
     let expiry = typed_test_expiry();
-    let policy_commitment = hash_typed_policy(policy_bytes);
-    let payload_hash = hash_batch_send_sol_payload_iter(
-        payments
-            .iter()
-            .map(|(recipient, amount)| (recipient.as_ref(), *amount)),
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::BatchSend,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let policy_commitment = v4_policy_commitment(policy_bytes);
+    let rows: Vec<_> = payments
+        .iter()
+        .map(|(recipient, amount)| V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: recipient.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
+            asset: b"SOL",
+            raw_amount: *amount as u128,
+            decimals: 9,
+            display_asset: b"SOL",
+        })
+        .collect();
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_batch_transfer(
+        &V4BatchTransferInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment,
+                approval_required: 1,
+            },
+            rows: &rows,
+            reason: b"Program batch execution test",
+        },
+        &mut canonical,
+    )
+    .expect("SOL batch should encode as canonical v4 intent");
+    let (proposal, policy_commitment, envelope_hash) = submit_typed_v4_proposal(
+        svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::BatchSend.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(proposer),
-        signature: sign_typed_vote(
-            proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: policy_bytes.to_vec(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed SOL batch policy proposal failed: {:?}",
-        result.raw_result
+        proposer,
+        policy_bytes,
+        &canonical[..canonical_len],
+        1,
     );
     (wallet, intent, proposal, policy_commitment, envelope_hash)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn propose_typed_escrow_release_on_wallet(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    network: V4Network,
+    escrow_id: &[u8],
+    milestone_id: &[u8],
+    payment: V4TransferRowInput<'_>,
+    execution_commitment: [u8; 32],
+) -> (Pubkey, [u8; 32], [u8; 32]) {
+    let policy_commitment = v4_policy_commitment(&[]);
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_escrow_release(
+        &V4EscrowReleaseInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id: sha256_hash(
+                    &[b"escrow-release:".as_slice(), &proposal_index.to_le_bytes()].concat(),
+                ),
+                nonce: sha256_hash(
+                    &[
+                        b"escrow-release-nonce:".as_slice(),
+                        &proposal_index.to_le_bytes(),
+                    ]
+                    .concat(),
+                ),
+                expires_at: typed_test_expiry(),
+                policy_commitment,
+                approval_required: 1,
+            },
+            escrow_id,
+            escrow_title: b"Program escrow",
+            milestone_id,
+            milestone_title: b"Program milestone",
+            payment,
+            execution_commitment,
+            reason: b"Program escrow release test",
+        },
+        &mut canonical,
+    )
+    .expect("escrow release should encode as canonical v4 intent");
+    submit_typed_v4_proposal(
+        svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        proposal_index,
+        proposer,
+        &[],
+        &canonical[..canonical_len],
+        1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn propose_typed_escrow_return_on_wallet(
+    svm: &mut QuasarSvm,
+    payer: Pubkey,
+    wallet_name: &str,
+    wallet: Pubkey,
+    intent: Pubkey,
+    proposal_index: u64,
+    proposer: &ed25519_dalek::SigningKey,
+    network: V4Network,
+    escrow_id: &[u8],
+    rows: &[V4TransferRowInput<'_>],
+    execution_commitment: [u8; 32],
+) -> (Pubkey, [u8; 32], [u8; 32]) {
+    let policy_commitment = v4_policy_commitment(&[]);
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_escrow_return(
+        &V4EscrowReturnInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(proposer),
+                action_id: sha256_hash(
+                    &[b"escrow-return:".as_slice(), &proposal_index.to_le_bytes()].concat(),
+                ),
+                nonce: sha256_hash(
+                    &[
+                        b"escrow-return-nonce:".as_slice(),
+                        &proposal_index.to_le_bytes(),
+                    ]
+                    .concat(),
+                ),
+                expires_at: typed_test_expiry(),
+                policy_commitment,
+                approval_required: 1,
+            },
+            escrow_id,
+            escrow_title: b"Program escrow",
+            rows,
+            execution_commitment,
+            reason: b"Program escrow return test",
+        },
+        &mut canonical,
+    )
+    .expect("escrow return should encode as canonical v4 intent");
+    submit_typed_v4_proposal(
+        svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        proposal_index,
+        proposer,
+        &[],
+        &canonical[..canonical_len],
+        1,
+    )
 }
 
 #[test]
@@ -1932,7 +2289,6 @@ fn test_typed_propose_rejects_signature_for_different_readable_text() {
     let action_id = sha256_hash(b"readable-drift-action");
     let nonce = sha256_hash(b"readable-drift-nonce");
     let expiry = typed_test_expiry();
-
     let (instruction, accounts) = create_wallet_ix(
         payer,
         wallet_name,
@@ -1958,7 +2314,7 @@ fn test_typed_propose_rejects_signature_for_different_readable_text() {
             raw_amount: 1_000_000_000,
         },
     );
-    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
+    let policy_commitment = v4_policy_commitment(&[]);
     let envelope_hash = hash_envelope(&ClearSignEnvelope {
         kind: ClearSignActionKind::Send,
         wallet_name: wallet_name.as_bytes(),
@@ -2000,6 +2356,296 @@ fn test_typed_propose_rejects_signature_for_different_readable_text() {
     assert!(
         result.is_err(),
         "typed proposal accepted a signature over different readable text"
+    );
+}
+
+#[test]
+fn test_typed_v4_propose_derives_readable_transfer_from_execution_fields() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-v4-binding";
+    let recipient = Pubkey::new_unique();
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let policy_commitment = v4_policy_commitment(&[]);
+    let mut encoded = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let encoded_len = encode_v4_transfer(
+        &V4TransferInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(&proposer),
+                action_id: sha256_hash(b"typed-v4-action"),
+                nonce: sha256_hash(b"typed-v4-nonce"),
+                expires_at: expiry,
+                policy_commitment,
+                approval_required: 1,
+            },
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: recipient.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
+            asset: b"SOL",
+            raw_amount: 300_000_000,
+            decimals: 9,
+            display_asset: b"SOL",
+            execution_commitment: [0u8; 32],
+            fiat_estimate: None,
+            reason: b"Vendor invoice 42",
+        },
+        &mut encoded,
+    )
+    .unwrap();
+    let canonical = parse_v4_intent(&encoded[..encoded_len]).unwrap();
+    let mut clear_text = [0u8; MAX_DOCUMENT_BYTES];
+    let clear_text_len =
+        render_v4_document(&canonical, wallet_name.as_bytes(), &mut clear_text).unwrap();
+    let clear_text = &clear_text[..clear_text_len];
+    let envelope_hash = hash_v4_envelope(
+        &canonical,
+        wallet_name.as_bytes(),
+        hash_clear_text(clear_text).unwrap(),
+    )
+    .unwrap();
+    let signature = sign_typed_vote_for_text(
+        &proposer,
+        ClearSignVoteKind::Propose,
+        wallet_name,
+        proposal_index,
+        envelope_hash,
+        1,
+        1,
+        clear_text,
+    );
+    let propose = build_propose_typed_v4_ix(TypedProposalV4Args {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        signature,
+        policy_bytes: Vec::new(),
+        canonical_intent: encoded[..encoded_len].to_vec(),
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    if result.is_err() {
+        result.print_logs();
+    }
+    assert!(
+        result.is_ok(),
+        "v4 proposal failed: {:?}",
+        result.raw_result
+    );
+
+    let proposal_data = svm.get_account(&proposal).unwrap().data;
+    assert_eq!(&proposal_data[200..232], canonical.payload_hash().as_ref());
+    assert_eq!(&proposal_data[232..264], envelope_hash.as_ref());
+    assert!(proposal_data
+        .windows(clear_text.len())
+        .any(|row| row == clear_text));
+    let readable = core::str::from_utf8(clear_text).unwrap();
+    assert!(readable.contains("Send 0.3 SOL"));
+    assert!(readable.contains(&recipient.to_string()));
+    assert!(readable.contains("Vendor invoice 42"));
+}
+
+#[test]
+fn test_typed_v4_rejects_signature_for_different_transfer() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-v4-mismatch";
+    let signed_recipient = Pubkey::new_unique();
+    let submitted_recipient = Pubkey::new_unique();
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal = get_typed_proposal_address(intent, 0);
+    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
+    let common = V4CommonFields {
+        profile: V4DeviceProfile::Full,
+        network: V4Network::SolanaDevnet,
+        proposal_index: 0,
+        wallet_id: wallet.to_bytes(),
+        actor: pubkey_bytes(&proposer),
+        action_id: sha256_hash(b"typed-v4-mismatch-action"),
+        nonce: sha256_hash(b"typed-v4-mismatch-nonce"),
+        expires_at: expiry,
+        policy_commitment,
+        approval_required: 1,
+    };
+    let encode = |recipient: &Pubkey, out: &mut [u8]| {
+        encode_v4_transfer(
+            &V4TransferInput {
+                common,
+                recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+                recipient: recipient.as_ref(),
+                asset_encoding: V4IdentityEncoding::Text,
+                asset: b"SOL",
+                raw_amount: 300_000_000,
+                decimals: 9,
+                display_asset: b"SOL",
+                execution_commitment: [0u8; 32],
+                fiat_estimate: None,
+                reason: b"Mismatch test",
+            },
+            out,
+        )
+        .unwrap()
+    };
+    let mut signed_bytes = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let signed_len = encode(&signed_recipient, &mut signed_bytes);
+    let signed = parse_v4_intent(&signed_bytes[..signed_len]).unwrap();
+    let mut text = [0u8; MAX_DOCUMENT_BYTES];
+    let text_len = render_v4_document(&signed, wallet_name.as_bytes(), &mut text).unwrap();
+    let envelope_hash = hash_v4_envelope(
+        &signed,
+        wallet_name.as_bytes(),
+        hash_clear_text(&text[..text_len]).unwrap(),
+    )
+    .unwrap();
+    let signature = sign_typed_vote_for_text(
+        &proposer,
+        ClearSignVoteKind::Propose,
+        wallet_name,
+        0,
+        envelope_hash,
+        1,
+        1,
+        &text[..text_len],
+    );
+
+    let mut submitted_bytes = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let submitted_len = encode(&submitted_recipient, &mut submitted_bytes);
+    let propose = build_propose_typed_v4_ix(TypedProposalV4Args {
+        payer,
+        wallet,
+        intent,
+        proposal_index: 0,
+        signature,
+        policy_bytes: Vec::new(),
+        canonical_intent: submitted_bytes[..submitted_len].to_vec(),
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+    assert!(
+        result.is_err(),
+        "v4 accepted a signature bound to a different recipient"
+    );
+}
+
+#[test]
+fn test_typed_propose_rejects_semantically_unbound_document() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "typed-semantic-binding";
+    let action_id = sha256_hash(b"semantic-binding-action");
+    let nonce = sha256_hash(b"semantic-binding-nonce");
+    let expiry = typed_test_expiry();
+
+    let (instruction, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&instruction, &accounts).is_ok());
+
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let proposal_index = 0u64;
+    let proposal = get_typed_proposal_address(intent, proposal_index);
+    let misleading_document = b"ClearSig Proposal\n\nACTION\nSend 99 SOL to attacker\n\nDETAILS\nFrom wallet: typed-semantic-binding\nNetwork: Solana devnet\nAmount: 99 SOL\nTo: attacker\nPayload: internally-consistent\n\nPOLICY\nApproval: Wallet's onchain threshold must be met\nExecution: Onchain policy and timelock must pass\nCommitment: internally-consistent\nEnforcement: Exact payload and policy must match onchain\nDisplay profile: clearsig-full-v1@1\n\nRISK\nCategory: Funds movement\nSigner check: Verify amount, asset, network, and every destination\n\nPURPOSE\nAdversarial binding test";
+    let payload_hash = hash_send_payload(
+        b"intended recipient",
+        &ClearSignAmount {
+            asset: b"SOL",
+            raw_amount: 1_000_000_000,
+        },
+    );
+    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
+    let envelope_hash = hash_envelope(&ClearSignEnvelope {
+        kind: ClearSignActionKind::Send,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: wallet.as_ref(),
+        action_id: action_id.as_ref(),
+        nonce: nonce.as_ref(),
+        expires_at: expiry,
+        policy_commitment,
+        payload_hash,
+        clear_text_hash: hash_clear_text(misleading_document).unwrap(),
+    });
+    let signature = sign_typed_vote_for_text(
+        &proposer,
+        ClearSignVoteKind::Propose,
+        wallet_name,
+        proposal_index,
+        envelope_hash,
+        1,
+        1,
+        misleading_document,
+    );
+    let propose = build_propose_typed_ix(TypedProposalArgs {
+        payer,
+        wallet,
+        intent,
+        proposal_index,
+        expiry,
+        action_kind: ClearSignActionKind::Send.code(),
+        policy_commitment,
+        payload_hash,
+        envelope_hash,
+        proposer_pubkey: pubkey_bytes(&proposer),
+        signature,
+        clear_text: misleading_document.to_vec(),
+        policy_bytes: Vec::new(),
+        action_id,
+        nonce,
+    });
+    let result =
+        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
+
+    assert!(
+        result.is_err(),
+        "typed proposal accepted readable text that was not derived from its executable payload"
     );
 }
 
@@ -2117,9 +2763,6 @@ fn test_execute_typed_escrow_release_moves_sol() {
     let amount_lamports = 2_000_000u64;
     let escrow_id_hash = sha256_hash(b"escrow-release-1");
     let milestone_id_hash = sha256_hash(b"milestone-1");
-    let action_id = sha256_hash(b"release-action-1");
-    let nonce = sha256_hash(b"release-nonce-1");
-    let expiry = typed_test_expiry();
 
     let (instruction, accounts) = create_wallet_ix(
         payer,
@@ -2137,59 +2780,28 @@ fn test_execute_typed_escrow_release_moves_sol() {
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
     let recipient = Pubkey::new_unique();
-    let policy_commitment = hash_policy_commitment(&[b"escrow:release"]);
-    let payload_hash = hash_release_milestone_payload(
-        &escrow_id_hash,
-        &milestone_id_hash,
-        recipient.as_ref(),
-        &ClearSignAmount {
-            asset: b"SOL",
-            raw_amount: amount_lamports as u128,
-        },
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::ReleaseMilestone,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let (proposal, policy_commitment, envelope_hash) = propose_typed_escrow_release_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed escrow release propose failed: {:?}",
-        result.raw_result
+        &proposer,
+        V4Network::SolanaDevnet,
+        b"escrow-release-1",
+        b"milestone-1",
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: recipient.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
+            asset: b"SOL",
+            raw_amount: amount_lamports as u128,
+            decimals: 9,
+            display_asset: b"SOL",
+        },
+        [0u8; 32],
     );
 
     let vault = fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
@@ -2270,9 +2882,6 @@ fn test_execute_typed_spl_escrow_release_moves_tokens() {
     let initial_supply = 1_000_000u64;
     let escrow_id_hash = sha256_hash(b"spl-escrow-release-1");
     let milestone_id_hash = sha256_hash(b"spl-milestone-1");
-    let action_id = sha256_hash(b"spl-release-action-1");
-    let nonce = sha256_hash(b"spl-release-nonce-1");
-    let expiry = typed_test_expiry();
 
     let (instruction, accounts) = create_wallet_ix(
         payer,
@@ -2291,7 +2900,6 @@ fn test_execute_typed_spl_escrow_release_moves_tokens() {
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (vault, _) = find_vault_address(&wallet, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
     let mint = Pubkey::new_unique();
     let recipient_owner = Pubkey::new_unique();
     let source_token = Pubkey::new_unique();
@@ -2327,64 +2935,33 @@ fn test_execute_typed_spl_escrow_release_moves_tokens() {
         },
     ));
 
-    let policy_commitment = hash_policy_commitment(&[b"escrow:release:spl"]);
-    let amount = ClearSignAmount {
-        asset: mint.as_ref(),
-        raw_amount: amount_tokens as u128,
-    };
-    let payload_hash = hash_release_token_milestone_payload(
-        &escrow_id_hash,
-        &milestone_id_hash,
+    let execution_commitment = v4_execution_commitment(&[
+        b"spl_escrow_release",
         mint.as_ref(),
         source_token.as_ref(),
         destination_token.as_ref(),
-        recipient_owner.as_ref(),
-        &amount,
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::ReleaseMilestone,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    ]);
+    let (proposal, policy_commitment, envelope_hash) = propose_typed_escrow_release_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    if result.is_err() {
-        result.print_logs();
-    }
-    assert!(
-        result.is_ok(),
-        "typed SPL escrow release propose failed: {:?}",
-        result.raw_result
+        &proposer,
+        V4Network::SolanaDevnet,
+        b"spl-escrow-release-1",
+        b"spl-milestone-1",
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: recipient_owner.as_ref(),
+            asset_encoding: V4IdentityEncoding::SolanaPubkey,
+            asset: mint.as_ref(),
+            raw_amount: amount_tokens as u128,
+            decimals: 6,
+            display_asset: b"SPL",
+        },
+        execution_commitment,
     );
 
     let execute = build_execute_typed_spl_escrow_release_ix(
@@ -2443,9 +3020,6 @@ fn test_execute_typed_spl_escrow_return_moves_tokens_to_funders() {
     let amount_a = 125_000u64;
     let amount_b = 275_000u64;
     let escrow_id_hash = sha256_hash(b"spl-escrow-return-1");
-    let action_id = sha256_hash(b"spl-return-action-1");
-    let nonce = sha256_hash(b"spl-return-nonce-1");
-    let expiry = typed_test_expiry();
 
     let (instruction, accounts) = create_wallet_ix(
         payer,
@@ -2464,7 +3038,6 @@ fn test_execute_typed_spl_escrow_return_moves_tokens_to_funders() {
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let (vault, _) = find_vault_address(&wallet, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
     let mint = Pubkey::new_unique();
     let funder_a = Pubkey::new_unique();
     let funder_b = Pubkey::new_unique();
@@ -2512,58 +3085,43 @@ fn test_execute_typed_spl_escrow_return_moves_tokens_to_funders() {
         },
     ));
 
-    let policy_commitment = hash_policy_commitment(&[b"escrow:return:spl"]);
-    let payload_hash = hash_return_token_escrow_payload_iter(
-        &escrow_id_hash,
+    let execution_commitment = v4_spl_return_execution_commitment(
         mint.as_ref(),
         source_token.as_ref(),
-        [
-            (destination_a.as_ref(), funder_a.as_ref(), amount_a),
-            (destination_b.as_ref(), funder_b.as_ref(), amount_b),
-        ]
-        .into_iter(),
+        [destination_a.as_ref(), destination_b.as_ref()].into_iter(),
     );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::ReturnEscrowFunds,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let rows = [
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: funder_a.as_ref(),
+            asset_encoding: V4IdentityEncoding::SolanaPubkey,
+            asset: mint.as_ref(),
+            raw_amount: amount_a as u128,
+            decimals: 6,
+            display_asset: b"SPL",
+        },
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: funder_b.as_ref(),
+            asset_encoding: V4IdentityEncoding::SolanaPubkey,
+            asset: mint.as_ref(),
+            raw_amount: amount_b as u128,
+            decimals: 6,
+            display_asset: b"SPL",
+        },
+    ];
+    let (proposal, policy_commitment, envelope_hash) = propose_typed_escrow_return_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed SPL escrow return propose failed: {:?}",
-        result.raw_result
+        &proposer,
+        V4Network::SolanaDevnet,
+        b"spl-escrow-return-1",
+        &rows,
+        execution_commitment,
     );
 
     let mut amount_bytes = Vec::new();
@@ -2630,14 +3188,13 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
     let wallet_name = "typed-chain-send";
     let chain_kind = 2u8;
     let amount_raw = 250_000_000u128;
-    let recipient_hash = sha256_hash(b"tb1qrecipientaddress");
+    let recipient_text = b"tb1qrecipientaddress";
+    let recipient_hash = sha256_hash(recipient_text);
     let wrong_recipient_hash = sha256_hash(b"tb1qattackeraddress");
-    let asset_id_hash = sha256_hash(b"BTC:testnet");
+    let asset_text = b"BTC:testnet";
+    let asset_id_hash = sha256_hash(asset_text);
     let tx_template = b"btc-send-template-v1";
     let tx_template_hash = sha256_hash(tx_template);
-    let action_id = sha256_hash(b"chain-send-action-1");
-    let nonce = sha256_hash(b"chain-send-nonce-1");
-    let expiry = typed_test_expiry();
 
     let (instruction, accounts) = create_wallet_ix(
         payer,
@@ -2702,56 +3259,20 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
     ));
 
     let proposal_index = 1u64;
-    let typed_proposal = get_typed_proposal_address(remote_intent, proposal_index);
-    let policy_commitment = hash_policy_commitment(&[b"send:chain:btc"]);
-    let amount = ClearSignAmount {
-        asset: &asset_id_hash,
-        raw_amount: amount_raw,
-    };
-    let payload_hash = hash_send_payload(&recipient_hash, &amount);
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::Send,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let (typed_proposal, policy_commitment, envelope_hash) = propose_typed_remote_send_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
-        intent: remote_intent,
+        remote_intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::Send.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result = svm.process_instruction(
-        &propose,
-        &[funded_account(payer), empty_account(typed_proposal)],
-    );
-    assert!(
-        result.is_ok(),
-        "typed chain send propose failed: {:?}",
-        result.raw_result
+        &proposer,
+        chain_kind,
+        amount_raw,
+        recipient_text,
+        asset_text,
+        tx_template_hash,
+        &[],
     );
 
     let wrong_execute = build_execute_typed_chain_send_ix(
@@ -2912,54 +3433,23 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
     );
 
     let blocked_proposal_index = 2u64;
-    let blocked_proposal = get_typed_proposal_address(remote_intent, blocked_proposal_index);
     let blocked_policy_bytes = typed_hash_policy_bytes(2, 0, 0, &[recipient_hash], &[]);
-    let blocked_policy_commitment = hash_typed_policy(&blocked_policy_bytes);
-    let blocked_action_id = sha256_hash(b"chain-send-blocked-action-1");
-    let blocked_nonce = sha256_hash(b"chain-send-blocked-nonce-1");
-    let blocked_envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::Send,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: blocked_action_id.as_ref(),
-        nonce: blocked_nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment: blocked_policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let propose_blocked = build_propose_typed_ix(TypedProposalArgs {
-        payer,
-        wallet,
-        intent: remote_intent,
-        proposal_index: blocked_proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::Send.code(),
-        policy_commitment: blocked_policy_commitment,
-        payload_hash,
-        envelope_hash: blocked_envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
+    let (blocked_proposal, blocked_policy_commitment, blocked_envelope_hash) =
+        propose_typed_remote_send_on_wallet(
+            &mut svm,
+            payer,
             wallet_name,
+            wallet,
+            remote_intent,
             blocked_proposal_index,
-            blocked_envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: blocked_policy_bytes,
-        action_id: blocked_action_id,
-        nonce: blocked_nonce,
-    });
-    let result = svm.process_instruction(
-        &propose_blocked,
-        &[funded_account(payer), empty_account(blocked_proposal)],
-    );
-    assert!(
-        result.is_ok(),
-        "typed chain send blocked-policy propose failed: {:?}",
-        result.raw_result
-    );
+            &proposer,
+            chain_kind,
+            amount_raw,
+            recipient_text,
+            asset_text,
+            tx_template_hash,
+            &blocked_policy_bytes,
+        );
 
     let blocked_execute = build_execute_typed_chain_send_ix(
         payer,
@@ -2993,51 +3483,22 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
 
     // BTC allowlist accept (mode=1, listed recipient).
     let allow_proposal_index = 3u64;
-    let allow_proposal = get_typed_proposal_address(remote_intent, allow_proposal_index);
     let allow_policy = typed_hash_policy_bytes(1, 0, 0, &[recipient_hash], &[]);
-    let allow_commitment = hash_typed_policy(&allow_policy);
-    let allow_action = sha256_hash(b"chain-send-allow-action");
-    let allow_nonce = sha256_hash(b"chain-send-allow-nonce");
-    let allow_envelope = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::Send,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: allow_action.as_ref(),
-        nonce: allow_nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment: allow_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let propose_allow = build_propose_typed_ix(TypedProposalArgs {
+    let (allow_proposal, allow_commitment, allow_envelope) = propose_typed_remote_send_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
-        intent: remote_intent,
-        proposal_index: allow_proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::Send.code(),
-        policy_commitment: allow_commitment,
-        payload_hash,
-        envelope_hash: allow_envelope,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            allow_proposal_index,
-            allow_envelope,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: allow_policy,
-        action_id: allow_action,
-        nonce: allow_nonce,
-    });
-    assert!(svm
-        .process_instruction(
-            &propose_allow,
-            &[funded_account(payer), empty_account(allow_proposal)]
-        )
-        .is_ok());
+        remote_intent,
+        allow_proposal_index,
+        &proposer,
+        chain_kind,
+        amount_raw,
+        recipient_text,
+        asset_text,
+        tx_template_hash,
+        &allow_policy,
+    );
     let allow_execute = build_execute_typed_chain_send_ix(
         payer,
         wallet,
@@ -3071,51 +3532,22 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
 
     // BTC amount cap reject.
     let cap_proposal_index = 4u64;
-    let cap_proposal = get_typed_proposal_address(remote_intent, cap_proposal_index);
     let cap_policy = typed_hash_policy_bytes(0, 1_000, 0, &[], &[]);
-    let cap_commitment = hash_typed_policy(&cap_policy);
-    let cap_action = sha256_hash(b"chain-send-cap-action");
-    let cap_nonce = sha256_hash(b"chain-send-cap-nonce");
-    let cap_envelope = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::Send,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: cap_action.as_ref(),
-        nonce: cap_nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment: cap_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let propose_cap = build_propose_typed_ix(TypedProposalArgs {
+    let (cap_proposal, cap_commitment, cap_envelope) = propose_typed_remote_send_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
-        intent: remote_intent,
-        proposal_index: cap_proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::Send.code(),
-        policy_commitment: cap_commitment,
-        payload_hash,
-        envelope_hash: cap_envelope,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            cap_proposal_index,
-            cap_envelope,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: cap_policy,
-        action_id: cap_action,
-        nonce: cap_nonce,
-    });
-    assert!(svm
-        .process_instruction(
-            &propose_cap,
-            &[funded_account(payer), empty_account(cap_proposal)]
-        )
-        .is_ok());
+        remote_intent,
+        cap_proposal_index,
+        &proposer,
+        chain_kind,
+        amount_raw,
+        recipient_text,
+        asset_text,
+        tx_template_hash,
+        &cap_policy,
+    );
     let cap_execute = build_execute_typed_chain_send_ix(
         payer,
         wallet,
@@ -3148,8 +3580,15 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
 }
 
 #[test]
-fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
+fn test_all_remote_asset_policies_reject_unsafe_execution() {
     for (chain_kind, wallet_name, recipient_text, asset_text, template) in [
+        (
+            1u8,
+            "eth-policy-matrix",
+            b"0x1111111111111111111111111111111111111111".as_slice(),
+            b"ETH:sepolia".as_slice(),
+            b"eth-policy-template".as_slice(),
+        ),
         (
             2u8,
             "btc-policy-matrix",
@@ -3163,6 +3602,20 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             b"tmZcashRecipient".as_slice(),
             b"ZEC:testnet".as_slice(),
             b"zec-policy-template".as_slice(),
+        ),
+        (
+            4u8,
+            "usdc-policy-matrix",
+            b"0x2222222222222222222222222222222222222222".as_slice(),
+            b"USDC:sepolia".as_slice(),
+            b"erc20-usdc-policy-template".as_slice(),
+        ),
+        (
+            5u8,
+            "hype-policy-matrix",
+            b"0x3333333333333333333333333333333333333333".as_slice(),
+            b"HYPE:testnet".as_slice(),
+            b"hype-policy-template".as_slice(),
         ),
     ] {
         let mut svm = setup();
@@ -3230,7 +3683,6 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             ika_config_bump,
         ));
         let recipient_hash = sha256_hash(recipient_text);
-        let asset_id_hash = sha256_hash(asset_text);
         let tx_template_hash = sha256_hash(template);
         let policy_spend = empty_policy_spend_account(wallet, remote_intent, [0u8; 32]);
         let member_allowance = empty_member_allowance_account(wallet, remote_intent);
@@ -3253,8 +3705,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             100,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &allowlist,
         ));
@@ -3272,8 +3724,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             100,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &amount_cap,
         ));
@@ -3297,8 +3749,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             600,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &velocity,
         ));
@@ -3314,8 +3766,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             500,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &velocity,
         ));
@@ -3333,8 +3785,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             100,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &send_count,
         ));
@@ -3350,8 +3802,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             100,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &send_count,
         ));
@@ -3370,8 +3822,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             100,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &never_allowed,
         ));
@@ -3395,8 +3847,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             100,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &required,
         ));
@@ -3419,8 +3871,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             100,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &cooldown,
         ));
@@ -3443,8 +3895,8 @@ fn test_btc_and_zec_remote_policies_reject_unsafe_execution() {
             dwallet,
             chain_kind,
             100,
-            recipient_hash,
-            asset_id_hash,
+            recipient_text,
+            asset_text,
             tx_template_hash,
             &advanced_deny,
         ));
@@ -3469,9 +3921,6 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
     let wrong_artifact_hash = sha256_hash(b"btc-txid:wrong-artifact");
     let tx_template = b"btc-p2wpkh-template-v1";
     let tx_template_hash = sha256_hash(tx_template);
-    let action_id = sha256_hash(b"cross-chain-release-action-1");
-    let nonce = sha256_hash(b"cross-chain-release-nonce-1");
-    let expiry = typed_test_expiry();
 
     let (instruction, accounts) = create_wallet_ix(
         payer,
@@ -3536,67 +3985,37 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
     ));
 
     let proposal_index = 1u64;
-    let typed_proposal = get_typed_proposal_address(remote_intent, proposal_index);
-    let policy_commitment = hash_policy_commitment(&[b"escrow:release:cross-chain"]);
-    let amount = ClearSignAmount {
-        asset: &asset_id_hash,
-        raw_amount: amount_raw,
-    };
-    let payload_hash = hash_cross_chain_escrow_release_payload(
-        &escrow_id_hash,
-        &milestone_id_hash,
-        chain_kind,
+    let chain_byte = [chain_kind];
+    let execution_commitment = v4_execution_commitment(&[
+        b"cross_chain_escrow_release",
+        &chain_byte,
         ika_config.as_ref(),
         dwallet.as_ref(),
-        &recipient_hash,
-        &amount,
         &route_hash,
         &tx_template_hash,
         &settlement_artifact_hash,
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::ReleaseMilestone,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    ]);
+    let (typed_proposal, policy_commitment, envelope_hash) = propose_typed_escrow_release_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
-        intent: remote_intent,
+        remote_intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result = svm.process_instruction(
-        &propose,
-        &[funded_account(payer), empty_account(typed_proposal)],
-    );
-    assert!(
-        result.is_ok(),
-        "typed cross-chain escrow release propose failed: {:?}",
-        result.raw_result
+        &proposer,
+        V4Network::BitcoinTestnet,
+        b"btc-escrow-release-1",
+        b"btc-milestone-1",
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::Sha256Text,
+            recipient: b"tb1qrecipientaddress",
+            asset_encoding: V4IdentityEncoding::Sha256Text,
+            asset: b"BTC:testnet",
+            raw_amount: amount_raw,
+            decimals: 8,
+            display_asset: b"BTC",
+        },
+        execution_commitment,
     );
 
     let wrong_execute = build_execute_typed_cross_chain_escrow_release_ix(
@@ -3655,67 +4074,41 @@ fn test_execute_typed_cross_chain_escrow_release_finalizes_verified_artifact() {
     );
 
     let return_proposal_index = 2u64;
-    let return_proposal = get_typed_proposal_address(remote_intent, return_proposal_index);
     let refund_recipient_hash = sha256_hash(b"tb1qrefundrecipient");
     let return_artifact_hash = sha256_hash(b"btc-refund-txid:approved-artifact");
     let wrong_return_artifact_hash = sha256_hash(b"btc-refund-txid:wrong-artifact");
-    let return_action_id = sha256_hash(b"cross-chain-return-action-1");
-    let return_nonce = sha256_hash(b"cross-chain-return-nonce-1");
-    let return_policy_commitment = hash_policy_commitment(&[b"escrow:return:cross-chain"]);
-    let return_payload_hash = hash_cross_chain_escrow_return_payload(
-        &escrow_id_hash,
-        chain_kind,
+    let return_execution_commitment = v4_execution_commitment(&[
+        b"cross_chain_escrow_return",
+        &chain_byte,
         ika_config.as_ref(),
         dwallet.as_ref(),
-        &refund_recipient_hash,
-        &amount,
         &route_hash,
         &tx_template_hash,
         &return_artifact_hash,
-    );
-    let return_envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::ReturnEscrowFunds,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: return_action_id.as_ref(),
-        nonce: return_nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment: return_policy_commitment,
-        payload_hash: return_payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let propose_return = build_propose_typed_ix(TypedProposalArgs {
-        payer,
-        wallet,
-        intent: remote_intent,
-        proposal_index: return_proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
-        policy_commitment: return_policy_commitment,
-        payload_hash: return_payload_hash,
-        envelope_hash: return_envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
+    ]);
+    let return_rows = [V4TransferRowInput {
+        recipient_encoding: V4IdentityEncoding::Sha256Text,
+        recipient: b"tb1qrefundrecipient",
+        asset_encoding: V4IdentityEncoding::Sha256Text,
+        asset: b"BTC:testnet",
+        raw_amount: amount_raw,
+        decimals: 8,
+        display_asset: b"BTC",
+    }];
+    let (return_proposal, return_policy_commitment, return_envelope_hash) =
+        propose_typed_escrow_return_on_wallet(
+            &mut svm,
+            payer,
             wallet_name,
+            wallet,
+            remote_intent,
             return_proposal_index,
-            return_envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id: return_action_id,
-        nonce: return_nonce,
-    });
-    let result = svm.process_instruction(
-        &propose_return,
-        &[funded_account(payer), empty_account(return_proposal)],
-    );
-    assert!(
-        result.is_ok(),
-        "typed cross-chain escrow return propose failed: {:?}",
-        result.raw_result
-    );
+            &proposer,
+            V4Network::BitcoinTestnet,
+            b"btc-escrow-release-1",
+            &return_rows,
+            return_execution_commitment,
+        );
 
     let wrong_return = build_execute_typed_cross_chain_escrow_return_ix(
         wallet,
@@ -3801,7 +4194,6 @@ fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
         out
     };
     let policy_ciphertexts_hash = sha256_hash(&policy_ciphertexts);
-    let expiry = typed_test_expiry();
 
     let (instruction, accounts) = create_wallet_ix(
         payer,
@@ -3852,67 +4244,36 @@ fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
         execute_extra_accounts: vec![funded_account(payer), empty_account(private_intent)],
     });
 
-    let amount = ClearSignAmount {
-        asset: &asset_id_hash,
-        raw_amount: amount_raw,
-    };
     let release_proposal_index = 1u64;
-    let release_proposal = get_typed_proposal_address(private_intent, release_proposal_index);
-    let release_policy_commitment = hash_policy_commitment(&[b"escrow:release:private"]);
-    let release_payload_hash = hash_private_escrow_release_payload(
-        &escrow_id_hash,
-        &milestone_id_hash,
-        &recipient_hash,
-        &amount,
+    let release_execution_commitment = v4_execution_commitment(&[
+        b"private_escrow_release",
         &policy_ciphertexts_hash,
         &private_evaluation_hash,
         &settlement_artifact_hash,
-    );
-    let release_action_id = sha256_hash(b"private-release-action-1");
-    let release_nonce = sha256_hash(b"private-release-nonce-1");
-    let release_envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::ReleaseMilestone,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: release_action_id.as_ref(),
-        nonce: release_nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment: release_policy_commitment,
-        payload_hash: release_payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let propose_release = build_propose_typed_ix(TypedProposalArgs {
-        payer,
-        wallet,
-        intent: private_intent,
-        proposal_index: release_proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::ReleaseMilestone.code(),
-        policy_commitment: release_policy_commitment,
-        payload_hash: release_payload_hash,
-        envelope_hash: release_envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
+    ]);
+    let (release_proposal, release_policy_commitment, release_envelope_hash) =
+        propose_typed_escrow_release_on_wallet(
+            &mut svm,
+            payer,
             wallet_name,
+            wallet,
+            private_intent,
             release_proposal_index,
-            release_envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id: release_action_id,
-        nonce: release_nonce,
-    });
-    let result = svm.process_instruction(
-        &propose_release,
-        &[funded_account(payer), empty_account(release_proposal)],
-    );
-    assert!(
-        result.is_ok(),
-        "typed private escrow release propose failed: {:?}",
-        result.raw_result
-    );
+            &proposer,
+            V4Network::SolanaDevnet,
+            b"private-escrow-1",
+            b"private-milestone-1",
+            V4TransferRowInput {
+                recipient_encoding: V4IdentityEncoding::Sha256Text,
+                recipient: b"private-recipient-commitment",
+                asset_encoding: V4IdentityEncoding::Sha256Text,
+                asset: b"PRIVATE:USDC",
+                raw_amount: amount_raw,
+                decimals: 6,
+                display_asset: b"USDC",
+            },
+            release_execution_commitment,
+        );
 
     let wrong_release = build_execute_typed_private_escrow_release_ix(
         wallet,
@@ -3962,61 +4323,35 @@ fn test_execute_typed_private_escrow_finalizes_ciphertext_bound_artifacts() {
     );
 
     let return_proposal_index = 2u64;
-    let return_proposal = get_typed_proposal_address(private_intent, return_proposal_index);
-    let return_policy_commitment = hash_policy_commitment(&[b"escrow:return:private"]);
-    let return_payload_hash = hash_private_escrow_return_payload(
-        &escrow_id_hash,
-        &refund_recipient_hash,
-        &amount,
+    let return_execution_commitment = v4_execution_commitment(&[
+        b"private_escrow_return",
         &policy_ciphertexts_hash,
         &private_evaluation_hash,
         &refund_artifact_hash,
-    );
-    let return_action_id = sha256_hash(b"private-return-action-1");
-    let return_nonce = sha256_hash(b"private-return-nonce-1");
-    let return_envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::ReturnEscrowFunds,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: return_action_id.as_ref(),
-        nonce: return_nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment: return_policy_commitment,
-        payload_hash: return_payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let propose_return = build_propose_typed_ix(TypedProposalArgs {
-        payer,
-        wallet,
-        intent: private_intent,
-        proposal_index: return_proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
-        policy_commitment: return_policy_commitment,
-        payload_hash: return_payload_hash,
-        envelope_hash: return_envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
+    ]);
+    let return_rows = [V4TransferRowInput {
+        recipient_encoding: V4IdentityEncoding::Sha256Text,
+        recipient: b"private-refund-commitment",
+        asset_encoding: V4IdentityEncoding::Sha256Text,
+        asset: b"PRIVATE:USDC",
+        raw_amount: amount_raw,
+        decimals: 6,
+        display_asset: b"USDC",
+    }];
+    let (return_proposal, return_policy_commitment, return_envelope_hash) =
+        propose_typed_escrow_return_on_wallet(
+            &mut svm,
+            payer,
             wallet_name,
+            wallet,
+            private_intent,
             return_proposal_index,
-            return_envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id: return_action_id,
-        nonce: return_nonce,
-    });
-    let result = svm.process_instruction(
-        &propose_return,
-        &[funded_account(payer), empty_account(return_proposal)],
-    );
-    assert!(
-        result.is_ok(),
-        "typed private escrow return propose failed: {:?}",
-        result.raw_result
-    );
+            &proposer,
+            V4Network::SolanaDevnet,
+            b"private-escrow-1",
+            &return_rows,
+            return_execution_commitment,
+        );
 
     let execute_return = build_execute_typed_private_escrow_return_ix(
         wallet,
@@ -4072,7 +4407,7 @@ fn test_execute_typed_agent_session_grant_binds_status_and_revokes() {
     let agent_id_hash = sha256_hash(b"agent:bounded");
     let venue_hash = sha256_hash(b"hyperliquid_testnet");
     let market_hash = sha256_hash(b"BTC-PERP");
-    let policy_commitment = hash_policy_commitment(&[b"agent-policy:v1"]);
+    let policy_commitment = v4_policy_commitment(&[]);
     let max_notional_raw = 500_000_000u128;
     let max_leverage_x100 = 300u32;
     let session_expires_at = typed_test_expiry() + 3_600;
@@ -4087,10 +4422,10 @@ fn test_execute_typed_agent_session_grant_binds_status_and_revokes() {
         0,
         &proposer,
         policy_commitment,
-        session_id_hash,
-        agent_id_hash,
-        venue_hash,
-        market_hash,
+        b"session:bounded",
+        b"agent:bounded",
+        b"hyperliquid_testnet",
+        b"BTC-PERP",
         max_notional_raw,
         max_leverage_x100,
         session_expires_at,
@@ -4155,10 +4490,10 @@ fn test_execute_typed_agent_session_grant_binds_status_and_revokes() {
         1,
         &proposer,
         policy_commitment,
-        session_id_hash,
-        agent_id_hash,
-        venue_hash,
-        market_hash,
+        b"session:bounded",
+        b"agent:bounded",
+        b"hyperliquid_testnet",
+        b"BTC-PERP",
         max_notional_raw,
         max_leverage_x100,
         session_expires_at,
@@ -4201,7 +4536,7 @@ fn test_execute_typed_agent_risk_policy_creates_bound_ledger() {
     let market_hash = sha256_hash(b"BTC-PERP");
     let oracle_policy_hash = sha256_hash(b"oracle:hyperliquid-account-state:v1");
     let max_loss_raw = 75_000_000u128;
-    let policy_commitment = hash_policy_commitment(&[b"agent:risk-policy:v1"]);
+    let policy_commitment = v4_policy_commitment(&[]);
 
     let (create, accounts) = create_wallet_ix(
         payer,
@@ -4232,13 +4567,7 @@ fn test_execute_typed_agent_risk_policy_creates_bound_ledger() {
     let session = session_account.address;
     svm.set_account(session_account);
     let risk = find_agent_risk_address(&wallet, &session_id_hash, &crate::ID).0;
-    let payload_hash = hash_agent_risk_policy_payload(
-        &session_id_hash,
-        &oracle_policy_hash,
-        max_loss_raw,
-        crate::state::AGENT_RISK_STATUS_ACTIVE,
-    );
-    let (proposal, envelope_hash) = propose_typed_agent_action(
+    let (proposal, envelope_hash) = propose_typed_agent_risk_policy(
         &mut svm,
         payer,
         wallet_name,
@@ -4247,8 +4576,10 @@ fn test_execute_typed_agent_risk_policy_creates_bound_ledger() {
         0,
         &proposer,
         policy_commitment,
-        ClearSignActionKind::AgentRiskPolicy,
-        payload_hash,
+        b"session:risk-policy",
+        oracle_policy_hash,
+        max_loss_raw,
+        crate::state::AGENT_RISK_STATUS_ACTIVE,
     );
     let changed_oracle = build_execute_typed_agent_risk_policy_ix(
         payer,
@@ -4311,7 +4642,7 @@ fn test_agent_settlement_binds_artifact_replays_and_loss_cap() {
     let venue_hash = sha256_hash(b"hyperliquid:testnet");
     let market_hash = sha256_hash(b"BTC-PERP");
     let oracle_policy_hash = sha256_hash(b"oracle:hyperliquid-account-state:v1");
-    let policy_commitment = hash_policy_commitment(&[b"agent:settlement:v1"]);
+    let policy_commitment = v4_policy_commitment(&[]);
 
     let (create, accounts) = create_wallet_ix(
         payer,
@@ -4356,17 +4687,7 @@ fn test_agent_settlement_binds_artifact_replays_and_loss_cap() {
 
     let first_execution = sha256_hash(b"execution:first");
     let first_artifact = sha256_hash(b"venue-receipt:first");
-    let first_payload = hash_agent_trade_settlement_payload(
-        &session_id_hash,
-        &first_execution,
-        &first_artifact,
-        &oracle_policy_hash,
-        250,
-        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
-        60,
-        0,
-    );
-    let (first_proposal, first_envelope) = propose_typed_agent_action(
+    let (first_proposal, first_envelope) = propose_typed_agent_settlement(
         &mut svm,
         payer,
         wallet_name,
@@ -4375,8 +4696,14 @@ fn test_agent_settlement_binds_artifact_replays_and_loss_cap() {
         0,
         &proposer,
         policy_commitment,
-        ClearSignActionKind::AgentTradeSettlement,
-        first_payload,
+        b"session:settlement",
+        b"execution:first",
+        first_artifact,
+        oracle_policy_hash,
+        250,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
+        60,
+        0,
     );
     let first_receipt =
         find_agent_settlement_receipt_address(&wallet, &first_artifact, &crate::ID).0;
@@ -4439,17 +4766,7 @@ fn test_agent_settlement_binds_artifact_replays_and_loss_cap() {
     assert_eq!(after_first.next_settlement_sequence, 1);
     assert!(svm.get_account(&first_receipt).is_some());
 
-    let replay_payload = hash_agent_trade_settlement_payload(
-        &session_id_hash,
-        &sha256_hash(b"execution:replay"),
-        &first_artifact,
-        &oracle_policy_hash,
-        100,
-        crate::instructions::AGENT_SETTLEMENT_OUTCOME_PROFIT,
-        1,
-        1,
-    );
-    let (replay_proposal, replay_envelope) = propose_typed_agent_action(
+    let (replay_proposal, replay_envelope) = propose_typed_agent_settlement(
         &mut svm,
         payer,
         wallet_name,
@@ -4458,8 +4775,14 @@ fn test_agent_settlement_binds_artifact_replays_and_loss_cap() {
         1,
         &proposer,
         policy_commitment,
-        ClearSignActionKind::AgentTradeSettlement,
-        replay_payload,
+        b"session:settlement",
+        b"execution:replay",
+        first_artifact,
+        oracle_policy_hash,
+        100,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_PROFIT,
+        1,
+        1,
     );
     let replay = build_execute_typed_agent_trade_settlement_ix(
         payer,
@@ -4488,17 +4811,7 @@ fn test_agent_settlement_binds_artifact_replays_and_loss_cap() {
 
     let second_execution = sha256_hash(b"execution:second");
     let second_artifact = sha256_hash(b"venue-receipt:second");
-    let second_payload = hash_agent_trade_settlement_payload(
-        &session_id_hash,
-        &second_execution,
-        &second_artifact,
-        &oracle_policy_hash,
-        250,
-        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
-        50,
-        1,
-    );
-    let (second_proposal, second_envelope) = propose_typed_agent_action(
+    let (second_proposal, second_envelope) = propose_typed_agent_settlement(
         &mut svm,
         payer,
         wallet_name,
@@ -4507,8 +4820,14 @@ fn test_agent_settlement_binds_artifact_replays_and_loss_cap() {
         2,
         &proposer,
         policy_commitment,
-        ClearSignActionKind::AgentTradeSettlement,
-        second_payload,
+        b"session:settlement",
+        b"execution:second",
+        second_artifact,
+        oracle_policy_hash,
+        250,
+        crate::instructions::AGENT_SETTLEMENT_OUTCOME_LOSS,
+        50,
+        1,
     );
     let second_receipt =
         find_agent_settlement_receipt_address(&wallet, &second_artifact, &crate::ID).0;
@@ -4584,65 +4903,49 @@ fn test_execute_typed_agent_trade_approval_finalizes_verified_digest() {
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
-    let policy_commitment = hash_policy_commitment(&[b"agent:hyperliquid:testnet:v1"]);
+    let policy_commitment = v4_policy_commitment(&[]);
     let agent_id_hash = sha256_hash(b"agent:alpha-trader");
-    let amount = ClearSignAmount {
-        asset: &asset_id_hash,
-        raw_amount: amount_raw,
-    };
-    let payload_hash = hash_agent_trade_approval_payload(
-        &agent_id_hash,
-        &venue_hash,
-        &market_hash,
-        &side_hash,
-        &amount,
-        max_leverage_x100,
-        &session_id_hash,
-        &route_hash,
-        &risk_check_hash,
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::AgentTradeApproval,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_agent_trade_approval(
+        &V4AgentTradeApprovalInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(&proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment,
+                approval_required: 1,
+            },
+            agent_id: b"agent:alpha-trader",
+            venue: b"hyperliquid:testnet",
+            market: b"BTC-PERP",
+            side: b"long",
+            asset_id: b"USDC:hyperliquid:testnet",
+            max_notional_raw: amount_raw,
+            max_leverage_x100,
+            session_id: b"agent-session:morning-risk-pass",
+            route: b"clearsig-agent:hyperliquid:testnet:limit",
+            risk_check_hash,
+            reason: b"Program agent trade test",
+        },
+        &mut canonical,
+    )
+    .expect("agent trade should encode as canonical v4 intent");
+    let (proposal, _, envelope_hash) = submit_typed_v4_proposal(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::AgentTradeApproval.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed agent trade proposal failed: {:?}",
-        result.raw_result
+        &proposer,
+        &[],
+        &canonical[..canonical_len],
+        1,
     );
 
     let session_account = active_agent_session_account(
@@ -4952,13 +5255,10 @@ fn test_execute_typed_escrow_return_moves_sol_to_funders() {
     let proposer = new_keypair();
     let wallet_name = "typed-return";
     let escrow_id_hash = sha256_hash(b"escrow-return-1");
-    let action_id = sha256_hash(b"return-action-1");
-    let nonce = sha256_hash(b"return-nonce-1");
     let funder_a = Pubkey::new_unique();
     let funder_b = Pubkey::new_unique();
     let amount_a = 3_000_000u64;
     let amount_b = 5_000_000u64;
-    let expiry = typed_test_expiry();
 
     let (instruction, accounts) = create_wallet_ix(
         payer,
@@ -4976,56 +5276,38 @@ fn test_execute_typed_escrow_return_moves_sol_to_funders() {
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
-    let policy_commitment = hash_policy_commitment(&[b"escrow:return"]);
-    let payload_hash = hash_return_escrow_sol_payload_iter(
-        &escrow_id_hash,
-        [(funder_a.as_ref(), amount_a), (funder_b.as_ref(), amount_b)].into_iter(),
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::ReturnEscrowFunds,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let rows = [
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: funder_a.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
+            asset: b"SOL",
+            raw_amount: amount_a as u128,
+            decimals: 9,
+            display_asset: b"SOL",
+        },
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: funder_b.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
+            asset: b"SOL",
+            raw_amount: amount_b as u128,
+            decimals: 9,
+            display_asset: b"SOL",
+        },
+    ];
+    let (proposal, policy_commitment, envelope_hash) = propose_typed_escrow_return_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::ReturnEscrowFunds.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    if result.is_err() {
-        result.print_logs();
-    }
-    assert!(
-        result.is_ok(),
-        "typed escrow return propose failed: {:?}",
-        result.raw_result
+        &proposer,
+        V4Network::SolanaDevnet,
+        b"escrow-return-1",
+        &rows,
+        [0u8; 32],
     );
 
     let total = amount_a + amount_b;
@@ -5084,9 +5366,6 @@ fn test_execute_typed_sol_send_is_permissionless_and_idempotent() {
     let wallet_name = "typed-sol-send";
     let recipient = Pubkey::new_unique();
     let amount_lamports = 1_750_000u64;
-    let action_id = sha256_hash(b"sol-send-action-1");
-    let nonce = sha256_hash(b"sol-send-nonce-1");
-    let expiry = typed_test_expiry();
 
     let (instruction, accounts) = create_wallet_ix(
         payer,
@@ -5104,53 +5383,18 @@ fn test_execute_typed_sol_send_is_permissionless_and_idempotent() {
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
-    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
-    let payload_hash = hash_send_payload(
-        recipient.as_ref(),
-        &ClearSignAmount {
-            asset: b"SOL",
-            raw_amount: amount_lamports as u128,
-        },
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::Send,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let (proposal, policy_commitment, envelope_hash) = propose_typed_sol_send_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::Send.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    result.expect("typed SOL send propose failed");
+        &proposer,
+        recipient,
+        amount_lamports,
+        &[],
+    );
 
     let vault = fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
     let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
@@ -5595,6 +5839,61 @@ fn test_execute_typed_sol_send_accepts_committed_policy() {
 }
 
 #[test]
+fn test_wallet_policy_creation_rejects_spoofed_current_commitment() {
+    let mut svm = setup();
+    let payer = Pubkey::new_unique();
+    let proposer = new_keypair();
+    let wallet_name = "wallet-policy-spoofed-current";
+    let policy_bytes = typed_sol_policy_bytes(0, 1_000_000, 0, &[], &[]);
+
+    let (create, accounts) = create_wallet_ix(
+        payer,
+        wallet_name,
+        &[pubkey_of(&proposer)],
+        &[pubkey_of(&proposer)],
+        1,
+    );
+    assert!(svm.process_instruction(&create, &accounts).is_ok());
+    let (wallet, _) = find_wallet_address(
+        wallet_name,
+        &solana_address::Address::new_from_array(payer.to_bytes()),
+        &crate::ID,
+    );
+    let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
+    let spoofed_current = sha256_hash(b"policy-that-never-existed");
+    let (proposal, envelope_hash) = propose_typed_wallet_policy_update_on_wallet(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        intent,
+        0,
+        &proposer,
+        spoofed_current,
+        0,
+        &policy_bytes,
+    );
+    let execute = build_execute_typed_wallet_policy_update_ix(
+        payer,
+        wallet,
+        intent,
+        proposal,
+        spoofed_current,
+        envelope_hash,
+        0,
+        &policy_bytes,
+    );
+    let result = svm.process_instruction(
+        &execute,
+        &[funded_account(payer), empty_wallet_policy_account(wallet)],
+    );
+    assert!(
+        result.is_err(),
+        "an absent policy account accepted a spoofed current commitment"
+    );
+}
+
+#[test]
 fn test_wallet_policy_rejects_proposal_that_omits_active_policy() {
     let mut svm = setup();
     let payer = Pubkey::new_unique();
@@ -5619,7 +5918,7 @@ fn test_wallet_policy_rejects_proposal_that_omits_active_policy() {
         &crate::ID,
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
-    let no_previous_policy = hash_policy_commitment(&[b"wallet-policy:none"]);
+    let no_previous_policy = [0u8; 32];
     let (policy_proposal, policy_envelope_hash) = propose_typed_wallet_policy_update_on_wallet(
         &mut svm,
         payer,
@@ -5975,56 +6274,59 @@ fn test_execute_typed_sol_batch_send_moves_sol_to_recipients() {
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
-    let policy_commitment = hash_policy_commitment(&[b"batch:sol"]);
-    let payload_hash = hash_batch_send_sol_payload_iter(
-        [
-            (recipient_a.as_ref(), amount_a),
-            (recipient_b.as_ref(), amount_b),
-        ]
-        .into_iter(),
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::BatchSend,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+    let rows = [
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: recipient_a.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
+            asset: b"SOL",
+            raw_amount: amount_a as u128,
+            decimals: 9,
+            display_asset: b"SOL",
+        },
+        V4TransferRowInput {
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: recipient_b.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
+            asset: b"SOL",
+            raw_amount: amount_b as u128,
+            decimals: 9,
+            display_asset: b"SOL",
+        },
+    ];
+    let policy_commitment = v4_policy_commitment(&[]);
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_batch_transfer(
+        &V4BatchTransferInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(&proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment,
+                approval_required: 1,
+            },
+            rows: &rows,
+            reason: b"Program batch execution test",
+        },
+        &mut canonical,
+    )
+    .expect("SOL batch should encode as canonical v4 intent");
+    let (proposal, policy_commitment, envelope_hash) = submit_typed_v4_proposal(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::BatchSend.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed SOL batch propose failed: {:?}",
-        result.raw_result
+        &proposer,
+        &[],
+        &canonical[..canonical_len],
+        1,
     );
 
     let total = amount_a + amount_b;
@@ -6178,58 +6480,47 @@ fn test_cleanup_nonfinalized_typed_proposal_fails() {
     );
     let (intent, _) = find_intent_address(&wallet, 0, &crate::ID);
     let proposal_index = 0u64;
-    let proposal = get_typed_proposal_address(intent, proposal_index);
-    let policy_commitment = hash_policy_commitment(&[b"send:sol"]);
-    let payload_hash = hash_send_payload(
-        recipient.as_ref(),
-        &ClearSignAmount {
+    let policy_commitment = v4_policy_commitment(&[]);
+    let mut canonical = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let canonical_len = encode_v4_transfer(
+        &V4TransferInput {
+            common: V4CommonFields {
+                profile: V4DeviceProfile::Full,
+                network: V4Network::SolanaDevnet,
+                proposal_index,
+                wallet_id: wallet.to_bytes(),
+                actor: pubkey_bytes(&proposer),
+                action_id,
+                nonce,
+                expires_at: expiry,
+                policy_commitment,
+                approval_required: 1,
+            },
+            recipient_encoding: V4IdentityEncoding::SolanaPubkey,
+            recipient: recipient.as_ref(),
+            asset_encoding: V4IdentityEncoding::Text,
             asset: b"SOL",
             raw_amount: amount_lamports as u128,
+            decimals: 9,
+            display_asset: b"SOL",
+            execution_commitment: [0u8; 32],
+            fiat_estimate: None,
+            reason: b"Non-finalized cleanup test",
         },
-    );
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::Send,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-
-    let propose = build_propose_typed_ix(TypedProposalArgs {
+        &mut canonical,
+    )
+    .expect("cleanup fixture should encode as canonical v4 intent");
+    let (proposal, _, _) = submit_typed_v4_proposal(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
         proposal_index,
-        expiry,
-        action_kind: ClearSignActionKind::Send.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote_with_approval(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            proposal_index,
-            envelope_hash,
-            1,
-            0,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result =
-        svm.process_instruction(&propose, &[funded_account(payer), empty_account(proposal)]);
-    assert!(
-        result.is_ok(),
-        "typed proposal create failed: {:?}",
-        result.raw_result
+        &proposer,
+        &[],
+        &canonical[..canonical_len],
+        0,
     );
 
     let cleanup = build_cleanup_typed_ix(proposal, payer);
@@ -6294,54 +6585,17 @@ fn test_legacy_and_typed_proposals_share_wallet_index_without_pda_collision() {
     );
 
     let typed_index = 1u64;
-    let typed_proposal = get_typed_proposal_address(intent, typed_index);
-    let action_id = sha256_hash(b"mixed-action");
-    let nonce = sha256_hash(b"mixed-nonce");
-    let policy_commitment = hash_policy_commitment(&[b"mixed"]);
-    let payload_hash = sha256_hash(b"mixed-payload");
-    let expiry = typed_test_expiry();
-    let envelope_hash = hash_envelope(&ClearSignEnvelope {
-        kind: ClearSignActionKind::SetProtection,
-        wallet_name: wallet_name.as_bytes(),
-        wallet_id: wallet.as_ref(),
-        action_id: action_id.as_ref(),
-        nonce: nonce.as_ref(),
-        expires_at: expiry,
-        policy_commitment,
-        payload_hash,
-        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
-    });
-    let typed = build_propose_typed_ix(TypedProposalArgs {
+    let (typed_proposal, _) = propose_typed_wallet_policy_update_on_wallet(
+        &mut svm,
         payer,
+        wallet_name,
         wallet,
         intent,
-        proposal_index: typed_index,
-        expiry,
-        action_kind: ClearSignActionKind::SetProtection.code(),
-        policy_commitment,
-        payload_hash,
-        envelope_hash,
-        proposer_pubkey: pubkey_bytes(&proposer),
-        signature: sign_typed_vote(
-            &proposer,
-            ClearSignVoteKind::Propose,
-            wallet_name,
-            typed_index,
-            envelope_hash,
-        ),
-        clear_text: TEST_CLEAR_TEXT.to_vec(),
-        policy_bytes: Vec::new(),
-        action_id,
-        nonce,
-    });
-    let result = svm.process_instruction(
-        &typed,
-        &[funded_account(payer), empty_account(typed_proposal)],
-    );
-    assert!(
-        result.is_ok(),
-        "typed proposal create failed: {:?}",
-        result.raw_result
+        typed_index,
+        &proposer,
+        [0u8; 32],
+        0,
+        &[],
     );
 
     assert_ne!(

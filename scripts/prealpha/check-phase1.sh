@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BACKEND_ENV="$ROOT_DIR/backend-api/.env.pre-alpha"
-FRONTEND_ENV="$ROOT_DIR/frontend/.env.local"
+BACKEND_ENV="$ROOT_DIR/apps/api/.env.pre-alpha"
+FRONTEND_ENV="$ROOT_DIR/apps/web/.env.local"
 
 EXPECTED_GRPC="https://pre-alpha-dev-1.ika.ika-network.net:443"
-EXPECTED_SOLANA_RPC="https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH"
+EXPECTED_SOLANA_RPC_PREFIX="https://solana-devnet.g.alchemy.com/v2/"
 EXPECTED_DWALLET_PROGRAM="87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY"
 
 if [[ ! -f "$BACKEND_ENV" ]]; then
@@ -22,8 +22,8 @@ source "$BACKEND_ENV"
 source "$FRONTEND_ENV"
 set +a
 
-if [[ "${CLEAR_MSIG_URL:-}" != "$EXPECTED_SOLANA_RPC" ]]; then
-  echo "WARN: CLEAR_MSIG_URL is '${CLEAR_MSIG_URL:-unset}', expected '$EXPECTED_SOLANA_RPC'"
+if [[ "${CLEAR_MSIG_URL:-}" != "$EXPECTED_SOLANA_RPC_PREFIX"* ]]; then
+  echo "WARN: CLEAR_MSIG_URL is '${CLEAR_MSIG_URL:-unset}', expected an Alchemy Solana devnet URL"
 else
   echo "OK: CLEAR_MSIG_URL"
 fi

@@ -10,8 +10,11 @@ PROGRAM_SO="${PROGRAM_SO:-$ROOT_DIR/target/deploy/clear_wallet.so}"
 DEFAULT_PROGRAM_ID="53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v"
 PROGRAM_ID="${PROGRAM_ID:-$DEFAULT_PROGRAM_ID}"
 INITIAL_DEPLOY="${INITIAL_DEPLOY:-0}"
-DEFAULT_DEVNET_URL="https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH"
-DEVNET_URL="${DEVNET_URL:-$DEFAULT_DEVNET_URL}"
+DEVNET_URL="${DEVNET_URL:?Set DEVNET_URL to the Alchemy Solana devnet RPC URL}"
+if [[ "$DEVNET_URL" != https://solana-devnet.g.alchemy.com/v2/* ]]; then
+  echo "DEVNET_URL must use the configured Alchemy Solana devnet endpoint."
+  exit 1
+fi
 DEPLOY_TRANSPORT="${DEPLOY_TRANSPORT:---use-rpc}"
 TEMP_KEYPAIRS=()
 

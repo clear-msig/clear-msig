@@ -779,6 +779,15 @@ impl IntentAccount {
         }
     }
 
+    pub fn tx_template_hash(&self) -> [u8; 32] {
+        let start = self.tx_template_offset as usize;
+        let end = start.saturating_add(self.tx_template_len as usize);
+        if end > self.byte_pool.len() {
+            return [0u8; 32];
+        }
+        Sha256::digest(&self.byte_pool[start..end]).into()
+    }
+
     pub fn policy_ciphertext_ids(&self) -> Vec<String> {
         decode_policy_ciphertexts(&self.policy_ciphertexts).unwrap_or_default()
     }

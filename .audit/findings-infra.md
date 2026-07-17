@@ -19,7 +19,7 @@
 
 ### [MEDIUM] `security.yml` CodeQL/dependency-review results not confirmed to be required merge checks; Rust code entirely unscanned by it
 - **Location:** `.github/workflows/security.yml:1-51`
-- New workflow. Runs CodeQL (`languages: javascript-typescript` ONLY — no Rust analysis for backend-api/rust-settlement/on-chain program) + `dependency-review-action` (PR-only, `fail-on-severity: high`). CodeQL posts to Security tab but is advisory unless separately required in branch protection — could not verify branch-protection config from this environment (no `gh` auth).
+- New workflow. Runs CodeQL (`languages: javascript-typescript` ONLY — no Rust analysis for apps/api/apps/settlement/on-chain program) + `dependency-review-action` (PR-only, `fail-on-severity: high`). CodeQL posts to Security tab but is advisory unless separately required in branch protection — could not verify branch-protection config from this environment (no `gh` auth).
 - **Coverage gap:** the two highest-value attack surfaces (Rust backends + on-chain program) are unscanned by this workflow. If there's an expectation that `security.yml` covers the whole app, it doesn't — would need `cargo audit`/`cargo deny` or a Rust CodeQL pass.
 - **Fix:** confirm `dependency-review` (already correctly blocking) and ideally a CodeQL gate are required checks; add Rust SAST/dependency scanning to close the coverage gap.
 

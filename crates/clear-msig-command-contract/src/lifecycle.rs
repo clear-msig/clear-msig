@@ -53,6 +53,7 @@ pub enum TypedProposalLifecycle {
         nonce: String,
         policy_bytes_hex: Option<String>,
         signable_text: Option<String>,
+        canonical_intent_hex: Option<String>,
         expiry: Option<String>,
     },
     Approve {
@@ -89,6 +90,7 @@ impl TypedProposalLifecycle {
                 action_id,
                 nonce,
                 policy_bytes_hex,
+                canonical_intent_hex,
                 expiry,
                 ..
             } => {
@@ -101,6 +103,7 @@ impl TypedProposalLifecycle {
                     nonce.as_str(),
                 ];
                 values.extend(policy_bytes_hex.iter().map(String::as_str));
+                values.extend(canonical_intent_hex.iter().map(String::as_str));
                 values.extend(expiry.iter().map(String::as_str));
                 values
             }
@@ -142,6 +145,7 @@ mod tests {
             nonce: "1".into(),
             policy_bytes_hex: None,
             signable_text: Some("line one\nline two".into()),
+            canonical_intent_hex: None,
             expiry: None,
         };
         assert!(lifecycle.validate_boundary().is_ok());

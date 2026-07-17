@@ -45,7 +45,7 @@ After Railway is healthy, update the Vercel production env var:
 ```text
 NEXT_PUBLIC_BACKEND_API_URL=https://clear-msig-backend-production.up.railway.app
 NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
-NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 UPSTASH_REDIS_REST_URL=<Upstash Redis REST URL>
 UPSTASH_REDIS_REST_TOKEN=<Upstash Redis REST token>
 ```
@@ -59,14 +59,15 @@ NEXT_PUBLIC_BACKEND_API_URL=/backend
 ```
 
 Next.js will proxy `/backend/*` to the configured backend via
-`frontend/next.config.ts`.
+`apps/web/next.config.ts`.
 
 ## Notes
 
 - Railway HTTP health checks use `/health`.
 - A successful health check proves process readiness, not ClearSign contract
-  compatibility. Probe `/v1/clearsign/v3/prepare` before the Vercel cutover.
-- Railway health, membership lookup, ClearSign v3 preparation, and the governed
-  devnet v3 smoke passed before the Vercel production cutover.
+  compatibility. Probe `/v1/clearsign/v4/prepare` before the Vercel cutover.
+- Railway health, membership lookup, and ClearSign preparation passed before the
+  Vercel production cutover. ClearSign v4 still requires the ordered
+  program/backend/frontend release after this hardening worktree is validated.
 - The obsolete Render blueprint and frontend fallback were removed after both
   Railway and Vercel reported successful deployment.

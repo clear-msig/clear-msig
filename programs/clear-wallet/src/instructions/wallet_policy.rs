@@ -100,6 +100,11 @@ impl<'info> ExecuteTypedWalletPolicyUpdate<'info> {
                 current.commitment_for_chain(args.chain_kind)? == args.current_policy_commitment,
                 WalletError::WalletPolicyMismatch
             );
+        } else {
+            require!(
+                args.current_policy_commitment == [0u8; 32],
+                WalletError::WalletPolicyMismatch
+            );
         }
 
         let clock = Clock::get()?;

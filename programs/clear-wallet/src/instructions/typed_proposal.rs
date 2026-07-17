@@ -1,3 +1,8 @@
+use clear_msig_signing::{
+    envelope_hash as hash_v4_envelope, parse_intent as parse_v4_intent,
+    render_document as render_v4_document, Action as V4Action,
+    IdentityEncoding as V4IdentityEncoding, MAX_DOCUMENT_BYTES as MAX_V4_DOCUMENT_BYTES,
+};
 use quasar_lang::{prelude::*, sysvars::Sysvar as _};
 
 use crate::{
@@ -9,7 +14,7 @@ use crate::{
         wallet::ClearWallet,
     },
     utils::clearsign::{
-        hash_clear_text, hash_envelope, hash_envelope_for_clear_text, validate_v3_document,
+        hash_clear_text, hash_envelope_for_clear_text, is_v4_document,
         write_vote_message_for_clear_text, ClearSignActionKind, ClearSignEnvelope,
         ClearSignVoteKind, MAX_CLEARSIGN_VOTE_MESSAGE_BYTES,
     },
@@ -38,18 +43,10 @@ pub struct ProposeTyped<'info> {
     pub system_program: &'info Program<System>,
 }
 
-pub struct ProposeTypedArgs<'a> {
-    pub expiry: i64,
-    pub action_kind: u8,
-    pub action_id: &'a [u8; 32],
-    pub nonce: &'a [u8; 32],
-    pub policy_commitment: [u8; 32],
-    pub payload_hash: [u8; 32],
-    pub envelope_hash: [u8; 32],
-    pub proposer_pubkey: &'a [u8; 32],
+pub struct ProposeTypedV4Args<'a> {
     pub signature: &'a [u8; 64],
-    pub clear_text: &'a [u8],
     pub policy_bytes: &'a [u8],
+    pub canonical_intent: &'a [u8],
 }
 
 #[derive(Accounts)]
@@ -125,10 +122,18 @@ pub struct ExecuteTypedArgs {
 }
 
 impl<'info> ProposeTyped<'info> {
-    pub fn propose_typed(
+    pub fn propose_typed(&mut self) -> Result<(), ProgramError> {
+        // Discriminator 8 remains in the ABI so existing proposal accounts can
+        // still be approved, cancelled, executed, and cleaned up. It must not
+        // create new proposals because v3 clear text is caller-authored and is
+        // not semantically derived from the executable payload.
+        Err(WalletError::ClearSignVersionDowngrade.into())
+    }
+
+    pub fn propose_typed_v4(
         &mut self,
         proposal_index: u64,
-        args: ProposeTypedArgs<'_>,
+        args: ProposeTypedV4Args<'_>,
         bumps: &ProposeTypedBumps,
     ) -> Result<(), ProgramError> {
         require!(
@@ -136,55 +141,84 @@ impl<'info> ProposeTyped<'info> {
             WalletError::InvalidProposalIndex
         );
 
+        let canonical = parse_v4_intent(args.canonical_intent)
+            .map_err(|_| WalletError::InvalidClearSignEnvelope)?;
         let clock = Clock::get()?;
         let now = clock.unix_timestamp.get();
-        let kind = ClearSignActionKind::from_code(args.action_kind)
-            .ok_or(WalletError::InvalidClearSignAction)?;
-        let clear_text = args.clear_text;
-        validate_v3_document(clear_text).map_err(|_| WalletError::ClearSignVersionDowngrade)?;
-        let envelope = ClearSignEnvelope {
-            kind,
-            wallet_name: self.wallet.name().as_bytes(),
-            wallet_id: self.wallet.address().as_ref(),
-            action_id: args.action_id.as_ref(),
-            nonce: args.nonce.as_ref(),
-            expires_at: args.expiry,
-            policy_commitment: args.policy_commitment,
-            payload_hash: args.payload_hash,
-            clear_text_hash: hash_clear_text(clear_text)
-                .map_err(|_| WalletError::InvalidClearSignEnvelope)?,
-        };
-        envelope
-            .validate_replay_fields(now)
-            .map_err(|_| WalletError::InvalidClearSignEnvelope)?;
         require!(
-            hash_envelope(&envelope) == args.envelope_hash,
+            canonical.common.proposal_index == proposal_index,
+            WalletError::InvalidProposalIndex
+        );
+        require!(
+            canonical.common.wallet_id == self.wallet.address().to_bytes(),
             WalletError::InvalidClearSignEnvelope
         );
-        if !args.policy_bytes.is_empty() {
-            require!(
-                hash_typed_policy(args.policy_bytes) == args.policy_commitment,
-                WalletError::InvalidPolicy
-            );
-        }
+        require!(
+            canonical.common.network.chain_kind() == self.intent.chain_kind,
+            WalletError::InvalidClearSignEnvelope
+        );
+        require!(
+            canonical.common.approval_required == self.intent.approval_threshold,
+            WalletError::InvalidApprovalThreshold
+        );
+        require!(
+            canonical.common.expires_at > now
+                && canonical.common.expires_at - now
+                    <= crate::utils::clearsign::MAX_ACTION_TTL_SECONDS,
+            WalletError::InvalidClearSignEnvelope
+        );
+        require!(
+            canonical.common.action_id.iter().any(|byte| *byte != 0)
+                && canonical.common.nonce.iter().any(|byte| *byte != 0),
+            WalletError::InvalidClearSignEnvelope
+        );
 
-        let proposer_addr = Address::new_from_array(*args.proposer_pubkey);
+        let proposer_addr = Address::new_from_array(canonical.common.actor);
         require!(
             self.intent.is_proposer(&proposer_addr),
             WalletError::NotProposer
         );
+        validate_v4_execution_shape(&canonical)?;
+        let submitted_policy_commitment = hash_typed_policy(args.policy_bytes);
+        match canonical.action {
+            V4Action::PolicyUpdate(policy) => require!(
+                clear_msig_signing::wallet_policy_commitment(args.policy_bytes)
+                    == policy.new_policy_commitment,
+                WalletError::InvalidPolicy
+            ),
+            _ => require!(
+                submitted_policy_commitment == canonical.common.policy_commitment,
+                WalletError::InvalidPolicy
+            ),
+        }
+
+        let mut clear_text_buffer = [0u8; MAX_V4_DOCUMENT_BYTES];
+        let clear_text_len = render_v4_document(
+            &canonical,
+            self.wallet.name().as_bytes(),
+            &mut clear_text_buffer,
+        )
+        .map_err(|_| WalletError::InvalidClearSignEnvelope)?;
+        let clear_text = &clear_text_buffer[..clear_text_len];
+        let payload_hash = canonical.payload_hash();
+        let clear_text_hash =
+            hash_clear_text(clear_text).map_err(|_| WalletError::InvalidClearSignEnvelope)?;
+        let envelope_hash =
+            hash_v4_envelope(&canonical, self.wallet.name().as_bytes(), clear_text_hash)
+                .map_err(|_| WalletError::InvalidClearSignEnvelope)?;
+
         let proposer_approver_index = self.intent.approver_index(&proposer_addr);
         let approvals_after = u8::from(proposer_approver_index.is_some());
-
-        verify_typed_signature(
+        verify_typed_signature_v4(
             ClearSignVoteKind::Propose,
-            &envelope,
-            clear_text,
+            self.wallet.name().as_bytes(),
+            canonical.common.actor.as_ref(),
+            proposal_index,
+            envelope_hash,
+            canonical.common.expires_at,
             self.intent.approval_threshold,
             approvals_after,
-            proposal_index,
-            args.envelope_hash,
-            args.proposer_pubkey,
+            clear_text,
             args.signature,
         )?;
 
@@ -206,19 +240,19 @@ impl<'info> ProposeTyped<'info> {
                 proposal_index,
                 proposer: proposer_addr,
                 status,
-                action_kind: kind.code(),
+                action_kind: canonical.kind().code(),
                 proposed_at: now,
                 approved_at,
-                expires_at: args.expiry,
+                expires_at: canonical.common.expires_at,
                 bump: bumps.proposal,
                 approval_bitmap,
                 cancellation_bitmap: 0u16,
                 rent_refund: *self.payer.address(),
-                policy_commitment: args.policy_commitment,
-                payload_hash: args.payload_hash,
-                envelope_hash: args.envelope_hash,
-                action_id: args.action_id.as_ref(),
-                nonce: args.nonce.as_ref(),
+                policy_commitment: canonical.common.policy_commitment,
+                payload_hash,
+                envelope_hash,
+                action_id: canonical.common.action_id.as_ref(),
+                nonce: canonical.common.nonce.as_ref(),
                 policy_bytes: args.policy_bytes,
                 clear_text,
             },
@@ -234,6 +268,82 @@ impl<'info> ProposeTyped<'info> {
         self.wallet.proposal_index += 1;
         Ok(())
     }
+}
+
+fn validate_v4_execution_shape(
+    intent: &clear_msig_signing::CanonicalIntent<'_>,
+) -> Result<(), ProgramError> {
+    match intent.action {
+        V4Action::Transfer(transfer) if intent.common.network.chain_kind() == 0 => {
+            require!(
+                transfer.recipient_encoding == V4IdentityEncoding::SolanaPubkey
+                    && transfer.asset_encoding == V4IdentityEncoding::Text
+                    && transfer.asset == b"SOL"
+                    && transfer.decimals == 9,
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
+        V4Action::Transfer(transfer) => {
+            require!(
+                transfer.recipient_encoding == V4IdentityEncoding::Sha256Text
+                    && transfer.asset_encoding == V4IdentityEncoding::Sha256Text,
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
+        V4Action::BatchTransfer(batch) => {
+            require!(
+                intent.common.network.chain_kind() == 0
+                    && batch.rows().all(|row| {
+                        row.recipient_encoding == V4IdentityEncoding::SolanaPubkey
+                            && row.asset_encoding == V4IdentityEncoding::Text
+                            && row.asset == b"SOL"
+                            && row.decimals == 9
+                    }),
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
+        V4Action::Governance(_) => {
+            require!(
+                intent.common.network.chain_kind() == 0,
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
+        V4Action::PolicyUpdate(policy) => {
+            require!(
+                policy.chain_kind == intent.common.network.chain_kind(),
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
+        V4Action::EscrowRelease(escrow) => {
+            require!(
+                escrow.execution_commitment != [0u8; 32]
+                    || (intent.common.network.chain_kind() == 0
+                        && escrow.payment.recipient_encoding == V4IdentityEncoding::SolanaPubkey
+                        && escrow.payment.asset_encoding == V4IdentityEncoding::Text
+                        && escrow.payment.asset == b"SOL"
+                        && escrow.payment.decimals == 9),
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
+        V4Action::EscrowReturn(escrow) => {
+            require!(
+                escrow.execution_commitment != [0u8; 32]
+                    || (intent.common.network.chain_kind() == 0
+                        && escrow.rows().all(|row| {
+                            row.recipient_encoding == V4IdentityEncoding::SolanaPubkey
+                                && row.asset_encoding == V4IdentityEncoding::Text
+                                && row.asset == b"SOL"
+                                && row.decimals == 9
+                        })),
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
+        V4Action::AgentTradeApproval(_)
+        | V4Action::AgentSession(_)
+        | V4Action::AgentRiskPolicy(_)
+        | V4Action::AgentSettlement(_) => {}
+    }
+    Ok(())
 }
 
 impl<'info> ApproveTyped<'info> {
@@ -411,19 +521,48 @@ fn verify_typed_signature(
     signer_pubkey: &[u8],
     signature: &[u8; 64],
 ) -> Result<(), ProgramError> {
-    require!(
-        hash_envelope_for_clear_text(envelope, clear_text) == envelope_hash,
-        WalletError::InvalidClearSignEnvelope
-    );
-    let mut vote_message = [0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
-    let vote_message_len = write_vote_message_for_clear_text(
-        &mut vote_message,
+    if !is_v4_document(clear_text) {
+        require!(
+            hash_envelope_for_clear_text(envelope, clear_text) == envelope_hash,
+            WalletError::InvalidClearSignEnvelope
+        );
+    }
+    verify_typed_signature_v4(
         vote_kind,
         envelope.wallet_name,
         signer_pubkey,
         proposal_index,
         envelope_hash,
         envelope.expires_at,
+        approvals_required,
+        approvals_after,
+        clear_text,
+        signature,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_typed_signature_v4(
+    vote_kind: ClearSignVoteKind,
+    wallet_name: &[u8],
+    signer_pubkey: &[u8],
+    proposal_index: u64,
+    envelope_hash: [u8; 32],
+    expires_at: i64,
+    approvals_required: u8,
+    approvals_after: u8,
+    clear_text: &[u8],
+    signature: &[u8; 64],
+) -> Result<(), ProgramError> {
+    let mut vote_message = [0u8; MAX_CLEARSIGN_VOTE_MESSAGE_BYTES];
+    let vote_message_len = write_vote_message_for_clear_text(
+        &mut vote_message,
+        vote_kind,
+        wallet_name,
+        signer_pubkey,
+        proposal_index,
+        envelope_hash,
+        expires_at,
         approvals_required,
         approvals_after,
         clear_text,

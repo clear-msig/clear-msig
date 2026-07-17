@@ -43,24 +43,27 @@ jobs:
       - name: Backend architecture
         run: |
           bash scripts/check-repository-governance.sh
+          bash scripts/check-repository-boundaries.sh
           bash scripts/check-backend-architecture.sh
           bash scripts/check-intent-architecture.sh
+          bash scripts/check-signing-architecture.sh
+          bash scripts/check-secrets.sh
 
       - name: Rust formatting
         run: cargo fmt --all -- --check
 
       - name: Backend + contracts + thin CLI clippy (strict, dependencies excluded)
-        run: cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-cli --all-targets --no-deps -- -D warnings
+        run: cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-signing -p clear-msig-cli --all-targets --no-deps -- -D warnings
 
       - name: cargo test (host crates)
-        run: cargo test -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
+        run: cargo test -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-signing -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
 
   frontend-tests:
     name: frontend unit tests
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
 
@@ -78,7 +81,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -86,10 +89,10 @@ jobs:
       - name: Restore Next.js build cache
         uses: actions/cache@v4
         with:
-          path: frontend/.next/cache
-          key: ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**', 'frontend/next.config.ts') }}
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('apps/web/package-lock.json') }}-${{ hashFiles('apps/web/src/**', 'apps/web/next.config.ts') }}
           restore-keys: |
-            ${{ runner.os }}-next-${{ hashFiles('frontend/package-lock.json') }}-
+            ${{ runner.os }}-next-${{ hashFiles('apps/web/package-lock.json') }}-
 
       - name: Production verification
         run: npm run build
@@ -101,9 +104,9 @@ jobs:
   # platform-tools tarball is ~250 MB, painful on slow networks). Cached
   # so subsequent runs skip the tarball + dep recompile.
   #
-  # Quasar pinned to the same rev cli/Cargo.toml depends on (the
-  # `fix/signer-check-and-wincode-versions` branch was deleted upstream;
-  # only the rev hash resolves).
+  # The generator remains pinned to the reviewed signer-metadata fix. Program
+  # runtime crates use their own immutable Quasar language revision; generated
+  # Rust is compared against the checked program client immediately below.
   sbf-build:
     name: clear-wallet (SBF .so)
     runs-on: ubuntu-latest
@@ -142,6 +145,9 @@ jobs:
 
       - name: quasar build (clear-wallet)
         run: quasar build
+
+      - name: Verify checked generated client
+        run: bash scripts/check-generated-client.sh
 
       - name: Upload clear_wallet.so artifact
         uses: actions/upload-artifact@v4

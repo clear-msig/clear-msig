@@ -533,20 +533,40 @@ pub mod clear_wallet {
         policy_bytes: Vec<u8, 2048>,
         clear_text: &[u8],
     ) -> Result<(), ProgramError> {
-        ctx.accounts.propose_typed(
+        let _ = (
             proposal_index,
-            ProposeTypedArgs {
-                expiry,
-                action_kind,
-                action_id: &action_id,
-                nonce: &nonce,
-                policy_commitment,
-                payload_hash,
-                envelope_hash,
-                proposer_pubkey: &proposer_pubkey,
+            expiry,
+            action_kind,
+            policy_commitment,
+            payload_hash,
+            envelope_hash,
+            proposer_pubkey,
+            signature,
+            action_id,
+            nonce,
+            policy_bytes,
+            clear_text,
+        );
+        ctx.accounts.propose_typed()
+    }
+
+    /// Creates a typed proposal from canonical intent bytes. The program
+    /// derives both the execution payload hash and readable signing document;
+    /// callers cannot provide either independently.
+    #[instruction(discriminator = 31)]
+    pub fn propose_typed_v4(
+        ctx: Ctx<ProposeTyped>,
+        proposal_index: u64,
+        signature: [u8; 64],
+        policy_bytes: Vec<u8, 2048>,
+        canonical_intent: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.propose_typed_v4(
+            proposal_index,
+            ProposeTypedV4Args {
                 signature: &signature,
-                clear_text,
                 policy_bytes: policy_bytes.as_ref(),
+                canonical_intent,
             },
             &ctx.bumps,
         )

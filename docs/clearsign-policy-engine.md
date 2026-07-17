@@ -394,7 +394,7 @@ paths that still use chain-native transaction templates:
 Each row must stay send-ready, show a signer preview, require a wallet proposal
 approval, execute through the ClearSig proposal path, and broadcast only after
 execute. The regression coverage lives in
-`frontend/src/lib/chain/clearsignAssurance.ts` and its tests.
+`apps/web/src/lib/chain/clearsignAssurance.ts` and its tests.
 
 ## Next Typed Executor Order
 
