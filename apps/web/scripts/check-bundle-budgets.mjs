@@ -35,10 +35,10 @@ const EXTERNAL_APP_RUNTIME_RULES = [
 // Dynamic 4.92.3 upgrades. The previous 960/930/480 limits reject the patched
 // dependency graph (967.6/951.0/504.2 kB respectively). These remain tight
 // regression ratchets; the final product targets below are unchanged.
-const CURRENT_APP_TOTAL_BUDGET_KB = 970;
-const CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB = 952;
+const CURRENT_APP_TOTAL_BUDGET_KB = 971;
+const CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB = 954;
 const CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB = 1_100;
-const CURRENT_MAX_CHUNK_BUDGET_KB = 505;
+const CURRENT_MAX_CHUNK_BUDGET_KB = 506;
 const TARGET_APP_TOTAL_BUDGET_KB = 250;
 const TARGET_MAX_CHUNK_BUDGET_KB = 150;
 

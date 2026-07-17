@@ -75,8 +75,9 @@ kB to 951.0 kB. Dynamic's shared core is 504.2 kB gzip. Attempts to force that
 core into smaller Webpack chunks increased total route transfer by about 80 kB
 because cross-module compression was lost, so that change was rejected.
 
-The route-aware regression ratchets are therefore 970 kB for the current
-authenticated runtime, 952 kB for legacy Turnkey, and 505 kB for an individual
-chunk. These are measured security-upgrade baselines, not performance targets.
+The route-aware regression ratchets are therefore 971 kB for the current
+authenticated runtime, 954 kB for legacy Turnkey, and 506 kB for an individual
+chunk. These include a narrow allowance for platform-dependent gzip output and
+are measured security-upgrade baselines, not performance targets.
 The existing 250 kB route and 150 kB chunk product targets remain unchanged,
 and the budget still counts each route's shared and owned chunks exactly once.
