@@ -17,6 +17,7 @@ mod runner;
 mod runtime;
 mod state;
 mod validation;
+mod version;
 mod wallet;
 
 pub(crate) use error::ApiError;
@@ -77,6 +78,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .merge(wallet::router())
+        .merge(version::router())
         .nest("/v1/clearsign", clearsign::router())
         .nest("/v1/pro", pro::router())
         .merge(intents::router())

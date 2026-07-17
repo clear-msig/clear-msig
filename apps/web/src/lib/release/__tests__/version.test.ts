@@ -1,0 +1,13 @@
+import { describe, expect, it } from "vitest";
+import { getFrontendVersion } from "@/lib/release/version";
+
+describe("frontend version contract", () => {
+  it("exposes deploy and program metadata for release verification", () => {
+    const version = getFrontendVersion();
+
+    expect(version.status).toBe("ok");
+    expect(version.service).toBe("clear-msig-frontend");
+    expect(version.program.id).toMatch(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+    expect(version.backendUrl).toBeTruthy();
+  });
+});
