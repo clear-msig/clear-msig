@@ -1,6 +1,10 @@
 import { createHash } from "crypto";
 import type { AgentServerExecutionRequest } from "@/lib/agents/serverExecutionAdapters";
 import type { HyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
+import {
+  type HyperliquidVenueSettlementEvidence,
+  verifyHyperliquidTestnetSettlementEvidence,
+} from "@/lib/agents/hyperliquidSettlementEvidence";
 
 const HYPERLIQUID_TESTNET_INFO_URL = "https://api.hyperliquid-testnet.xyz/info";
 const REQUEST_TIMEOUT_MS = 6_000;
@@ -55,7 +59,7 @@ export interface HyperliquidTestnetOrderArtifact {
   submittedAt: number;
 }
 
-export interface HyperliquidTestnetSettlementArtifact {
+export interface HyperliquidTestnetSettlementClaim {
   exchange: "hyperliquid_testnet";
   network: "testnet";
   serverRequestId: string;
@@ -68,6 +72,11 @@ export interface HyperliquidTestnetSettlementArtifact {
   realizedPnlUsd: string;
   fillHashes: string[];
   settledAt: number;
+}
+
+export interface HyperliquidTestnetSettlementArtifact
+  extends HyperliquidTestnetSettlementClaim {
+  venueEvidence: HyperliquidVenueSettlementEvidence;
 }
 
 export interface HyperliquidTestnetKillSwitchArtifact {
@@ -430,12 +439,16 @@ export async function submitHyperliquidTestnetSettlement({
   openingArtifact,
   config,
   fetchImpl = fetch,
+  venueFetchImpl = fetch,
+  sleep,
 }: {
   serverRequestId: string;
   request: AgentServerExecutionRequest;
   openingArtifact: HyperliquidTestnetOrderArtifact;
   config: HyperliquidTestnetExecutorConfig;
   fetchImpl?: typeof fetch;
+  venueFetchImpl?: typeof fetch;
+  sleep?: (milliseconds: number) => Promise<void>;
 }): Promise<HyperliquidTestnetSettlementArtifact> {
   const response = await fetchImpl(
     `${config.executorUrl}/v1/hyperliquid/testnet/settlements`,
@@ -465,11 +478,64 @@ export async function submitHyperliquidTestnetSettlement({
         : `HTTP ${response.status}`;
     throw new Error(`Hyperliquid testnet executor rejected settlement: ${message}`);
   }
-  return normalizeHyperliquidTestnetSettlementArtifact(body, {
+  const claim = normalizeHyperliquidTestnetSettlementArtifact(body, {
     serverRequestId,
     request,
     openingArtifact,
   });
+  return verifyHyperliquidTestnetSettlementArtifact({
+    claim,
+    serverRequestId,
+    request,
+    openingArtifact,
+    config,
+    fetchImpl: venueFetchImpl,
+    sleep,
+  });
+}
+
+export async function verifyHyperliquidTestnetSettlementArtifact({
+  claim,
+  serverRequestId,
+  request,
+  openingArtifact,
+  config,
+  fetchImpl = fetch,
+  sleep,
+}: {
+  claim: HyperliquidTestnetSettlementClaim;
+  serverRequestId: string;
+  request: AgentServerExecutionRequest;
+  openingArtifact: HyperliquidTestnetOrderArtifact;
+  config: HyperliquidTestnetExecutorConfig;
+  fetchImpl?: typeof fetch;
+  sleep?: (milliseconds: number) => Promise<void>;
+}): Promise<HyperliquidTestnetSettlementArtifact> {
+  if (
+    claim.serverRequestId !== serverRequestId ||
+    claim.openingOrderId !== openingArtifact.orderId ||
+    claim.market !== request.market.toUpperCase() ||
+    claim.side !== request.side ||
+    claim.reservedNotionalUsd !== normalizeDecimal(request.notionalUsd)
+  ) {
+    throw new Error("Hyperliquid settlement claim does not match its approved execution request.");
+  }
+  const verified = await verifyHyperliquidTestnetSettlementEvidence({
+    claim: {
+      accountAddress: config.accountAddress,
+      closingOrderId: claim.closingOrderId,
+      market: claim.market,
+      side: claim.side,
+      closedSize: claim.closedSize,
+      realizedPnlUsd: claim.realizedPnlUsd,
+      fillHashes: claim.fillHashes,
+      settledAt: claim.settledAt,
+      queryStartTime: openingArtifact.submittedAt,
+    },
+    fetchImpl,
+    sleep,
+  });
+  return { ...claim, ...verified };
 }
 
 export function normalizeHyperliquidTestnetOrderArtifact(
@@ -521,7 +587,7 @@ export function normalizeHyperliquidTestnetSettlementArtifact(
     request: AgentServerExecutionRequest;
     openingArtifact: HyperliquidTestnetOrderArtifact;
   },
-): HyperliquidTestnetSettlementArtifact {
+): HyperliquidTestnetSettlementClaim {
   const source = input && typeof input === "object" && !Array.isArray(input)
     ? ((input as Record<string, unknown>).artifact ?? input)
     : null;
@@ -529,7 +595,7 @@ export function normalizeHyperliquidTestnetSettlementArtifact(
     throw new Error("Hyperliquid testnet executor returned no settlement artifact.");
   }
   const row = source as Record<string, unknown>;
-  const artifact: HyperliquidTestnetSettlementArtifact = {
+  const artifact: HyperliquidTestnetSettlementClaim = {
     exchange: "hyperliquid_testnet",
     network: "testnet",
     serverRequestId: stringValue(row.serverRequestId),

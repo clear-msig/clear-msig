@@ -13,6 +13,7 @@ export type SendSignerRuntime =
 export interface SendAssetVerification {
   id: "sol" | "btc" | "zec" | "eth" | "hype" | "sepolia-usdc";
   routeSource: string;
+  contractSources?: readonly string[];
   executionMarker: string;
   payload: SendPayload;
 }
@@ -28,6 +29,10 @@ export const SEND_ASSET_VERIFICATIONS: readonly SendAssetVerification[] = [
   {
     id: "sol",
     routeSource: "src/features/send/routes/SolanaSendPage.tsx",
+    contractSources: [
+      "src/features/send/infrastructure/prepareSolanaSendProposal.ts",
+      "src/features/send/infrastructure/finalizeSolanaSend.ts",
+    ],
     executionMarker: "executeTypedSolSend",
     payload: {
       recipient: "11111111111111111111111111111111",

@@ -7,7 +7,8 @@ use serde_json::Value;
 
 use crate::clearsign::{format_expiry, normalize_expiry_arg, PreSigned};
 use crate::{
-    ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name, ApiError, AppState,
+    ensure_base58, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name,
+    resolve_trusted_runtime_value, ApiError, AppState,
 };
 
 mod typed_agent_risk;
@@ -629,16 +630,20 @@ fn build_execute_command(
     proposal: String,
     body: ExecuteProposalRequest,
 ) -> Result<clear_msig_command_contract::DirectCommand, ApiError> {
-    let dwallet_program = body
-        .dwallet_program
-        .or_else(|| state.runner.default_dwallet_program.clone());
+    let dwallet_program = resolve_trusted_runtime_value(
+        body.dwallet_program,
+        state.runner.default_dwallet_program.clone(),
+        "dwallet_program",
+    )?;
     if let Some(dwallet_program) = &dwallet_program {
         ensure_non_empty(dwallet_program, "dwallet_program")?;
     }
 
-    let grpc_url = body
-        .grpc_url
-        .or_else(|| state.runner.default_grpc_url.clone());
+    let grpc_url = resolve_trusted_runtime_value(
+        body.grpc_url,
+        state.runner.default_grpc_url.clone(),
+        "grpc_url",
+    )?;
     if let Some(grpc_url) = &grpc_url {
         ensure_non_empty(grpc_url, "grpc_url")?;
     }

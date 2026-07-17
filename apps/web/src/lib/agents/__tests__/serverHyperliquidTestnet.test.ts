@@ -276,12 +276,48 @@ describe("Hyperliquid testnet server boundary", () => {
           closedSize: "0.0037",
           reservedNotionalUsd: "250",
           realizedPnlUsd: "-1.25",
-          fillHashes: ["0xabc"],
+          fillHashes: [`0x${"ab".repeat(32)}`],
           settledAt: 1_780_000_002_000,
         } }), { status: 200, headers: { "content-type": "application/json" } });
       },
+      venueFetchImpl: async (url, init) => {
+        expect(url).toBe("https://api.hyperliquid-testnet.xyz/info");
+        const body = JSON.parse(String(init?.body));
+        if (body.type === "orderStatus") {
+          expect(body.user).toBe(config.accountAddress);
+          expect(body.oid).toBe("654321");
+          return new Response(JSON.stringify({
+            status: "order",
+            order: {
+              order: { coin: "BTC", oid: 654321, side: "A" },
+              status: "filled",
+              statusTimestamp: 1_780_000_002_000,
+            },
+          }), { status: 200, headers: { "content-type": "application/json" } });
+        }
+        expect(body.type).toBe("userFillsByTime");
+        return new Response(JSON.stringify([{
+          closedPnl: "-1.25",
+          coin: "BTC",
+          dir: "Close Long",
+          hash: `0x${"ab".repeat(32)}`,
+          oid: 654321,
+          px: "67162.25",
+          side: "A",
+          sz: "0.0037",
+          time: 1_780_000_002_000,
+          tid: 998877,
+        }]), { status: 200, headers: { "content-type": "application/json" } });
+      },
+      sleep: async () => undefined,
     });
     expect(artifact.realizedPnlUsd).toBe("-1.25");
+    expect(artifact.venueEvidence).toMatchObject({
+      source: "hyperliquid_info_api",
+      orderStatus: "filled",
+      accountAddress: config.accountAddress,
+    });
+    expect(artifact.venueEvidence.evidenceHash).toMatch(/^[a-f0-9]{64}$/);
 
     expect(() => normalizeHyperliquidTestnetSettlementArtifact(
       { ...artifact, openingOrderId: "fabricated" },

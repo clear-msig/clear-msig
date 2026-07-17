@@ -9,6 +9,31 @@ pub(crate) fn ensure_non_empty(value: &str, field: &str) -> Result<(), ApiError>
     Ok(())
 }
 
+pub(crate) fn resolve_trusted_runtime_value(
+    requested: Option<String>,
+    configured: Option<String>,
+    field: &str,
+) -> Result<Option<String>, ApiError> {
+    let requested = requested
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let configured = configured
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    match (requested, configured) {
+        (Some(requested), Some(configured)) if requested != configured => {
+            Err(ApiError::BadRequest(format!(
+                "{field} is selected by the trusted backend and cannot be overridden"
+            )))
+        }
+        (_, Some(configured)) => Ok(Some(configured)),
+        (Some(_), None) => Err(ApiError::BadRequest(format!(
+            "{field} is not configured by the trusted backend"
+        ))),
+        (None, None) => Ok(None),
+    }
+}
+
 pub(crate) fn current_unix_timestamp() -> Result<i64, ApiError> {
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -215,6 +240,31 @@ mod tests {
             ApiError::BadRequest(message) => assert!(message.contains("64 bytes")),
             other => panic!("unexpected error: {other:?}"),
         }
+    }
+
+    #[test]
+    fn trusted_runtime_values_reject_browser_endpoint_substitution() {
+        assert_eq!(
+            resolve_trusted_runtime_value(
+                Some("https://trusted.example".into()),
+                Some("https://trusted.example".into()),
+                "grpcUrl",
+            )
+            .unwrap(),
+            Some("https://trusted.example".into())
+        );
+        assert!(resolve_trusted_runtime_value(
+            Some("https://attacker.example".into()),
+            Some("https://trusted.example".into()),
+            "grpcUrl",
+        )
+        .is_err());
+        assert!(resolve_trusted_runtime_value(
+            Some("https://attacker.example".into()),
+            None,
+            "grpcUrl",
+        )
+        .is_err());
     }
 
     #[test]

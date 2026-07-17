@@ -12,6 +12,9 @@ describe("first-use wallet creation", () => {
     "src/features/wallet/ui/home/WalletDashboardSections.tsx",
   );
   const newWallet = source("src/app/app/wallet/new/page.tsx");
+  const newWalletOptions = source(
+    "src/features/wallet/ui/create/CreateWalletOptions.tsx",
+  );
   const chooser = source("src/app/choose/page.tsx");
   const sidebar = source("src/components/layout/WorkspaceSidebar.tsx");
 
@@ -24,9 +27,9 @@ describe("first-use wallet creation", () => {
   it("defaults creation to Personal and keeps advanced purposes inline", () => {
     expect(newWallet).toContain('requestedSurface ?? "personal"');
     expect(newWallet).toContain('aria-label="Wallet purpose"');
-    expect(newWallet).toContain('label: "Personal"');
-    expect(newWallet).toContain('label: "Team"');
-    expect(newWallet).toContain('label: "Agent"');
+    expect(newWalletOptions).toContain('label: "Personal"');
+    expect(newWalletOptions).toContain('label: "Team"');
+    expect(newWalletOptions).toContain('label: "Agent"');
     expect(newWallet).not.toContain("function ProductChoiceCard");
   });
 

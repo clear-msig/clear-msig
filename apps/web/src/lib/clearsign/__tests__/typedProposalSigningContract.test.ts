@@ -9,7 +9,7 @@ const v4TypedProposalCreators = [
   "src/features/send/routes/ZecSendPage.tsx",
   "src/features/send/routes/Erc20SendPage.tsx",
   "src/features/send/routes/BtcSendPage.tsx",
-  "src/features/send/routes/SolanaSendPage.tsx",
+  "src/features/send/infrastructure/prepareSolanaSendProposal.ts",
   "src/lib/agents/useAgentTypedSessionGrant.ts",
   "src/lib/agents/useAgentTypedRiskPolicy.ts",
   "src/lib/agents/useAgentTypedClearSignApproval.ts",

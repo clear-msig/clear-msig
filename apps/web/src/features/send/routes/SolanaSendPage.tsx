@@ -20,19 +20,12 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
-import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
-import { formatUnixSigningExpiry } from "@/lib/api/expiry";
-import {
-  IntentType,
-  ProposalStatus,
-  findVaultAddress,
-} from "@/lib/msig";
+import { IntentType, findVaultAddress } from "@/lib/msig";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import {
   isValidSolanaAddress,
   shortAddress,
@@ -40,7 +33,6 @@ import {
 import { useContacts } from "@/lib/hooks/useContacts";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
-import { evaluatePolicy, PolicyViolationError } from "@/lib/retail/policyEvaluation";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
 import { PolicyMatchBanner } from "@/components/security/PolicyMatchBanner";
 import { SendProgressStage } from "@/features/send/ui/SendProgressStage";
@@ -52,25 +44,9 @@ import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
 import { SendChainPicker } from "@/components/retail/SendChainPicker";
 import { quotePerWhole } from "@/lib/retail/priceConversion";
 import {
-  assertPolicyNotDenied,
-  resolvePolicyEnforcement,
-} from "@/lib/policies/enforce";
-import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
-import {
-  clearSignProfileForSigner,
-  prepareClearSignV4Action,
-  type ClearSignIntentInput,
-  type SendPayload,
-} from "@/lib/clearsign";
-import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
-import {
   formatAmount,
-  lamportsToSafeNumber,
-  policyCommitmentHex,
-  randomActionLabel,
   readExecuteFailureProposal,
   type ResolvedSolanaRecipient,
-  tagExecuteFailure,
 } from "@/features/send/domain/solanaSend";
 import { SentStage } from "@/features/send/ui/solana/SolanaSendCompletion";
 import { ComposeStage } from "@/features/send/ui/solana/SolanaComposeStage";
@@ -78,10 +54,7 @@ import {
   SOLANA_SEND_PHASE_LABEL,
   type SolanaSendingPhase,
 } from "@/features/send/domain/solanaSendProgress";
-import {
-  isProposalNotApprovedError,
-  waitForSolanaProposalStatus,
-} from "@/features/send/infrastructure/solanaProposalStatus";
+import { executeSolanaSend } from "@/features/send/infrastructure/executeSolanaSend";
 
 type ResolvedRecipient = ResolvedSolanaRecipient;
 
@@ -352,346 +325,21 @@ function SendPage() {
   const budgetUsage = useWalletBudgetUsage(walletName);
 
   const submit = useMutation({
-    mutationFn: async () => {
-      if (!wallet.publicKey)
-        throw new Error("Connect your wallet first");
-      if (!firstIntent || !firstIntent.account)
-        throw new Error("Spending isn't set up for this wallet");
-      // Propose and approve are separate roles. Many retail wallets use
-      // the same member for both, but split-role wallets must sign the
-      // proposal with a proposer and the follow-up vote with an approver.
-      const proposerPk = wallet.pickSigner(
-        firstIntent.account.proposers,
-      );
-      if (!proposerPk) {
-        throw new Error(
-          "This connected wallet cannot propose sends for this shared wallet. " +
-            "Switch to a wallet that can propose here, or ask an owner to add this wallet.",
-        );
-      }
-      const destination =
-        resolved.kind === "contact"
-          ? resolved.contact.address
-          : resolved.kind === "address"
-            ? resolved.address
-            : resolved.kind === "sns"
-              ? resolved.address
-              : null;
-      if (!destination)
-        throw new Error("Pick a contact or paste an address");
-
-      const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
-        walletName,
-        chainKind: 0,
-        recipient: destination,
-        ticker: "SOL",
-        amountDisplay: amount,
-      });
-      assertPolicyNotDenied(submitPolicyPlan);
-      const walletPda = walletQuery.data?.pda;
-      if (!walletPda) {
-        throw new Error("Wallet is still loading. Try again.");
-      }
-      const onchainPolicy = await resolvePersistentSendPolicy(
+    mutationFn: () =>
+      executeSolanaSend({
+        wallet,
         connection,
-        walletPda,
+        signTypedDescriptor,
+        firstIntent,
+        walletPda: walletQuery.data?.pda ?? null,
         walletName,
-        0,
-      );
-
-      // Policy pre-flight. Block before the signing request opens so the
-      // user never signs a doomed send. Sources of truth: localStorage
-      // allowlist + time window + per-friend allowance + wallet-wide
-      // budget. The local evaluator gives immediate feedback; typed policy
-      // bytes independently enforce supported constraints on chain.
-      const policy = evaluatePolicy({
-        walletName,
-        recipientAddress: destination,
-        amountSol: numericAmount,
-        ticker: "SOL",
-        spentUsdThisWindow: budgetUsage.spentUsd,
-        spentUsdByChain: Object.fromEntries(
-          budgetUsage.perChain.map((c) => [c.ticker, c.spentUsd]),
-        ),
-      });
-      if (!policy.ok) {
-        throw new PolicyViolationError(policy.violations);
-      }
-
-      // SOL → lamports. Solana's smallest unit, 1 SOL = 1e9 lamports.
-      const lamports = Math.round(numericAmount * 1_000_000_000);
-      const lamportsBigint = BigInt(lamports);
-      // 1. Prepare a typed ClearSign proposal. This binds the
-      // exact recipient account + lamports to the message the user
-      // signs, and the Solana program recomputes those bytes before
-      // moving funds from the vault.
-      setPhase("preparing");
-      const actionId = randomActionLabel("sol-send");
-      const nonce = randomActionLabel("nonce");
-      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-      const policyCommitment =
-        onchainPolicy?.commitmentHex ??
-        policyCommitmentHex([
-          `wallet:${walletPda.toBase58()}`,
-          `intent:${firstIntent.account.intentIndex}`,
-          `threshold:${firstIntent.account.approvalThreshold ?? ""}`,
-          `proposers:${firstIntent.account.proposers.join(",")}`,
-          `approvers:${firstIntent.account.approvers.join(",")}`,
-        ]);
-      const envelope: ClearSignIntentInput<SendPayload> = {
-        kind: "send",
-        network: "Solana devnet",
-        walletName,
-        walletId: walletPda.toBase58(),
-        actionId,
-        nonce,
-        expiresAt,
-        policyCommitment,
-        payload: {
-          recipient: destination,
-          recipientEncoding: "solana_pubkey",
-          amount,
-          asset: "SOL",
-          note: note.trim() || undefined,
-          fiatEstimate: liveUsdEstimate(amount, "SOL"),
-        },
-      };
-      const summary = await prepareClearSignV4Action(envelope, {
-        intentIndex: firstIntent.account.intentIndex,
-        actorPubkey: proposerPk.toBase58(),
-        policyBytesHex: onchainPolicy?.hex,
-        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
-      });
-      const dry = await backendApi.prepare.createTypedProposal(walletName, {
-        intent_index: firstIntent.account.intentIndex,
-        action_kind: summary.actionKindCode,
-        policy_commitment: summary.policyCommitment,
-        payload_hash: summary.payloadHash,
-        envelope_hash: summary.envelopeHash,
-        action_id: envelope.actionId,
-        nonce: envelope.nonce,
-        policyBytesHex: onchainPolicy?.hex,
-        signable_text: summary.signableText,
-        canonical_intent_hex: summary.canonicalIntentHex,
-        expiry: formatUnixSigningExpiry(envelope.expiresAt),
-        actor_pubkey: proposerPk.toBase58(),
-      });
-
-      // 2. Sign with the user's wallet.
-      setPhase("signing");
-      const signed = await signTypedDescriptor(dry, {
-        preferSigner: proposerPk,
-        expectedTyped: {
-          envelopeHash: summary.envelopeHash,
-          payloadHash: summary.payloadHash,
-          signableText: summary.signableText,
-        },
-      });
-
-      // 3. Submit typed proposal. The program auto-approves when
-      // the proposer is also an approver, so common 1-of-1 sends
-      // continue to be one wallet popup.
-      setPhase("submitting");
-      const submitted = (await backendApi.submit.createTypedProposal(
-        walletName,
-        {
-          ...signed,
-          expiry: dry.expiry,
-          intent_index: dry.intent_index,
-          action_kind: dry.action_kind,
-          policy_commitment: dry.policy_commitment_hex,
-          payload_hash: dry.payload_hash_hex,
-          envelope_hash: dry.envelope_hash_hex,
-          action_id: dry.action_id,
-          nonce: dry.nonce,
-          policyBytesHex: onchainPolicy?.hex,
-          canonical_intent_hex: dry.canonical_intent_hex,
-        },
-      )) as Record<string, unknown>;
-
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        return submitted;
-      }
-      const intent = firstIntent.account;
-      const approverPk = wallet.pickSigner(intent.approvers);
-      const approver = approverPk?.toBase58() ?? null;
-
-      // 4. If the user is also an approver, flip their bit - but
-      //    only if propose didn't already do it on chain (program
-      //    auto-approves proposer when proposer ∈ approvers).
-      const userIsApprover = approver !== null;
-      const decision = await approveIfNeeded(connection, proposal, {
-        approvers: intent.approvers,
-        approverPubkey: approver,
-      });
-      let needsOwnApprove =
-        userIsApprover && decision.needsApproveSignature;
-      if (userIsApprover && decision.status === null) {
-        const observedStatus = await waitForSolanaProposalStatus(
-          connection,
-          proposal,
-        );
-        needsOwnApprove = observedStatus === ProposalStatus.Active;
-      }
-      if (needsOwnApprove) {
-        if (!approverPk || !approver) {
-          throw new Error(
-            "This connected wallet cannot approve sends for this shared wallet.",
-          );
-        }
-        setPhase("approving");
-        try {
-          const approveDry = await backendApi.prepare.approveTypedProposal(
-            walletName,
-            proposal,
-            { actor_pubkey: approver },
-          );
-          const approveSigned = await signTypedDescriptor(approveDry, {
-            preferSigner: approverPk,
-          });
-          await backendApi.submit.approveTypedProposal(walletName, proposal, {
-            ...approveSigned,
-            expiry: approveDry.expiry,
-          });
-        } catch (err) {
-          // Don't poison the send if the user cancels the approve
-          // popup - the proposal is already on chain and they (or
-          // their friends) can approve it later from the inbox.
-          console.warn("[send] propose ok but approve step failed", err);
-          return submitted;
-        }
-      }
-
-      const policyPlan = await resolvePolicyEnforcement(walletName, {
-        walletName,
-        chainKind: 0,
-        recipient: destination,
-        ticker: "SOL",
-        amountDisplay: amount,
-      });
-      assertPolicyNotDenied(policyPlan);
-      if (policyPlan.evaluation?.matched) {
-        if (policyPlan.rule?.action === "require-extra-approvers") {
-          const alreadyCovered = new Set<string>([
-            proposerPk.toBase58(),
-            ...(approver ? [approver] : []),
-          ]);
-          const uniqueExtraApprovers = policyPlan.extraApprovers.filter((addr) => {
-            const normalized = addr.trim();
-            if (!normalized || alreadyCovered.has(normalized)) return false;
-            alreadyCovered.add(normalized);
-            return true;
-          });
-
-          if (uniqueExtraApprovers.length === 0) {
-            throw new Error(
-              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
-            );
-          }
-
-          for (const extraApprover of uniqueExtraApprovers) {
-            const extraSigner = wallet.pickSigner([extraApprover]);
-            if (!extraSigner) {
-              throw new Error(
-                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
-              );
-            }
-            if (!intent.approvers.includes(extraApprover)) {
-              throw new Error(
-                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
-              );
-            }
-
-            setPhase("approving");
-            const extraDry = await backendApi.prepare.approveTypedProposal(
-              walletName,
-              proposal,
-              { actor_pubkey: extraSigner.toBase58() },
-            );
-            const extraSigned = await signTypedDescriptor(extraDry, {
-              preferSigner: extraSigner,
-            });
-            await backendApi.submit.approveTypedProposal(walletName, proposal, {
-              ...extraSigned,
-              expiry: extraDry.expiry,
-            });
-          }
-        } else if (
-          policyPlan.rule?.action === "require-cooldown" &&
-          policyPlan.extraCooldownSeconds > 0
-        ) {
-          setPhase("cooldown");
-          await new Promise((resolve) =>
-            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
-          );
-        }
-      }
-
-      // 5. Execute only after the proposal account says it is
-      //    Approved. Do not infer this from a local approval count:
-      //    old/new program versions, RPC lag, policy-added approvers,
-      //    and explicit approve retries can all make local counting
-      //    wrong. The chain account is the source of truth.
-      const statusBeforeExecute = await waitForSolanaProposalStatus(
-        connection,
-        proposal,
-      );
-      if (statusBeforeExecute === ProposalStatus.Approved) {
-        setPhase("executing");
-        let executed: unknown;
-        try {
-          executed = await backendApi.executeTypedSolSend(walletName, proposal, {
-            recipient: destination,
-            amountLamports: lamportsToSafeNumber(lamportsBigint),
-          });
-        } catch (err) {
-          // If an RPC race means the backend still sees Active while
-          // our read briefly saw Approved, keep the request on chain
-          // and show the waiting-for-approvals state instead of
-          // turning a valid proposal into a scary failed send.
-          if (isProposalNotApprovedError(err)) {
-            return {
-              ...submitted,
-              executedTxid: null,
-              awaitingApprovers: true,
-            };
-          }
-          // Don't swallow - without this the user sees a "Sent" UX
-          // even though the SOL never moved (balance stays the same
-          // and they think the dashboard is broken). Re-throw with
-          // the proposal address attached so onError can offer a
-          // direct "retry from the proposal page" link.
-          tagExecuteFailure(err, proposal);
-          throw err;
-        }
-        // Solana sends route through the program's `execute_custom`
-        // (chain_kind=0 stays on the local path), so the response
-        // shape is { txid, path, status } - not the broadcast
-        // wrapper EVM uses. Pull txid out so SentStage can link
-        // the user to the actual on-chain transfer.
-        const tid = (executed as { txid?: unknown })?.txid;
-        if (typeof tid === "string" && tid.length > 0) {
-          return { ...submitted, executedTxid: tid };
-        }
-        // execute returned without a txid - backend reached a code
-        // path that didn't broadcast. Same UX risk as the throw
-        // above (user sees "Sent" with no on-chain effect), so
-        // surface it as a failure with the proposal link.
-        const err = new Error(
-          "The final send step finished but didn't return a transaction id. The request is saved - open it from the dashboard to retry.",
-        );
-        tagExecuteFailure(err, proposal);
-        throw err;
-      }
-      // Threshold not met inline (multi-member wallet, threshold > 1).
-      // Proposal is on chain Active; other approvers need to act
-      // before SOL moves. Mark the result so onSuccess shows
-      // "Proposal created" instead of "Sent" - without this, a
-      // multi-member proposer would see Sent UX with no balance
-      // change because the inline execute step never fires.
-      return { ...submitted, executedTxid: null, awaitingApprovers: true };
-    },
+        amount,
+        numericAmount,
+        note,
+        resolved,
+        budgetUsage,
+        setPhase,
+      }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });

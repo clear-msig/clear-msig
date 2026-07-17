@@ -45,19 +45,23 @@ pauses the risk ledger and revokes the agent session atomically.
 
 ## Honest limitations
 
-Settlement is **product-wired but owner-attested**, not trustless. The protected
-Hyperliquid testnet executor closes the recorded filled size, queries the
-closing fills, and returns order ids, fill hashes, closed size, and realized
-P/L. The Next server normalizes and persists that artifact in Redis. The
-frontend reads sequence, oracle commitment, and open exposure from the
-program-owned risk ledger before creating or resuming threshold approval.
+Settlement is **independently venue-reconciled but not cryptographically
+venue-attested**. The protected Hyperliquid testnet executor returns a
+provisional close result. ClearSig separately queries Hyperliquid's testnet
+`orderStatus` and `userFillsByTime` endpoints, requires the closing order to be
+filled, matches account, order, market, side, direction, exact size, P/L,
+transaction hashes, and fill timestamps, then derives canonical evidence from
+those native rows. Only that verified artifact is persisted and admitted to
+the threshold-approved ClearSign settlement.
 
-ClearSign proves that the wallet threshold approved the exact artifact and
-accounting fields. The program does not verify a native Hyperliquid, exchange,
-or independent oracle signature. A compromised adapter cannot alter fields
-after approval, but it can present false source data before owners approve it.
-The executor's own idempotency cache is process-local, so an ambiguous response
-across an executor restart remains a pre-alpha operational risk.
+ClearSign proves that the wallet threshold approved the exact independently
+reconciled artifact and accounting fields. The program does not verify a
+Hyperliquid consensus proof, exchange signature, or independent oracle
+signature. A compromised executor can no longer choose settlement accounting
+that disagrees with Hyperliquid's public API, but compromise or equivocation of
+that API remains in the trust model. The executor's own idempotency cache is
+process-local, so an ambiguous response across an executor restart remains a
+pre-alpha operational risk.
 
 Production use still requires native venue/oracle attestation verification,
 distributed Ika MPC, independent adapter review, monitoring, and an external

@@ -55,7 +55,12 @@ export async function recordAgentServerExecutionSettlement({
   const existing = current.find((item) => item.id === requestId);
   if (!existing) throw new Error("Stored venue execution request was not found.");
   if (existing.settlementArtifact) {
-    return { record: existing, duplicate: true };
+    if (settlementClaimHash(existing.settlementArtifact) !== settlementClaimHash(artifact)) {
+      throw new Error("Verified venue evidence does not match the stored settlement claim.");
+    }
+    if (existing.settlementArtifact.venueEvidence?.evidenceHash === artifact.venueEvidence.evidenceHash) {
+      return { record: existing, duplicate: true };
+    }
   }
   const nextRecord: AgentServerExecutionRecord = {
     ...existing,
@@ -224,6 +229,12 @@ function stableJson(value: unknown): string {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
     .join(",")}}`;
+}
+
+function settlementClaimHash(artifact: HyperliquidTestnetSettlementArtifact): string {
+  const { venueEvidence: _venueEvidence, ...claim } = artifact;
+  void _venueEvidence;
+  return createHash("sha256").update(stableJson(claim)).digest("hex");
 }
 
 function newExecutionRequestId(): string {

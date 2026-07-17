@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::{
     ensure_base58_pubkey, ensure_chain, ensure_non_empty, ensure_non_empty_vec, ensure_wallet_name,
-    ApiError, AppState,
+    resolve_trusted_runtime_value, ApiError, AppState,
 };
 
 mod membership;
@@ -21,6 +21,8 @@ struct HealthResponse {
     execution_mode: &'static str,
     execution_workers: usize,
     destination_receipt_storage: &'static str,
+    ika_signing_assurance: &'static str,
+    ika_distributed_signing: bool,
 }
 
 #[derive(Deserialize)]
@@ -70,6 +72,8 @@ async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, A
         execution_mode: state.runner.execution_mode(),
         execution_workers: state.runner.worker_limit,
         destination_receipt_storage: state.runner.destination_receipt_storage,
+        ika_signing_assurance: state.runner.ika_signing_assurance.label(),
+        ika_distributed_signing: state.runner.ika_signing_assurance.is_distributed(),
     }))
 }
 
@@ -159,20 +163,24 @@ async fn add_wallet_chain(
     ensure_wallet_name(&name, "name")?;
     ensure_chain(&body.chain, "chain")?;
 
-    let dwallet_program = body
-        .dwallet_program
-        .or_else(|| state.runner.default_dwallet_program.clone())
-        .ok_or_else(|| {
-            ApiError::BadRequest(
-                "dwallet_program is required (set in request or CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM)"
-                    .into(),
-            )
-        })?;
+    let dwallet_program = resolve_trusted_runtime_value(
+        body.dwallet_program,
+        state.runner.default_dwallet_program.clone(),
+        "dwallet_program",
+    )?
+    .ok_or_else(|| {
+        ApiError::BadRequest(
+            "dwallet_program is required (set in request or CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM)"
+                .into(),
+        )
+    })?;
     ensure_non_empty(&dwallet_program, "dwallet_program")?;
 
-    let grpc_url = body
-        .grpc_url
-        .or_else(|| state.runner.default_grpc_url.clone());
+    let grpc_url = resolve_trusted_runtime_value(
+        body.grpc_url,
+        state.runner.default_grpc_url.clone(),
+        "grpc_url",
+    )?;
 
     if let Some(grpc_url) = &grpc_url {
         ensure_non_empty(grpc_url, "grpc_url")?;

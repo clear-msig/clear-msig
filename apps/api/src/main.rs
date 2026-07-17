@@ -25,7 +25,7 @@ pub(crate) use state::AppState;
 pub(crate) use validation::{
     current_unix_timestamp, ensure_base58, ensure_base58_pubkey, ensure_chain, ensure_hex,
     ensure_hex_exact_len, ensure_intent_filename, ensure_non_empty, ensure_non_empty_vec,
-    ensure_wallet_name,
+    ensure_wallet_name, resolve_trusted_runtime_value,
 };
 
 use pro::ProStore;
@@ -58,6 +58,8 @@ async fn main() -> anyhow::Result<()> {
         execution_mode = runner.execution_mode(),
         execution_workers = runner.worker_limit,
         destination_receipt_storage = runner.destination_receipt_storage,
+        ika_signing_assurance = runner.ika_signing_assurance.label(),
+        ika_distributed_signing = runner.ika_signing_assurance.is_distributed(),
         pro_store_path = %pro_store_path.display(),
         rate_limit_window_secs,
         rate_limit_max,

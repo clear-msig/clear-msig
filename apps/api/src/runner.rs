@@ -8,6 +8,27 @@ const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 const DEFAULT_WORKER_LIMIT: usize = 8;
 const CANCELLATION_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum IkaSigningAssurance {
+    NotConfigured,
+    PrealphaMock,
+    UnverifiedExternal,
+}
+
+impl IkaSigningAssurance {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::NotConfigured => "not_configured",
+            Self::PrealphaMock => "prealpha_mock",
+            Self::UnverifiedExternal => "unverified_external",
+        }
+    }
+
+    pub(crate) fn is_distributed(self) -> bool {
+        false
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ExecutionRunner {
     execution_globals: clear_msig_execution::config::CliGlobals,
@@ -21,6 +42,7 @@ pub(crate) struct ExecutionRunner {
     pub(crate) default_dwallet_program: Option<String>,
     pub(crate) default_grpc_url: Option<String>,
     pub(crate) default_destination_rpc_url: Option<String>,
+    pub(crate) ika_signing_assurance: IkaSigningAssurance,
 }
 
 impl ExecutionRunner {
@@ -244,6 +266,13 @@ pub(crate) fn build_runner() -> anyhow::Result<ExecutionRunner> {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let ika_signing_assurance = match default_grpc_url.as_deref() {
+        None => IkaSigningAssurance::NotConfigured,
+        Some(url) if url == clear_msig_execution::IKA_PREALPHA_GRPC_URL => {
+            IkaSigningAssurance::PrealphaMock
+        }
+        Some(_) => IkaSigningAssurance::UnverifiedExternal,
+    };
     let (destination_receipt_store, destination_receipt_storage): (
         Arc<dyn clear_msig_execution::DestinationReceiptStore>,
         &'static str,
@@ -272,6 +301,7 @@ pub(crate) fn build_runner() -> anyhow::Result<ExecutionRunner> {
         default_dwallet_program,
         default_grpc_url,
         default_destination_rpc_url,
+        ika_signing_assurance,
     })
 }
 
@@ -299,5 +329,6 @@ mod tests {
         assert!(!runner.program_id.is_empty());
         assert_eq!(runner.execution_mode(), "in_process_cancellable");
         assert_eq!(runner.destination_receipt_storage, "file");
+        assert!(!runner.ika_signing_assurance.is_distributed());
     }
 }

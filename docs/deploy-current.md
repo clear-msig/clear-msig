@@ -7,9 +7,9 @@ This is the current ClearSig production/devnet deployment shape.
 - On-chain program: Solana devnet `clear_wallet`
 - Program id: `53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v`
 - Current upgrade authority: `GpTfW9LiJb8pM2xmi7oENuUiV1e4LurPu9rzcPfhaJCM`
-- Last deployed slot: `476437950`
-- Current artifact SHA-256: `955b4d5bf9ec6e4c406889b8c40bd44688485250f560d2553dff667ce4786c9a`
-- Deployment signature: `2DiWJE8JtciHYJhHbkGkavTwBQsa9rsHESSLiWBtmXVHwSJV3f3wmzWw2ZQt55gBN1HbBEyEwRx7jeiq65A37M8`
+- Last deployed slot: `476880028`
+- Current artifact SHA-256: `7cfab9f1b1555464a026a71a40edd1f5e72062f54e7716eef86dea866d23ba2c`
+- Deployment signature: `5tEEcsTYH3ZyAchJiKor3ZQpyBWsS3TCR5pNNrmGXs5bjTtMxnGZDbKJTT3XDnwuPkbBzvXiX6zh5tXP6YeugKtw`
 - Local authority keypair: `target/deploy/clear_wallet-keypair.json`
 - Devnet RPC: Alchemy devnet
 - Backend: Railway service `clear-msig-backend`
@@ -43,6 +43,9 @@ PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
 DEVNET_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 DEPLOY_TRANSPORT=--use-rpc
 ```
+
+Set `DEPLOY_DRY_RUN=1` to verify the artifact, authority, RPC, live program,
+and temporary rent requirement without submitting an on-chain write.
 
 After deploy:
 
@@ -89,6 +92,11 @@ CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM=<Ika dWallet program>
 CLEAR_MSIG_DEFAULT_GRPC_URL=<Ika gRPC URL>
 CLEAR_MSIG_DEFAULT_DEST_RPC_URL=<destination chain RPC URL>
 ```
+
+`/health` reports `ika_signing_assurance`. The currently deployed Solana Ika
+coordinator is expected to report `prealpha_mock` and
+`ika_distributed_signing=false`. Do not treat infrastructure environment name
+`production` as evidence that distributed MPC is active.
 
 Do not set `BACKEND_API_BIND` or `PORT` manually. Railway provides `PORT`, and
 the entrypoint binds to `0.0.0.0:$PORT`. The container fails closed before

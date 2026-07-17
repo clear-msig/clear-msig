@@ -16,6 +16,7 @@ if [[ "$DEVNET_URL" != https://solana-devnet.g.alchemy.com/v2/* ]]; then
   exit 1
 fi
 DEPLOY_TRANSPORT="${DEPLOY_TRANSPORT:---use-rpc}"
+DEPLOY_DRY_RUN="${DEPLOY_DRY_RUN:-0}"
 TEMP_KEYPAIRS=()
 
 cleanup_temp_keypairs() {
@@ -98,12 +99,37 @@ echo "Program binary: $PROGRAM_SO"
 echo "Program SHA256: $(shasum -a 256 "$PROGRAM_SO" | awk '{print $1}')"
 echo "Payer: $(solana address -k "$PAYER_KEYPAIR")"
 echo "Upgrade authority: $(solana address -k "$UPGRADE_AUTHORITY")"
-echo "Devnet RPC: $DEVNET_URL"
+echo "Devnet RPC: https://solana-devnet.g.alchemy.com/v2/***"
 echo "Deploy transport: $DEPLOY_TRANSPORT"
 echo
 echo "Current deployed program:"
-solana program show "$PROGRAM_ID" --url "$DEVNET_URL" --keypair "$PAYER_KEYPAIR" || true
+CURRENT_PROGRAM="$(solana program show "$PROGRAM_ID" --url "$DEVNET_URL" --keypair "$PAYER_KEYPAIR")"
+printf '%s\n' "$CURRENT_PROGRAM"
+
+if [[ "$INITIAL_DEPLOY" != "1" ]]; then
+  ARTIFACT_SIZE="$(wc -c < "$PROGRAM_SO" | tr -d ' ')"
+  CURRENT_DATA_LEN="$(printf '%s\n' "$CURRENT_PROGRAM" | awk '/Data Length:/ {print $3}')"
+  BUFFER_RENT="$(solana rent "$ARTIFACT_SIZE" --url "$DEVNET_URL" | awk '/Rent-exempt minimum:/ {print $3}')"
+  CURRENT_PROGRAM_RENT="$(solana rent "$CURRENT_DATA_LEN" --url "$DEVNET_URL" | awk '/Rent-exempt minimum:/ {print $3}')"
+  TARGET_PROGRAM_RENT="$(solana rent "$ARTIFACT_SIZE" --url "$DEVNET_URL" | awk '/Rent-exempt minimum:/ {print $3}')"
+  PAYER_BALANCE="$(solana balance "$PAYER_KEYPAIR" --url "$DEVNET_URL" | awk '{print $1}')"
+  REQUIRED_BALANCE="$(awk -v buffer="$BUFFER_RENT" -v current="$CURRENT_PROGRAM_RENT" -v target="$TARGET_PROGRAM_RENT" 'BEGIN {
+    extension = target > current ? target - current : 0;
+    printf "%.9f", buffer + extension + 0.02;
+  }')"
+  if ! awk -v balance="$PAYER_BALANCE" -v required="$REQUIRED_BALANCE" 'BEGIN { exit !(balance >= required) }'; then
+    echo
+    echo "Insufficient temporary deploy balance: ${PAYER_BALANCE} SOL available, ${REQUIRED_BALANCE} SOL required."
+    echo "The requirement includes upload-buffer rent, program-data extension rent, and a fee cushion."
+    exit 1
+  fi
+  echo "Deploy balance preflight: ${PAYER_BALANCE} SOL available, ${REQUIRED_BALANCE} SOL required"
+fi
 echo
+if [[ "$DEPLOY_DRY_RUN" == "1" ]]; then
+  echo "Deploy dry run passed; no on-chain write was submitted."
+  exit 0
+fi
 echo "Deploying upgrade to devnet..."
 solana program deploy "$PROGRAM_SO" \
   --url "$DEVNET_URL" \

@@ -58,7 +58,10 @@ describe("transaction review contract", () => {
   });
 
   it("does not call created approval requests sent", () => {
-    const batch = source("src/features/send/routes/BatchSendPage.tsx");
+    const batch = sources([
+      "src/features/send/routes/BatchSendPage.tsx",
+      "src/features/send/ui/batch/BatchDoneStage.tsx",
+    ]);
     expect(batch).toContain("Requests created");
     expect(batch).toContain("of {progress.total} created");
     expect(batch).not.toContain("of {progress.total} sent");

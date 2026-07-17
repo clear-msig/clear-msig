@@ -17,7 +17,9 @@ describe("supported send signing matrix", () => {
   it.each(SEND_ASSET_VERIFICATIONS)(
     "$id route binds readable review, typed proposal, and the expected executor",
     (asset) => {
-      const source = readFileSync(resolve(process.cwd(), asset.routeSource), "utf8");
+      const source = [asset.routeSource, ...(asset.contractSources ?? [])]
+        .map((path) => readFileSync(resolve(process.cwd(), path), "utf8"))
+        .join("\n");
       expect(source).toContain("prepareClearSignV4Action");
       expect(source).toContain("prepare.createTypedProposal");
       expect(source).toContain("expectedTyped:");

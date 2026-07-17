@@ -1,6 +1,6 @@
 use crate::{
     ensure_base58, ensure_hex, ensure_hex_exact_len, ensure_intent_filename, ensure_wallet_name,
-    ApiError,
+    resolve_trusted_runtime_value, ApiError,
 };
 use clear_msig_command_contract::{LamportPayment, TypedProposalExecution};
 
@@ -205,14 +205,16 @@ pub(super) fn execute_typed_chain_send(
         })?;
         ensure_hex(&params_data_hex, "paramsDataHex")?;
         ensure_max_value_bytes(&params_data_hex, "paramsDataHex")?;
-        let dwallet_program = body
-            .dwallet_program
-            .or(default_dwallet_program)
-            .ok_or_else(|| {
-                ApiError::BadRequest("dwalletProgram is required for typed Ika chain send".into())
-            })?;
+        let dwallet_program = resolve_trusted_runtime_value(
+            body.dwallet_program,
+            default_dwallet_program,
+            "dwalletProgram",
+        )?
+        .ok_or_else(|| {
+            ApiError::BadRequest("dwalletProgram is required for typed Ika chain send".into())
+        })?;
         ensure_bounded_text(&dwallet_program, "dwalletProgram")?;
-        let grpc_url = body.grpc_url.or(default_grpc_url);
+        let grpc_url = resolve_trusted_runtime_value(body.grpc_url, default_grpc_url, "grpcUrl")?;
         if let Some(grpc_url) = &grpc_url {
             ensure_bounded_text(grpc_url, "grpcUrl")?;
         }
@@ -692,6 +694,29 @@ mod tests {
                 broadcast: true,
             }
         );
+    }
+
+    #[test]
+    fn typed_chain_send_rejects_browser_ika_endpoint_substitution() {
+        let error = bad_request_message(execute_typed_chain_send(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedChainSendRequest {
+                chain_kind: 1,
+                amount_raw: "1000".into(),
+                recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                params_data_hex: Some("01020304".into()),
+                dwallet_program: Some("11111111111111111111111111111111".into()),
+                grpc_url: Some("https://attacker.example".into()),
+                rpc_url: None,
+                broadcast: Some(false),
+            },
+            Some(VALID_PUBKEY.into()),
+            Some("https://ika.example".into()),
+            Some("https://rpc.example".into()),
+        ));
+        assert!(error.contains("trusted backend"));
     }
 
     #[test]

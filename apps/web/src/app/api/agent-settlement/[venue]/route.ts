@@ -9,7 +9,10 @@ import {
   recordAgentServerExecutionSettlement,
   recordAgentServerExecutionSettlementProof,
 } from "@/lib/agents/serverExecutionRequests";
-import { submitHyperliquidTestnetSettlement } from "@/lib/agents/serverHyperliquidTestnet";
+import {
+  submitHyperliquidTestnetSettlement,
+  verifyHyperliquidTestnetSettlementArtifact,
+} from "@/lib/agents/serverHyperliquidTestnet";
 import { fetchAgentRiskLedger } from "@/lib/agents/agentRiskLedger";
 import { decimalToAgentUsdRaw } from "@/lib/agents/agentClearSignEncoding";
 import {
@@ -126,16 +129,43 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!record.artifactHash || hashAgentServerExecutionArtifact(record.artifact) !== record.artifactHash) {
     return NextResponse.json({ error: "Stored opening artifact failed its integrity check." }, { status: 409 });
   }
+  const configured = readHyperliquidTestnetExecutorConfig();
+  if (!configured.config) {
+    return NextResponse.json(
+      { error: "Hyperliquid testnet executor configuration is invalid.", details: configured.errors },
+      { status: 503 },
+    );
+  }
   if (record.settlementArtifact && record.settlementArtifactHash) {
     if (hashAgentServerExecutionArtifact(record.settlementArtifact) !== record.settlementArtifactHash) {
       return NextResponse.json({ error: "Stored settlement artifact failed its integrity check." }, { status: 409 });
     }
-    return NextResponse.json({
-      ok: true,
-      duplicate: true,
-      serverRequest: record,
-      settlement: settlementInput(record, record.settlementArtifactHash),
-    });
+    try {
+      const artifact = await verifyHyperliquidTestnetSettlementArtifact({
+        claim: record.settlementArtifact,
+        serverRequestId: record.id,
+        request: record.request,
+        openingArtifact: record.artifact,
+        config: configured.config,
+      });
+      const saved = await recordAgentServerExecutionSettlement({
+        walletName,
+        agentId,
+        requestId,
+        artifact,
+      });
+      return NextResponse.json({
+        ok: true,
+        duplicate: true,
+        serverRequest: saved.record,
+        settlement: settlementInput(saved.record, saved.record.settlementArtifactHash!),
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Stored settlement lacks verified venue evidence." },
+        { status: 409 },
+      );
+    }
   }
 
   const state = await getAgentServerWalletState(walletName);
@@ -175,13 +205,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const configured = readHyperliquidTestnetExecutorConfig();
-  if (!configured.config) {
-    return NextResponse.json(
-      { error: "Hyperliquid testnet executor configuration is invalid.", details: configured.errors },
-      { status: 503 },
-    );
-  }
   try {
     const artifact = await submitHyperliquidTestnetSettlement({
       serverRequestId: record.id,

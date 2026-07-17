@@ -193,6 +193,17 @@ describe("server execution request ledger", () => {
       realizedPnlUsd: "-1.25",
       fillHashes: ["0xabc"],
       settledAt: 1_780_000_001_000,
+      venueEvidence: {
+        version: 1 as const,
+        source: "hyperliquid_info_api" as const,
+        network: "testnet" as const,
+        accountAddress: "0x1111111111111111111111111111111111111111",
+        orderId: "456",
+        orderStatus: "filled" as const,
+        orderStatusTimestamp: 1_780_000_001_000,
+        fills: [],
+        evidenceHash: "11".repeat(32),
+      },
     };
     const first = await recordAgentServerExecutionSettlement({
       walletName: "vault-settlement",
@@ -204,10 +215,16 @@ describe("server execution request ledger", () => {
       walletName: "vault-settlement",
       agentId: request.agentId,
       requestId: submitted.record.id,
-      artifact: { ...artifact, realizedPnlUsd: "999" },
+      artifact,
     });
     expect(first.record.settlementArtifactHash).toMatch(/^[a-f0-9]{64}$/);
     expect(duplicate.duplicate).toBe(true);
     expect(duplicate.record.settlementArtifact?.realizedPnlUsd).toBe("-1.25");
+    await expect(recordAgentServerExecutionSettlement({
+      walletName: "vault-settlement",
+      agentId: request.agentId,
+      requestId: submitted.record.id,
+      artifact: { ...artifact, realizedPnlUsd: "999" },
+    })).rejects.toThrow(/does not match the stored settlement claim/);
   });
 });

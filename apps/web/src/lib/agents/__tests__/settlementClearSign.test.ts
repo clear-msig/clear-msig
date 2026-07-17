@@ -33,8 +33,19 @@ const settlement = {
     closedSize: "0.0037",
     reservedNotionalUsd: "250",
     realizedPnlUsd: "-1.250001",
-    fillHashes: ["0xabc"],
+    fillHashes: [`0x${"ab".repeat(32)}`],
     settledAt: 1_800_000_000_000,
+    venueEvidence: {
+      version: 1 as const,
+      source: "hyperliquid_info_api" as const,
+      network: "testnet" as const,
+      accountAddress: "0x1111111111111111111111111111111111111111",
+      orderId: "2",
+      orderStatus: "filled" as const,
+      orderStatusTimestamp: 1_800_000_000_000,
+      fills: [],
+      evidenceHash: "55".repeat(32),
+    },
   },
 };
 
