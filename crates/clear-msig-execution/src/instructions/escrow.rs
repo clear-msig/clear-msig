@@ -2,6 +2,7 @@ use super::*;
 
 /// Build execute_typed_escrow_release instruction (typed proposal discriminator 12).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn execute_typed_escrow_release(
     wallet: Pubkey,
     vault: Pubkey,
@@ -38,6 +39,7 @@ pub fn execute_typed_escrow_release(
 
 /// Build execute_typed_spl_escrow_release instruction (typed proposal discriminator 17).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn execute_typed_spl_escrow_release(
     wallet: Pubkey,
     vault: Pubkey,
@@ -80,6 +82,7 @@ pub fn execute_typed_spl_escrow_release(
 
 /// Build execute_typed_spl_escrow_return instruction (typed proposal discriminator 18).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn execute_typed_spl_escrow_return(
     wallet: Pubkey,
     vault: Pubkey,
@@ -216,7 +219,6 @@ pub fn execute_typed_cross_chain_escrow_return(
 /// Build execute_typed_private_escrow_release instruction (typed proposal discriminator 21).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
-
 pub fn execute_typed_private_escrow_release(
     wallet: Pubkey,
     intent: Pubkey,
@@ -300,6 +302,7 @@ pub fn execute_typed_private_escrow_return(
 
 /// Build execute_typed_escrow_return instruction (typed proposal discriminator 13).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn execute_typed_escrow_return(
     wallet: Pubkey,
     vault: Pubkey,

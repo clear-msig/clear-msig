@@ -158,7 +158,7 @@ pub(super) fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<(
             if amount_raw == 0 {
                 return Err(anyhow!("amount-raw must be greater than zero"));
             }
-            if !matches!(chain_kind, 1 | 2 | 3 | 4 | 5) {
+            if !matches!(chain_kind, 1..=5) {
                 return Err(anyhow!(
                     "typed-chain-send-ika currently supports chain kinds 1 through 5"
                 ));

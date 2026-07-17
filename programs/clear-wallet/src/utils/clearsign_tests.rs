@@ -135,7 +135,7 @@ fn v3_document_validation_is_strict_and_ordered() {
         CLEARSIGN_V3_FULL_PROFILE,
         CLEARSIGN_V3_LEDGER_PROFILE,
     );
-    oversized_compact.extend(core::iter::repeat(b'x').take(700));
+    oversized_compact.extend(core::iter::repeat_n(b'x', 700));
     assert!(oversized_compact.len() > MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES);
     assert_eq!(
         validate_v3_document(&oversized_compact),
@@ -240,7 +240,10 @@ fn compact_v4_classification_rejects_oversize_or_duplicate_protocol_markers() {
     let oversized = V4_COMPACT_SEND_DOCUMENT
         .iter()
         .copied()
-        .chain(core::iter::repeat(b'x').take(MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES))
+        .chain(core::iter::repeat_n(
+            b'x',
+            MAX_CLEARSIGN_LEDGER_DOCUMENT_BYTES,
+        ))
         .collect::<Vec<_>>();
     assert!(!is_v4_document(&oversized));
 }

@@ -460,7 +460,7 @@ pub mod clear_wallet {
                 current_policy_commitment,
                 envelope_hash,
                 chain_kind,
-                new_policy_bytes: new_policy_bytes.as_ref(),
+                new_policy_bytes,
             },
             &ctx.bumps,
         )
@@ -565,7 +565,7 @@ pub mod clear_wallet {
             proposal_index,
             ProposeTypedV4Args {
                 signature: &signature,
-                policy_bytes: policy_bytes.as_ref(),
+                policy_bytes,
                 canonical_intent,
             },
             &ctx.bumps,

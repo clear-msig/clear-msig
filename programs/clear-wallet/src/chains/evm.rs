@@ -259,7 +259,7 @@ fn push_slice(buf: &mut [u8], len: &mut usize, data: &[u8]) -> Result<(), Progra
 }
 
 /// Writes minimal big-endian length bytes into `buf`, returning the populated slice.
-fn encode_len_be<'a>(len: usize, buf: &'a mut [u8; 8]) -> &'a [u8] {
+fn encode_len_be(len: usize, buf: &mut [u8; 8]) -> &[u8] {
     let bytes = (len as u64).to_be_bytes();
     let leading = bytes.iter().take_while(|&&b| b == 0).count();
     let kept_len = 8 - leading;

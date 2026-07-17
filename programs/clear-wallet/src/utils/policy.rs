@@ -77,6 +77,7 @@ pub fn enforce_wallet_policy_account(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn enforce_typed_sol_send_policy(
     policy_bytes: &[u8],
     committed_policy_hash: [u8; 32],
@@ -103,6 +104,7 @@ pub fn enforce_typed_sol_send_policy(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn enforce_typed_remote_send_policy(
     policy_bytes: &[u8],
     committed_policy_hash: [u8; 32],
@@ -629,7 +631,7 @@ fn intent_pda(intent: &Intent<'_>) -> Address {
 }
 
 fn bytes_to_keys(bytes: &[u8]) -> Result<&[[u8; 32]], ProgramError> {
-    require!(bytes.len() % 32 == 0, WalletError::InvalidPolicy);
+    require!(bytes.len().is_multiple_of(32), WalletError::InvalidPolicy);
     Ok(unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const [u8; 32], bytes.len() / 32) })
 }
 
@@ -747,7 +749,7 @@ fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions<'_>, ProgramError> 
             }
             EXT_MEMBER_ALLOWANCE => {
                 require!(
-                    len > 0 && len % EXT_MEMBER_ALLOWANCE_ENTRY_LEN == 0,
+                    len > 0 && len.is_multiple_of(EXT_MEMBER_ALLOWANCE_ENTRY_LEN),
                     WalletError::InvalidPolicy
                 );
                 let count = len / EXT_MEMBER_ALLOWANCE_ENTRY_LEN;

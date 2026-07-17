@@ -206,7 +206,7 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
             ProgramError::InvalidInstructionData
         );
         require!(
-            args.amount_tokens_le.len() % 8 == 0,
+            args.amount_tokens_le.len().is_multiple_of(8),
             ProgramError::InvalidInstructionData
         );
         let return_count = args.amount_tokens_le.len() / 8;
@@ -245,7 +245,11 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
         let mut funders: [MaybeUninit<AccountView>; 16] =
             unsafe { MaybeUninit::uninit().assume_init() };
         let mut remaining_iter = remaining.iter();
-        for index in 0..return_count {
+        for (destination_slot, funder_slot) in destinations
+            .iter_mut()
+            .zip(funders.iter_mut())
+            .take(return_count)
+        {
             let destination = remaining_iter
                 .next()
                 .ok_or(ProgramError::NotEnoughAccountKeys)??;
@@ -271,8 +275,8 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
                 token_account_state(&destination)? == TOKEN_ACCOUNT_STATE_INITIALIZED,
                 ProgramError::UninitializedAccount
             );
-            destinations[index].write(destination);
-            funders[index].write(funder);
+            destination_slot.write(destination);
+            funder_slot.write(funder);
         }
         require!(
             remaining_iter.next().is_none(),
@@ -309,8 +313,8 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
         let vault_seeds = self.vault_seeds(bumps);
         let source = self.source_token.to_account_view();
         let authority = self.vault.to_account_view();
-        for index in 0..return_count {
-            let destination = unsafe { destinations[index].assume_init_ref() };
+        for (index, destination) in destinations.iter().enumerate().take(return_count) {
+            let destination = unsafe { destination.assume_init_ref() };
             transfer_tokens_view(
                 self.token_program,
                 source,

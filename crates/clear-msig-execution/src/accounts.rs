@@ -455,7 +455,7 @@ pub fn zcash_transparent_address(compressed: &[u8], mainnet: bool) -> Result<Str
     payload.extend_from_slice(&h160);
     // Double-SHA256 checksum
     let hash1 = Sha256::digest(&payload);
-    let hash2 = Sha256::digest(&hash1);
+    let hash2 = Sha256::digest(hash1);
     payload.extend_from_slice(&hash2[..4]);
     Ok(bs58::encode(&payload).into_string())
 }
@@ -469,6 +469,7 @@ fn _bech32_unused() {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 

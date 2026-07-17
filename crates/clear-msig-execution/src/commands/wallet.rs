@@ -127,7 +127,7 @@ fn chain_kind_name(k: u8) -> &'static str {
 
 fn parse_hex(s: &str) -> Result<Vec<u8>> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(anyhow!("hex string has odd length"));
     }
     (0..s.len() / 2)

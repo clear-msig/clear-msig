@@ -1,7 +1,6 @@
 // =========================================================================
 // Message builders (must match on-chain format exactly)
 // =========================================================================
-
 fn add_intent_msg(
     action: &str,
     expiry: i64,
@@ -243,6 +242,7 @@ fn build_propose_typed_v4_ix(args: TypedProposalV4Args) -> Instruction {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn submit_typed_v4_proposal(
     svm: &mut QuasarSvm,
     payer: Pubkey,
@@ -303,6 +303,7 @@ fn submit_typed_v4_proposal(
     (proposal, canonical.common.policy_commitment, envelope_hash)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_escrow_release_ix(
     wallet: Pubkey,
     intent: Pubkey,
@@ -336,6 +337,7 @@ fn build_execute_typed_escrow_release_ix(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_spl_escrow_release_ix(
     wallet: Pubkey,
     intent: Pubkey,
@@ -375,6 +377,7 @@ fn build_execute_typed_spl_escrow_release_ix(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_spl_escrow_return_ix(
     wallet: Pubkey,
     intent: Pubkey,
@@ -411,6 +414,7 @@ fn build_execute_typed_spl_escrow_return_ix(
         data,
     }
 }
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_cross_chain_escrow_release_ix(
     wallet: Pubkey,
     intent: Pubkey,

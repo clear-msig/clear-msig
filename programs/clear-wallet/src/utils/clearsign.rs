@@ -296,6 +296,7 @@ pub fn hash_clear_text(clear_text: &[u8]) -> Result<[u8; 32], ClearSignError> {
 
 pub const MAX_CLEARSIGN_TEXT_BYTES: usize = 2048;
 
+#[allow(clippy::too_many_arguments)]
 pub fn extract_clear_text_from_vote_message<'a>(
     vote_kind: ClearSignVoteKind,
     wallet_name: &[u8],
@@ -394,6 +395,7 @@ pub fn extract_clear_text_from_vote_message<'a>(
     Ok(cursor)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn write_vote_message_for_clear_text(
     out: &mut [u8],
     vote_kind: ClearSignVoteKind,
@@ -723,6 +725,7 @@ where
     finish_hash(hasher)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn hash_cross_chain_escrow_release_payload(
     escrow_id: &[u8],
     milestone_id: &[u8],
@@ -748,6 +751,7 @@ pub fn hash_cross_chain_escrow_release_payload(
     finish_hash(hasher)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn hash_cross_chain_escrow_return_payload(
     escrow_id: &[u8],
     chain_kind: u8,
@@ -822,6 +826,7 @@ pub fn hash_agent_trade_payload(
 }
 
 /// Bound agent session grant: session id, agent, venue/market, notional, leverage, expiry.
+#[allow(clippy::too_many_arguments)]
 pub fn hash_agent_session_grant_payload(
     session_id_hash: &[u8; 32],
     agent_id_hash: &[u8; 32],

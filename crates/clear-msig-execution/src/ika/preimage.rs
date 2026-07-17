@@ -421,7 +421,6 @@ pub(crate) fn read_param_raw<'a>(
     params_data
         .get(off..off + size)
         .ok_or(anyhow!("param slice OOB"))
-        .map(|s| s)
 }
 
 pub(crate) fn read_param_u64(intent: &IntentAccount, params_data: &[u8], idx: u8) -> Result<u64> {

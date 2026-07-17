@@ -135,7 +135,7 @@ impl<'info> ExecuteTypedEscrowReturn<'info> {
             ProgramError::InvalidInstructionData
         );
         require!(
-            args.amount_lamports_le.len() % 8 == 0,
+            args.amount_lamports_le.len().is_multiple_of(8),
             ProgramError::InvalidInstructionData
         );
         let return_count = args.amount_lamports_le.len() / 8;
@@ -145,11 +145,11 @@ impl<'info> ExecuteTypedEscrowReturn<'info> {
         let mut funders: [MaybeUninit<AccountView>; 16] =
             unsafe { MaybeUninit::uninit().assume_init() };
         let mut remaining_iter = remaining.iter();
-        for index in 0..return_count {
+        for funder in funders.iter_mut().take(return_count) {
             let account = remaining_iter
                 .next()
                 .ok_or(ProgramError::NotEnoughAccountKeys)??;
-            funders[index].write(account);
+            funder.write(account);
         }
         require!(
             remaining_iter.next().is_none(),
@@ -177,8 +177,8 @@ impl<'info> ExecuteTypedEscrowReturn<'info> {
 
         let vault = self.vault.to_account_view();
         let vault_seeds = self.vault_seeds(bumps);
-        for index in 0..return_count {
-            let funder = unsafe { funders[index].assume_init_ref() };
+        for (index, funder) in funders.iter().enumerate().take(return_count) {
+            let funder = unsafe { funder.assume_init_ref() };
             transfer_lamports(
                 vault,
                 funder,

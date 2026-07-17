@@ -63,6 +63,7 @@ fn propose_typed_agent_session(
     (proposal, envelope_hash)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn propose_typed_agent_risk_policy(
     svm: &mut QuasarSvm,
     payer: Pubkey,
@@ -207,6 +208,7 @@ fn propose_typed_agent_settlement(
     (proposal, envelope_hash)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn propose_typed_wallet_policy_update_on_wallet(
     svm: &mut QuasarSvm,
     payer: Pubkey,

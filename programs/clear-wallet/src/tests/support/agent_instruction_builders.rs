@@ -172,6 +172,7 @@ fn build_execute_typed_agent_trade_settlement_ix(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn active_agent_session_account(
     wallet: Pubkey,
     session_id_hash: [u8; 32],
@@ -254,6 +255,7 @@ fn active_agent_risk_account(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_escrow_return_ix(
     wallet: Pubkey,
     intent: Pubkey,
@@ -287,6 +289,7 @@ fn build_execute_typed_escrow_return_ix(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_sol_send_ix(
     payer: Pubkey,
     wallet: Pubkey,
@@ -346,6 +349,7 @@ fn empty_wallet_policy_account(wallet: Pubkey) -> Account {
     empty_account(wallet_policy)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_wallet_policy_update_ix(
     payer: Pubkey,
     wallet: Pubkey,
@@ -377,6 +381,7 @@ fn build_execute_typed_wallet_policy_update_ix(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_execute_typed_sol_batch_send_ix(
     payer: Pubkey,
     wallet: Pubkey,

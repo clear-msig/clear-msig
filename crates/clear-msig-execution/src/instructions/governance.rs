@@ -2,6 +2,7 @@ use super::*;
 
 /// Build execute_typed_wallet_policy_update instruction (typed proposal discriminator 26).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn execute_typed_wallet_policy_update(
     payer: Pubkey,
     wallet: Pubkey,
@@ -41,6 +42,7 @@ pub fn execute_typed_wallet_policy_update(
 
 /// Build execute_typed_intent_governance instruction (typed proposal discriminator 27).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn execute_typed_intent_governance(
     payer: Pubkey,
     wallet: Pubkey,

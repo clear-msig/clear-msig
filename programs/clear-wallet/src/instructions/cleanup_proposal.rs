@@ -49,7 +49,7 @@ pub struct CleanupTypedProposal<'info> {
             @ WalletError::ProposalNotFinalized,
         constraint = typed_proposal_cleanup_allowed(
             proposal.action_kind,
-            proposal.policy_bytes().as_ref()
+            proposal.policy_bytes()
         ) @ WalletError::InvalidPolicy
     )]
     pub proposal: Account<TypedProposal<'info>>,

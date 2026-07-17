@@ -367,18 +367,12 @@ impl<'info> ApproveTyped<'info> {
         let action_id = self.proposal.action_id();
         let nonce = self.proposal.nonce();
         let clear_text = self.proposal.clear_text();
-        let envelope = stored_envelope(
-            &self.wallet,
-            &self.proposal,
-            action_id.as_ref(),
-            nonce.as_ref(),
-            clear_text.as_ref(),
-        )?;
+        let envelope = stored_envelope(&self.wallet, &self.proposal, action_id, nonce, clear_text)?;
 
         verify_typed_signature(
             ClearSignVoteKind::Approve,
             &envelope,
-            clear_text.as_ref(),
+            clear_text,
             self.intent.approval_threshold,
             self.proposal.approval_count().saturating_add(1),
             self.proposal.proposal_index.get(),
@@ -417,18 +411,12 @@ impl<'info> CancelTyped<'info> {
         let action_id = self.proposal.action_id();
         let nonce = self.proposal.nonce();
         let clear_text = self.proposal.clear_text();
-        let envelope = stored_envelope(
-            &self.wallet,
-            &self.proposal,
-            action_id.as_ref(),
-            nonce.as_ref(),
-            clear_text.as_ref(),
-        )?;
+        let envelope = stored_envelope(&self.wallet, &self.proposal, action_id, nonce, clear_text)?;
 
         verify_typed_signature(
             ClearSignVoteKind::Cancel,
             &envelope,
-            clear_text.as_ref(),
+            clear_text,
             self.intent.cancellation_threshold,
             self.proposal.cancellation_count().saturating_add(1),
             self.proposal.proposal_index.get(),
@@ -510,6 +498,7 @@ pub(crate) fn mark_typed_executed(intent: &mut Intent<'_>, proposal: &mut TypedP
     intent.active_proposal_count = intent.active_proposal_count.saturating_sub(1);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn verify_typed_signature(
     vote_kind: ClearSignVoteKind,
     envelope: &ClearSignEnvelope<'_>,

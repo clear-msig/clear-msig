@@ -70,6 +70,7 @@ fn sign_typed_vote_with_approval(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn sign_typed_vote_for_text(
     key: &ed25519_dalek::SigningKey,
     vote_kind: ClearSignVoteKind,
@@ -263,6 +264,7 @@ fn typed_hash_policy_bytes(
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 fn propose_typed_sol_send_with_policy(
     svm: &mut QuasarSvm,
     payer: Pubkey,
@@ -307,6 +309,7 @@ fn propose_typed_sol_send_with_policy(
     (wallet, intent, proposal, policy_commitment, envelope_hash)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn propose_typed_sol_send_on_wallet(
     svm: &mut QuasarSvm,
     payer: Pubkey,

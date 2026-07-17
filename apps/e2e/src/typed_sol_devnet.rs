@@ -399,6 +399,7 @@ fn verify_executed(client: &RpcClient, proposal: &Pubkey) -> anyhow::Result<()> 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_create_wallet_ix(
     payer: Pubkey,
     wallet_name: &[u8],
@@ -515,6 +516,7 @@ fn build_propose_typed_ix(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn typed_vote_message(
     vote_kind: ClearSignVoteKind,
     wallet_name: &str,

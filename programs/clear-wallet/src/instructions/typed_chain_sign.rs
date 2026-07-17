@@ -180,18 +180,18 @@ impl<'info> IkaSignTypedChainSend<'info> {
             self.wallet_policy,
             args.chain_kind,
             args.policy_commitment,
-            self.proposal.policy_bytes().as_ref(),
+            self.proposal.policy_bytes(),
         )?;
         enforce_typed_remote_send_policy(
-            self.proposal.policy_bytes().as_ref(),
+            self.proposal.policy_bytes(),
             args.policy_commitment,
             &args.recipient_hash,
             amount_raw,
             &self.intent,
             &self.proposal,
-            &mut self.policy_spend,
+            self.policy_spend,
             bumps.policy_spend,
-            &mut self.member_allowance,
+            self.member_allowance,
             bumps.member_allowance,
         )?;
 
@@ -461,6 +461,7 @@ fn pkh_text_commitment(prefix: &[u8], pkh: &[u8; 20]) -> [u8; 32] {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 

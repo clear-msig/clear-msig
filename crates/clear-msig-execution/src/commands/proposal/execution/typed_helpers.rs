@@ -2,7 +2,7 @@ use super::*;
 
 pub(in crate::commands::proposal) fn parse_hex_local(s: &str) -> Result<Vec<u8>> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(anyhow!("hex string has odd length"));
     }
     (0..s.len() / 2)
@@ -26,12 +26,13 @@ pub(in crate::commands::proposal) fn ensure_typed_text(value: &str, field: &str)
     if value.trim().is_empty() {
         return Err(anyhow!("{field} must not be empty"));
     }
-    if value.as_bytes().len() > 128 {
+    if value.len() > 128 {
         return Err(anyhow!("{field} must be 128 bytes or fewer"));
     }
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(in crate::commands::proposal) fn typed_vote_message(
     vote_kind: ClearSignVoteKind,
     wallet_name: &str,

@@ -143,22 +143,22 @@ impl<'info> ExecuteTypedSolSend<'info> {
             self.wallet_policy,
             0,
             args.policy_commitment,
-            self.proposal.policy_bytes().as_ref(),
+            self.proposal.policy_bytes(),
         )?;
         let recipient_bytes = self.recipient.address().as_ref();
         let recipient_key: &[u8; 32] = recipient_bytes
             .try_into()
             .map_err(|_| WalletError::InvalidPolicy)?;
         enforce_typed_sol_send_policy(
-            self.proposal.policy_bytes().as_ref(),
+            self.proposal.policy_bytes(),
             args.policy_commitment,
             recipient_key,
             args.amount_lamports,
             &self.intent,
             &self.proposal,
-            &mut self.policy_spend,
+            self.policy_spend,
             bumps.policy_spend,
-            &mut self.member_allowance,
+            self.member_allowance,
             bumps.member_allowance,
         )?;
         let vault_seeds = self.vault_seeds(bumps);
@@ -186,7 +186,7 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
             ProgramError::InvalidInstructionData
         );
         require!(
-            args.amount_lamports_le.len() % 8 == 0,
+            args.amount_lamports_le.len().is_multiple_of(8),
             ProgramError::InvalidInstructionData
         );
         let recipient_count = args.amount_lamports_le.len() / 8;
@@ -195,11 +195,11 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
 
         let mut recipient_keys = [[0u8; 32]; 16];
         let mut remaining_iter = remaining.iter();
-        for index in 0..recipient_count {
+        for recipient_key in recipient_keys.iter_mut().take(recipient_count) {
             let account = remaining_iter
                 .next()
                 .ok_or(ProgramError::NotEnoughAccountKeys)??;
-            recipient_keys[index].copy_from_slice(account.address().as_ref());
+            recipient_key.copy_from_slice(account.address().as_ref());
         }
         require!(
             remaining_iter.next().is_none(),
@@ -225,20 +225,20 @@ impl<'info> ExecuteTypedSolBatchSend<'info> {
             self.wallet_policy,
             0,
             args.policy_commitment,
-            self.proposal.policy_bytes().as_ref(),
+            self.proposal.policy_bytes(),
         )?;
 
-        for index in 0..recipient_count {
+        for (index, recipient_key) in recipient_keys.iter().enumerate().take(recipient_count) {
             enforce_typed_sol_send_policy(
-                self.proposal.policy_bytes().as_ref(),
+                self.proposal.policy_bytes(),
                 args.policy_commitment,
-                &recipient_keys[index],
+                recipient_key,
                 read_amount(args.amount_lamports_le, index),
                 &self.intent,
                 &self.proposal,
-                &mut self.policy_spend,
+                self.policy_spend,
                 bumps.policy_spend,
-                &mut self.member_allowance,
+                self.member_allowance,
                 bumps.member_allowance,
             )?;
         }

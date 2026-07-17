@@ -84,7 +84,7 @@ impl<'info> ExecuteTypedIntentGovernance<'info> {
         );
         require!(
             governance_payload_matches(
-                self.proposal.policy_bytes().as_ref(),
+                self.proposal.policy_bytes(),
                 args.target_intent_index,
                 args.new_intent_body,
             ),
@@ -268,17 +268,17 @@ fn read_address_vec(
             .map_err(|_| ProgramError::InvalidInstructionData)?,
     ) as usize;
     require!(
-        count >= 1 && count <= MAX_GOVERNANCE_MEMBERS,
+        (1..=MAX_GOVERNANCE_MEMBERS).contains(&count),
         ProgramError::InvalidInstructionData
     );
     let mut next = offset + 4;
     let mut out = [[0u8; 32]; MAX_GOVERNANCE_MEMBERS];
-    for i in 0..count {
+    for item in out.iter_mut().take(count) {
         require!(
             next + 32 <= body.len(),
             ProgramError::InvalidInstructionData
         );
-        out[i].copy_from_slice(&body[next..next + 32]);
+        item.copy_from_slice(&body[next..next + 32]);
         next += 32;
     }
     Ok((out, count, next))

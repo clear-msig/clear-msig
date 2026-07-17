@@ -2,6 +2,7 @@ use super::*;
 
 /// Build execute_typed_sol_send instruction (typed proposal discriminator 14).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn execute_typed_sol_send(
     payer: Pubkey,
     wallet: Pubkey,
@@ -42,6 +43,7 @@ pub fn execute_typed_sol_send(
 
 /// Build execute_typed_sol_batch_send instruction (typed proposal discriminator 15).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn execute_typed_sol_batch_send(
     payer: Pubkey,
     wallet: Pubkey,
