@@ -27,7 +27,7 @@ clear-msig-signing = { path = "../../crates/clear-msig-signing", default-feature
 clear-wallet-client = { path = "client" }
 solana-address = { version = "2.2.0", features = ["curve25519"] }
 wincode = { version = "0.4", features = ["derive", "std"] }
-quasar-svm = { git = "https://github.com/blueshift-gg/quasar-svm", rev = "cf3c06a08a9009631d42d7942a574da1eac6104d" }
+quasar-svm = { git = "https://github.com/blueshift-gg/quasar-svm", rev = "b5a9363de13e0f1e5e4559f4251c77563c3c9986" }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }

@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowRight, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
@@ -39,12 +38,6 @@ import {
 
 type ResolvedRecipient = ResolvedSolanaRecipient;
 
-const STAGE_TRANSITION = {
-  duration: 0.4,
-  ease: [0.22, 1, 0.36, 1] as const,
-};
-
-
 interface ComposeStageProps {
   walletName: string;
   amount: string;
@@ -74,7 +67,6 @@ interface ComposeStageProps {
     amountSol?: number;
     note?: string;
   }) => void;
-  reduce: boolean;
 }
 
 export function ComposeStage({
@@ -102,15 +94,8 @@ export function ComposeStage({
   approvalThreshold,
   timelockSeconds,
   onQuickFill,
-  reduce,
 }: ComposeStageProps) {
   const walletDisplay = toDisplayName(walletName);
-  const motionProps = reduce
-    ? { initial: false as const, animate: { opacity: 1 } }
-    : {
-        initial: { opacity: 0, y: 16 },
-        animate: { opacity: 1, y: 0 },
-      };
 
   const display = useMemo(() => formatAmount(amount), [amount]);
   const amountValid = useMemo(() => {
@@ -121,11 +106,7 @@ export function ComposeStage({
   const solMeta = chainByKind(0);
 
   return (
-    <motion.section
-      {...motionProps}
-      transition={STAGE_TRANSITION}
-      className="flex flex-col gap-4"
-    >
+    <section className="flex flex-col gap-4">
       {/* Compact left-aligned header. Chain badge sits inline with
           the title so the network identity is unmistakable without
           eating a full hero block. Matches the rest of the redesigned
@@ -405,6 +386,6 @@ export function ComposeStage({
           Send to many at once
         </Link>
       </div>
-    </motion.section>
+    </section>
   );
 }

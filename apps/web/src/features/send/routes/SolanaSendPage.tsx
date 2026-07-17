@@ -17,7 +17,6 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { friendlyError } from "@/lib/api/errors";
@@ -34,7 +33,6 @@ import { useContacts } from "@/lib/hooks/useContacts";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { useToast } from "@/components/ui/Toast";
 import { usePolicyEvaluation } from "@/lib/hooks/usePolicyEvaluation";
-import { SendProgressStage } from "@/features/send/ui/SendProgressStage";
 import { RouteSkeleton } from "@/components/retail/RouteSkeleton";
 import { txUrl as solanaTxUrl } from "@/lib/explorer";
 import { recordAttempt } from "@/lib/retail/txLog";
@@ -47,8 +45,6 @@ import {
   readExecuteFailureProposal,
   type ResolvedSolanaRecipient,
 } from "@/features/send/domain/solanaSend";
-import { SentStage } from "@/features/send/ui/solana/SolanaSendCompletion";
-import { ComposeStage } from "@/features/send/ui/solana/SolanaComposeStage";
 import {
   SOLANA_SEND_PHASE_LABEL,
   type SolanaSendingPhase,
@@ -67,6 +63,30 @@ const PolicyMatchBanner = dynamic(
   { ssr: false, loading: () => null },
 );
 
+const ComposeStage = dynamic(
+  () =>
+    import("@/features/send/ui/solana/SolanaComposeStage").then(
+      (module) => module.ComposeStage,
+    ),
+  { ssr: false, loading: () => <RouteSkeleton variant="form" /> },
+);
+
+const SendProgressStage = dynamic(
+  () =>
+    import("@/features/send/ui/SendProgressStage").then(
+      (module) => module.SendProgressStage,
+    ),
+  { ssr: false, loading: () => null },
+);
+
+const SentStage = dynamic(
+  () =>
+    import("@/features/send/ui/solana/SolanaSendCompletion").then(
+      (module) => module.SentStage,
+    ),
+  { ssr: false, loading: () => <RouteSkeleton variant="detail" /> },
+);
+
 export default function SendPageWrapper() {
   return (
     <Suspense fallback={<RouteSkeleton variant="form" />}>
@@ -78,7 +98,7 @@ export default function SendPageWrapper() {
 function SendPage() {
   const params = useSearchParams();
   const route = useParams<{ name: string }>();
-  const reduce = useReducedMotion();
+  const reduce = usePrefersReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
   const { signTypedDescriptor } = useSignWithWallet();
@@ -592,7 +612,6 @@ function SendPage() {
               feeReserveLamports={SOL_FEE_RESERVE_LAMPORTS}
               approvalThreshold={firstIntent?.account?.approvalThreshold ?? 1}
               timelockSeconds={firstIntent?.account?.timelockSeconds ?? 0}
-              reduce={!!reduce}
             />
           )}
           {stage === "sending" && (
@@ -619,6 +638,18 @@ function SendPage() {
 }
 
 // ─── Stage 1: compose ──────────────────────────────────────────────
+
+function usePrefersReducedMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduce(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+  return reduce;
+}
 
 
 
