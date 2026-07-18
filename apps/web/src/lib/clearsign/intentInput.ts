@@ -205,6 +205,8 @@ export interface AgentTradeSettlementPayload {
 
 export interface RecurringSchedulePayload extends RecipientAmount {
   scheduleId: string;
+  sourceToken?: string;
+  destinationToken?: string;
   intervalSeconds: number;
   firstExecutionAt: number;
   paymentCount: number;

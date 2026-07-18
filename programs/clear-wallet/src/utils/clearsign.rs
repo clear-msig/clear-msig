@@ -100,6 +100,34 @@ pub fn hash_recurring_schedule_payload(
             recipient,
             asset: b"SOL",
             amount_raw: amount_lamports as u128,
+            execution_commitment: [0u8; 32],
+            interval_seconds,
+            first_execution_at,
+            payment_count,
+            status,
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn hash_recurring_token_schedule_payload(
+    schedule_id_hash: &[u8; 32],
+    recipient: &[u8; 32],
+    mint: &[u8; 32],
+    amount_tokens: u64,
+    execution_commitment: [u8; 32],
+    interval_seconds: u32,
+    first_execution_at: i64,
+    payment_count: u32,
+    status: u8,
+) -> [u8; 32] {
+    clear_msig_signing::committed_recurring_schedule_payload_hash(
+        clear_msig_signing::RecurringSchedulePayloadParts {
+            schedule_id_hash,
+            recipient,
+            asset: mint,
+            amount_raw: amount_tokens as u128,
+            execution_commitment,
             interval_seconds,
             first_execution_at,
             payment_count,

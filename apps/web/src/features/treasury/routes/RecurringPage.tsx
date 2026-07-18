@@ -21,6 +21,7 @@ export default function RecurringPage() {
     name: "",
     recipient: "",
     amount: "",
+    asset: "SOL",
     cadence: "Monthly",
     firstRun: localDateTime(Date.now() + 24 * 60 * 60 * 1000),
     paymentCount: "12",
@@ -76,7 +77,16 @@ export default function RecurringPage() {
           <Field label="Name" value={draft.name} onChange={(name) => setDraft({ ...draft, name })} />
           <Field label="Recipient" value={draft.recipient} onChange={(recipient) => setDraft({ ...draft, recipient })} />
           <div className="grid grid-cols-2 gap-2">
-            <Field label="SOL each time" value={draft.amount} inputMode="decimal" onChange={(amount) => setDraft({ ...draft, amount })} />
+            <Field label={`${draft.asset} each time`} value={draft.amount} inputMode="decimal" onChange={(amount) => setDraft({ ...draft, amount })} />
+            <label className="grid gap-1 text-xs text-text-soft">
+              Asset
+              <select className={inputClass} value={draft.asset} onChange={(event) => setDraft({ ...draft, asset: event.target.value as RecurringDraft["asset"] })}>
+                <option value="SOL">SOL</option>
+                <option value="USDC">USDC</option>
+              </select>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
             <label className="grid gap-1 text-xs text-text-soft">
               Cadence
               <select className={inputClass} value={draft.cadence} onChange={(event) => setDraft({ ...draft, cadence: event.target.value as RecurringDraft["cadence"] })}>
@@ -144,7 +154,7 @@ function ScheduleRow({ row, state, busy, onRetry, onPay, onRevoke, onRemove }: {
           <h3 className="truncate text-sm font-semibold text-text-strong">{row.name}</h3>
           <span className="text-xs capitalize text-accent">{state?.status ?? "awaiting approval"}</span>
         </div>
-        <p className="mt-1 truncate text-xs text-text-soft">{row.amount} SOL · {row.cadence} · {row.address}</p>
+        <p className="mt-1 truncate text-xs text-text-soft">{row.amount} {row.asset} · {row.cadence} · {row.address}</p>
         {state ? (
           <p className="mt-1 text-xs text-text-soft">{state.executedPayments} paid · {state.remainingPayments} remaining</p>
         ) : null}

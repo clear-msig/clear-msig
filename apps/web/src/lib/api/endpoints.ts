@@ -432,6 +432,51 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedRecurringTokenSchedule: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      scheduleId: string;
+      mint: string;
+      sourceToken: string;
+      destinationToken: string;
+      recipientOwner: string;
+      amountTokens: number;
+      intervalSeconds: number;
+      firstExecutionAt: number;
+      paymentCount: number;
+      status: 1 | 2;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-recurring-token-schedule`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeRecurringTokenPayment: (
+    walletName: string,
+    input: {
+      intent: string;
+      scheduleId: string;
+      mint: string;
+      sourceToken: string;
+      destinationToken: string;
+      recipientOwner: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/recurring/execute-token`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   executeTypedSolSend: (
     walletName: string,
     proposalAddress: string,

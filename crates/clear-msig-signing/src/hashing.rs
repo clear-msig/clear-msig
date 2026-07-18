@@ -172,6 +172,7 @@ impl CanonicalIntent<'_> {
                     schedule.payment.asset,
                 );
                 hasher.update(schedule.payment.raw_amount.to_le_bytes());
+                update_execution_commitment(&mut hasher, &schedule.execution_commitment);
                 hasher.update(schedule.interval_seconds.to_le_bytes());
                 hasher.update(schedule.first_execution_at.to_le_bytes());
                 hasher.update(schedule.payment_count.to_le_bytes());
@@ -330,6 +331,7 @@ pub struct RecurringSchedulePayloadParts<'a> {
     pub recipient: &'a [u8],
     pub asset: &'a [u8],
     pub amount_raw: u128,
+    pub execution_commitment: [u8; 32],
     pub interval_seconds: u32,
     pub first_execution_at: i64,
     pub payment_count: u32,
@@ -344,6 +346,7 @@ pub fn committed_recurring_schedule_payload_hash(
     update_bytes(&mut hasher, parts.recipient);
     update_bytes(&mut hasher, parts.asset);
     hasher.update(parts.amount_raw.to_le_bytes());
+    update_execution_commitment(&mut hasher, &parts.execution_commitment);
     hasher.update(parts.interval_seconds.to_le_bytes());
     hasher.update(parts.first_execution_at.to_le_bytes());
     hasher.update(parts.payment_count.to_le_bytes());

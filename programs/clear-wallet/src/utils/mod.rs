@@ -8,3 +8,4 @@ pub mod ika_cpi;
 pub mod keccak;
 pub mod message;
 pub mod policy;
+pub mod token;

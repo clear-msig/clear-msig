@@ -74,6 +74,73 @@ fn escrow_request(payload: Value) -> ClearSignV4PrepareRequest {
     }
 }
 
+fn recurring_usdc_request(
+    recipient: &str,
+    source_token: &str,
+    destination_token: &str,
+) -> ClearSignV4PrepareRequest {
+    let (_, actor) = pubkey(8);
+    let (_, wallet) = pubkey(7);
+    ClearSignV4PrepareRequest {
+        envelope: ClearSignV4EnvelopeRequest {
+            version: 4,
+            kind: "recurring_schedule".into(),
+            network: "Solana devnet".into(),
+            wallet_name: "Team treasury".into(),
+            wallet_id: Some(wallet),
+            action_id: "recurring-usdc-action-1".into(),
+            nonce: "recurring-usdc-nonce-1".into(),
+            expires_at: current_unix_timestamp().unwrap() + 600,
+            policy_commitment: Some(to_hex(&policy_commitment(&[]))),
+            payload: serde_json::json!({
+                "scheduleId": "payroll-1",
+                "recipient": recipient,
+                "recipientEncoding": "solana_pubkey",
+                "amount": "1.25",
+                "asset": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+                "assetEncoding": "solana_pubkey",
+                "decimals": 6,
+                "displayAsset": "USDC",
+                "sourceToken": source_token,
+                "destinationToken": destination_token,
+                "intervalSeconds": 86400,
+                "firstExecutionAt": 1800000000,
+                "paymentCount": 12,
+                "status": "active",
+                "reason": "Payroll"
+            }),
+        },
+        intent_index: 3,
+        actor_pubkey: actor,
+        policy_bytes_hex: None,
+        device_profile: None,
+    }
+}
+
+#[test]
+fn recurring_usdc_binds_issuer_mint_and_exact_token_accounts() {
+    let (_, recipient) = pubkey(30);
+    let (_, source) = pubkey(31);
+    let (_, destination) = pubkey(32);
+    let (_, changed_source) = pubkey(33);
+    let baseline = prepare_clearsign_v4_response(
+        recurring_usdc_request(&recipient, &source, &destination),
+        trusted(),
+    )
+    .unwrap();
+    assert!(baseline.signable_text.contains("1.25 USDC"));
+    let changed = prepare_clearsign_v4_response(
+        recurring_usdc_request(&recipient, &changed_source, &destination),
+        trusted(),
+    )
+    .unwrap();
+    assert_ne!(baseline.payload_hash, changed.payload_hash);
+
+    let mut wrong_mint = recurring_usdc_request(&recipient, &source, &destination);
+    wrong_mint.envelope.payload["asset"] = Value::String(pubkey(34).1);
+    assert!(prepare_clearsign_v4_response(wrong_mint, trusted()).is_err());
+}
+
 #[test]
 fn spl_escrow_binds_token_accounts_and_owner_to_readable_payment() {
     let (_, mint) = pubkey(20);

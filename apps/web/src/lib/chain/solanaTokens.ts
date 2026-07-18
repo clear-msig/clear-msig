@@ -1,11 +1,19 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
-const TOKEN_PROGRAM_ID = new PublicKey(
+export const SOLANA_TOKEN_PROGRAM_ID = new PublicKey(
   "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
 );
 const TOKEN_2022_PROGRAM_ID = new PublicKey(
   "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
 );
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+);
+export const SOLANA_DEVNET_USDC = {
+  mint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+  decimals: 6,
+  symbol: "USDC",
+} as const;
 
 export interface SolanaTokenHolding {
   mint: string;
@@ -51,7 +59,7 @@ export async function fetchSolanaTokenHoldings(
 ): Promise<SolanaTokenHolding[]> {
   const owner = new PublicKey(ownerAddress);
   const results = await Promise.all(
-    [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID].map((programId) =>
+    [SOLANA_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID].map((programId) =>
       connection.getParsedTokenAccountsByOwner(
         owner,
         { programId },
@@ -88,4 +96,14 @@ export async function fetchSolanaTokenHoldings(
     }
   }
   return holdings.sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+export function deriveAssociatedTokenAddress(
+  owner: PublicKey,
+  mint: PublicKey,
+): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [owner.toBytes(), SOLANA_TOKEN_PROGRAM_ID.toBytes(), mint.toBytes()],
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  )[0];
 }

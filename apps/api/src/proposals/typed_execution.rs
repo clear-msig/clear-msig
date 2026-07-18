@@ -11,8 +11,9 @@ pub(super) use escrow::*;
 use super::types::{
     ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
     ExecuteTypedChainSendRequest, ExecuteTypedIntentGovernanceRequest,
-    ExecuteTypedRecurringScheduleRequest, ExecuteTypedSolBatchSendRequest,
-    ExecuteTypedSolSendRequest, ExecuteTypedWalletPolicyUpdateRequest,
+    ExecuteTypedRecurringScheduleRequest, ExecuteTypedRecurringTokenScheduleRequest,
+    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
+    ExecuteTypedWalletPolicyUpdateRequest,
 };
 
 pub(super) fn execute_typed_recurring_schedule(
@@ -49,6 +50,49 @@ pub(super) fn execute_typed_recurring_schedule(
     })
 }
 
+pub(super) fn execute_typed_recurring_token_schedule(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedRecurringTokenScheduleRequest,
+) -> Result<TypedProposalExecution, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_bounded_text(&body.schedule_id, "scheduleId")?;
+    ensure_positive_lamports(body.amount_tokens, "amountTokens")?;
+    if body.interval_seconds < 3_600 {
+        return Err(ApiError::BadRequest(
+            "intervalSeconds must be at least 3600".into(),
+        ));
+    }
+    if !(1..=1_000).contains(&body.payment_count) {
+        return Err(ApiError::BadRequest(
+            "paymentCount must be between 1 and 1000".into(),
+        ));
+    }
+    if !matches!(body.status, 1 | 2) {
+        return Err(ApiError::BadRequest("status must be 1 or 2".into()));
+    }
+    const DEVNET_USDC: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+    if body.mint != DEVNET_USDC {
+        return Err(ApiError::BadRequest(
+            "mint must be issuer-published Solana devnet USDC".into(),
+        ));
+    }
+    Ok(TypedProposalExecution::RecurringTokenSchedule {
+        wallet: name,
+        proposal,
+        schedule_id: body.schedule_id,
+        mint: validated_base58(body.mint, "mint")?,
+        source_token: validated_base58(body.source_token, "sourceToken")?,
+        destination_token: validated_base58(body.destination_token, "destinationToken")?,
+        recipient_owner: validated_base58(body.recipient_owner, "recipientOwner")?,
+        amount_tokens: body.amount_tokens,
+        interval_seconds: body.interval_seconds,
+        first_execution_at: body.first_execution_at,
+        payment_count: body.payment_count,
+        status: body.status,
+    })
+}
+
 pub(super) fn execute_typed_sol_send(
     name: String,
     proposal: String,
@@ -63,6 +107,43 @@ pub(super) fn execute_typed_sol_send(
         recipient: validated_base58(body.recipient, "recipient")?,
         amount_lamports: body.amount_lamports,
     })
+}
+
+#[cfg(test)]
+mod recurring_token_tests {
+    use super::*;
+
+    fn request(mint: &str) -> ExecuteTypedRecurringTokenScheduleRequest {
+        ExecuteTypedRecurringTokenScheduleRequest {
+            schedule_id: "payroll-1".into(),
+            mint: mint.into(),
+            source_token: "11111111111111111111111111111111".into(),
+            destination_token: "11111111111111111111111111111111".into(),
+            recipient_owner: "11111111111111111111111111111111".into(),
+            amount_tokens: 1_250_000,
+            interval_seconds: 86_400,
+            first_execution_at: 1_800_000_000,
+            payment_count: 12,
+            status: 1,
+        }
+    }
+
+    #[test]
+    fn recurring_token_boundary_allows_only_devnet_usdc() {
+        let usdc = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+        assert!(execute_typed_recurring_token_schedule(
+            "Team".into(),
+            "11111111111111111111111111111111".into(),
+            request(usdc),
+        )
+        .is_ok());
+        assert!(execute_typed_recurring_token_schedule(
+            "Team".into(),
+            "11111111111111111111111111111111".into(),
+            request("11111111111111111111111111111111"),
+        )
+        .is_err());
+    }
 }
 
 pub(super) fn execute_typed_wallet_policy_update(

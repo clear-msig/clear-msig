@@ -9,6 +9,7 @@ export interface RecurringDraft {
   name: string;
   recipient: string;
   amount: string;
+  asset: "SOL" | "USDC";
   cadence: keyof typeof RECURRING_INTERVALS;
   firstRun: string;
   paymentCount: string;
@@ -16,12 +17,20 @@ export interface RecurringDraft {
 }
 
 export function solToLamports(value: string): number {
+  return recurringAmountToRaw(value, "SOL");
+}
+
+export function recurringAmountToRaw(value: string, asset: "SOL" | "USDC"): number {
+  const decimals = asset === "SOL" ? 9 : 6;
   const normalized = value.trim();
-  if (!/^\d+(\.\d{1,9})?$/.test(normalized)) {
-    throw new Error("Enter a SOL amount with up to 9 decimals.");
+  const pattern = new RegExp(`^\\d+(\\.\\d{1,${decimals}})?$`);
+  if (!pattern.test(normalized)) {
+    throw new Error(`Enter a ${asset} amount with up to ${decimals} decimals.`);
   }
   const [whole, fraction = ""] = normalized.split(".");
-  const raw = BigInt(whole) * 1_000_000_000n + BigInt((fraction + "000000000").slice(0, 9));
+  const scale = 10n ** BigInt(decimals);
+  const raw = BigInt(whole) * scale
+    + BigInt((fraction + "0".repeat(decimals)).slice(0, decimals));
   if (raw <= 0n || raw > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error("The recurring amount is outside the supported range.");
   }
@@ -51,6 +60,10 @@ export function recurringEnvelope(input: {
   scheduleId: string;
   recipient: string;
   amount: string;
+  asset: "SOL" | "USDC";
+  mint?: string;
+  sourceToken?: string;
+  destinationToken?: string;
   intervalSeconds: number;
   firstExecutionAt: number;
   paymentCount: number;
@@ -69,10 +82,16 @@ export function recurringEnvelope(input: {
       recipient: input.recipient,
       recipientEncoding: "solana_pubkey",
       amount: input.amount,
-      asset: "SOL",
-      assetEncoding: "text",
-      decimals: 9,
-      displayAsset: "SOL",
+      asset: input.asset === "SOL" ? "SOL" : requireTokenField(input.mint, "mint"),
+      assetEncoding: input.asset === "SOL" ? "text" : "solana_pubkey",
+      decimals: input.asset === "SOL" ? 9 : 6,
+      displayAsset: input.asset,
+      sourceToken: input.asset === "USDC"
+        ? requireTokenField(input.sourceToken, "source token account")
+        : undefined,
+      destinationToken: input.asset === "USDC"
+        ? requireTokenField(input.destinationToken, "destination token account")
+        : undefined,
       intervalSeconds: input.intervalSeconds,
       firstExecutionAt: input.firstExecutionAt,
       paymentCount: input.paymentCount,
@@ -80,6 +99,11 @@ export function recurringEnvelope(input: {
       reason: input.reason || undefined,
     },
   };
+}
+
+function requireTokenField(value: string | undefined, label: string): string {
+  if (!value) throw new Error(`The USDC ${label} is required.`);
+  return value;
 }
 
 export function newScheduleId(): string {

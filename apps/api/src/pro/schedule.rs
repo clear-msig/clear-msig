@@ -29,6 +29,14 @@ pub(super) struct ProScheduleRecord {
     pub(super) first_execution_at: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) payment_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) mint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) source_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) destination_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) recipient_owner: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -56,6 +64,14 @@ pub(super) struct ProScheduleInput {
     pub(super) first_execution_at: Option<i64>,
     #[serde(default)]
     pub(super) payment_count: Option<u32>,
+    #[serde(default)]
+    pub(super) mint: Option<String>,
+    #[serde(default)]
+    pub(super) source_token: Option<String>,
+    #[serde(default)]
+    pub(super) destination_token: Option<String>,
+    #[serde(default)]
+    pub(super) recipient_owner: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

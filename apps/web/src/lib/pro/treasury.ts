@@ -24,6 +24,10 @@ export interface ProSchedule {
   intervalSeconds?: number;
   firstExecutionAt?: number;
   paymentCount?: number;
+  mint?: string;
+  sourceToken?: string;
+  destinationToken?: string;
+  recipientOwner?: string;
 }
 
 export interface ProTreasuryRuntime {
@@ -123,6 +127,10 @@ function isProSchedule(value: unknown): value is ProSchedule {
     && (row.intervalSeconds === undefined || typeof row.intervalSeconds === "number")
     && (row.firstExecutionAt === undefined || typeof row.firstExecutionAt === "number")
     && (row.paymentCount === undefined || typeof row.paymentCount === "number")
+    && (row.mint === undefined || typeof row.mint === "string")
+    && (row.sourceToken === undefined || typeof row.sourceToken === "string")
+    && (row.destinationToken === undefined || typeof row.destinationToken === "string")
+    && (row.recipientOwner === undefined || typeof row.recipientOwner === "string")
   );
 }
 

@@ -3,12 +3,12 @@ use clear_msig_signing::{
     document_hash, encode_agent_risk_policy, encode_agent_session, encode_agent_settlement,
     encode_agent_trade_approval, encode_batch_transfer, encode_escrow_release,
     encode_escrow_return, encode_governance, encode_policy_update, encode_recurring_schedule,
-    encode_transfer, envelope_hash, parse_intent, policy_commitment, render_document, replay_hash,
-    wallet_policy_commitment, ActionKind, AgentRiskPolicyInput, AgentSessionInput,
-    AgentSettlementInput, AgentTradeApprovalInput, BatchTransferInput, CommonFields, DeviceProfile,
-    EscrowReleaseInput, EscrowReturnInput, FiatEstimateInput, GovernanceInput, IdentityEncoding,
-    Network, PolicyUpdateInput, RecurringScheduleInput, TransferInput, TransferRowInput,
-    MAX_CANONICAL_INTENT_BYTES, MAX_DOCUMENT_BYTES,
+    encode_transfer, envelope_hash, execution_commitment, parse_intent, policy_commitment,
+    render_document, replay_hash, wallet_policy_commitment, ActionKind, AgentRiskPolicyInput,
+    AgentSessionInput, AgentSettlementInput, AgentTradeApprovalInput, BatchTransferInput,
+    CommonFields, DeviceProfile, EscrowReleaseInput, EscrowReturnInput, FiatEstimateInput,
+    GovernanceInput, IdentityEncoding, Network, PolicyUpdateInput, RecurringScheduleInput,
+    TransferInput, TransferRowInput, MAX_CANONICAL_INTENT_BYTES, MAX_DOCUMENT_BYTES,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -40,6 +40,7 @@ const CLEARSIGN_V4_VERSION: u8 = 4;
 const MAX_ACTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
 const MAX_FIAT_ESTIMATE_AGE_SECONDS: i64 = 5 * 60;
 const MAX_FIAT_ESTIMATE_FUTURE_SKEW_SECONDS: i64 = 30;
+const SOLANA_DEVNET_USDC_MINT: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -650,16 +651,38 @@ fn prepare_clearsign_v4_response(
                 ));
             }
             let row = owned_transfer_row(&req.envelope.payload)?;
-            if row.recipient_encoding != IdentityEncoding::SolanaPubkey
-                || row.asset_encoding != IdentityEncoding::Text
-                || row.asset != b"SOL"
-                || row.decimals != 9
-            {
+            if row.recipient_encoding != IdentityEncoding::SolanaPubkey {
                 return Err(ApiError::BadRequest(
-                    "recurring schedules currently require a SOL payment to a Solana address"
-                        .into(),
+                    "recurring schedules require a Solana recipient address".into(),
                 ));
             }
+            let native_sol = row.asset_encoding == IdentityEncoding::Text
+                && row.asset == b"SOL"
+                && row.decimals == 9
+                && row.display_asset == "SOL";
+            let usdc_mint = decode_base58_32(SOLANA_DEVNET_USDC_MINT, "USDC mint")?;
+            let spl_usdc = row.asset_encoding == IdentityEncoding::SolanaPubkey
+                && row.asset.as_slice() == usdc_mint
+                && row.decimals == 6
+                && row.display_asset == "USDC";
+            if !native_sol && !spl_usdc {
+                return Err(ApiError::BadRequest(
+                    "recurring schedules support SOL or issuer-published Solana devnet USDC".into(),
+                ));
+            }
+            let recurring_execution_commitment = if spl_usdc {
+                let source = decode_base58_32(
+                    &strict_required_text(&req.envelope.payload, "sourceToken", 64)?,
+                    "payload.sourceToken",
+                )?;
+                let destination = decode_base58_32(
+                    &strict_required_text(&req.envelope.payload, "destinationToken", 64)?,
+                    "payload.destinationToken",
+                )?;
+                execution_commitment(&[b"spl_recurring_payment", &usdc_mint, &source, &destination])
+            } else {
+                [0u8; 32]
+            };
             let schedule_id = strict_required_text(&req.envelope.payload, "scheduleId", 96)?;
             validate_replay_label(&schedule_id, "payload.scheduleId")?;
             let interval_seconds = payload_u32(&req.envelope.payload, "intervalSeconds")?;
@@ -685,6 +708,7 @@ fn prepare_clearsign_v4_response(
                     common,
                     schedule_id: schedule_id.as_bytes(),
                     payment,
+                    execution_commitment: recurring_execution_commitment,
                     interval_seconds,
                     first_execution_at,
                     payment_count,

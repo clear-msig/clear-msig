@@ -5,7 +5,11 @@ export interface OnchainRecurringSchedule {
   address: string;
   intent: string;
   recipient: string;
-  amountLamports: bigint;
+  asset: "SOL" | "USDC";
+  amountRaw: bigint;
+  mint?: string;
+  sourceToken?: string;
+  destinationToken?: string;
   intervalSeconds: number;
   nextExecutionAt: number;
   remainingPayments: number;
@@ -26,22 +30,34 @@ export async function fetchRecurringSchedule(
     CLEAR_WALLET_PROGRAM_ID,
   );
   const account = await connection.getAccountInfo(address, "confirmed");
-  if (!account || !account.owner.equals(CLEAR_WALLET_PROGRAM_ID) || account.data.length < 833) {
+  if (!account || !account.owner.equals(CLEAR_WALLET_PROGRAM_ID)) {
     return null;
   }
-  const data = account.data;
-  if (data[0] !== 12) return null;
+  return parseRecurringScheduleAccount(address.toBase58(), account.data);
+}
+
+export function parseRecurringScheduleAccount(
+  address: string,
+  data: Uint8Array,
+): OnchainRecurringSchedule | null {
+  if (data[0] !== 12 && data[0] !== 13) return null;
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  const status = data[831];
+  const token = data[0] === 13;
+  if (data.length < (token ? 961 : 833)) return null;
+  const status = data[token ? 959 : 831];
   return {
-    address: address.toBase58(),
+    address,
     intent: new PublicKey(data.subarray(33, 65)).toBase58(),
     recipient: new PublicKey(data.subarray(97, 129)).toBase58(),
-    amountLamports: view.getBigUint64(161, true),
-    intervalSeconds: view.getUint32(169, true),
-    nextExecutionAt: Number(view.getBigInt64(173, true)),
-    remainingPayments: view.getUint32(181, true),
-    executedPayments: view.getUint32(185, true),
+    asset: token ? "USDC" : "SOL",
+    amountRaw: view.getBigUint64(token ? 289 : 161, true),
+    mint: token ? new PublicKey(data.subarray(161, 193)).toBase58() : undefined,
+    sourceToken: token ? new PublicKey(data.subarray(193, 225)).toBase58() : undefined,
+    destinationToken: token ? new PublicKey(data.subarray(225, 257)).toBase58() : undefined,
+    intervalSeconds: view.getUint32(token ? 297 : 169, true),
+    nextExecutionAt: Number(view.getBigInt64(token ? 301 : 173, true)),
+    remainingPayments: view.getUint32(token ? 309 : 181, true),
+    executedPayments: view.getUint32(token ? 313 : 185, true),
     status: status === 1 ? "active" : status === 2 ? "revoked" : "complete",
   };
 }

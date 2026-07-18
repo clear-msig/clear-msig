@@ -316,6 +316,9 @@ pub struct RecurringScheduleInput<'a> {
     pub common: CommonFields,
     pub schedule_id: &'a [u8],
     pub payment: TransferRowInput<'a>,
+    /// Binds non-native execution accounts (for example SPL source and
+    /// destination token accounts). Native SOL schedules must use zero.
+    pub execution_commitment: [u8; 32],
     pub interval_seconds: u32,
     pub first_execution_at: i64,
     pub payment_count: u32,
@@ -479,6 +482,7 @@ pub struct AgentSettlement<'a> {
 pub struct RecurringSchedule<'a> {
     pub schedule_id: &'a [u8],
     pub payment: Transfer<'a>,
+    pub execution_commitment: [u8; 32],
     pub interval_seconds: u32,
     pub first_execution_at: i64,
     pub payment_count: u32,

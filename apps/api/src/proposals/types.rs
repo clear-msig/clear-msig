@@ -103,6 +103,32 @@ pub(super) struct ExecuteRecurringPaymentRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedRecurringTokenScheduleRequest {
+    pub(super) schedule_id: String,
+    pub(super) mint: String,
+    pub(super) source_token: String,
+    pub(super) destination_token: String,
+    pub(super) recipient_owner: String,
+    pub(super) amount_tokens: u64,
+    pub(super) interval_seconds: u32,
+    pub(super) first_execution_at: i64,
+    pub(super) payment_count: u32,
+    pub(super) status: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteRecurringTokenPaymentRequest {
+    pub(super) intent: String,
+    pub(super) schedule_id: String,
+    pub(super) mint: String,
+    pub(super) source_token: String,
+    pub(super) destination_token: String,
+    pub(super) recipient_owner: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedEscrowReturnRequest {
     pub(super) escrow_id: String,
     pub(super) returns: Vec<ExecuteTypedEscrowReturnRow>,

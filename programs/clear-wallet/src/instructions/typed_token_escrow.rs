@@ -14,16 +14,14 @@ use crate::{
         intent::Intent, proposal::ProposalStatus, typed_proposal::TypedProposal,
         wallet::ClearWallet,
     },
-    utils::clearsign::ClearSignActionKind,
+    utils::{
+        clearsign::ClearSignActionKind,
+        token::{
+            token_account_address, token_account_state, transfer_tokens, transfer_tokens_view,
+            SPL_TOKEN_ID, TOKEN_ACCOUNT_STATE_INITIALIZED, TOKEN_MINT_OFFSET, TOKEN_OWNER_OFFSET,
+        },
+    },
 };
-
-const SPL_TOKEN_ID: Address = address!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-const TOKEN_ACCOUNT_LEN: usize = 165;
-const TOKEN_MINT_OFFSET: usize = 0;
-const TOKEN_OWNER_OFFSET: usize = 32;
-const TOKEN_STATE_OFFSET: usize = 108;
-const TOKEN_ACCOUNT_STATE_INITIALIZED: u8 = 1;
-const TOKEN_ACCOUNT_STATE_FROZEN: u8 = 2;
 
 #[derive(Accounts)]
 pub struct ExecuteTypedSplEscrowRelease<'info> {
@@ -342,70 +340,4 @@ fn read_amount(amounts_le: &[u8], index: usize) -> u64 {
         amounts_le[offset + 6],
         amounts_le[offset + 7],
     ])
-}
-
-fn transfer_tokens(
-    token_program: &UncheckedAccount,
-    source: &UncheckedAccount,
-    destination: &UncheckedAccount,
-    authority: &UncheckedAccount,
-    vault_seeds: &[Seed],
-    amount: u64,
-) -> Result<(), ProgramError> {
-    transfer_tokens_view(
-        token_program,
-        source.to_account_view(),
-        destination.to_account_view(),
-        authority.to_account_view(),
-        vault_seeds,
-        amount,
-    )
-}
-
-fn transfer_tokens_view(
-    token_program: &UncheckedAccount,
-    source: &AccountView,
-    destination: &AccountView,
-    authority: &AccountView,
-    vault_seeds: &[Seed],
-    amount: u64,
-) -> Result<(), ProgramError> {
-    let mut cpi = DynCpiCall::<3, 9>::new(token_program.address());
-    cpi.push_account(source, false, true)?;
-    cpi.push_account(destination, false, true)?;
-    cpi.push_account(authority, true, false)?;
-    let data = cpi.data_mut() as *mut u8;
-    unsafe {
-        *data = 3;
-        core::ptr::copy_nonoverlapping(amount.to_le_bytes().as_ptr(), data.add(1), 8);
-    }
-    cpi.set_data_len(9)?;
-    cpi.invoke_signed(vault_seeds)
-}
-
-fn token_account_address(account: &AccountView, offset: usize) -> Result<Address, ProgramError> {
-    require!(
-        account.data_len() >= TOKEN_ACCOUNT_LEN,
-        ProgramError::AccountDataTooSmall
-    );
-    let data = unsafe { account.borrow_unchecked() };
-    Ok(Address::new_from_array(
-        data[offset..offset + 32]
-            .try_into()
-            .map_err(|_| ProgramError::InvalidAccountData)?,
-    ))
-}
-
-fn token_account_state(account: &AccountView) -> Result<u8, ProgramError> {
-    require!(
-        account.data_len() >= TOKEN_ACCOUNT_LEN,
-        ProgramError::AccountDataTooSmall
-    );
-    let data = unsafe { account.borrow_unchecked() };
-    let state = data[TOKEN_STATE_OFFSET];
-    require!(
-        state != TOKEN_ACCOUNT_STATE_FROZEN,
-        ProgramError::InvalidAccountData
-    );
-    Ok(state)
 }

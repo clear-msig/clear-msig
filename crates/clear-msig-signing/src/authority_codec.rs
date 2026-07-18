@@ -114,8 +114,15 @@ pub fn encode_recurring_schedule(
 ) -> Result<usize, Error> {
     validate_visible_ascii(input.schedule_id, 96, false)?;
     validate_transfer_row(&input.payment)?;
-    if input.payment.asset != b"SOL"
-        || input.payment.asset_encoding != IdentityEncoding::Text
+    let native_sol = input.payment.asset == b"SOL"
+        && input.payment.asset_encoding == IdentityEncoding::Text
+        && input.payment.decimals == 9
+        && input.execution_commitment == [0u8; 32];
+    let spl_token = input.payment.asset_encoding == IdentityEncoding::SolanaPubkey
+        && input.payment.asset.len() == 32
+        && input.payment.decimals <= 18
+        && input.execution_commitment != [0u8; 32];
+    if (!native_sol && !spl_token)
         || input.interval_seconds < 3_600
         || input.payment_count == 0
         || input.payment_count > 1_000
@@ -128,6 +135,9 @@ pub fn encode_recurring_schedule(
     write_common(&mut writer, &input.common, ActionKind::RecurringSchedule)?;
     writer.bytes(input.schedule_id)?;
     write_transfer_row(&mut writer, &input.payment)?;
+    if spl_token {
+        writer.push(&input.execution_commitment)?;
+    }
     writer.u32(input.interval_seconds)?;
     writer.i64(input.first_execution_at)?;
     writer.u32(input.payment_count)?;

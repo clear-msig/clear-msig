@@ -611,6 +611,46 @@ pub mod clear_wallet {
             .execute_recurring_payment(schedule_id_hash, &ctx.bumps)
     }
 
+    /// Configure or revoke a threshold-approved recurring USDC schedule. The
+    /// mint and token accounts are part of the signed execution commitment.
+    #[instruction(discriminator = 34)]
+    pub fn execute_typed_recurring_token_schedule(
+        ctx: Ctx<ExecuteTypedRecurringTokenSchedule>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        schedule_id_hash: [u8; 32],
+        amount_tokens: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_recurring_token_schedule(
+            ExecuteTypedRecurringTokenScheduleArgs {
+                policy_commitment,
+                envelope_hash,
+                schedule_id_hash,
+                amount_tokens,
+                interval_seconds,
+                first_execution_at,
+                payment_count,
+                status,
+            },
+        )
+    }
+
+    /// Execute one due USDC payment. Any caller may submit it; the program
+    /// checks the approved schedule and advances it atomically with the token
+    /// transfer.
+    #[instruction(discriminator = 35)]
+    pub fn execute_recurring_token_payment(
+        ctx: Ctx<ExecuteRecurringTokenPayment>,
+        schedule_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_recurring_token_payment(schedule_id_hash, &ctx.bumps)
+    }
+
     #[instruction(discriminator = 9)]
     pub fn approve_typed(
         ctx: Ctx<ApproveTyped>,

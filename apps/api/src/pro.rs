@@ -103,6 +103,10 @@ impl ProStore {
             interval_seconds: input.interval_seconds,
             first_execution_at: input.first_execution_at,
             payment_count: input.payment_count,
+            mint: trim_optional(input.mint),
+            source_token: trim_optional(input.source_token),
+            destination_token: trim_optional(input.destination_token),
+            recipient_owner: trim_optional(input.recipient_owner),
         };
 
         doc.schedules

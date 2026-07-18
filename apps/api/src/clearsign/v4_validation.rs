@@ -130,6 +130,8 @@ pub(super) fn validate_payload_shape(
             "assetEncoding",
             "decimals",
             "displayAsset",
+            "sourceToken",
+            "destinationToken",
             "intervalSeconds",
             "firstExecutionAt",
             "paymentCount",

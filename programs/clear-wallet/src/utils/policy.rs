@@ -206,6 +206,51 @@ pub fn enforce_recurring_sol_payment_policy(
     )
 }
 
+/// The current CSP1 numeric fields are denominated in lamports. A token
+/// schedule must not reinterpret those numbers as token base units. Until an
+/// asset-scoped policy format lands, SPL recurring schedules accept only the
+/// reusable recipient and allowed-time controls; the schedule itself binds the
+/// exact token amount and maximum payment count.
+pub fn validate_recurring_token_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+) -> Result<(), ProgramError> {
+    if policy_bytes.is_empty() {
+        return Ok(());
+    }
+    require!(
+        hash_typed_policy(policy_bytes) == committed_policy_hash,
+        WalletError::InvalidPolicy
+    );
+    let policy = TypedSolPolicy::parse(policy_bytes)?;
+    require!(
+        policy.max_amount_lamports == 0
+            && policy.extra_cooldown_seconds == 0
+            && policy.velocity_cap_lamports == 0
+            && policy.velocity_window_seconds == 0
+            && policy.max_send_count == 0
+            && policy.count_window_seconds == 0
+            && policy.required_approvers.is_empty()
+            && policy.member_cap_count == 0
+            && policy.advanced_rules.is_none(),
+        WalletError::RecurringSchedulePolicyUnsupported
+    );
+    policy.enforce_recipient(recipient)
+}
+
+pub fn enforce_recurring_token_payment_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+) -> Result<(), ProgramError> {
+    validate_recurring_token_policy(policy_bytes, committed_policy_hash, recipient)?;
+    if policy_bytes.is_empty() {
+        return Ok(());
+    }
+    TypedSolPolicy::parse(policy_bytes)?.enforce_allowed_time()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn enforce_typed_send_policy(
     policy_bytes: &[u8],

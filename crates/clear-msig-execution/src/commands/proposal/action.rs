@@ -34,6 +34,50 @@ pub enum ProposalAction {
         #[arg(long)]
         recipient: String,
     },
+    /// Create, replace, or revoke an approved on-chain recurring USDC schedule.
+    TypedRecurringTokenSchedule {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        schedule_id: String,
+        #[arg(long)]
+        mint: String,
+        #[arg(long)]
+        source_token: String,
+        #[arg(long)]
+        destination_token: String,
+        #[arg(long)]
+        recipient_owner: String,
+        #[arg(long)]
+        amount_tokens: u64,
+        #[arg(long)]
+        interval_seconds: u32,
+        #[arg(long)]
+        first_execution_at: i64,
+        #[arg(long)]
+        payment_count: u32,
+        #[arg(long)]
+        status: u8,
+    },
+    /// Execute one due payment from an on-chain recurring USDC schedule.
+    RecurringTokenPayment {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        intent: String,
+        #[arg(long)]
+        schedule_id: String,
+        #[arg(long)]
+        mint: String,
+        #[arg(long)]
+        source_token: String,
+        #[arg(long)]
+        destination_token: String,
+        #[arg(long)]
+        recipient_owner: String,
+    },
     /// Create a new proposal for a custom intent
     Create {
         #[arg(long)]
@@ -571,9 +615,10 @@ impl ProposalAction {
             | Self::TypedChainSend { .. }
             | Self::TypedChainSendIka { .. }
             | Self::TypedSolBatchSend { .. } => HandlerGroup::Send,
-            Self::TypedRecurringSchedule { .. } | Self::RecurringPayment { .. } => {
-                HandlerGroup::Recurring
-            }
+            Self::TypedRecurringSchedule { .. }
+            | Self::RecurringPayment { .. }
+            | Self::TypedRecurringTokenSchedule { .. }
+            | Self::RecurringTokenPayment { .. } => HandlerGroup::Recurring,
             Self::Execute { .. } | Self::List { .. } | Self::Show { .. } | Self::Cleanup { .. } => {
                 HandlerGroup::Legacy
             }

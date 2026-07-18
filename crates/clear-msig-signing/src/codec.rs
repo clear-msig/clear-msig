@@ -369,13 +369,29 @@ pub fn parse_intent(bytes: &[u8]) -> Result<CanonicalIntent<'_>, Error> {
         ActionKind::RecurringSchedule => {
             let schedule_id = read_ascii(&mut reader, 96)?;
             let payment = read_transfer_row(&mut reader)?;
+            let native_sol = payment.asset == b"SOL"
+                && payment.asset_encoding == IdentityEncoding::Text
+                && payment.decimals == 9;
+            let spl_token = payment.asset_encoding == IdentityEncoding::SolanaPubkey
+                && payment.asset.len() == 32
+                && payment.decimals <= 18;
+            if !native_sol && !spl_token {
+                return Err(Error::InvalidContext);
+            }
+            let execution_commitment = if spl_token {
+                let value = reader.array32()?;
+                if value == [0u8; 32] {
+                    return Err(Error::InvalidContext);
+                }
+                value
+            } else {
+                [0u8; 32]
+            };
             let interval_seconds = reader.u32()?;
             let first_execution_at = reader.i64()?;
             let payment_count = reader.u32()?;
             let status = reader.u8()?;
-            if payment.asset != b"SOL"
-                || payment.asset_encoding != IdentityEncoding::Text
-                || interval_seconds < 3_600
+            if interval_seconds < 3_600
                 || payment_count == 0
                 || payment_count > 1_000
                 || !matches!(status, 1 | 2)
@@ -385,6 +401,7 @@ pub fn parse_intent(bytes: &[u8]) -> Result<CanonicalIntent<'_>, Error> {
             Action::RecurringSchedule(RecurringSchedule {
                 schedule_id,
                 payment,
+                execution_commitment,
                 interval_seconds,
                 first_execution_at,
                 payment_count,

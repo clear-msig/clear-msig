@@ -33,6 +33,7 @@ use typed_execution::{
     execute_typed_private_escrow_release as build_typed_private_escrow_release,
     execute_typed_private_escrow_return as build_typed_private_escrow_return,
     execute_typed_recurring_schedule as build_typed_recurring_schedule,
+    execute_typed_recurring_token_schedule as build_typed_recurring_token_schedule,
     execute_typed_sol_batch_send as build_typed_sol_batch_send,
     execute_typed_sol_send as build_typed_sol_send,
     execute_typed_spl_escrow_release as build_typed_spl_escrow_release,
@@ -40,13 +41,14 @@ use typed_execution::{
     execute_typed_wallet_policy_update as build_typed_wallet_policy_update,
 };
 use types::{
-    ExecuteProposalRequest, ExecuteRecurringPaymentRequest, ExecuteTypedAgentRiskPolicyRequest,
-    ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
-    ExecuteTypedAgentTradeSettlementRequest, ExecuteTypedChainSendRequest,
-    ExecuteTypedCrossChainEscrowReleaseRequest, ExecuteTypedCrossChainEscrowReturnRequest,
-    ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
-    ExecuteTypedIntentGovernanceRequest, ExecuteTypedPrivateEscrowReleaseRequest,
-    ExecuteTypedPrivateEscrowReturnRequest, ExecuteTypedRecurringScheduleRequest,
+    ExecuteProposalRequest, ExecuteRecurringPaymentRequest, ExecuteRecurringTokenPaymentRequest,
+    ExecuteTypedAgentRiskPolicyRequest, ExecuteTypedAgentSessionGrantRequest,
+    ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedAgentTradeSettlementRequest,
+    ExecuteTypedChainSendRequest, ExecuteTypedCrossChainEscrowReleaseRequest,
+    ExecuteTypedCrossChainEscrowReturnRequest, ExecuteTypedEscrowReleaseRequest,
+    ExecuteTypedEscrowReturnRequest, ExecuteTypedIntentGovernanceRequest,
+    ExecuteTypedPrivateEscrowReleaseRequest, ExecuteTypedPrivateEscrowReturnRequest,
+    ExecuteTypedRecurringScheduleRequest, ExecuteTypedRecurringTokenScheduleRequest,
     ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
     ExecuteTypedSplEscrowReleaseRequest, ExecuteTypedSplEscrowReturnRequest,
     ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
@@ -126,6 +128,14 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/recurring/execute",
             post(execute_recurring_payment),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-recurring-token-schedule",
+            post(execute_typed_recurring_token_schedule),
+        )
+        .route(
+            "/wallets/{name}/recurring/execute-token",
+            post(execute_recurring_token_payment),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-sol-send",
@@ -636,6 +646,51 @@ async fn execute_recurring_payment(
         intent: body.intent,
         schedule_id: body.schedule_id,
         recipient: body.recipient,
+    };
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_recurring_token_schedule(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedRecurringTokenScheduleRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:recurring-token-config:{name}"))
+        .await?;
+    let execution = build_typed_recurring_token_schedule(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_recurring_token_payment(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<ExecuteRecurringTokenPaymentRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    for (value, field) in [
+        (&body.intent, "intent"),
+        (&body.mint, "mint"),
+        (&body.source_token, "sourceToken"),
+        (&body.destination_token, "destinationToken"),
+        (&body.recipient_owner, "recipientOwner"),
+    ] {
+        ensure_base58(value, field, 32, 88)?;
+    }
+    ensure_non_empty(&body.schedule_id, "scheduleId")?;
+    state
+        .rate_limiter
+        .check(&format!("execute:recurring-token-payment:{name}"))
+        .await?;
+    let execution = clear_msig_command_contract::TypedProposalExecution::RecurringTokenPayment {
+        wallet: name,
+        intent: body.intent,
+        schedule_id: body.schedule_id,
+        mint: body.mint,
+        source_token: body.source_token,
+        destination_token: body.destination_token,
+        recipient_owner: body.recipient_owner,
     };
     Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }

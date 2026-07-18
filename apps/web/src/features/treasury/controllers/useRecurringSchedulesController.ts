@@ -17,11 +17,13 @@ import {
   firstRunUnix,
   newScheduleId,
   paymentCount,
+  recurringAmountToRaw,
   recurringEnvelope,
   solToLamports,
   type RecurringDraft,
 } from "@/features/treasury/domain/recurring";
 import { fetchRecurringSchedule } from "@/features/treasury/infrastructure/recurringState";
+import { resolveRecurringUsdcAccounts } from "@/features/treasury/infrastructure/recurringTokenAccounts";
 
 export function useRecurringSchedulesController(walletName: string) {
   const { connection } = useConnection();
@@ -64,17 +66,22 @@ export function useRecurringSchedulesController(walletName: string) {
   });
 
   async function configure(draft: RecurringDraft) {
+    const walletData = walletQuery.data;
+    if (!walletData) throw new Error("This treasury is still loading.");
     const scheduleId = newScheduleId();
     const firstExecutionAt = firstRunUnix(draft.firstRun);
     const count = paymentCount(draft.paymentCount);
     const intervalSeconds = RECURRING_INTERVALS[draft.cadence];
+    const tokenAccounts = draft.asset === "USDC"
+      ? await resolveRecurringUsdcAccounts(connection, draft.recipient, walletData.pda)
+      : null;
     const row: ProSchedule = {
       id: scheduleId,
       name: draft.name.trim(),
       address: draft.recipient.trim(),
       category: "vendor",
       amount: draft.amount.trim(),
-      asset: "SOL",
+      asset: draft.asset,
       cadence: draft.cadence,
       nextRun: new Date(firstExecutionAt * 1000).toISOString(),
       note: draft.note.trim() || undefined,
@@ -83,6 +90,10 @@ export function useRecurringSchedulesController(walletName: string) {
       intervalSeconds,
       firstExecutionAt,
       paymentCount: count,
+      mint: tokenAccounts?.mint,
+      sourceToken: tokenAccounts?.sourceToken,
+      destinationToken: tokenAccounts?.destinationToken,
+      recipientOwner: tokenAccounts?.recipientOwner,
     };
     await proposeAndExecute(row, 1);
   }
@@ -90,13 +101,17 @@ export function useRecurringSchedulesController(walletName: string) {
   async function proposeAndExecute(row: ProSchedule, status: 1 | 2) {
     const selectedIntent = intent?.account;
     const walletData = walletQuery.data;
-    if (!selectedIntent || !intent || !walletData) throw new Error("SOL protection is not ready for this treasury.");
+    if (!selectedIntent || !intent || !walletData) throw new Error("Solana protection is not ready for this treasury.");
     const proposer = wallet.pickSigner(selectedIntent.proposers);
     if (!proposer) throw new Error("A connected proposer is required.");
     if (!row.address || !row.intervalSeconds || !row.firstExecutionAt || !row.paymentCount) {
       throw new Error("Schedule execution details are incomplete.");
     }
-    solToLamports(row.amount);
+    const asset = row.asset === "USDC" ? "USDC" : "SOL";
+    recurringAmountToRaw(row.amount, asset);
+    if (asset === "USDC" && (!row.mint || !row.sourceToken || !row.destinationToken || !row.recipientOwner)) {
+      throw new Error("This USDC schedule is missing its bound token accounts.");
+    }
     setBusyId(row.id);
     try {
       const onchain = statesQuery.data?.[row.id] ?? null;
@@ -107,6 +122,10 @@ export function useRecurringSchedulesController(walletName: string) {
         scheduleId: row.id,
         recipient: row.address,
         amount: row.amount,
+        asset,
+        mint: row.mint,
+        sourceToken: row.sourceToken,
+        destinationToken: row.destinationToken,
         intervalSeconds: row.intervalSeconds,
         firstExecutionAt,
         paymentCount: count,
@@ -165,15 +184,30 @@ export function useRecurringSchedulesController(walletName: string) {
       };
       schedules.upsert(persisted);
       try {
-        await backendApi.executeTypedRecurringSchedule(walletName, proposalAddress, {
-          scheduleId: row.id,
-          recipient: row.address,
-          amountLamports: solToLamports(row.amount),
-          intervalSeconds: row.intervalSeconds,
-          firstExecutionAt,
-          paymentCount: count,
-          status,
-        });
+        if (asset === "USDC") {
+          await backendApi.executeTypedRecurringTokenSchedule(walletName, proposalAddress, {
+            scheduleId: row.id,
+            mint: row.mint!,
+            sourceToken: row.sourceToken!,
+            destinationToken: row.destinationToken!,
+            recipientOwner: row.recipientOwner!,
+            amountTokens: recurringAmountToRaw(row.amount, asset),
+            intervalSeconds: row.intervalSeconds,
+            firstExecutionAt,
+            paymentCount: count,
+            status,
+          });
+        } else {
+          await backendApi.executeTypedRecurringSchedule(walletName, proposalAddress, {
+            scheduleId: row.id,
+            recipient: row.address,
+            amountLamports: solToLamports(row.amount),
+            intervalSeconds: row.intervalSeconds,
+            firstExecutionAt,
+            paymentCount: count,
+            status,
+          });
+        }
       } catch (error) {
         if (!needsApproval(error)) throw error;
       }
@@ -189,15 +223,33 @@ export function useRecurringSchedulesController(walletName: string) {
     }
     setBusyId(row.id);
     try {
-      await backendApi.executeTypedRecurringSchedule(walletName, row.proposalAddress, {
-        scheduleId: row.id,
-        recipient: row.address,
-        amountLamports: solToLamports(row.amount),
-        intervalSeconds: row.intervalSeconds,
-        firstExecutionAt: row.firstExecutionAt,
-        paymentCount: row.paymentCount,
-        status: 1,
-      });
+      if (row.asset === "USDC") {
+        if (!row.mint || !row.sourceToken || !row.destinationToken || !row.recipientOwner) {
+          throw new Error("This USDC schedule is missing its bound token accounts.");
+        }
+        await backendApi.executeTypedRecurringTokenSchedule(walletName, row.proposalAddress, {
+          scheduleId: row.id,
+          mint: row.mint,
+          sourceToken: row.sourceToken,
+          destinationToken: row.destinationToken,
+          recipientOwner: row.recipientOwner,
+          amountTokens: recurringAmountToRaw(row.amount, "USDC"),
+          intervalSeconds: row.intervalSeconds,
+          firstExecutionAt: row.firstExecutionAt,
+          paymentCount: row.paymentCount,
+          status: 1,
+        });
+      } else {
+        await backendApi.executeTypedRecurringSchedule(walletName, row.proposalAddress, {
+          scheduleId: row.id,
+          recipient: row.address,
+          amountLamports: solToLamports(row.amount),
+          intervalSeconds: row.intervalSeconds,
+          firstExecutionAt: row.firstExecutionAt,
+          paymentCount: row.paymentCount,
+          status: 1,
+        });
+      }
       await statesQuery.refetch();
     } finally {
       setBusyId(null);
@@ -209,11 +261,25 @@ export function useRecurringSchedulesController(walletName: string) {
     if (!state) throw new Error("This schedule is not active onchain.");
     setBusyId(row.id);
     try {
-      await backendApi.executeRecurringPayment(walletName, {
-        intent: state.intent,
-        scheduleId: row.id,
-        recipient: state.recipient,
-      });
+      if (state.asset === "USDC") {
+        if (!state.mint || !state.sourceToken || !state.destinationToken) {
+          throw new Error("The onchain USDC schedule is incomplete.");
+        }
+        await backendApi.executeRecurringTokenPayment(walletName, {
+          intent: state.intent,
+          scheduleId: row.id,
+          mint: state.mint,
+          sourceToken: state.sourceToken,
+          destinationToken: state.destinationToken,
+          recipientOwner: state.recipient,
+        });
+      } else {
+        await backendApi.executeRecurringPayment(walletName, {
+          intent: state.intent,
+          scheduleId: row.id,
+          recipient: state.recipient,
+        });
+      }
       await statesQuery.refetch();
     } finally {
       setBusyId(null);

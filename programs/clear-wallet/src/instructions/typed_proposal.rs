@@ -343,12 +343,19 @@ fn validate_v4_execution_shape(
         | V4Action::AgentRiskPolicy(_)
         | V4Action::AgentSettlement(_) => {}
         V4Action::RecurringSchedule(schedule) => {
+            let native_sol = schedule.payment.asset_encoding == V4IdentityEncoding::Text
+                && schedule.payment.asset == b"SOL"
+                && schedule.payment.decimals == 9
+                && schedule.execution_commitment == [0u8; 32];
+            let devnet_usdc = schedule.payment.asset_encoding == V4IdentityEncoding::SolanaPubkey
+                && schedule.payment.asset
+                    == address!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU").as_ref()
+                && schedule.payment.decimals == 6
+                && schedule.execution_commitment != [0u8; 32];
             require!(
                 intent.common.network.chain_kind() == 0
                     && schedule.payment.recipient_encoding == V4IdentityEncoding::SolanaPubkey
-                    && schedule.payment.asset_encoding == V4IdentityEncoding::Text
-                    && schedule.payment.asset == b"SOL"
-                    && schedule.payment.decimals == 9,
+                    && (native_sol || devnet_usdc),
                 WalletError::InvalidClearSignEnvelope
             );
         }
