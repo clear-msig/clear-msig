@@ -7,9 +7,9 @@ This is the current ClearSig production/devnet deployment shape.
 - On-chain program: Solana devnet `clear_wallet`
 - Program id: `53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v`
 - Current upgrade authority: `GpTfW9LiJb8pM2xmi7oENuUiV1e4LurPu9rzcPfhaJCM`
-- Last deployed slot: `477117472`
-- Current artifact SHA-256: `e58b45e842952822b89833af4b1e4062a7654ef6391f6b72f0f04235c173a669`
-- Deployment signature: `HUmnkYM9G6994hBGiCcDUYd3aUc5yWdhkS41ZUuRBYkbqm5SCJX4CazfjYMZH6bLaM36NntrWmXDRBZNVeGszCj`
+- Last deployed slot: `477186792`
+- Current artifact SHA-256: `b2a767c1738cd1bbaf4dd4fb482a5c11792b08e3ca99808158b4dbff27cf5c0d`
+- Deployment signature: `5BwdCbGDceZuUnu1ScDrKhhT9h1Bj5rS6ke1Gq9dBBm9nGrX1Z4z46MkBvwgsFtixMhhvnAv8rxPstwkugnHuhe9`
 - Local authority keypair: `target/deploy/clear_wallet-keypair.json`
 - Devnet RPC: Alchemy devnet
 - Backend: Railway service `clear-msig-backend`
