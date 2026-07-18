@@ -109,7 +109,7 @@ function SendPage() {
   // Wallet name comes from the URL segment under /app/wallet/[name]/send.
   // We still read other prefilled fields (recipient/amount/note) from
   // the query string so /app/wallet/[name]/send?recipient=Sarah keeps
-  // working from QuickAction inputs and natural-language routes.
+  // working from product links and quick actions.
   const walletName = useMemo(() => {
     const raw = route?.name ?? "";
     try {
@@ -597,13 +597,6 @@ function SendPage() {
               onSubmit={handleSubmit}
               waitingForRule={intentsQuery.isLoading || walletQuery.isLoading}
               budgetUsage={budgetUsage}
-              contactNames={contacts.contacts.map((c) => c.name)}
-              onQuickFill={(parsed) => {
-                if (parsed.recipientText) setRecipientText(parsed.recipientText);
-                if (parsed.amountSol !== undefined)
-                  setAmount(String(parsed.amountSol));
-                if (parsed.note !== undefined) setNote(parsed.note);
-              }}
               pendingUsd={amountValid ? numericAmount * (quotePerWhole("SOL")?.usdPerWhole ?? 0) : 0}
               vaultBalanceLamports={vaultBalance}
               balanceLoading={vaultBalanceQuery.isLoading}

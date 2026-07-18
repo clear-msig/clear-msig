@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { ChainBadge } from "@/components/retail/ChainBadge";
-import { QuickSendInput } from "@/components/retail/QuickSendInput";
 import { QrScanButton } from "@/components/retail/QrScanButton";
 import { RecentRecipientsChips } from "@/components/retail/RecentRecipientsChips";
 import { SendAmountField } from "@/components/retail/SendAmountField";
@@ -54,7 +53,6 @@ interface ComposeStageProps {
   waitingForRule: boolean;
   budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
   pendingUsd: number;
-  contactNames: string[];
   vaultBalanceLamports: bigint | null;
   balanceLoading: boolean;
   insufficientBalance: boolean;
@@ -62,11 +60,6 @@ interface ComposeStageProps {
   feeReserveLamports: bigint;
   approvalThreshold: number;
   timelockSeconds: number;
-  onQuickFill: (parsed: {
-    recipientText?: string;
-    amountSol?: number;
-    note?: string;
-  }) => void;
 }
 
 export function ComposeStage({
@@ -85,7 +78,6 @@ export function ComposeStage({
   waitingForRule,
   budgetUsage,
   pendingUsd,
-  contactNames,
   vaultBalanceLamports,
   balanceLoading,
   insufficientBalance,
@@ -93,7 +85,6 @@ export function ComposeStage({
   feeReserveLamports,
   approvalThreshold,
   timelockSeconds,
-  onQuickFill,
 }: ComposeStageProps) {
   const walletDisplay = toDisplayName(walletName);
 
@@ -127,9 +118,6 @@ export function ComposeStage({
           <span className="font-medium text-text-strong">{walletDisplay}</span>
         </p>
       </header>
-
-      {/* Quick-send shortcut - type a sentence, the form fills. */}
-      <QuickSendInput contactNames={contactNames} onParsed={onQuickFill} />
 
       {signerBlocked ? (
         <UnsupportedSignerBanner
