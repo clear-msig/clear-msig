@@ -37,6 +37,16 @@ describe("recurring onchain state", () => {
       remainingPayments: 11,
       executedPayments: 1,
       status: "active",
+      policyVersion: "CSP1",
     });
+  });
+
+  it("recognizes asset-scoped CSP2 token schedules", () => {
+    const data = new Uint8Array(961);
+    data[0] = 13;
+    data.set(new TextEncoder().encode("CSP2"), 319);
+    data[959] = 1;
+
+    expect(parseRecurringScheduleAccount("schedule", data)?.policyVersion).toBe("CSP2");
   });
 });

@@ -86,6 +86,63 @@ pub(super) fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<(
                 "status": "executed",
             }));
         }
+        ProposalAction::TypedAssetPolicyUpdate {
+            wallet: wallet_name,
+            proposal: proposal_addr_str,
+            policy_bytes_hex,
+            chain_kind,
+            scope_kind,
+            decimals,
+            asset_id,
+            display_asset,
+        } => {
+            let policy_bytes =
+                parse_hex_local(&policy_bytes_hex).with_context(|| "invalid policy-bytes-hex")?;
+            let client = rpc::client(config);
+            let (wallet, proposal, proposal_account) =
+                resolve_approved_typed_proposal(config, &client, &wallet_name, &proposal_addr_str)?;
+            ensure_typed_action(
+                &proposal_account,
+                ClearSignActionKind::SetAssetProtection,
+                "typed asset policy update",
+            )?;
+            let intent: Pubkey = proposal_account
+                .intent
+                .parse()
+                .with_context(|| "invalid intent address")?;
+            let asset: Pubkey = asset_id
+                .parse()
+                .with_context(|| "invalid asset-id pubkey")?;
+            let program = crate::instructions::program_id();
+            let (asset_policy, _) = Pubkey::find_program_address(
+                &[b"asset_policy", wallet.as_ref(), asset.as_ref()],
+                &program,
+            );
+            let ix = crate::instructions::execute_typed_asset_policy_update(
+                solana_sdk::signer::Signer::pubkey(&config.payer),
+                wallet,
+                asset_policy,
+                intent,
+                proposal,
+                proposal_account.policy_commitment,
+                proposal_account.envelope_hash,
+                chain_kind,
+                scope_kind,
+                decimals,
+                asset.to_bytes(),
+                display_asset.as_bytes(),
+                &policy_bytes,
+            );
+            let sig = rpc::send_instruction(&client, config, ix)?;
+            print_json(&serde_json::json!({
+                "txid": sig.to_string(),
+                "proposal": proposal.to_string(),
+                "asset_policy": asset_policy.to_string(),
+                "asset_id": asset.to_string(),
+                "path": "typed_asset_policy_update",
+                "status": "executed",
+            }));
+        }
 
         ProposalAction::TypedIntentGovernance {
             wallet: wallet_name,

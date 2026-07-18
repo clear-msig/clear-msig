@@ -20,6 +20,7 @@ export {
   type MilestonePayload,
   type MoneyAmount,
   type ProtectionPayload,
+  type AssetProtectionPayload,
   type RecipientAmount,
   type RecurringSchedulePayload,
   type RecoveryPayload,

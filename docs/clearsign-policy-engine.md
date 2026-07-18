@@ -250,6 +250,11 @@ Action codes are fixed as:
 | 9 | `agent_trade_approval` |
 | 10 | `recovery_action` |
 | 11 | `swap_intent` |
+| 12 | `agent_session_grant` |
+| 13 | `agent_risk_policy` |
+| 14 | `agent_trade_settlement` |
+| 15 | `recurring_schedule` |
+| 16 | `set_asset_protection` |
 
 Typed proposal instruction discriminators are:
 
@@ -269,8 +274,21 @@ Typed proposal instruction discriminators are:
 | 21 | `execute_typed_private_escrow_release` |
 | 22 | `execute_typed_private_escrow_return` |
 | 23 | `execute_typed_agent_trade_approval` |
+| 24 | `execute_typed_chain_send` |
+| 25 | `ika_sign_typed_chain_send` |
+| 26 | `execute_typed_wallet_policy_update` |
+| 27 | `execute_typed_intent_governance` |
+| 28 | `execute_typed_agent_session_grant` |
+| 29 | `execute_typed_agent_risk_policy` |
+| 30 | `execute_typed_agent_trade_settlement` |
+| 31 | `propose_typed_v4` |
 | 32 | `execute_typed_recurring_schedule` |
 | 33 | `execute_recurring_payment` |
+| 34 | `execute_typed_recurring_token_schedule` |
+| 35 | `execute_recurring_token_payment` |
+| 36 | `execute_typed_asset_policy_update` |
+| 37 | `execute_typed_recurring_asset_schedule` |
+| 38 | `execute_recurring_asset_payment` |
 
 `execute_typed` remains the generic status gate. The SOL escrow-specific
 executors additionally move SOL from the wallet vault after recomputing the
@@ -303,6 +321,14 @@ but transfers exactly one due SOL payment, advances the due time, decrements the
 remaining count, and rechecks the wallet's current supported send policy before
 funds move. Unsupported proposal-dependent policy rules fail closed during
 schedule configuration.
+
+New USDC schedules use CSP2 rather than reusing CSP1 lamport fields. The asset
+policy update binds the wallet, SPL mint, decimals, display symbol, replacement
+bytes, and stale-current commitment. The recurring asset executor enforces the
+same exact token accounts plus amount, recipient, allowed-hours, velocity, and
+send-count rules. Velocity and count are recorded in one PDA per wallet and
+mint, so creating another schedule does not create another budget. Legacy CSP1
+token schedules continue through discriminators 34 and 35 only.
 
 ## Security Review Snapshot: 2026-07-04
 

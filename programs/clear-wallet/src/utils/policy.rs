@@ -17,6 +17,7 @@ use crate::{
 };
 
 const POLICY_DOMAIN: &[u8] = b"typed-sol-send-policy-v1";
+const ASSET_POLICY_DOMAIN: &[u8] = b"typed-asset-send-policy-v2";
 const MAGIC: &[u8; 4] = b"CSP1";
 const MODE_ANY: u8 = 0;
 const MODE_ALLOWLIST: u8 = 1;
@@ -35,7 +36,12 @@ const EXT_ALLOWED_TIME_LEN: usize = 1 + 1 + 1 + 2;
 const EXT_MEMBER_ALLOWANCE_ENTRY_LEN: usize = 32 + 8 + 4;
 
 pub fn hash_typed_policy(policy_bytes: &[u8]) -> [u8; 32] {
-    hash_policy_commitment(&[POLICY_DOMAIN, policy_bytes])
+    let domain = if policy_bytes.starts_with(b"CSP2") {
+        ASSET_POLICY_DOMAIN
+    } else {
+        POLICY_DOMAIN
+    };
+    hash_policy_commitment(&[domain, policy_bytes])
 }
 
 pub fn enforce_wallet_policy_account(

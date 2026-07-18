@@ -186,6 +186,11 @@ impl<'info> ProposeTyped<'info> {
                     == policy.new_policy_commitment,
                 WalletError::InvalidPolicy
             ),
+            V4Action::AssetPolicyUpdate(policy) => require!(
+                clear_msig_signing::wallet_policy_commitment(args.policy_bytes)
+                    == policy.new_policy_commitment,
+                WalletError::InvalidPolicy
+            ),
             _ => require!(
                 submitted_policy_commitment == canonical.common.policy_commitment,
                 WalletError::InvalidPolicy
@@ -311,6 +316,16 @@ fn validate_v4_execution_shape(
         V4Action::PolicyUpdate(policy) => {
             require!(
                 policy.chain_kind == intent.common.network.chain_kind(),
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
+        V4Action::AssetPolicyUpdate(policy) => {
+            require!(
+                intent.common.network.chain_kind() == 0
+                    && policy.chain_kind == 0
+                    && policy.scope_kind == 1
+                    && policy.decimals <= 18
+                    && policy.asset_id != [0u8; 32],
                 WalletError::InvalidClearSignEnvelope
             );
         }

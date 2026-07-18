@@ -16,6 +16,7 @@ use {
         encode_agent_session as encode_v4_agent_session,
         encode_agent_settlement as encode_v4_agent_settlement,
         encode_agent_trade_approval as encode_v4_agent_trade_approval,
+        encode_asset_policy_update as encode_v4_asset_policy_update,
         encode_batch_transfer as encode_v4_batch_transfer,
         encode_escrow_release as encode_v4_escrow_release,
         encode_escrow_return as encode_v4_escrow_return,
@@ -25,10 +26,11 @@ use {
         execution_commitment as v4_execution_commitment, parse_intent as parse_v4_intent,
         policy_commitment as v4_policy_commitment, render_document as render_v4_document,
         spl_escrow_return_execution_commitment as v4_spl_return_execution_commitment,
-        wallet_policy_commitment as v4_wallet_policy_commitment,
+        wallet_policy_commitment as v4_wallet_policy_commitment, Action as V4Action,
         AgentRiskPolicyInput as V4AgentRiskPolicyInput, AgentSessionInput as V4AgentSessionInput,
         AgentSettlementInput as V4AgentSettlementInput,
         AgentTradeApprovalInput as V4AgentTradeApprovalInput,
+        AssetPolicyUpdateInput as V4AssetPolicyUpdateInput,
         BatchTransferInput as V4BatchTransferInput, CommonFields as V4CommonFields,
         DeviceProfile as V4DeviceProfile, EscrowReleaseInput as V4EscrowReleaseInput,
         EscrowReturnInput as V4EscrowReturnInput, IdentityEncoding as V4IdentityEncoding,
@@ -41,7 +43,8 @@ use {
         intents,
         pda::{
             compute_name_hash, find_agent_risk_address, find_agent_session_address,
-            find_agent_settlement_receipt_address, find_intent_address, find_policy_spend_address,
+            find_agent_settlement_receipt_address, find_asset_policy_address,
+            find_asset_policy_spend_address, find_intent_address, find_policy_spend_address,
             find_proposal_address, find_recurring_schedule_address, find_typed_proposal_address,
             find_vault_address, find_wallet_address, find_wallet_policy_address,
         },
@@ -205,6 +208,7 @@ mod legacy_intent_lifecycle;
 mod legacy_proposal_creation;
 mod legacy_proposal_enforcement;
 mod legacy_transfers;
+mod recurring_asset_policy;
 mod recurring_schedule;
 mod remote_assets;
 mod solana_batch;

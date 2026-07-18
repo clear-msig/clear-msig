@@ -20,6 +20,8 @@ describe("ClearSign surface coverage", () => {
       "erc20-send",
       "zec-send",
       "wallet-policy",
+      "asset-policy",
+      "recurring-sol-usdc",
       "members-policy",
       "agent-trade-approval",
       "agent-session-grant",
@@ -44,6 +46,8 @@ describe("ClearSign surface coverage", () => {
 
   it("marks membership and wallet policy as typed on-chain", () => {
     expect(clearSignSurfaceById("wallet-policy")?.status).toBe("typed_onchain");
+    expect(clearSignSurfaceById("asset-policy")?.status).toBe("typed_onchain");
+    expect(clearSignSurfaceById("recurring-sol-usdc")?.status).toBe("typed_onchain");
     expect(clearSignSurfaceById("members-policy")?.status).toBe("typed_onchain");
   });
 

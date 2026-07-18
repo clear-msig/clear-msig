@@ -1,14 +1,15 @@
 use axum::{extract::State, Json};
 use clear_msig_signing::{
     document_hash, encode_agent_risk_policy, encode_agent_session, encode_agent_settlement,
-    encode_agent_trade_approval, encode_batch_transfer, encode_escrow_release,
-    encode_escrow_return, encode_governance, encode_policy_update, encode_recurring_schedule,
-    encode_transfer, envelope_hash, execution_commitment, parse_intent, policy_commitment,
-    render_document, replay_hash, wallet_policy_commitment, ActionKind, AgentRiskPolicyInput,
-    AgentSessionInput, AgentSettlementInput, AgentTradeApprovalInput, BatchTransferInput,
-    CommonFields, DeviceProfile, EscrowReleaseInput, EscrowReturnInput, FiatEstimateInput,
-    GovernanceInput, IdentityEncoding, Network, PolicyUpdateInput, RecurringScheduleInput,
-    TransferInput, TransferRowInput, MAX_CANONICAL_INTENT_BYTES, MAX_DOCUMENT_BYTES,
+    encode_agent_trade_approval, encode_asset_policy_update, encode_batch_transfer,
+    encode_escrow_release, encode_escrow_return, encode_governance, encode_policy_update,
+    encode_recurring_schedule, encode_transfer, envelope_hash, execution_commitment, parse_intent,
+    policy_commitment, render_document, replay_hash, wallet_policy_commitment, ActionKind,
+    AgentRiskPolicyInput, AgentSessionInput, AgentSettlementInput, AgentTradeApprovalInput,
+    AssetPolicyUpdateInput, BatchTransferInput, CommonFields, DeviceProfile, EscrowReleaseInput,
+    EscrowReturnInput, FiatEstimateInput, GovernanceInput, IdentityEncoding, Network,
+    PolicyUpdateInput, RecurringScheduleInput, TransferInput, TransferRowInput,
+    MAX_CANONICAL_INTENT_BYTES, MAX_DOCUMENT_BYTES,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -188,7 +189,8 @@ async fn resolve_trusted_context(
             "intent.tx_template_hash",
         )?
     };
-    let current_policy_commitment = if normalize_text(&req.envelope.kind) == "set_protection" {
+    let normalized_kind = normalize_text(&req.envelope.kind);
+    let current_policy_commitment = if normalized_kind == "set_protection" {
         let policy = state
             .runner
             .run_direct(
@@ -202,6 +204,22 @@ async fn resolve_trusted_context(
         Some(decode_hex_32(
             value_string(&policy, "commitment")?,
             "trusted policy commitment",
+        )?)
+    } else if normalized_kind == "set_asset_protection" {
+        let asset_id = strict_required_text(&req.envelope.payload, "assetId", 64)?;
+        let policy = state
+            .runner
+            .run_direct(
+                clear_msig_command_contract::DirectExecutionContext::Backend,
+                clear_msig_command_contract::DirectCommand::AssetPolicyCommitment {
+                    wallet: wallet_name.clone(),
+                    asset_id,
+                },
+            )
+            .await?;
+        Some(decode_hex_32(
+            value_string(&policy, "commitment")?,
+            "trusted asset policy commitment",
         )?)
     } else {
         None
@@ -289,7 +307,10 @@ fn prepare_clearsign_v4_response(
     )?;
     let submitted_policy_commitment = policy_commitment(&policy_bytes);
     let replacement_policy_commitment = wallet_policy_commitment(&policy_bytes);
-    let trusted_policy_commitment = if kind == ClearSignActionKind::SetProtection {
+    let trusted_policy_commitment = if matches!(
+        kind,
+        ClearSignActionKind::SetProtection | ClearSignActionKind::SetAssetProtection
+    ) {
         trusted.current_policy_commitment.ok_or_else(|| {
             ApiError::InvalidOutput("current wallet policy commitment was not resolved".into())
         })?
@@ -434,6 +455,42 @@ fn prepare_clearsign_v4_response(
                 &PolicyUpdateInput {
                     common,
                     chain_kind,
+                    new_policy_commitment: replacement_policy_commitment,
+                    reason: reason.as_bytes(),
+                },
+                &mut canonical_bytes,
+            )
+            .map_err(signing_error)?
+        }
+        ClearSignActionKind::SetAssetProtection => {
+            let chain_kind = payload_u8(&req.envelope.payload, "chainKind")?;
+            let scope_kind = payload_u8(&req.envelope.payload, "scopeKind")?;
+            let decimals = payload_u8(&req.envelope.payload, "decimals")?;
+            if chain_kind != trusted.chain_kind || scope_kind != 1 {
+                return Err(ApiError::BadRequest(
+                    "asset policy scope does not match the selected onchain intent".into(),
+                ));
+            }
+            let asset_id_text = strict_required_text(&req.envelope.payload, "assetId", 64)?;
+            let asset_id = decode_base58_32(&asset_id_text, "payload.assetId")?;
+            let display_asset = strict_required_text(&req.envelope.payload, "displayAsset", 16)?;
+            let asserted_new = strict_required_text(&req.envelope.payload, "policyCommitment", 64)?;
+            if decode_hex_32(&asserted_new, "payload.policyCommitment")?
+                != replacement_policy_commitment
+            {
+                return Err(ApiError::BadRequest(
+                    "payload.policyCommitment does not match the replacement policy bytes".into(),
+                ));
+            }
+            let reason = strict_optional_text(&req.envelope.payload, "summary", 160)?;
+            encode_asset_policy_update(
+                &AssetPolicyUpdateInput {
+                    common,
+                    chain_kind,
+                    scope_kind,
+                    decimals,
+                    asset_id,
+                    display_asset: display_asset.as_bytes(),
                     new_policy_commitment: replacement_policy_commitment,
                     reason: reason.as_bytes(),
                 },

@@ -294,6 +294,9 @@ fn submit_typed_v4_proposal(
         &instruction,
         &[funded_account(payer), empty_account(proposal)],
     );
+    if result.is_err() {
+        result.print_logs();
+    }
     assert!(
         result.is_ok(),
         "canonical v4 proposal failed: {:?}",

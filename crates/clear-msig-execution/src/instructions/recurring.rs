@@ -2,7 +2,10 @@ use clear_wallet_client::generated::execute_recurring_payment::ExecuteRecurringP
 use clear_wallet_client::generated::execute_recurring_token_payment::ExecuteRecurringTokenPaymentInstruction;
 use clear_wallet_client::generated::execute_typed_recurring_schedule::ExecuteTypedRecurringScheduleInstruction;
 use clear_wallet_client::generated::execute_typed_recurring_token_schedule::ExecuteTypedRecurringTokenScheduleInstruction;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use solana_sdk::{
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+};
 
 use super::{pk_to_addr, sdk_ix_from_ext};
 
@@ -163,4 +166,96 @@ fn spl_token_program() -> Pubkey {
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         .parse()
         .expect("static SPL token program")
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_recurring_asset_schedule(
+    payer: Pubkey,
+    wallet: Pubkey,
+    asset_policy: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    schedule: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    destination_token: Pubkey,
+    recipient_owner: Pubkey,
+    policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    schedule_id_hash: [u8; 32],
+    amount_tokens: u64,
+    interval_seconds: u32,
+    first_execution_at: i64,
+    payment_count: u32,
+    status: u8,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(asset_policy, false),
+        AccountMeta::new_readonly(vault, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new(schedule, false),
+        AccountMeta::new_readonly(mint, false),
+        AccountMeta::new_readonly(source_token, false),
+        AccountMeta::new_readonly(destination_token, false),
+        AccountMeta::new_readonly(recipient_owner, false),
+        AccountMeta::new_readonly(spl_token_program(), false),
+        AccountMeta::new_readonly(solana_sdk_ids::system_program::ID, false),
+    ];
+    let mut data = vec![37u8];
+    for value in [&policy_commitment, &envelope_hash, &schedule_id_hash] {
+        wincode::serialize_into(&mut data, value).unwrap();
+    }
+    wincode::serialize_into(&mut data, &amount_tokens).unwrap();
+    wincode::serialize_into(&mut data, &interval_seconds).unwrap();
+    wincode::serialize_into(&mut data, &first_execution_at).unwrap();
+    wincode::serialize_into(&mut data, &payment_count).unwrap();
+    wincode::serialize_into(&mut data, &status).unwrap();
+    Instruction {
+        program_id: super::program_id(),
+        accounts,
+        data,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn execute_recurring_asset_payment(
+    payer: Pubkey,
+    wallet: Pubkey,
+    asset_policy: Pubkey,
+    asset_policy_spend: Pubkey,
+    vault: Pubkey,
+    intent: Pubkey,
+    schedule: Pubkey,
+    mint: Pubkey,
+    source_token: Pubkey,
+    destination_token: Pubkey,
+    recipient_owner: Pubkey,
+    schedule_id_hash: [u8; 32],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new_readonly(asset_policy, false),
+        AccountMeta::new(asset_policy_spend, false),
+        AccountMeta::new_readonly(vault, false),
+        AccountMeta::new_readonly(intent, false),
+        AccountMeta::new(schedule, false),
+        AccountMeta::new_readonly(mint, false),
+        AccountMeta::new(source_token, false),
+        AccountMeta::new(destination_token, false),
+        AccountMeta::new_readonly(recipient_owner, false),
+        AccountMeta::new_readonly(spl_token_program(), false),
+        AccountMeta::new_readonly(solana_sdk_ids::system_program::ID, false),
+    ];
+    let mut data = vec![38u8];
+    wincode::serialize_into(&mut data, &schedule_id_hash).unwrap();
+    Instruction {
+        program_id: super::program_id(),
+        accounts,
+        data,
+    }
 }

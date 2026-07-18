@@ -69,6 +69,16 @@ pub(super) fn render_compact_document(
             writer.push(b"\nNEW ")?;
             writer.hex(&policy.new_policy_commitment)?;
         }
+        Action::AssetPolicyUpdate(policy) => {
+            writer.push(b"ASSET POLICY UPDATE\nASSET ")?;
+            writer.push(policy.display_asset)?;
+            writer.push(b"\nMINT ")?;
+            writer.identity(IdentityEncoding::SolanaPubkey, &policy.asset_id)?;
+            writer.push(b"\nDECIMALS ")?;
+            writer.decimal_u128(policy.decimals as u128)?;
+            writer.push(b"\nNEW ")?;
+            writer.hex(&policy.new_policy_commitment)?;
+        }
         Action::EscrowRelease(escrow) => {
             writer.push(b"ESCROW RELEASE\nESCROW ")?;
             writer.push(escrow.escrow_id)?;

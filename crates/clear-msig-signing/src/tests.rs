@@ -203,6 +203,67 @@ fn envelope_binds_every_replay_policy_and_network_field() {
 }
 
 #[test]
+fn asset_policy_update_binds_visible_scope_and_uses_csp2_domain() {
+    let mint = [21u8; 32];
+    let mut policy = b"CSP2".to_vec();
+    policy.extend_from_slice(&[1, 6]);
+    policy.extend_from_slice(&mint);
+    policy.extend_from_slice(b"CSP1");
+    policy.extend_from_slice(&[0]);
+    policy.extend_from_slice(&0u64.to_le_bytes());
+    policy.extend_from_slice(&0u32.to_le_bytes());
+    policy.extend_from_slice(&[0, 0]);
+    let replacement = wallet_policy_commitment(&policy);
+    assert_ne!(replacement, policy_commitment(&policy[38..]));
+
+    let input = AssetPolicyUpdateInput {
+        common: CommonFields {
+            policy_commitment: [0u8; 32],
+            ..transfer(&[12u8; 32], b"").common
+        },
+        chain_kind: 0,
+        scope_kind: 1,
+        decimals: 6,
+        asset_id: mint,
+        display_asset: b"USDC",
+        new_policy_commitment: replacement,
+        reason: b"Weekly treasury cap",
+    };
+    let mut encoded = [0u8; MAX_CANONICAL_INTENT_BYTES];
+    let len = encode_asset_policy_update(&input, &mut encoded).unwrap();
+    let parsed = parse_intent(&encoded[..len]).unwrap();
+    let baseline = parsed.payload_hash();
+    let mut rendered = [0u8; MAX_DOCUMENT_BYTES];
+    let rendered_len = render_document(&parsed, b"Team treasury", &mut rendered).unwrap();
+    let text = core::str::from_utf8(&rendered[..rendered_len]).unwrap();
+    assert!(text.contains("Replace USDC protection policy"));
+    assert!(text.contains("Asset mint:"));
+    assert!(text.contains("Decimals: 6"));
+
+    for changed in [
+        AssetPolicyUpdateInput {
+            asset_id: [22u8; 32],
+            ..input
+        },
+        AssetPolicyUpdateInput {
+            decimals: 7,
+            ..input
+        },
+        AssetPolicyUpdateInput {
+            display_asset: b"USDT",
+            ..input
+        },
+    ] {
+        let mut bytes = [0u8; MAX_CANONICAL_INTENT_BYTES];
+        let changed_len = encode_asset_policy_update(&changed, &mut bytes).unwrap();
+        assert_ne!(
+            baseline,
+            parse_intent(&bytes[..changed_len]).unwrap().payload_hash()
+        );
+    }
+}
+
+#[test]
 fn batch_payload_binds_every_row() {
     let recipient_a = [12u8; 32];
     let recipient_b = [13u8; 32];

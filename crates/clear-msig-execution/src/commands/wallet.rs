@@ -6,7 +6,7 @@ use crate::output::print_json;
 use crate::rpc;
 use clap::Subcommand;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 #[derive(Subcommand)]
 pub enum WalletAction {
@@ -50,6 +50,13 @@ pub enum WalletAction {
         wallet: String,
         #[arg(long)]
         chain_kind: u8,
+    },
+    /// Read the active CSP2 commitment for one SPL token mint.
+    AssetPolicyCommitment {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        asset_id: String,
     },
     /// Give the wallet an identity on a remote chain via Ika dWallet.
     ///
@@ -665,6 +672,45 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             print_json(&serde_json::json!({
                 "wallet": wallet.to_string(),
                 "chain_kind": chain_kind,
+                "commitment": hex_encode(&commitment),
+            }));
+        }
+        WalletAction::AssetPolicyCommitment {
+            wallet: wallet_name,
+            asset_id,
+        } => {
+            const POLICY_LEN: usize = 114;
+            let client = rpc::client(config);
+            let (wallet, _) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let asset = Pubkey::from_str(&asset_id).context("invalid asset-id pubkey")?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet.to_bytes());
+            let asset_addr = solana_address::Address::new_from_array(asset.to_bytes());
+            let program_id = crate::instructions::program_id();
+            let pid = solana_address::Address::new_from_array(program_id.to_bytes());
+            let (policy_addr, _) = clear_wallet_client::pda::find_asset_policy_address(
+                &wallet_addr,
+                &asset_addr,
+                &pid,
+            );
+            let policy = Pubkey::new_from_array(policy_addr.to_bytes());
+            let commitment = match rpc::fetch_account_optional(&client, &policy)? {
+                None => [0u8; 32],
+                Some(data) => {
+                    if data.len() < POLICY_LEN
+                        || data[0] != 14
+                        || data[1..33] != wallet.to_bytes()
+                        || data[33..65] != asset.to_bytes()
+                    {
+                        return Err(anyhow!("asset policy account is malformed"));
+                    }
+                    data[65..97]
+                        .try_into()
+                        .map_err(|_| anyhow!("asset policy commitment is malformed"))?
+                }
+            };
+            print_json(&serde_json::json!({
+                "wallet": wallet.to_string(),
+                "asset_id": asset.to_string(),
                 "commitment": hex_encode(&commitment),
             }));
         }

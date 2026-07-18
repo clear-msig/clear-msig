@@ -54,6 +54,8 @@ This prevents newline, delimiter, bidi, and confusable-label injection.
 | Batch payment | `BatchSend` | Every ordered row is recomputed |
 | Member add/remove and threshold change | Governance action | Final proposer/approver sets, thresholds, timelock, and target intent are recomputed |
 | Wallet policy update | `SetProtection` | Current policy is read from chain; replacement bytes and chain kind are committed |
+| Asset policy update | `SetAssetProtection` | Current asset policy is read from the wallet-and-asset PDA; CSP2 replacement bytes, scope, mint, decimals, and symbol are committed |
+| Recurring SOL / USDC | `RecurringSchedule` | Amount, recipient, cadence, count, policy, and exact SPL execution accounts are recomputed; CSP2 USDC spend windows are shared by wallet and mint |
 | Escrow release/return | Escrow actions | Every transfer plus SPL, Ika, or private settlement evidence is recomputed |
 | Agent grant/revoke | `AgentSessionGrant` | Session identity, venue, market, budget, leverage, expiry, and status are recomputed |
 | Agent budget/risk change | `AgentRiskPolicy` | Session, loss cap, oracle policy, and status are recomputed |

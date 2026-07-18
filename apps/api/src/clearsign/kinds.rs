@@ -17,6 +17,7 @@ pub(super) enum ClearSignActionKind {
     AgentRiskPolicy,
     AgentTradeSettlement,
     RecurringSchedule,
+    SetAssetProtection,
 }
 
 impl ClearSignActionKind {
@@ -37,6 +38,7 @@ impl ClearSignActionKind {
             "agent_risk_policy" => Ok(Self::AgentRiskPolicy),
             "agent_trade_settlement" => Ok(Self::AgentTradeSettlement),
             "recurring_schedule" => Ok(Self::RecurringSchedule),
+            "set_asset_protection" => Ok(Self::SetAssetProtection),
             other => Err(ApiError::BadRequest(format!(
                 "unsupported clearsign action kind: {other}"
             ))),
@@ -60,6 +62,7 @@ impl ClearSignActionKind {
             Self::AgentRiskPolicy => 13,
             Self::AgentTradeSettlement => 14,
             Self::RecurringSchedule => 15,
+            Self::SetAssetProtection => 16,
         }
     }
 }

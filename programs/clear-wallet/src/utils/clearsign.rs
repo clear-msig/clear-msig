@@ -36,6 +36,7 @@ pub enum ClearSignActionKind {
     AgentRiskPolicy = 13,
     AgentTradeSettlement = 14,
     RecurringSchedule = 15,
+    SetAssetProtection = 16,
 }
 
 impl ClearSignActionKind {
@@ -56,6 +57,7 @@ impl ClearSignActionKind {
             13 => Some(Self::AgentRiskPolicy),
             14 => Some(Self::AgentTradeSettlement),
             15 => Some(Self::RecurringSchedule),
+            16 => Some(Self::SetAssetProtection),
             _ => None,
         }
     }
@@ -81,6 +83,7 @@ impl ClearSignActionKind {
             Self::AgentRiskPolicy => "Set agent risk policy",
             Self::AgentTradeSettlement => "Settle agent trade",
             Self::RecurringSchedule => "Configure recurring payment",
+            Self::SetAssetProtection => "Set asset protection",
         }
     }
 }
@@ -625,6 +628,23 @@ pub fn hash_wallet_policy_update_payload(
     let mut hasher = payload_hasher(ClearSignActionKind::SetProtection);
     update_bytes(&mut hasher, b"wallet_policy");
     hasher.update([chain_kind]);
+    hasher.update(new_policy_commitment);
+    finish_hash(hasher)
+}
+
+pub fn hash_asset_policy_update_payload(
+    chain_kind: u8,
+    scope_kind: u8,
+    decimals: u8,
+    asset_id: &[u8; 32],
+    display_asset: &[u8],
+    new_policy_commitment: &[u8; 32],
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ClearSignActionKind::SetAssetProtection);
+    update_bytes(&mut hasher, b"asset_policy");
+    hasher.update([chain_kind, scope_kind, decimals]);
+    hasher.update(asset_id);
+    update_bytes(&mut hasher, display_asset);
     hasher.update(new_policy_commitment);
     finish_hash(hasher)
 }

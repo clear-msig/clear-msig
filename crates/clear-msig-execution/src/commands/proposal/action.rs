@@ -78,6 +78,50 @@ pub enum ProposalAction {
         #[arg(long)]
         recipient_owner: String,
     },
+    /// Create or revoke a recurring USDC schedule governed by CSP2.
+    TypedRecurringAssetSchedule {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        schedule_id: String,
+        #[arg(long)]
+        mint: String,
+        #[arg(long)]
+        source_token: String,
+        #[arg(long)]
+        destination_token: String,
+        #[arg(long)]
+        recipient_owner: String,
+        #[arg(long)]
+        amount_tokens: u64,
+        #[arg(long)]
+        interval_seconds: u32,
+        #[arg(long)]
+        first_execution_at: i64,
+        #[arg(long)]
+        payment_count: u32,
+        #[arg(long)]
+        status: u8,
+    },
+    /// Execute one due CSP2-governed USDC payment.
+    RecurringAssetPayment {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        intent: String,
+        #[arg(long)]
+        schedule_id: String,
+        #[arg(long)]
+        mint: String,
+        #[arg(long)]
+        source_token: String,
+        #[arg(long)]
+        destination_token: String,
+        #[arg(long)]
+        recipient_owner: String,
+    },
     /// Create a new proposal for a custom intent
     Create {
         #[arg(long)]
@@ -159,6 +203,25 @@ pub enum ProposalAction {
         /// Chain kind whose active policy should be replaced (0 SOL, 1 EVM, 2 BTC, 3 ZEC, 4 ERC-20, 5 HyperEVM).
         #[arg(long, default_value_t = 0)]
         chain_kind: u8,
+    },
+    /// Execute an approved typed CSP2 asset policy update.
+    TypedAssetPolicyUpdate {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        policy_bytes_hex: String,
+        #[arg(long, default_value_t = 0)]
+        chain_kind: u8,
+        #[arg(long, default_value_t = 1)]
+        scope_kind: u8,
+        #[arg(long)]
+        decimals: u8,
+        #[arg(long)]
+        asset_id: String,
+        #[arg(long)]
+        display_asset: String,
     },
     /// Execute an approved typed membership / threshold / timelock update.
     TypedIntentGovernance {
@@ -598,6 +661,7 @@ impl ProposalAction {
             | Self::Cancel { .. } => HandlerGroup::Votes,
             Self::TypedExecute { .. }
             | Self::TypedWalletPolicyUpdate { .. }
+            | Self::TypedAssetPolicyUpdate { .. }
             | Self::TypedIntentGovernance { .. } => HandlerGroup::Governance,
             Self::TypedEscrowRelease { .. }
             | Self::TypedSplEscrowRelease { .. }
@@ -618,7 +682,9 @@ impl ProposalAction {
             Self::TypedRecurringSchedule { .. }
             | Self::RecurringPayment { .. }
             | Self::TypedRecurringTokenSchedule { .. }
-            | Self::RecurringTokenPayment { .. } => HandlerGroup::Recurring,
+            | Self::RecurringTokenPayment { .. }
+            | Self::TypedRecurringAssetSchedule { .. }
+            | Self::RecurringAssetPayment { .. } => HandlerGroup::Recurring,
             Self::Execute { .. } | Self::List { .. } | Self::Show { .. } | Self::Cleanup { .. } => {
                 HandlerGroup::Legacy
             }

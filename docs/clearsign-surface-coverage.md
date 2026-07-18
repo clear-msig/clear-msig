@@ -19,6 +19,9 @@ approval/cancellation compatibility only.
 - Typed proposal approve / cancel
 - BTC / ETH / Hyperliquid / Zcash / ERC-20 direct send (typed chain-send + Ika)
 - Wallet policy persistence (`set_protection` → WalletPolicy PDA)
+- Asset policy persistence (`set_asset_protection` → AssetPolicy PDA), currently
+  product-wired for Solana devnet USDC
+- Recurring SOL and CSP2-governed Solana devnet USDC schedules and payments
 - Members, threshold, and timelock (`execute_typed_intent_governance`)
 - Agent session grant / revoke, bounded trade-approval finalization, and risk policy
 

@@ -3,6 +3,7 @@ import { sha256, toHex } from "@/lib/msig/hash";
 import type { PolicyEnforcementPlan } from "@/lib/policies/enforce";
 
 const POLICY_DOMAIN = "typed-sol-send-policy-v1";
+const ASSET_POLICY_DOMAIN = "typed-asset-send-policy-v2";
 const MAGIC = [0x43, 0x53, 0x50, 0x31]; // CSP1
 const EXT_VELOCITY_SOL = 1;
 const EXT_SEND_COUNT = 2;
@@ -177,6 +178,7 @@ export function encodeTypedRemoteSendPolicy(
     assetTicker: string;
     decimals?: number;
     normalizeRecipient?: (value: string) => string;
+    encodeRecipient?: (value: string) => Uint8Array;
   },
 ): EncodedSolPolicy | null {
   const isDeny = plan.evaluation?.action === "deny";
@@ -259,7 +261,9 @@ export function encodeTypedRemoteSendPolicy(
   }
 
   const writer = new ByteWriter();
-  const recipients = dedupe(recipientTexts).map(textCommitment);
+  const recipients = dedupe(recipientTexts).map(
+    options.encodeRecipient ?? textCommitment,
+  );
   writer.pushRaw(new Uint8Array(MAGIC));
   writer.pushU8(mode);
   writer.pushU64(maxAmountRaw);
@@ -303,7 +307,15 @@ export function policyCommitmentHex(policyBytes: Uint8Array): string {
   const writer = new ByteWriter();
   writer.pushBytes("clearsig:policy-engine:v2:policy");
   writer.pushU32(2);
-  writer.pushBytes(POLICY_DOMAIN);
+  writer.pushBytes(
+    policyBytes.length >= 4
+      && policyBytes[0] === 0x43
+      && policyBytes[1] === 0x53
+      && policyBytes[2] === 0x50
+      && policyBytes[3] === 0x32
+      ? ASSET_POLICY_DOMAIN
+      : POLICY_DOMAIN,
+  );
   writer.pushBytes(policyBytes);
   return toHex(sha256(writer.bytes()));
 }

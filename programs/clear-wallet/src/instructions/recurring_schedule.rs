@@ -684,7 +684,7 @@ impl ExecuteRecurringTokenPayment<'_> {
     }
 }
 
-fn validate_schedule_limits(
+pub(super) fn validate_schedule_limits(
     amount: u64,
     interval_seconds: u32,
     first_execution_at: i64,
@@ -716,7 +716,7 @@ fn validate_schedule_limits(
     Ok(())
 }
 
-fn validate_recurring_token_accounts(
+pub(super) fn validate_recurring_token_accounts(
     vault: &Address,
     mint: &UncheckedAccount,
     source: &AccountView,

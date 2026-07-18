@@ -60,6 +60,15 @@ pub(super) fn validate_payload_shape(
             "reason",
         ],
         ClearSignActionKind::SetProtection => &["summary", "policyCommitment", "chainKind"],
+        ClearSignActionKind::SetAssetProtection => &[
+            "summary",
+            "policyCommitment",
+            "chainKind",
+            "scopeKind",
+            "decimals",
+            "assetId",
+            "displayAsset",
+        ],
         ClearSignActionKind::ReleaseMilestone => &[
             "recipient",
             "recipientEncoding",

@@ -2,6 +2,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import {
   findWalletPolicyAddress,
+  findAssetPolicyAddress,
   fromHex,
   parseTypedProposal,
   parseWalletPolicy,
@@ -24,6 +25,11 @@ import {
   policyCommitmentHex,
 } from "@/lib/policies/onchain";
 import { compileAdvancedPolicyRules } from "@/lib/policies/advancedOnchain";
+import {
+  encodeTypedSplAssetPolicy,
+  SOLANA_DEVNET_USDC_MINT,
+  SPL_ASSET_POLICY_SCOPE,
+} from "@/lib/policies/assetOnchain";
 import type {
   MemberAllowanceCap,
   PolicyEnforcementPlan,
@@ -36,14 +42,17 @@ type PolicyTarget = {
   ticker: PolicyChainTicker;
   chainKind: number;
   decimals: number;
+  scope: "chain" | "asset";
+  assetId?: string;
 };
 
 const POLICY_TARGETS: PolicyTarget[] = [
-  { ticker: "SOL", chainKind: 0, decimals: 9 },
-  { ticker: "ETH", chainKind: 1, decimals: 18 },
-  { ticker: "BTC", chainKind: 2, decimals: 8 },
-  { ticker: "ZEC", chainKind: 3, decimals: 8 },
-  { ticker: "HYPE", chainKind: 5, decimals: 18 },
+  { ticker: "SOL", chainKind: 0, decimals: 9, scope: "chain" },
+  { ticker: "USDC", chainKind: 0, decimals: 6, scope: "asset", assetId: SOLANA_DEVNET_USDC_MINT },
+  { ticker: "ETH", chainKind: 1, decimals: 18, scope: "chain" },
+  { ticker: "BTC", chainKind: 2, decimals: 8, scope: "chain" },
+  { ticker: "ZEC", chainKind: 3, decimals: 8, scope: "chain" },
+  { ticker: "HYPE", chainKind: 5, decimals: 18, scope: "chain" },
 ];
 
 export interface PersistentPolicyTarget {
@@ -52,6 +61,10 @@ export interface PersistentPolicyTarget {
   policyBytesHex: string;
   policyCommitmentHex: string;
   summary: string;
+  scope: "chain" | "asset";
+  assetId?: string;
+  scopeKind?: number;
+  decimals: number;
 }
 
 export async function buildPersistentPersonalPolicyTargets(
@@ -59,7 +72,9 @@ export async function buildPersistentPersonalPolicyTargets(
 ): Promise<PersistentPolicyTarget[]> {
   return Promise.all(POLICY_TARGETS.map(async (target) => {
     const plan = personalPlanForTarget(walletName, target);
-    const advanced = await compileAdvancedPolicyRules(walletName, target);
+    const advanced = target.scope === "chain"
+      ? await compileAdvancedPolicyRules(walletName, target)
+      : { payload: null, trackingVelocity: null };
     if (advanced.trackingVelocity) {
       const configuredWindow = plan.onchainLimits.velocityCapDisplay
         ? plan.onchainLimits.velocityWindowSeconds
@@ -87,6 +102,10 @@ export async function buildPersistentPersonalPolicyTargets(
       policyBytesHex: encoded?.hex ?? "",
       policyCommitmentHex: encoded?.commitmentHex ?? EMPTY_POLICY_COMMITMENT,
       summary: policySummary(target.ticker, encoded),
+      scope: target.scope,
+      assetId: target.assetId,
+      scopeKind: target.scope === "asset" ? SPL_ASSET_POLICY_SCOPE : undefined,
+      decimals: target.decimals,
     };
   }));
 }
@@ -164,6 +183,62 @@ export async function currentWalletPolicyCommitment(
   return parsed.policyCommitments[chainKind] ?? EMPTY_POLICY_COMMITMENT;
 }
 
+export async function currentAssetPolicyCommitment(
+  connection: Connection,
+  wallet: PublicKey,
+  assetId: string,
+): Promise<string> {
+  const asset = new PublicKey(assetId);
+  const [policyPda] = findAssetPolicyAddress(wallet, asset, CLEAR_WALLET_PROGRAM_ID);
+  const info = await connection.getAccountInfo(policyPda, DEFAULT_COMMITMENT);
+  if (!info || info.data.length === 0) return EMPTY_POLICY_COMMITMENT;
+  const bytes = new Uint8Array(info.data);
+  if (
+    bytes.length < 114
+    || bytes[0] !== 14
+    || !bytes.slice(1, 33).every((value, index) => value === wallet.toBytes()[index])
+    || !bytes.slice(33, 65).every((value, index) => value === asset.toBytes()[index])
+  ) {
+    throw new Error("The active asset protection account is malformed.");
+  }
+  return Array.from(bytes.slice(65, 97), (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+export async function resolvePersistentAssetPolicy(
+  connection: Connection,
+  wallet: PublicKey,
+  walletName: string,
+  assetId: string,
+): Promise<Pick<EncodedSolPolicy, "hex" | "commitmentHex"> | null> {
+  const target = (await buildPersistentPersonalPolicyTargets(walletName)).find(
+    (candidate) => candidate.scope === "asset" && candidate.assetId === assetId,
+  );
+  if (!target) return null;
+  const active = await currentAssetPolicyCommitment(connection, wallet, assetId);
+  if (active === target.policyCommitmentHex) {
+    return { hex: target.policyBytesHex, commitmentHex: target.policyCommitmentHex };
+  }
+  if (active === EMPTY_POLICY_COMMITMENT) {
+    throw new Error("Save USDC spending protection on Personal before creating this schedule.");
+  }
+  const accounts = await connection.getProgramAccounts(CLEAR_WALLET_PROGRAM_ID, {
+    commitment: DEFAULT_COMMITMENT,
+    filters: [
+      { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.of(6)) } },
+      { memcmp: { offset: 1, bytes: wallet.toBase58() } },
+    ],
+  });
+  for (const { account } of accounts) {
+    try {
+      const proposal = parseTypedProposal(new Uint8Array(account.data));
+      if (proposal.actionKind !== 16 || proposal.statusLabel !== "Executed" || !proposal.policyBytesHex) continue;
+      const commitmentHex = policyCommitmentHex(fromHex(proposal.policyBytesHex));
+      if (commitmentHex === active) return { hex: proposal.policyBytesHex, commitmentHex };
+    } catch {}
+  }
+  throw new Error("The active USDC protection could not be recovered from its onchain update proposal.");
+}
+
 function personalPlanForTarget(
   walletName: string,
   target: PolicyTarget,
@@ -210,6 +285,13 @@ function encodeForTarget(
   plan: PolicyEnforcementPlan,
   target: PolicyTarget,
 ): EncodedSolPolicy | null {
+  if (target.scope === "asset" && target.assetId) {
+    return encodeTypedSplAssetPolicy(plan, {
+      mint: target.assetId,
+      decimals: target.decimals,
+      ticker: target.ticker,
+    });
+  }
   if (target.chainKind === 0) return encodeTypedSolPolicy(plan);
   return encodeTypedRemoteSendPolicy(plan, {
     assetTicker: target.ticker,

@@ -234,6 +234,17 @@ pub(super) struct ExecuteTypedWalletPolicyUpdateRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedAssetPolicyUpdateRequest {
+    pub(super) policy_bytes_hex: String,
+    pub(super) chain_kind: u8,
+    pub(super) scope_kind: u8,
+    pub(super) decimals: u8,
+    pub(super) asset_id: String,
+    pub(super) display_asset: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedIntentGovernanceRequest {
     /// ClearSign action kind: 3=add_member, 4=remove_member, 5=change_threshold.
     pub(super) action_kind: Option<u8>,

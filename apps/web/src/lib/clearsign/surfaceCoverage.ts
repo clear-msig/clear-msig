@@ -107,6 +107,20 @@ export const CLEARSIGN_SURFACE_COVERAGE: ClearSignSurfaceCoverage[] = [
     notes: "SetProtection binds the WalletPolicy PDA commitment per chain.",
   },
   {
+    id: "asset-policy",
+    label: "Asset-scoped protection",
+    status: "typed_onchain",
+    signedPath: "typed proposal -> execute_typed_asset_policy_update",
+    notes: "SetAssetProtection binds CSP2 bytes to a wallet and exact SPL mint; current product coverage is Solana devnet USDC.",
+  },
+  {
+    id: "recurring-sol-usdc",
+    label: "Recurring SOL / USDC",
+    status: "typed_onchain",
+    signedPath: "typed schedule proposal -> permissionless due-payment executor",
+    notes: "SOL uses CSP1. New USDC schedules use CSP2 wallet-and-mint amount, recipient, velocity, count, and allowed-hours enforcement; a caller or keeper is still required when due.",
+  },
+  {
     id: "members-policy",
     label: "Members, threshold, timelock",
     status: "typed_onchain",

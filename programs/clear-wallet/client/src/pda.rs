@@ -91,6 +91,28 @@ pub fn find_wallet_policy_address(wallet: &Address, program_id: &Address) -> (Ad
     Address::find_program_address(&[b"wallet_policy", wallet.as_ref()], program_id)
 }
 
+pub fn find_asset_policy_address(
+    wallet: &Address,
+    asset_id: &Address,
+    program_id: &Address,
+) -> (Address, u8) {
+    Address::find_program_address(
+        &[b"asset_policy", wallet.as_ref(), asset_id.as_ref()],
+        program_id,
+    )
+}
+
+pub fn find_asset_policy_spend_address(
+    wallet: &Address,
+    asset_id: &Address,
+    program_id: &Address,
+) -> (Address, u8) {
+    Address::find_program_address(
+        &[b"asset_policy_spend", wallet.as_ref(), asset_id.as_ref()],
+        program_id,
+    )
+}
+
 pub fn find_intent_address(wallet: &Address, index: u8, program_id: &Address) -> (Address, u8) {
     Address::find_program_address(&[b"intent", wallet.as_ref(), &[index]], program_id)
 }

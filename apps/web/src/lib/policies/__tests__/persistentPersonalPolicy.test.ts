@@ -95,4 +95,14 @@ describe("persistent Personal wallet policy", () => {
     expect(sol.policyBytesHex).toContain("807c814a00000000");
     expect(eth.policyBytesHex).toBe("");
   });
+
+  it("persists USDC as an asset-scoped CSP2 policy without member caps", async () => {
+    const targets = await buildPersistentPersonalPolicyTargets("Pro");
+    const usdc = targets.find((target) => target.ticker === "USDC")!;
+    expect(usdc.scope).toBe("asset");
+    expect(usdc.scopeKind).toBe(1);
+    expect(usdc.decimals).toBe(6);
+    expect(usdc.policyBytesHex.startsWith("435350320106")).toBe(true);
+    expect(usdc.policyBytesHex.slice(76, 84)).toBe("43535031");
+  });
 });

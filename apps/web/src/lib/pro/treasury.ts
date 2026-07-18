@@ -28,6 +28,7 @@ export interface ProSchedule {
   sourceToken?: string;
   destinationToken?: string;
   recipientOwner?: string;
+  policyVersion?: "CSP1" | "CSP2";
 }
 
 export interface ProTreasuryRuntime {

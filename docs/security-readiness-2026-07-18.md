@@ -12,7 +12,7 @@ USDC authorities are bounded onchain. It is still a **devnet/pre-alpha system
 and is not ready to custody material production capital**.
 
 The main blockers are not presentation work. They are an independent program
-audit, hardened upgrade governance, asset-scoped policy accounting, production
+audit, hardened upgrade governance, broader asset-scoped policy coverage, production
 distributed signing for non-Solana assets, independently verifiable destination
 settlement, hardware qualification, and institutional operating controls.
 
@@ -30,6 +30,12 @@ settlement, hardware qualification, and institutional operating controls.
   execution, and maximum payment count.
   Circle's address registry is the deployment source of truth:
   <https://developers.circle.com/stablecoins/usdc-contract-addresses>.
+- New recurring USDC schedules use CSP2. An AssetPolicy PDA binds the wallet to
+  the exact mint and policy commitment, while one AssetPolicySpend PDA per
+  wallet and mint enforces raw six-decimal amount, velocity, send-count,
+  recipient, and allowed-hours rules across all schedules. This repository
+  behavior requires the corresponding program upgrade before it is active on
+  devnet.
 - Any caller can submit a due recurring payment. No caller can change its bound
   terms, and schedule advancement is atomic with the SOL/SPL transfer. ClearSig
   does not yet operate a redundant keeper network, so execution still requires
@@ -42,19 +48,20 @@ settlement, hardware qualification, and institutional operating controls.
 
 ## Recurring USDC qualification
 
-The current CSP1 numeric caps are denominated in SOL lamports. Reinterpreting
-those values as USDC base units would be unsafe. USDC recurring schedules
-therefore enforce:
+CSP1 numeric fields remain SOL-lamport scoped and are never reinterpreted as
+token units. New USDC schedules require CSP2 bytes containing the SPL mint and
+decimals, and enforce:
 
-- exact threshold-approved amount and maximum payment count;
-- exact mint and token accounts;
-- recipient allow/block rules and allowed-hours rules; and
-- current wallet-policy commitment at configuration and every payment.
+- exact threshold-approved amount, cadence, and maximum payment count;
+- exact mint, vault source, destination token account, and recipient owner;
+- per-payment amount cap and recipient allow/block rules;
+- wallet-and-mint velocity and send-count windows shared across schedules; and
+- allowed hours using the committed UTC offset and day mask.
 
-They reject SOL-denominated amount caps, velocity caps, member allowances,
-extra approvers, cooldowns, send-count ledgers, and advanced rules. Asset-scoped
-policy v2 is required before those controls can be advertised for recurring
-USDC.
+Recurring CSP2 still rejects member allowances, proposal-dependent extra
+approvers, cooldowns, and advanced-rule payloads because a permissionless
+future payment cannot safely reconstruct proposal-local authority. Existing
+CSP1 USDC schedules retain their legacy executor for migration compatibility.
 
 ## Seven questions serious users should ask
 
@@ -70,9 +77,10 @@ USDC.
 
 ## Work ClearSig can complete independently
 
-1. Design CSP2 asset-scoped policy ledgers keyed by wallet, intent, mint/asset,
-   member, and time window; migrate caps and recurring USDC without unit reuse.
-2. Add property/fuzz/state-machine tests for every codec and executor, including
+1. Extend the shipped wallet-and-mint CSP2 model beyond recurring devnet USDC
+   only where each asset has authoritative identity, decimals, and execution
+   semantics. Per-member token ledgers remain unimplemented.
+2. Expand property/fuzz/state-machine tests for every codec and executor, including
    account substitution, replay, stale policy, duplicate calls, clock edges,
    overflow, interrupted relayers, and adversarial RPC responses.
 3. Put the program upgrade authority behind an independently controlled

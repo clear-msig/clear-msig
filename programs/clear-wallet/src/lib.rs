@@ -651,6 +651,69 @@ pub mod clear_wallet {
             .execute_recurring_token_payment(schedule_id_hash, &ctx.bumps)
     }
 
+    /// Replace or clear one SPL asset's active CSP2 policy after typed approval.
+    #[instruction(discriminator = 36)]
+    pub fn execute_typed_asset_policy_update(
+        ctx: Ctx<ExecuteTypedAssetPolicyUpdate>,
+        current_policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        scope_kind: u8,
+        decimals: u8,
+        asset_id: [u8; 32],
+        display_asset: Vec<u8, 16>,
+        new_policy_bytes: Vec<u8, 2048>,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_asset_policy_update(ExecuteTypedAssetPolicyUpdateArgs {
+                current_policy_commitment,
+                envelope_hash,
+                chain_kind,
+                scope_kind,
+                decimals,
+                asset_id,
+                display_asset,
+                new_policy_bytes,
+            })
+    }
+
+    /// Configure or revoke a recurring USDC schedule governed by CSP2.
+    #[instruction(discriminator = 37)]
+    pub fn execute_typed_recurring_asset_schedule(
+        ctx: Ctx<ExecuteTypedRecurringAssetSchedule>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        schedule_id_hash: [u8; 32],
+        amount_tokens: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_recurring_asset_schedule(
+            ExecuteTypedRecurringAssetScheduleArgs {
+                policy_commitment,
+                envelope_hash,
+                schedule_id_hash,
+                amount_tokens,
+                interval_seconds,
+                first_execution_at,
+                payment_count,
+                status,
+            },
+        )
+    }
+
+    /// Execute one due CSP2-governed USDC payment.
+    #[instruction(discriminator = 38)]
+    pub fn execute_recurring_asset_payment(
+        ctx: Ctx<ExecuteRecurringAssetPayment>,
+        schedule_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_recurring_asset_payment(schedule_id_hash, &ctx.bumps)
+    }
+
     #[instruction(discriminator = 9)]
     pub fn approve_typed(
         ctx: Ctx<ApproveTyped>,

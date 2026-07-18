@@ -30,7 +30,7 @@ export const VELOCITY_WINDOW_MS = 24 * 60 * 60 * 1000;
 /// Tickers we currently know how to price. Drives the per-chain UI
 /// and the breakdown buckets. Add to this when a new chain template
 /// gets a price oracle entry in priceConversion.ts.
-export const POLICY_CHAIN_TICKERS = ["SOL", "ETH", "BTC", "ZEC", "HYPE"] as const;
+export const POLICY_CHAIN_TICKERS = ["SOL", "USDC", "ETH", "BTC", "ZEC", "HYPE"] as const;
 export type PolicyChainTicker = (typeof POLICY_CHAIN_TICKERS)[number];
 
 export interface WalletBudget {

@@ -1,4 +1,5 @@
 use super::*;
+use crate::asset_policy::AssetPolicyUpdate;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -18,6 +19,7 @@ pub enum ActionKind {
     AgentRiskPolicy = 13,
     AgentTradeSettlement = 14,
     RecurringSchedule = 15,
+    SetAssetProtection = 16,
 }
 
 impl ActionKind {
@@ -38,6 +40,7 @@ impl ActionKind {
             13 => Ok(Self::AgentRiskPolicy),
             14 => Ok(Self::AgentTradeSettlement),
             15 => Ok(Self::RecurringSchedule),
+            16 => Ok(Self::SetAssetProtection),
             _ => Err(Error::UnsupportedAction),
         }
     }
@@ -358,6 +361,7 @@ pub enum Action<'a> {
     BatchTransfer(BatchTransfer<'a>),
     Governance(Governance<'a>),
     PolicyUpdate(PolicyUpdate),
+    AssetPolicyUpdate(AssetPolicyUpdate<'a>),
     EscrowRelease(EscrowRelease<'a>),
     EscrowReturn(EscrowReturn<'a>),
     AgentTradeApproval(AgentTradeApproval<'a>),

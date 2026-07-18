@@ -13,7 +13,8 @@ export type ClearSignActionKind =
   | "agent_session_grant"
   | "agent_risk_policy"
   | "agent_trade_settlement"
-  | "recurring_schedule";
+  | "recurring_schedule"
+  | "set_asset_protection";
 
 export type ClearSignNetwork =
   | "Solana devnet"
@@ -47,6 +48,7 @@ export type ClearSignPayload =
   | MemberPayload
   | ThresholdPayload
   | ProtectionPayload
+  | AssetProtectionPayload
   | MilestonePayload
   | EscrowReturnPayload
   | AgentTradePayload
@@ -117,6 +119,15 @@ export interface ProtectionPayload {
   summary: string;
   policyCommitment?: string;
   chainKind?: number;
+}
+
+export interface AssetProtectionPayload extends ProtectionPayload {
+  chainKind: number;
+  scopeKind: number;
+  decimals: number;
+  assetId: string;
+  displayAsset: string;
+  policyCommitment: string;
 }
 
 export interface MilestonePayload extends RecipientAmount {

@@ -305,6 +305,39 @@ pub(super) fn hash_payload(
                 );
             }
         }
+        ClearSignActionKind::SetAssetProtection => {
+            let chain_kind = payload
+                .get("chainKind")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| ApiError::BadRequest("payload.chainKind is required".into()))?;
+            let scope_kind = payload
+                .get("scopeKind")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| ApiError::BadRequest("payload.scopeKind is required".into()))?;
+            let decimals = payload
+                .get("decimals")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| ApiError::BadRequest("payload.decimals is required".into()))?;
+            if chain_kind > 255 || scope_kind > 255 || decimals > 255 {
+                return Err(ApiError::BadRequest(
+                    "asset policy scope is out of range".into(),
+                ));
+            }
+            update_bytes(&mut hasher, b"asset_policy");
+            hasher.update([chain_kind as u8, scope_kind as u8, decimals as u8]);
+            hasher.update(super::v4_input::decode_base58_32(
+                &payload_text(payload, "assetId")?,
+                "payload.assetId",
+            )?);
+            update_bytes(
+                &mut hasher,
+                payload_text(payload, "displayAsset")?.as_bytes(),
+            );
+            hasher.update(hash_bytes_from_hex(
+                &payload_text(payload, "policyCommitment")?,
+                "payload.policyCommitment",
+            )?);
+        }
         ClearSignActionKind::RecoveryAction => {
             let recovery_action = payload_text(payload, "recoveryAction")?;
             update_bytes(

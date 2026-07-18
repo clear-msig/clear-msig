@@ -9,7 +9,11 @@ import { listIntents } from "@/lib/chain/intents";
 import { clearSignProfileForSigner, prepareClearSignV4Action } from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType } from "@/lib/msig";
-import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
+import {
+  resolvePersistentAssetPolicy,
+  resolvePersistentSendPolicy,
+} from "@/lib/policies/persistentWalletPolicy";
+import { SOLANA_DEVNET_USDC_MINT } from "@/lib/policies/assetOnchain";
 import { useProSchedules, type ProSchedule } from "@/lib/pro/treasury";
 import { useConnection, useWallet } from "@/lib/wallet";
 import {
@@ -94,6 +98,7 @@ export function useRecurringSchedulesController(walletName: string) {
       sourceToken: tokenAccounts?.sourceToken,
       destinationToken: tokenAccounts?.destinationToken,
       recipientOwner: tokenAccounts?.recipientOwner,
+      policyVersion: draft.asset === "USDC" ? "CSP2" : undefined,
     };
     await proposeAndExecute(row, 1);
   }
@@ -132,7 +137,17 @@ export function useRecurringSchedulesController(walletName: string) {
         status: status === 1 ? "active" : "revoked",
         reason: row.note,
       });
-      const policy = await resolvePersistentSendPolicy(connection, walletData.pda, walletName, 0);
+      const legacyTokenSchedule = asset === "USDC"
+        && status === 2
+        && onchain?.policyVersion === "CSP1";
+      const policy = asset === "USDC" && !legacyTokenSchedule
+        ? await resolvePersistentAssetPolicy(
+            connection,
+            walletData.pda,
+            walletName,
+            row.mint ?? SOLANA_DEVNET_USDC_MINT,
+          )
+        : await resolvePersistentSendPolicy(connection, walletData.pda, walletName, 0);
       const summary = await prepareClearSignV4Action(envelope, {
         intentIndex: selectedIntent.intentIndex,
         actorPubkey: proposer.toBase58(),
@@ -185,7 +200,10 @@ export function useRecurringSchedulesController(walletName: string) {
       schedules.upsert(persisted);
       try {
         if (asset === "USDC") {
-          await backendApi.executeTypedRecurringTokenSchedule(walletName, proposalAddress, {
+          const executeSchedule = legacyTokenSchedule
+            ? backendApi.executeTypedRecurringTokenSchedule
+            : backendApi.executeTypedRecurringAssetSchedule;
+          await executeSchedule(walletName, proposalAddress, {
             scheduleId: row.id,
             mint: row.mint!,
             sourceToken: row.sourceToken!,
@@ -227,7 +245,10 @@ export function useRecurringSchedulesController(walletName: string) {
         if (!row.mint || !row.sourceToken || !row.destinationToken || !row.recipientOwner) {
           throw new Error("This USDC schedule is missing its bound token accounts.");
         }
-        await backendApi.executeTypedRecurringTokenSchedule(walletName, row.proposalAddress, {
+        const executeSchedule = row.policyVersion === "CSP2"
+          ? backendApi.executeTypedRecurringAssetSchedule
+          : backendApi.executeTypedRecurringTokenSchedule;
+        await executeSchedule(walletName, row.proposalAddress, {
           scheduleId: row.id,
           mint: row.mint,
           sourceToken: row.sourceToken,
@@ -265,7 +286,10 @@ export function useRecurringSchedulesController(walletName: string) {
         if (!state.mint || !state.sourceToken || !state.destinationToken) {
           throw new Error("The onchain USDC schedule is incomplete.");
         }
-        await backendApi.executeRecurringTokenPayment(walletName, {
+        const executePayment = state.policyVersion === "CSP2"
+          ? backendApi.executeRecurringAssetPayment
+          : backendApi.executeRecurringTokenPayment;
+        await executePayment(walletName, {
           intent: state.intent,
           scheduleId: row.id,
           mint: state.mint,

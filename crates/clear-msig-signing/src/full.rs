@@ -103,6 +103,24 @@ pub(super) fn render_full_document(
             writer.push(b"\nNew policy commitment: ")?;
             writer.hex(&policy.new_policy_commitment)?;
         }
+        Action::AssetPolicyUpdate(policy) => {
+            writer.push(b"ClearSig Approval\n\nACTION\nReplace ")?;
+            writer.push(policy.display_asset)?;
+            writer.push(b" protection policy")?;
+            writer.push(b"\n\nDETAILS\nWallet: ")?;
+            writer.push(wallet_name)?;
+            writer.push(b"\nNetwork: ")?;
+            writer.push(intent.common.network.display_name())?;
+            writer.push(b"\nAsset: ")?;
+            writer.push(policy.display_asset)?;
+            writer.push(b"\nAsset mint: ")?;
+            writer.identity(IdentityEncoding::SolanaPubkey, &policy.asset_id)?;
+            writer.push(b"\nDecimals: ")?;
+            writer.decimal_u128(policy.decimals as u128)?;
+            writer.push(b"\nPolicy scope: SPL token")?;
+            writer.push(b"\nNew policy commitment: ")?;
+            writer.hex(&policy.new_policy_commitment)?;
+        }
         Action::EscrowRelease(escrow) => {
             writer.push(b"ClearSig Approval\n\nACTION\nRelease escrow milestone")?;
             writer.push(b"\n\nDETAILS\nWallet: ")?;

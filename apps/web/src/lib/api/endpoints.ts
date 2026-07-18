@@ -477,6 +477,51 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedRecurringAssetSchedule: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      scheduleId: string;
+      mint: string;
+      sourceToken: string;
+      destinationToken: string;
+      recipientOwner: string;
+      amountTokens: number;
+      intervalSeconds: number;
+      firstExecutionAt: number;
+      paymentCount: number;
+      status: 1 | 2;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-recurring-asset-schedule`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeRecurringAssetPayment: (
+    walletName: string,
+    input: {
+      intent: string;
+      scheduleId: string;
+      mint: string;
+      sourceToken: string;
+      destinationToken: string;
+      recipientOwner: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/recurring/execute-asset`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   executeTypedSolSend: (
     walletName: string,
     proposalAddress: string,
@@ -505,6 +550,27 @@ export const backendApi = {
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-wallet-policy-update`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedAssetPolicyUpdate: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      policyBytesHex: string;
+      chainKind: number;
+      scopeKind: number;
+      decimals: number;
+      assetId: string;
+      displayAsset: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-asset-policy-update`,
         "POST",
         input,
         { timeoutMs: 55_000 },

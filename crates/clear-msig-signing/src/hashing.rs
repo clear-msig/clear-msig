@@ -19,7 +19,12 @@ pub fn policy_commitment(policy_bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     update_bytes(&mut hasher, POLICY_DOMAIN);
     hasher.update(2u32.to_le_bytes());
-    update_bytes(&mut hasher, TYPED_SEND_POLICY_DOMAIN);
+    let domain = if policy_bytes.starts_with(b"CSP2") {
+        TYPED_ASSET_POLICY_DOMAIN
+    } else {
+        TYPED_SEND_POLICY_DOMAIN
+    };
+    update_bytes(&mut hasher, domain);
     update_bytes(&mut hasher, policy_bytes);
     hasher.finalize().into()
 }
@@ -42,6 +47,7 @@ impl CanonicalIntent<'_> {
             Action::BatchTransfer(_) => ActionKind::BatchSend,
             Action::Governance(governance) => governance.kind,
             Action::PolicyUpdate(_) => ActionKind::SetProtection,
+            Action::AssetPolicyUpdate(_) => ActionKind::SetAssetProtection,
             Action::EscrowRelease(_) => ActionKind::ReleaseMilestone,
             Action::EscrowReturn(_) => ActionKind::ReturnEscrowFunds,
             Action::AgentTradeApproval(_) => ActionKind::AgentTradeApproval,
@@ -90,6 +96,13 @@ impl CanonicalIntent<'_> {
             Action::PolicyUpdate(policy) => {
                 update_bytes(&mut hasher, b"wallet_policy");
                 hasher.update([policy.chain_kind]);
+                hasher.update(policy.new_policy_commitment);
+            }
+            Action::AssetPolicyUpdate(policy) => {
+                update_bytes(&mut hasher, b"asset_policy");
+                hasher.update([policy.chain_kind, policy.scope_kind, policy.decimals]);
+                hasher.update(policy.asset_id);
+                update_bytes(&mut hasher, policy.display_asset);
                 hasher.update(policy.new_policy_commitment);
             }
             Action::EscrowRelease(escrow) => {

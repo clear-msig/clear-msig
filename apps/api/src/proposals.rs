@@ -24,6 +24,7 @@ use typed_agent_risk::{
 use typed_execution::{
     execute_typed_agent_session_grant as build_typed_agent_session_grant,
     execute_typed_agent_trade_approval as build_typed_agent_trade_approval,
+    execute_typed_asset_policy_update as build_typed_asset_policy_update,
     execute_typed_chain_send as build_typed_chain_send,
     execute_typed_cross_chain_escrow_release as build_typed_cross_chain_escrow_release,
     execute_typed_cross_chain_escrow_return as build_typed_cross_chain_escrow_return,
@@ -32,6 +33,7 @@ use typed_execution::{
     execute_typed_intent_governance as build_typed_intent_governance,
     execute_typed_private_escrow_release as build_typed_private_escrow_release,
     execute_typed_private_escrow_return as build_typed_private_escrow_return,
+    execute_typed_recurring_asset_schedule as build_typed_recurring_asset_schedule,
     execute_typed_recurring_schedule as build_typed_recurring_schedule,
     execute_typed_recurring_token_schedule as build_typed_recurring_token_schedule,
     execute_typed_sol_batch_send as build_typed_sol_batch_send,
@@ -44,16 +46,16 @@ use types::{
     ExecuteProposalRequest, ExecuteRecurringPaymentRequest, ExecuteRecurringTokenPaymentRequest,
     ExecuteTypedAgentRiskPolicyRequest, ExecuteTypedAgentSessionGrantRequest,
     ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedAgentTradeSettlementRequest,
-    ExecuteTypedChainSendRequest, ExecuteTypedCrossChainEscrowReleaseRequest,
-    ExecuteTypedCrossChainEscrowReturnRequest, ExecuteTypedEscrowReleaseRequest,
-    ExecuteTypedEscrowReturnRequest, ExecuteTypedIntentGovernanceRequest,
-    ExecuteTypedPrivateEscrowReleaseRequest, ExecuteTypedPrivateEscrowReturnRequest,
-    ExecuteTypedRecurringScheduleRequest, ExecuteTypedRecurringTokenScheduleRequest,
-    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
-    ExecuteTypedSplEscrowReleaseRequest, ExecuteTypedSplEscrowReturnRequest,
-    ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
-    PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest, SignedApproveCancelRequest,
-    SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
+    ExecuteTypedAssetPolicyUpdateRequest, ExecuteTypedChainSendRequest,
+    ExecuteTypedCrossChainEscrowReleaseRequest, ExecuteTypedCrossChainEscrowReturnRequest,
+    ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
+    ExecuteTypedIntentGovernanceRequest, ExecuteTypedPrivateEscrowReleaseRequest,
+    ExecuteTypedPrivateEscrowReturnRequest, ExecuteTypedRecurringScheduleRequest,
+    ExecuteTypedRecurringTokenScheduleRequest, ExecuteTypedSolBatchSendRequest,
+    ExecuteTypedSolSendRequest, ExecuteTypedSplEscrowReleaseRequest,
+    ExecuteTypedSplEscrowReturnRequest, ExecuteTypedWalletPolicyUpdateRequest,
+    PrepareApproveCancelRequest, PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest,
+    SignedApproveCancelRequest, SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
 };
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
@@ -138,12 +140,24 @@ pub(crate) fn router() -> Router<AppState> {
             post(execute_recurring_token_payment),
         )
         .route(
+            "/wallets/{name}/proposals/{proposal}/typed-recurring-asset-schedule",
+            post(execute_typed_recurring_asset_schedule),
+        )
+        .route(
+            "/wallets/{name}/recurring/execute-asset",
+            post(execute_recurring_asset_payment),
+        )
+        .route(
             "/wallets/{name}/proposals/{proposal}/typed-sol-send",
             post(execute_typed_sol_send),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-wallet-policy-update",
             post(execute_typed_wallet_policy_update),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-asset-policy-update",
+            post(execute_typed_asset_policy_update),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-intent-governance",
@@ -695,6 +709,51 @@ async fn execute_recurring_token_payment(
     Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 
+async fn execute_typed_recurring_asset_schedule(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedRecurringTokenScheduleRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:recurring-asset-config:{name}"))
+        .await?;
+    let execution = build_typed_recurring_asset_schedule(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_recurring_asset_payment(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<ExecuteRecurringTokenPaymentRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    for (value, field) in [
+        (&body.intent, "intent"),
+        (&body.mint, "mint"),
+        (&body.source_token, "sourceToken"),
+        (&body.destination_token, "destinationToken"),
+        (&body.recipient_owner, "recipientOwner"),
+    ] {
+        ensure_base58(value, field, 32, 88)?;
+    }
+    ensure_non_empty(&body.schedule_id, "scheduleId")?;
+    state
+        .rate_limiter
+        .check(&format!("execute:recurring-asset-payment:{name}"))
+        .await?;
+    let execution = clear_msig_command_contract::TypedProposalExecution::RecurringAssetPayment {
+        wallet: name,
+        intent: body.intent,
+        schedule_id: body.schedule_id,
+        mint: body.mint,
+        source_token: body.source_token,
+        destination_token: body.destination_token,
+        recipient_owner: body.recipient_owner,
+    };
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
 async fn execute_typed_sol_send(
     State(state): State<AppState>,
     Path((name, proposal)): Path<(String, String)>,
@@ -718,6 +777,19 @@ async fn execute_typed_wallet_policy_update(
         .check(&format!("execute:wallet-policy:{name}"))
         .await?;
     let execution = build_typed_wallet_policy_update(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_asset_policy_update(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedAssetPolicyUpdateRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:asset-policy:{name}"))
+        .await?;
+    let execution = build_typed_asset_policy_update(name, proposal, body)?;
     Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 

@@ -15,6 +15,7 @@ export interface OnchainRecurringSchedule {
   remainingPayments: number;
   executedPayments: number;
   status: "active" | "revoked" | "complete";
+  policyVersion: "CSP1" | "CSP2";
 }
 
 export async function fetchRecurringSchedule(
@@ -45,6 +46,8 @@ export function parseRecurringScheduleAccount(
   const token = data[0] === 13;
   if (data.length < (token ? 961 : 833)) return null;
   const status = data[token ? 959 : 831];
+  const policyOffset = token ? 319 : 191;
+  const policyVersion = data[policyOffset + 3] === 0x32 ? "CSP2" : "CSP1";
   return {
     address,
     intent: new PublicKey(data.subarray(33, 65)).toBase58(),
@@ -59,5 +62,6 @@ export function parseRecurringScheduleAccount(
     remainingPayments: view.getUint32(token ? 309 : 181, true),
     executedPayments: view.getUint32(token ? 313 : 185, true),
     status: status === 1 ? "active" : status === 2 ? "revoked" : "complete",
+    policyVersion,
   };
 }

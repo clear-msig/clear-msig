@@ -14,11 +14,13 @@ import {
   randomActionLabel,
   type ClearSignIntentInput,
   type ProtectionPayload,
+  type AssetProtectionPayload,
 } from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import {
   buildPersistentPersonalPolicyTargets,
   currentWalletPolicyCommitment,
+  currentAssetPolicyCommitment,
   type PersistentPolicyTarget,
 } from "@/lib/policies/persistentWalletPolicy";
 
@@ -45,8 +47,9 @@ export function usePersistPersonalWalletPolicy() {
       target: PersistentPolicyTarget;
     }): Promise<"updated" | "waiting"> => {
       const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-      const envelope: ClearSignIntentInput<ProtectionPayload> = {
-        kind: "set_protection",
+      const isAsset = input.target.scope === "asset";
+      const envelope: ClearSignIntentInput<ProtectionPayload | AssetProtectionPayload> = {
+        kind: isAsset ? "set_asset_protection" : "set_protection",
         network: "Solana devnet",
         walletName: input.walletName,
         walletId: input.walletId,
@@ -58,6 +61,14 @@ export function usePersistPersonalWalletPolicy() {
           summary: input.target.summary,
           policyCommitment: input.target.policyCommitmentHex,
           chainKind: input.target.chainKind,
+          ...(isAsset
+            ? {
+                scopeKind: input.target.scopeKind!,
+                decimals: input.target.decimals,
+                assetId: input.target.assetId!,
+                displayAsset: input.target.ticker,
+              }
+            : {}),
         },
       };
       const summary = await prepareClearSignV4Action(envelope, {
@@ -133,10 +144,21 @@ export function usePersistPersonalWalletPolicy() {
 
       const ready = await waitForProposalApproval(connection, proposal);
       if (!ready) return "waiting";
-      await backendApi.executeTypedWalletPolicyUpdate(input.walletName, proposal, {
-        policyBytesHex: input.target.policyBytesHex,
-        chainKind: input.target.chainKind,
-      });
+      if (isAsset) {
+        await backendApi.executeTypedAssetPolicyUpdate(input.walletName, proposal, {
+          policyBytesHex: input.target.policyBytesHex,
+          chainKind: input.target.chainKind,
+          scopeKind: input.target.scopeKind!,
+          decimals: input.target.decimals,
+          assetId: input.target.assetId!,
+          displayAsset: input.target.ticker,
+        });
+      } else {
+        await backendApi.executeTypedWalletPolicyUpdate(input.walletName, proposal, {
+          policyBytesHex: input.target.policyBytesHex,
+          chainKind: input.target.chainKind,
+        });
+      }
       return "updated";
     },
     [connection, signTypedDescriptor, wallet],
@@ -174,11 +196,9 @@ export function usePersistPersonalWalletPolicy() {
       let skipped = 0;
       let waiting = 0;
       for (const target of await buildPersistentPersonalPolicyTargets(walletName)) {
-        const currentCommitment = await currentWalletPolicyCommitment(
-          connection,
-          walletData.pda,
-          target.chainKind,
-        );
+        const currentCommitment = target.scope === "asset"
+          ? await currentAssetPolicyCommitment(connection, walletData.pda, target.assetId!)
+          : await currentWalletPolicyCommitment(connection, walletData.pda, target.chainKind);
         if (currentCommitment === target.policyCommitmentHex) {
           skipped += 1;
           continue;

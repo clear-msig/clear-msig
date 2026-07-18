@@ -118,7 +118,9 @@ fn risk_category(kind: ClearSignActionKind) -> &'static str {
         ClearSignActionKind::AddMember
         | ClearSignActionKind::RemoveMember
         | ClearSignActionKind::ChangeThreshold => "Authorization change",
-        ClearSignActionKind::SetProtection => "Policy change",
+        ClearSignActionKind::SetProtection | ClearSignActionKind::SetAssetProtection => {
+            "Policy change"
+        }
         ClearSignActionKind::RecoveryAction => "Recovery authority",
         ClearSignActionKind::AgentSessionGrant | ClearSignActionKind::AgentRiskPolicy => {
             "Agent authority"
@@ -145,7 +147,9 @@ fn risk_check(kind: ClearSignActionKind) -> &'static str {
         ClearSignActionKind::AddMember
         | ClearSignActionKind::RemoveMember
         | ClearSignActionKind::ChangeThreshold => "Verify the resulting signer authority",
-        ClearSignActionKind::SetProtection => "Verify the complete replacement policy",
+        ClearSignActionKind::SetProtection | ClearSignActionKind::SetAssetProtection => {
+            "Verify the complete replacement policy and asset scope"
+        }
         ClearSignActionKind::RecoveryAction => "Verify the recovery target and authority",
         ClearSignActionKind::AgentTradeApproval
         | ClearSignActionKind::AgentSessionGrant

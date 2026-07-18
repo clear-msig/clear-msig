@@ -264,6 +264,9 @@ fn validate_v4_assertions(
         V4Action::PolicyUpdate(policy) => {
             policy.new_policy_commitment == v4_wallet_policy_commitment(&policy_bytes)
         }
+        V4Action::AssetPolicyUpdate(policy) => {
+            policy.new_policy_commitment == v4_wallet_policy_commitment(&policy_bytes)
+        }
         _ => canonical.common.policy_commitment == submitted_policy_commitment,
     };
     let mut rendered = [0u8; MAX_DOCUMENT_BYTES];

@@ -131,6 +131,31 @@ pub fn encode_policy_update(input: &PolicyUpdateInput<'_>, out: &mut [u8]) -> Re
     Ok(writer.len)
 }
 
+pub fn encode_asset_policy_update(
+    input: &AssetPolicyUpdateInput<'_>,
+    out: &mut [u8],
+) -> Result<usize, Error> {
+    if input.chain_kind != input.common.network.chain_kind()
+        || input.scope_kind != 1
+        || input.decimals > 18
+        || input.asset_id == [0u8; 32]
+    {
+        return Err(Error::InvalidContext);
+    }
+    validate_visible_ascii(input.display_asset, 16, false)?;
+    validate_visible_ascii(input.reason, MAX_REASON_BYTES, true)?;
+    let mut writer = Writer::new(out);
+    write_common(&mut writer, &input.common, ActionKind::SetAssetProtection)?;
+    writer.u8(input.chain_kind)?;
+    writer.u8(input.scope_kind)?;
+    writer.u8(input.decimals)?;
+    writer.push(&input.asset_id)?;
+    writer.bytes(input.display_asset)?;
+    writer.push(&input.new_policy_commitment)?;
+    writer.bytes(input.reason)?;
+    Ok(writer.len)
+}
+
 pub fn parse_intent(bytes: &[u8]) -> Result<CanonicalIntent<'_>, Error> {
     if bytes.len() > MAX_CANONICAL_INTENT_BYTES {
         return Err(Error::InvalidLength);
@@ -231,6 +256,29 @@ pub fn parse_intent(bytes: &[u8]) -> Result<CanonicalIntent<'_>, Error> {
             }
             Action::PolicyUpdate(PolicyUpdate {
                 chain_kind,
+                new_policy_commitment,
+            })
+        }
+        ActionKind::SetAssetProtection => {
+            let chain_kind = reader.u8()?;
+            let scope_kind = reader.u8()?;
+            let decimals = reader.u8()?;
+            let asset_id = reader.array32()?;
+            let display_asset = read_ascii(&mut reader, 16)?;
+            let new_policy_commitment = reader.array32()?;
+            if chain_kind != network.chain_kind()
+                || scope_kind != 1
+                || decimals > 18
+                || asset_id == [0u8; 32]
+            {
+                return Err(Error::InvalidContext);
+            }
+            Action::AssetPolicyUpdate(AssetPolicyUpdate {
+                chain_kind,
+                scope_kind,
+                decimals,
+                asset_id,
+                display_asset,
                 new_policy_commitment,
             })
         }

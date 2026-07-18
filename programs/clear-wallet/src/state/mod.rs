@@ -33,3 +33,9 @@ pub use dwallet_ownership::*;
 
 pub mod recurring_schedule;
 pub use recurring_schedule::*;
+
+pub mod asset_policy;
+pub use asset_policy::*;
+
+pub mod asset_policy_spend;
+pub use asset_policy_spend::*;

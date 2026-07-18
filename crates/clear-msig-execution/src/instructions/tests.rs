@@ -486,6 +486,97 @@ fn typed_wallet_policy_update_uses_expected_accounts_and_discriminator() {
 }
 
 #[test]
+fn asset_policy_and_recurring_asset_instructions_lock_the_v4_abi() {
+    let policy = execute_typed_asset_policy_update(
+        key(1),
+        key(2),
+        key(3),
+        key(4),
+        key(5),
+        [6; 32],
+        [7; 32],
+        0,
+        1,
+        6,
+        [8; 32],
+        b"USDC",
+        b"CSP2-policy",
+    );
+    assert_eq!(policy.data[0], 36);
+    assert_eq!(policy.accounts.len(), 6);
+    assert!(policy.accounts[0].is_signer && policy.accounts[0].is_writable);
+    assert!(!policy.accounts[1].is_writable);
+    assert!(policy.accounts[2].is_writable);
+    assert!(policy.accounts[3].is_writable);
+    assert!(policy.accounts[4].is_writable);
+    assert!(!policy.accounts[5].is_writable);
+
+    let schedule = execute_typed_recurring_asset_schedule(
+        key(1),
+        key(2),
+        key(3),
+        key(4),
+        key(5),
+        key(6),
+        key(7),
+        key(8),
+        key(9),
+        key(10),
+        key(11),
+        [12; 32],
+        [13; 32],
+        [14; 32],
+        1_250_000,
+        86_400,
+        1_800_000_000,
+        12,
+        1,
+    );
+    assert_eq!(schedule.data[0], 37);
+    assert_eq!(schedule.accounts.len(), 13);
+    assert!(schedule.accounts[0].is_signer && schedule.accounts[0].is_writable);
+    assert!(!schedule.accounts[1].is_writable);
+    assert!(!schedule.accounts[2].is_writable);
+    assert!(!schedule.accounts[3].is_writable);
+    assert!(schedule.accounts[4].is_writable);
+    assert!(schedule.accounts[5].is_writable);
+    assert!(schedule.accounts[6].is_writable);
+    assert!(schedule.accounts[7..]
+        .iter()
+        .all(|account| !account.is_writable));
+
+    let payment = execute_recurring_asset_payment(
+        key(1),
+        key(2),
+        key(3),
+        key(4),
+        key(5),
+        key(6),
+        key(7),
+        key(8),
+        key(9),
+        key(10),
+        key(11),
+        [12; 32],
+    );
+    assert_eq!(payment.data[0], 38);
+    assert_eq!(payment.accounts.len(), 13);
+    assert!(payment.accounts[0].is_signer && payment.accounts[0].is_writable);
+    assert!(!payment.accounts[1].is_writable);
+    assert!(!payment.accounts[2].is_writable);
+    assert!(payment.accounts[3].is_writable);
+    assert!(!payment.accounts[4].is_writable);
+    assert!(!payment.accounts[5].is_writable);
+    assert!(payment.accounts[6].is_writable);
+    assert!(!payment.accounts[7].is_writable);
+    assert!(payment.accounts[8].is_writable);
+    assert!(payment.accounts[9].is_writable);
+    assert!(payment.accounts[10..]
+        .iter()
+        .all(|account| !account.is_writable));
+}
+
+#[test]
 fn cleanup_instructions_use_expected_discriminators() {
     let legacy = cleanup(key(1), key(2));
     let typed = cleanup_typed(key(1), key(2));

@@ -40,6 +40,54 @@ pub fn execute_typed_wallet_policy_update(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn execute_typed_asset_policy_update(
+    payer: Pubkey,
+    wallet: Pubkey,
+    asset_policy: Pubkey,
+    intent: Pubkey,
+    proposal: Pubkey,
+    current_policy_commitment: [u8; 32],
+    envelope_hash: [u8; 32],
+    chain_kind: u8,
+    scope_kind: u8,
+    decimals: u8,
+    asset_id: [u8; 32],
+    display_asset: &[u8],
+    new_policy_bytes: &[u8],
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(payer, true),
+        AccountMeta::new_readonly(wallet, false),
+        AccountMeta::new(asset_policy, false),
+        AccountMeta::new(intent, false),
+        AccountMeta::new(proposal, false),
+        AccountMeta::new_readonly(solana_sdk_ids::system_program::ID, false),
+    ];
+    let mut data = vec![36u8];
+    wincode::serialize_into(&mut data, &current_policy_commitment).unwrap();
+    wincode::serialize_into(&mut data, &envelope_hash).unwrap();
+    wincode::serialize_into(&mut data, &chain_kind).unwrap();
+    wincode::serialize_into(&mut data, &scope_kind).unwrap();
+    wincode::serialize_into(&mut data, &decimals).unwrap();
+    wincode::serialize_into(&mut data, &asset_id).unwrap();
+    wincode::serialize_into(
+        &mut data,
+        &quasar_lang::client::DynBytes::<u32>::new(display_asset.to_vec()),
+    )
+    .unwrap();
+    wincode::serialize_into(
+        &mut data,
+        &quasar_lang::client::DynBytes::<u32>::new(new_policy_bytes.to_vec()),
+    )
+    .unwrap();
+    Instruction {
+        program_id: program_id(),
+        accounts,
+        data,
+    }
+}
+
 /// Build execute_typed_intent_governance instruction (typed proposal discriminator 27).
 #[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]

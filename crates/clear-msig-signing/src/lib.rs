@@ -7,6 +7,7 @@
 //! can parse and render exactly the same authoritative values without an
 //! allocator.
 
+mod asset_policy;
 mod authority_codec;
 mod codec;
 mod compact;
@@ -22,6 +23,7 @@ use fiat::{read_fiat_estimate_bytes, write_fiat_estimate};
 use full::render_full_document;
 use io::{Reader, Writer};
 
+pub use asset_policy::*;
 pub use authority_codec::*;
 pub use codec::*;
 pub use hashing::*;
@@ -39,6 +41,7 @@ pub const ENVELOPE_DOMAIN: &[u8] = b"clearsig:policy-engine:v4";
 pub const PAYLOAD_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:payload";
 pub const POLICY_DOMAIN: &[u8] = b"clearsig:policy-engine:v2:policy";
 pub const TYPED_SEND_POLICY_DOMAIN: &[u8] = b"typed-sol-send-policy-v1";
+pub const TYPED_ASSET_POLICY_DOMAIN: &[u8] = b"typed-asset-send-policy-v2";
 pub const DOCUMENT_PROTOCOL_MARKER: &[u8] = b"Protocol: clearsig-intent-v4@1";
 pub const MAX_CANONICAL_INTENT_BYTES: usize = 2_048;
 pub const MAX_DOCUMENT_BYTES: usize = 1_792;
@@ -121,6 +124,10 @@ fn write_review_footer(writer: &mut Writer<'_>, intent: &CanonicalIntent<'_>) ->
         ActionKind::SetProtection => (
             b"Policy change".as_slice(),
             b"Verify the target network and replacement policy commitment".as_slice(),
+        ),
+        ActionKind::SetAssetProtection => (
+            b"Asset policy change".as_slice(),
+            b"Verify asset mint, decimals, and replacement policy commitment".as_slice(),
         ),
         ActionKind::ReleaseMilestone | ActionKind::ReturnEscrowFunds => (
             b"Escrow funds movement".as_slice(),

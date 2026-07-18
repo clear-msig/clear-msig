@@ -4,8 +4,10 @@ use crate::{
 };
 use clear_msig_command_contract::{LamportPayment, TypedProposalExecution};
 
+mod asset_policy;
 mod escrow;
 
+pub(super) use asset_policy::*;
 pub(super) use escrow::*;
 
 use super::types::{

@@ -228,6 +228,15 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
             format!("Set protection for {}", envelope.wallet_name),
             payload_text(&envelope.payload, "summary")?,
         ]),
+        ClearSignActionKind::SetAssetProtection => Ok(vec![
+            format!(
+                "Set {} protection for {}",
+                payload_text(&envelope.payload, "displayAsset")?,
+                envelope.wallet_name
+            ),
+            format!("Mint {}", payload_text(&envelope.payload, "assetId")?),
+            payload_text(&envelope.payload, "summary")?,
+        ]),
         ClearSignActionKind::RecoveryAction => Ok(vec![
             format!("Approve recovery for {}", envelope.wallet_name),
             payload_text(&envelope.payload, "recoveryAction")?,
