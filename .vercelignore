@@ -1,0 +1,27 @@
+# Local build and dependency artifacts must never enter a Vercel source upload.
+target/
+**/target/
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.audit/
+test-ledger/
+
+# Provider state, VCS history, editor state, and local credentials are not build inputs.
+.git/
+.github/
+.vercel/
+.idea/
+.vscode/
+.DS_Store
+**/.env
+**/.env.*
+!**/.env.example
+*.keypair.json
+*.pem
+*.p12
+*.pfx
+*.mnemonic
+*.seed
+id.json
