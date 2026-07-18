@@ -22,7 +22,8 @@ struct VersionResponse {
 #[derive(Serialize)]
 struct ProgramVersion {
     id: String,
-    rpc_url: String,
+    network: &'static str,
+    rpc_provider: &'static str,
     expected_deployed_slot: Option<String>,
     expected_artifact_sha256: Option<String>,
 }
@@ -69,7 +70,8 @@ fn release_version(state: &AppState) -> VersionResponse {
         deployment_id: first_env(&["RAILWAY_DEPLOYMENT_ID", "CLEAR_MSIG_DEPLOYMENT_ID"]),
         program: ProgramVersion {
             id: state.runner.program_id.clone(),
-            rpc_url: state.runner.rpc_url.clone(),
+            network: "solana-devnet",
+            rpc_provider: rpc_provider(&state.runner.rpc_url),
             expected_deployed_slot: first_env(&["CLEAR_MSIG_PROGRAM_DEPLOY_SLOT"]),
             expected_artifact_sha256: first_env(&["CLEAR_MSIG_PROGRAM_SO_SHA256"]),
         },
@@ -80,6 +82,23 @@ fn release_version(state: &AppState) -> VersionResponse {
             ika_signing_assurance: state.runner.ika_signing_assurance.label(),
             ika_distributed_signing: state.runner.ika_signing_assurance.is_distributed(),
         },
+    }
+}
+
+fn rpc_provider(rpc_url: &str) -> &'static str {
+    let normalized = rpc_url.to_ascii_lowercase();
+    if normalized.contains("alchemy.com") {
+        "alchemy"
+    } else if normalized.contains("quicknode") {
+        "quicknode"
+    } else if normalized.contains("helius") {
+        "helius"
+    } else if normalized.contains("ankr.com") {
+        "ankr"
+    } else if normalized.contains("solana.com") {
+        "solana"
+    } else {
+        "custom"
     }
 }
 
@@ -94,7 +113,7 @@ fn first_env(names: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::first_env;
+    use super::{first_env, rpc_provider};
 
     #[test]
     fn first_env_ignores_empty_values() {
@@ -106,5 +125,16 @@ mod tests {
         );
         std::env::remove_var("CLEAR_MSIG_TEST_EMPTY");
         std::env::remove_var("CLEAR_MSIG_TEST_VALUE");
+    }
+
+    #[test]
+    fn rpc_provider_never_returns_endpoint_credentials() {
+        let endpoint = "https://solana-devnet.g.alchemy.com/v2/private-key";
+        let provider = rpc_provider(endpoint);
+
+        assert_eq!(provider, "alchemy");
+        assert!(!provider.contains("private-key"));
+        assert!(!provider.contains("/v2/"));
+        assert!(!provider.contains("://"));
     }
 }

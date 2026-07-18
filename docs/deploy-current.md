@@ -7,9 +7,9 @@ This is the current ClearSig production/devnet deployment shape.
 - On-chain program: Solana devnet `clear_wallet`
 - Program id: `53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v`
 - Current upgrade authority: `GpTfW9LiJb8pM2xmi7oENuUiV1e4LurPu9rzcPfhaJCM`
-- Last deployed slot: `477186792`
-- Current artifact SHA-256: `b2a767c1738cd1bbaf4dd4fb482a5c11792b08e3ca99808158b4dbff27cf5c0d`
-- Deployment signature: `5BwdCbGDceZuUnu1ScDrKhhT9h1Bj5rS6ke1Gq9dBBm9nGrX1Z4z46MkBvwgsFtixMhhvnAv8rxPstwkugnHuhe9`
+- Last deployed slot: `477230343`
+- Current artifact SHA-256: `bac83a3792bc29ed6515c9d671134f670219c23d929ac0b25ce907f8ed4d1af0`
+- Deployment signature: `xuMFEJ3xp1TVMQkV5H1pBxmHKxkjUF2wKFPbU9WqSUu7rjxDSaFJRweS6AtA9ercm7y12U2zNNCsTYbikham65w`
 - Local authority keypair: `target/deploy/clear_wallet-keypair.json`
 - Devnet RPC: Alchemy devnet
 - Backend: Railway service `clear-msig-backend`
@@ -126,3 +126,13 @@ UPSTASH_REDIS_REST_TOKEN=<Upstash Redis REST token>
 
 Redeploy Vercel after frontend API contract, ClearSign hashing, or program id
 changes.
+
+The public backend and frontend version routes expose only a coarse RPC
+provider label. They must never serialize configured RPC endpoints because
+provider paths can contain credentials.
+
+`NEXT_PUBLIC_SOLANA_RPC_URL` is still browser-visible by definition. Its
+provider credential must be restricted to the production origins and minimum
+required methods, or replaced with a server-side RPC proxy before a
+restricted-value pilot. Redacting the version route does not make a public
+browser environment variable secret.

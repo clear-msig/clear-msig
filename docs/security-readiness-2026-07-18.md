@@ -33,9 +33,8 @@ settlement, hardware qualification, and institutional operating controls.
 - New recurring USDC schedules use CSP2. An AssetPolicy PDA binds the wallet to
   the exact mint and policy commitment, while one AssetPolicySpend PDA per
   wallet and mint enforces raw six-decimal amount, velocity, send-count,
-  recipient, and allowed-hours rules across all schedules. This repository
-  behavior requires the corresponding program upgrade before it is active on
-  devnet.
+  recipient, and allowed-hours rules across all schedules. This behavior is
+  active on devnet at slot `477230343`; it is not a mainnet qualification.
 - Any caller can submit a due recurring payment. No caller can change its bound
   terms, and schedule advancement is atomic with the SOL/SPL transfer. ClearSig
   does not yet operate a redundant keeper network, so execution still requires
@@ -45,6 +44,9 @@ settlement, hardware qualification, and institutional operating controls.
 - CI performs architecture checks, lint/type checks, tests, production builds,
   route-aware bundle budgets, secret scanning, CodeQL, `cargo-audit`,
   `cargo-deny`, and production npm dependency auditing.
+- Public release endpoints expose RPC provider labels rather than configured
+  endpoints. Browser RPC values in `NEXT_PUBLIC_*` variables remain observable
+  and require provider-side origin/method restrictions or a server proxy.
 
 ## Recurring USDC qualification
 

@@ -9,6 +9,16 @@ function firstEnv(names: string[]): string | null {
   return null;
 }
 
+export function rpcProviderLabel(rpcUrl: string): string {
+  const normalized = rpcUrl.toLowerCase();
+  if (normalized.includes("alchemy.com")) return "alchemy";
+  if (normalized.includes("quicknode")) return "quicknode";
+  if (normalized.includes("helius")) return "helius";
+  if (normalized.includes("ankr.com")) return "ankr";
+  if (normalized.includes("solana.com")) return "solana";
+  return "custom";
+}
+
 export function getFrontendVersion() {
   return {
     status: "ok",
@@ -35,7 +45,8 @@ export function getFrontendVersion() {
     backendUrl: appConfig.backendApiUrl,
     program: {
       id: CLEAR_WALLET_PROGRAM_ID.toBase58(),
-      rpcUrl: appConfig.preAlpha.solanaRpcUrl,
+      network: "solana-devnet",
+      rpcProvider: rpcProviderLabel(appConfig.preAlpha.solanaRpcUrl),
       expectedDeployedSlot: firstEnv(["NEXT_PUBLIC_CLEAR_WALLET_DEPLOY_SLOT"]),
       expectedArtifactSha256: firstEnv(["NEXT_PUBLIC_CLEAR_WALLET_SO_SHA256"]),
     },
