@@ -126,6 +126,7 @@ fn risk_category(kind: ClearSignActionKind) -> &'static str {
         ClearSignActionKind::AgentTradeApproval | ClearSignActionKind::AgentTradeSettlement => {
             "Agent execution"
         }
+        ClearSignActionKind::RecurringSchedule => "Recurring funds authority",
     }
 }
 
@@ -136,6 +137,9 @@ fn risk_check(kind: ClearSignActionKind) -> &'static str {
         | ClearSignActionKind::ReleaseMilestone
         | ClearSignActionKind::ReturnEscrowFunds => {
             "Verify amount, asset, network, and every destination"
+        }
+        ClearSignActionKind::RecurringSchedule => {
+            "Verify amount, destination, cadence, first payment, and maximum count"
         }
         ClearSignActionKind::SwapIntent => "Verify network, assets, and minimum received",
         ClearSignActionKind::AddMember

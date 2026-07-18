@@ -136,6 +136,76 @@ pub fn enforce_typed_remote_send_policy(
     )
 }
 
+/// Recurring execution cannot consult a historical proposal on every run.
+/// Reject policy features whose meaning depends on that proposal, then enforce
+/// all reusable recipient, amount, time, velocity, and send-count controls.
+pub fn validate_recurring_sol_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+    amount_lamports: u64,
+) -> Result<(), ProgramError> {
+    if policy_bytes.is_empty() {
+        return Ok(());
+    }
+    require!(
+        hash_typed_policy(policy_bytes) == committed_policy_hash,
+        WalletError::InvalidPolicy
+    );
+    let policy = TypedSolPolicy::parse(policy_bytes)?;
+    require!(
+        policy.extra_cooldown_seconds == 0
+            && policy.required_approvers.is_empty()
+            && policy.member_cap_count == 0
+            && policy.advanced_rules.is_none(),
+        WalletError::RecurringSchedulePolicyUnsupported
+    );
+    policy.enforce_recipient(recipient)?;
+    policy.enforce_amount(amount_lamports)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn enforce_recurring_sol_payment_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+    amount_lamports: u64,
+    intent: &Intent<'_>,
+    policy_spend: &mut PolicySpendState,
+    policy_spend_bump: u8,
+) -> Result<(), ProgramError> {
+    validate_recurring_sol_policy(
+        policy_bytes,
+        committed_policy_hash,
+        recipient,
+        amount_lamports,
+    )?;
+    initialize_policy_spend(
+        intent,
+        committed_policy_hash,
+        policy_spend,
+        policy_spend_bump,
+    )?;
+    if policy_bytes.is_empty() {
+        return Ok(());
+    }
+    let policy = TypedSolPolicy::parse(policy_bytes)?;
+    policy.enforce_allowed_time()?;
+    policy.enforce_velocity(
+        amount_lamports,
+        intent,
+        committed_policy_hash,
+        policy_spend,
+        policy_spend_bump,
+    )?;
+    policy.enforce_send_count(
+        intent,
+        committed_policy_hash,
+        policy_spend,
+        policy_spend_bump,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn enforce_typed_send_policy(
     policy_bytes: &[u8],

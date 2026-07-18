@@ -102,6 +102,7 @@ pub(super) fn payload_pubkeys(payload: &Value, field: &str) -> Result<Vec<[u8; 3
 pub(super) fn asset_encoding(value: AssetEncoding) -> IdentityEncoding {
     match value {
         AssetEncoding::Text => IdentityEncoding::Text,
+        AssetEncoding::SolanaPubkey => IdentityEncoding::SolanaPubkey,
         AssetEncoding::Sha256Text => IdentityEncoding::Sha256Text,
     }
 }

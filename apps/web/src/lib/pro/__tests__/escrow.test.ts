@@ -160,4 +160,91 @@ describe("Pro escrow", () => {
       asset: "SOL",
     });
   });
+
+  it("binds SPL token accounts to the readable token release", () => {
+    const tokenProject: ProEscrowProject = {
+      ...baseProject,
+      funders: [{ ...baseProject.funders[0], asset: "USDC", tokenAccount: "FunderToken111" }],
+      milestones: [{ ...baseProject.milestones[0], asset: "USDC", amount: "2.5", tokenAccount: "RecipientToken111" }],
+      execution: {
+        mode: "spl",
+        network: "Solana devnet",
+        chainKind: 0,
+        decimals: 6,
+        assetId: "Mint111",
+        mint: "Mint111",
+        sourceToken: "TreasuryToken111",
+      },
+    };
+    const release = buildProEscrowReleaseEnvelope({
+      walletName: "Team",
+      project: tokenProject,
+      milestone: tokenProject.milestones[0],
+    });
+    expect(release.payload).toMatchObject({
+      asset: "Mint111",
+      assetEncoding: "solana_pubkey",
+      displayAsset: "USDC",
+      decimals: 6,
+      execution: {
+        mode: "spl",
+        mint: "Mint111",
+        sourceToken: "TreasuryToken111",
+        destinationToken: "RecipientToken111",
+        recipientOwner: tokenProject.milestones[0].recipient,
+      },
+    });
+  });
+
+  it("binds cross-chain and private settlement evidence", () => {
+    const hash = (character: string) => character.repeat(64);
+    const remoteProject: ProEscrowProject = {
+      ...baseProject,
+      funders: [baseProject.funders[0]],
+      milestones: [{ ...baseProject.milestones[0], asset: "USDC" }],
+      execution: {
+        mode: "cross_chain",
+        network: "Ethereum Sepolia",
+        chainKind: 1,
+        decimals: 6,
+        assetId: "USDC",
+        routeHash: hash("a"),
+        settlementArtifactHash: hash("b"),
+      },
+    };
+    const remote = buildProEscrowReleaseEnvelope({
+      walletName: "Team",
+      project: remoteProject,
+      milestone: remoteProject.milestones[0],
+    });
+    expect(remote.network).toBe("Ethereum Sepolia");
+    expect(remote.payload).toMatchObject({
+      recipientEncoding: "sha256_text",
+      assetEncoding: "sha256_text",
+      execution: {
+        mode: "cross_chain",
+        routeHash: hash("a"),
+        settlementArtifactHash: hash("b"),
+      },
+    });
+
+    const privateProject: ProEscrowProject = {
+      ...remoteProject,
+      execution: {
+        ...remoteProject.execution!,
+        mode: "private",
+        privateEvaluationHash: hash("c"),
+      },
+    };
+    const privateRelease = buildProEscrowReleaseEnvelope({
+      walletName: "Team",
+      project: privateProject,
+      milestone: privateProject.milestones[0],
+    });
+    expect(privateRelease.payload.execution).toEqual({
+      mode: "private",
+      privateEvaluationHash: hash("c"),
+      settlementArtifactHash: hash("b"),
+    });
+  });
 });

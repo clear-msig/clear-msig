@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api/client";
 import type {
   ClearSignIntentInput,
+  EscrowExecutionBinding,
   EscrowReturnPayload,
   MilestonePayload,
 } from "@/lib/clearsign";
@@ -19,6 +20,7 @@ export interface ProEscrowFunder {
   address: string;
   asset: string;
   amount: string;
+  tokenAccount?: string;
 }
 
 export interface ProEscrowMilestone {
@@ -29,6 +31,20 @@ export interface ProEscrowMilestone {
   asset: string;
   amount: string;
   status: ProEscrowMilestoneStatus;
+  tokenAccount?: string;
+}
+
+export interface ProEscrowExecution {
+  mode: "spl" | "cross_chain" | "private";
+  network: ClearSignIntentInput<MilestonePayload>["network"];
+  chainKind: number;
+  decimals: number;
+  assetId: string;
+  mint?: string;
+  sourceToken?: string;
+  routeHash?: string;
+  settlementArtifactHash?: string;
+  privateEvaluationHash?: string;
 }
 
 export interface ProEscrowProject {
@@ -39,6 +55,7 @@ export interface ProEscrowProject {
   funders: ProEscrowFunder[];
   milestones: ProEscrowMilestone[];
   policy?: ProEscrowPolicy;
+  execution?: ProEscrowExecution;
   createdAt: number;
   updatedAt?: number;
 }
@@ -399,6 +416,7 @@ export function buildProEscrowReleaseEnvelope(input: {
   const project = bindProEscrowPolicy(input.project);
   return {
     ...clearSignMeta(input),
+    network: project.execution?.network ?? "Solana devnet",
     kind: "release_milestone",
     policyCommitment: project.policy?.commitment ?? buildProEscrowPolicyCommitment(project),
     payload: {
@@ -407,9 +425,21 @@ export function buildProEscrowReleaseEnvelope(input: {
       milestoneId: input.milestone.id,
       milestoneTitle: input.milestone.title,
       recipient: input.milestone.recipient,
-      recipientEncoding: "solana_pubkey",
+      recipientEncoding: project.execution
+        ? project.execution.mode === "spl"
+          ? "solana_pubkey"
+          : "sha256_text"
+        : "solana_pubkey",
       amount: input.milestone.amount,
-      asset: input.milestone.asset,
+      asset: project.execution?.assetId ?? input.milestone.asset,
+      assetEncoding: project.execution
+        ? project.execution.mode === "spl"
+          ? "solana_pubkey"
+          : "sha256_text"
+        : "text",
+      decimals: project.execution?.decimals ?? 9,
+      displayAsset: input.milestone.asset,
+      execution: buildEscrowExecutionBinding(project, input.milestone),
     },
   };
 }
@@ -430,6 +460,7 @@ export function buildProEscrowReturnEnvelope(input: {
     "SOL";
   return {
     ...clearSignMeta(input),
+    network: project.execution?.network ?? "Solana devnet",
     kind: "return_escrow_funds",
     policyCommitment: project.policy?.commitment ?? buildProEscrowPolicyCommitment(project),
     payload: {
@@ -437,11 +468,84 @@ export function buildProEscrowReturnEnvelope(input: {
       escrowTitle: project.title,
       returns: input.rows.map((row) => ({
         recipient: row.recipient,
-        recipientEncoding: "solana_pubkey",
+        recipientEncoding: project.execution
+          ? project.execution.mode === "spl"
+            ? "solana_pubkey"
+            : "sha256_text"
+          : "solana_pubkey",
         amount: row.amount,
-        asset,
+        asset: project.execution?.assetId ?? asset,
+        assetEncoding: project.execution
+          ? project.execution.mode === "spl"
+            ? "solana_pubkey"
+            : "sha256_text"
+          : "text",
+        decimals: project.execution?.decimals ?? 9,
+        displayAsset: asset,
       })),
+      execution: buildEscrowExecutionBinding(project),
     },
+  };
+}
+
+function buildEscrowExecutionBinding(
+  project: ProEscrowProject,
+  milestone?: ProEscrowMilestone,
+): EscrowExecutionBinding | undefined {
+  const execution = project.execution;
+  if (!execution) return undefined;
+  if (execution.mode === "spl") {
+    if (!execution.mint || !execution.sourceToken) {
+      throw new Error("SPL escrow is missing its mint or treasury token account.");
+    }
+    if (milestone) {
+      if (!milestone.tokenAccount) {
+        throw new Error("SPL milestone is missing the recipient token account.");
+      }
+      return {
+        mode: "spl",
+        mint: execution.mint,
+        sourceToken: execution.sourceToken,
+        destinationToken: milestone.tokenAccount,
+        recipientOwner: milestone.recipient,
+      };
+    }
+    const tokenReturns = project.funders.map((funder) => {
+      if (!funder.tokenAccount) {
+        throw new Error("SPL funder is missing a return token account.");
+      }
+      return {
+        destinationToken: funder.tokenAccount,
+        funderOwner: funder.address,
+      };
+    });
+    return {
+      mode: "spl",
+      mint: execution.mint,
+      sourceToken: execution.sourceToken,
+      tokenReturns,
+    };
+  }
+  if (!execution.settlementArtifactHash) {
+    throw new Error("Escrow is missing its settlement artifact hash.");
+  }
+  if (execution.mode === "cross_chain") {
+    if (!execution.routeHash) {
+      throw new Error("Cross-chain escrow is missing its route hash.");
+    }
+    return {
+      mode: "cross_chain",
+      routeHash: execution.routeHash,
+      settlementArtifactHash: execution.settlementArtifactHash,
+    };
+  }
+  if (!execution.privateEvaluationHash) {
+    throw new Error("Private escrow is missing its evaluation hash.");
+  }
+  return {
+    mode: "private",
+    privateEvaluationHash: execution.privateEvaluationHash,
+    settlementArtifactHash: execution.settlementArtifactHash,
   };
 }
 
@@ -637,8 +741,28 @@ function isProEscrowProject(value: unknown): value is ProEscrowProject {
     Array.isArray(row.milestones) &&
     row.milestones.every(isMilestone) &&
     (row.policy === undefined || isProEscrowPolicy(row.policy)) &&
+    (row.execution === undefined || isProEscrowExecution(row.execution)) &&
     typeof row.createdAt === "number" &&
     (row.updatedAt === undefined || typeof row.updatedAt === "number")
+  );
+}
+
+function isProEscrowExecution(value: unknown): value is ProEscrowExecution {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return (
+    (row.mode === "spl" || row.mode === "cross_chain" || row.mode === "private") &&
+    typeof row.network === "string" &&
+    typeof row.chainKind === "number" &&
+    typeof row.decimals === "number" &&
+    typeof row.assetId === "string" &&
+    (row.mint === undefined || typeof row.mint === "string") &&
+    (row.sourceToken === undefined || typeof row.sourceToken === "string") &&
+    (row.routeHash === undefined || typeof row.routeHash === "string") &&
+    (row.settlementArtifactHash === undefined ||
+      typeof row.settlementArtifactHash === "string") &&
+    (row.privateEvaluationHash === undefined ||
+      typeof row.privateEvaluationHash === "string")
   );
 }
 
@@ -667,7 +791,8 @@ function isFunder(value: unknown): value is ProEscrowFunder {
     (row.entity === undefined || typeof row.entity === "string") &&
     typeof row.address === "string" &&
     typeof row.asset === "string" &&
-    typeof row.amount === "string"
+    typeof row.amount === "string" &&
+    (row.tokenAccount === undefined || typeof row.tokenAccount === "string")
   );
 }
 
@@ -682,6 +807,7 @@ function isMilestone(value: unknown): value is ProEscrowMilestone {
       typeof row.recipientEntity === "string") &&
     typeof row.asset === "string" &&
     typeof row.amount === "string" &&
+    (row.tokenAccount === undefined || typeof row.tokenAccount === "string") &&
     (row.status === "planned" || row.status === "released")
   );
 }

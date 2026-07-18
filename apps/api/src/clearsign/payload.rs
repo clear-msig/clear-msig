@@ -28,9 +28,10 @@ pub(super) enum RecipientEncoding {
     Sha256Text,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum AssetEncoding {
     Text,
+    SolanaPubkey,
     Sha256Text,
 }
 
@@ -50,7 +51,11 @@ impl Money {
         decimals: Option<usize>,
         display_asset: Option<String>,
     ) -> Result<Self, ApiError> {
-        let asset = normalize_asset_identity(&asset);
+        let asset = if asset_encoding == AssetEncoding::SolanaPubkey {
+            normalize_text(&asset)
+        } else {
+            normalize_asset_identity(&asset)
+        };
         if asset.is_empty() {
             return Err(ApiError::BadRequest("asset must not be empty".into()));
         }
@@ -200,9 +205,10 @@ fn asset_encoding(payload: &Value) -> Result<AssetEncoding, ApiError> {
     };
     match normalize_text(raw).as_str() {
         "" | "text" => Ok(AssetEncoding::Text),
+        "solana_pubkey" => Ok(AssetEncoding::SolanaPubkey),
         "sha256_text" => Ok(AssetEncoding::Sha256Text),
         _ => Err(ApiError::BadRequest(
-            "payload.assetEncoding must be text or sha256_text".into(),
+            "payload.assetEncoding must be text, solana_pubkey, or sha256_text".into(),
         )),
     }
 }

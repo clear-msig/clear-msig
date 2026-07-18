@@ -17,6 +17,7 @@ pub enum ActionKind {
     AgentSessionGrant = 12,
     AgentRiskPolicy = 13,
     AgentTradeSettlement = 14,
+    RecurringSchedule = 15,
 }
 
 impl ActionKind {
@@ -36,6 +37,7 @@ impl ActionKind {
             12 => Ok(Self::AgentSessionGrant),
             13 => Ok(Self::AgentRiskPolicy),
             14 => Ok(Self::AgentTradeSettlement),
+            15 => Ok(Self::RecurringSchedule),
             _ => Err(Error::UnsupportedAction),
         }
     }
@@ -310,6 +312,18 @@ pub struct AgentSettlementInput<'a> {
     pub reason: &'a [u8],
 }
 
+pub struct RecurringScheduleInput<'a> {
+    pub common: CommonFields,
+    pub schedule_id: &'a [u8],
+    pub payment: TransferRowInput<'a>,
+    pub interval_seconds: u32,
+    pub first_execution_at: i64,
+    pub payment_count: u32,
+    /// 1 = active, 2 = revoked.
+    pub status: u8,
+    pub reason: &'a [u8],
+}
+
 #[derive(Clone, Copy)]
 pub struct EnvelopeFields<'a> {
     pub kind: ActionKind,
@@ -347,6 +361,7 @@ pub enum Action<'a> {
     AgentSession(AgentSession<'a>),
     AgentRiskPolicy(AgentRiskPolicy<'a>),
     AgentSettlement(AgentSettlement<'a>),
+    RecurringSchedule(RecurringSchedule<'a>),
 }
 
 #[derive(Clone, Copy)]
@@ -458,4 +473,14 @@ pub struct AgentSettlement<'a> {
     pub outcome: u8,
     pub pnl_abs_raw: u128,
     pub settlement_sequence: u64,
+}
+
+#[derive(Clone, Copy)]
+pub struct RecurringSchedule<'a> {
+    pub schedule_id: &'a [u8],
+    pub payment: Transfer<'a>,
+    pub interval_seconds: u32,
+    pub first_execution_at: i64,
+    pub payment_count: u32,
+    pub status: u8,
 }

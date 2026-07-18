@@ -71,6 +71,30 @@ pub(super) fn hash_payload(
                 update_recipient_amount(&mut hasher, row);
             }
         }
+        ClearSignActionKind::RecurringSchedule => {
+            let row = recipient_amount(payload)?;
+            update_bytes(
+                &mut hasher,
+                &text_commitment(&payload_text(payload, "scheduleId")?),
+            );
+            update_recipient_amount(&mut hasher, &row);
+            update_u32(&mut hasher, payload_u32(payload, "intervalSeconds")?);
+            hasher.update(
+                payload
+                    .get("firstExecutionAt")
+                    .and_then(Value::as_i64)
+                    .ok_or_else(|| {
+                        ApiError::BadRequest("payload.firstExecutionAt must be an integer".into())
+                    })?
+                    .to_le_bytes(),
+            );
+            update_u32(&mut hasher, payload_u32(payload, "paymentCount")?);
+            hasher.update([if payload_text(payload, "status")? == "revoked" {
+                2
+            } else {
+                1
+            }]);
+        }
         ClearSignActionKind::AgentTradeApproval => {
             let market = payload_text(payload, "market")?.to_uppercase();
             let side = payload_text(payload, "side")?.to_lowercase();

@@ -2,15 +2,52 @@ use crate::{
     ensure_base58, ensure_hex, ensure_hex_exact_len, ensure_intent_filename, ensure_wallet_name,
     resolve_trusted_runtime_value, ApiError,
 };
-use clear_msig_command_contract::{LamportPayment, TypedProposalExecution};
+use clear_msig_command_contract::{LamportPayment, TokenPayment, TypedProposalExecution};
 
 use super::types::{
     ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
-    ExecuteTypedChainSendRequest, ExecuteTypedEscrowReleaseRequest,
+    ExecuteTypedChainSendRequest, ExecuteTypedCrossChainEscrowReleaseRequest,
+    ExecuteTypedCrossChainEscrowReturnRequest, ExecuteTypedEscrowReleaseRequest,
     ExecuteTypedEscrowReturnRequest, ExecuteTypedIntentGovernanceRequest,
-    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
-    ExecuteTypedWalletPolicyUpdateRequest,
+    ExecuteTypedPrivateEscrowReleaseRequest, ExecuteTypedPrivateEscrowReturnRequest,
+    ExecuteTypedRecurringScheduleRequest, ExecuteTypedSolBatchSendRequest,
+    ExecuteTypedSolSendRequest, ExecuteTypedSplEscrowReleaseRequest,
+    ExecuteTypedSplEscrowReturnRequest, ExecuteTypedWalletPolicyUpdateRequest,
 };
+
+pub(super) fn execute_typed_recurring_schedule(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedRecurringScheduleRequest,
+) -> Result<TypedProposalExecution, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_bounded_text(&body.schedule_id, "scheduleId")?;
+    ensure_positive_lamports(body.amount_lamports, "amountLamports")?;
+    if body.interval_seconds < 3_600 {
+        return Err(ApiError::BadRequest(
+            "intervalSeconds must be at least 3600".into(),
+        ));
+    }
+    if !(1..=1_000).contains(&body.payment_count) {
+        return Err(ApiError::BadRequest(
+            "paymentCount must be between 1 and 1000".into(),
+        ));
+    }
+    if !matches!(body.status, 1 | 2) {
+        return Err(ApiError::BadRequest("status must be 1 or 2".into()));
+    }
+    Ok(TypedProposalExecution::RecurringSchedule {
+        wallet: name,
+        proposal,
+        schedule_id: body.schedule_id,
+        recipient: validated_base58(body.recipient, "recipient")?,
+        amount_lamports: body.amount_lamports,
+        interval_seconds: body.interval_seconds,
+        first_execution_at: body.first_execution_at,
+        payment_count: body.payment_count,
+        status: body.status,
+    })
+}
 
 pub(super) fn execute_typed_escrow_release(
     name: String,
@@ -59,6 +96,173 @@ pub(super) fn execute_typed_escrow_return(
         escrow_id: body.escrow_id,
         returns,
     })
+}
+
+pub(super) fn execute_typed_spl_escrow_release(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedSplEscrowReleaseRequest,
+) -> Result<TypedProposalExecution, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_bounded_text(&body.escrow_id, "escrowId")?;
+    ensure_bounded_text(&body.milestone_id, "milestoneId")?;
+    ensure_positive_lamports(body.amount_tokens, "amountTokens")?;
+    Ok(TypedProposalExecution::SplEscrowRelease {
+        wallet: name,
+        proposal,
+        mint: validated_base58(body.mint, "mint")?,
+        source_token: validated_base58(body.source_token, "sourceToken")?,
+        destination_token: validated_base58(body.destination_token, "destinationToken")?,
+        recipient_owner: validated_base58(body.recipient_owner, "recipientOwner")?,
+        amount_tokens: body.amount_tokens,
+        escrow_id: body.escrow_id,
+        milestone_id: body.milestone_id,
+    })
+}
+
+pub(super) fn execute_typed_spl_escrow_return(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedSplEscrowReturnRequest,
+) -> Result<TypedProposalExecution, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_bounded_text(&body.escrow_id, "escrowId")?;
+    ensure_bounded_rows(body.returns.len(), "returns")?;
+    let returns = body
+        .returns
+        .into_iter()
+        .map(|row| {
+            ensure_positive_lamports(row.amount_tokens, "returns.amountTokens")?;
+            Ok(TokenPayment {
+                destination_token: validated_base58(
+                    row.destination_token,
+                    "returns.destinationToken",
+                )?,
+                funder_owner: validated_base58(row.funder_owner, "returns.funderOwner")?,
+                amount_tokens: row.amount_tokens,
+            })
+        })
+        .collect::<Result<Vec<_>, ApiError>>()?;
+    Ok(TypedProposalExecution::SplEscrowReturn {
+        wallet: name,
+        proposal,
+        mint: validated_base58(body.mint, "mint")?,
+        source_token: validated_base58(body.source_token, "sourceToken")?,
+        escrow_id: body.escrow_id,
+        returns,
+    })
+}
+
+pub(super) fn execute_typed_cross_chain_escrow_release(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedCrossChainEscrowReleaseRequest,
+) -> Result<TypedProposalExecution, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_remote_chain(body.chain_kind)?;
+    ensure_bounded_text(&body.escrow_id, "escrowId")?;
+    ensure_bounded_text(&body.milestone_id, "milestoneId")?;
+    Ok(TypedProposalExecution::CrossChainEscrowRelease {
+        wallet: name,
+        proposal,
+        chain_kind: body.chain_kind,
+        amount_raw: parse_positive_u128(&body.amount_raw, "amountRaw")?,
+        escrow_id: body.escrow_id,
+        milestone_id: body.milestone_id,
+        recipient_hash: validated_hash(body.recipient_hash, "recipientHash")?,
+        asset_id_hash: validated_hash(body.asset_id_hash, "assetIdHash")?,
+        route_hash: validated_hash(body.route_hash, "routeHash")?,
+        settlement_artifact_hash: validated_hash(
+            body.settlement_artifact_hash,
+            "settlementArtifactHash",
+        )?,
+    })
+}
+
+pub(super) fn execute_typed_cross_chain_escrow_return(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedCrossChainEscrowReturnRequest,
+) -> Result<TypedProposalExecution, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_remote_chain(body.chain_kind)?;
+    ensure_bounded_text(&body.escrow_id, "escrowId")?;
+    Ok(TypedProposalExecution::CrossChainEscrowReturn {
+        wallet: name,
+        proposal,
+        chain_kind: body.chain_kind,
+        amount_raw: parse_positive_u128(&body.amount_raw, "amountRaw")?,
+        escrow_id: body.escrow_id,
+        refund_recipient_hash: validated_hash(body.refund_recipient_hash, "refundRecipientHash")?,
+        asset_id_hash: validated_hash(body.asset_id_hash, "assetIdHash")?,
+        route_hash: validated_hash(body.route_hash, "routeHash")?,
+        settlement_artifact_hash: validated_hash(
+            body.settlement_artifact_hash,
+            "settlementArtifactHash",
+        )?,
+    })
+}
+
+pub(super) fn execute_typed_private_escrow_release(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedPrivateEscrowReleaseRequest,
+) -> Result<TypedProposalExecution, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_bounded_text(&body.escrow_id, "escrowId")?;
+    ensure_bounded_text(&body.milestone_id, "milestoneId")?;
+    Ok(TypedProposalExecution::PrivateEscrowRelease {
+        wallet: name,
+        proposal,
+        amount_raw: parse_positive_u128(&body.amount_raw, "amountRaw")?,
+        escrow_id: body.escrow_id,
+        milestone_id: body.milestone_id,
+        recipient_hash: validated_hash(body.recipient_hash, "recipientHash")?,
+        asset_id_hash: validated_hash(body.asset_id_hash, "assetIdHash")?,
+        private_evaluation_hash: validated_hash(
+            body.private_evaluation_hash,
+            "privateEvaluationHash",
+        )?,
+        settlement_artifact_hash: validated_hash(
+            body.settlement_artifact_hash,
+            "settlementArtifactHash",
+        )?,
+    })
+}
+
+pub(super) fn execute_typed_private_escrow_return(
+    name: String,
+    proposal: String,
+    body: ExecuteTypedPrivateEscrowReturnRequest,
+) -> Result<TypedProposalExecution, ApiError> {
+    ensure_wallet_proposal(&name, &proposal)?;
+    ensure_bounded_text(&body.escrow_id, "escrowId")?;
+    Ok(TypedProposalExecution::PrivateEscrowReturn {
+        wallet: name,
+        proposal,
+        amount_raw: parse_positive_u128(&body.amount_raw, "amountRaw")?,
+        escrow_id: body.escrow_id,
+        refund_recipient_hash: validated_hash(body.refund_recipient_hash, "refundRecipientHash")?,
+        asset_id_hash: validated_hash(body.asset_id_hash, "assetIdHash")?,
+        private_evaluation_hash: validated_hash(
+            body.private_evaluation_hash,
+            "privateEvaluationHash",
+        )?,
+        settlement_artifact_hash: validated_hash(
+            body.settlement_artifact_hash,
+            "settlementArtifactHash",
+        )?,
+    })
+}
+
+fn ensure_remote_chain(chain_kind: u8) -> Result<(), ApiError> {
+    if matches!(chain_kind, 1..=5) {
+        Ok(())
+    } else {
+        Err(ApiError::BadRequest(
+            "chainKind must be a supported remote chain kind".into(),
+        ))
+    }
 }
 
 pub(super) fn execute_typed_sol_send(
@@ -461,7 +665,7 @@ mod tests {
     use crate::proposals::types::{
         ExecuteTypedAgentTradeApprovalRequest, ExecuteTypedChainSendRequest,
         ExecuteTypedEscrowReturnRow, ExecuteTypedIntentGovernanceRequest,
-        ExecuteTypedSolBatchSendRow,
+        ExecuteTypedSolBatchSendRow, ExecuteTypedSplEscrowReturnRow,
     };
 
     const VALID_PUBKEY: &str = "11111111111111111111111111111111";
@@ -973,5 +1177,119 @@ mod tests {
             },
         ));
         assert_eq!(agent, "amountRaw must be greater than zero");
+    }
+
+    #[test]
+    fn typed_spl_escrow_commands_preserve_exact_token_accounts() {
+        let release = execute_typed_spl_escrow_release(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedSplEscrowReleaseRequest {
+                mint: VALID_PUBKEY.into(),
+                source_token: VALID_PUBKEY.into(),
+                destination_token: VALID_PUBKEY.into(),
+                recipient_owner: VALID_PUBKEY.into(),
+                amount_tokens: 1_500_000,
+                escrow_id: "escrow-1".into(),
+                milestone_id: "milestone-1".into(),
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            release,
+            TypedProposalExecution::SplEscrowRelease {
+                amount_tokens: 1_500_000,
+                ..
+            }
+        ));
+
+        let returned = execute_typed_spl_escrow_return(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedSplEscrowReturnRequest {
+                mint: VALID_PUBKEY.into(),
+                source_token: VALID_PUBKEY.into(),
+                escrow_id: "escrow-1".into(),
+                returns: vec![ExecuteTypedSplEscrowReturnRow {
+                    destination_token: VALID_PUBKEY.into(),
+                    funder_owner: VALID_PUBKEY.into(),
+                    amount_tokens: 1_500_000,
+                }],
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            returned,
+            TypedProposalExecution::SplEscrowReturn { returns, .. }
+                if returns == vec![TokenPayment {
+                    destination_token: VALID_PUBKEY.into(),
+                    funder_owner: VALID_PUBKEY.into(),
+                    amount_tokens: 1_500_000,
+                }]
+        ));
+    }
+
+    #[test]
+    fn typed_remote_escrow_commands_validate_chain_amount_and_evidence() {
+        let release = execute_typed_cross_chain_escrow_release(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedCrossChainEscrowReleaseRequest {
+                chain_kind: 1,
+                amount_raw: "2500000".into(),
+                escrow_id: "escrow-remote".into(),
+                milestone_id: "milestone-remote".into(),
+                recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                route_hash: VALID_HASH.into(),
+                settlement_artifact_hash: VALID_HASH.into(),
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            release,
+            TypedProposalExecution::CrossChainEscrowRelease {
+                chain_kind: 1,
+                amount_raw: 2_500_000,
+                ..
+            }
+        ));
+
+        let private = execute_typed_private_escrow_return(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedPrivateEscrowReturnRequest {
+                amount_raw: "2500000".into(),
+                escrow_id: "escrow-private".into(),
+                refund_recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                private_evaluation_hash: VALID_HASH.into(),
+                settlement_artifact_hash: VALID_HASH.into(),
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            private,
+            TypedProposalExecution::PrivateEscrowReturn {
+                amount_raw: 2_500_000,
+                ..
+            }
+        ));
+
+        let bad_chain = bad_request_message(execute_typed_cross_chain_escrow_release(
+            "team".into(),
+            VALID_PUBKEY.into(),
+            ExecuteTypedCrossChainEscrowReleaseRequest {
+                chain_kind: 0,
+                amount_raw: "1".into(),
+                escrow_id: "escrow".into(),
+                milestone_id: "milestone".into(),
+                recipient_hash: VALID_HASH.into(),
+                asset_id_hash: VALID_HASH.into(),
+                route_hash: VALID_HASH.into(),
+                settlement_artifact_hash: VALID_HASH.into(),
+            },
+        ));
+        assert_eq!(bad_chain, "chainKind must be a supported remote chain kind");
     }
 }

@@ -28,6 +28,17 @@ pub fn find_policy_spend_address(
     )
 }
 
+pub fn find_recurring_schedule_address(
+    wallet: &Address,
+    schedule_id_hash: &[u8; 32],
+    program_id: &Address,
+) -> (Address, u8) {
+    Address::find_program_address(
+        &[b"recurring", wallet.as_ref(), schedule_id_hash.as_ref()],
+        program_id,
+    )
+}
+
 pub fn find_member_allowance_address(
     wallet: &Address,
     intent: &Address,

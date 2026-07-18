@@ -15,6 +15,17 @@ pub(super) fn validate_payload_shape(
         "decimals",
         "displayAsset",
     ];
+    const ESCROW_EXECUTION_FIELDS: &[&str] = &[
+        "mode",
+        "mint",
+        "sourceToken",
+        "destinationToken",
+        "recipientOwner",
+        "tokenReturns",
+        "routeHash",
+        "settlementArtifactHash",
+        "privateEvaluationHash",
+    ];
     let allowed = match kind {
         ClearSignActionKind::Send => &[
             "recipient",
@@ -61,9 +72,12 @@ pub(super) fn validate_payload_shape(
             "escrowTitle",
             "milestoneId",
             "milestoneTitle",
+            "execution",
             "reason",
         ],
-        ClearSignActionKind::ReturnEscrowFunds => &["escrowId", "escrowTitle", "returns", "reason"],
+        ClearSignActionKind::ReturnEscrowFunds => {
+            &["escrowId", "escrowTitle", "returns", "execution", "reason"]
+        }
         ClearSignActionKind::AgentTradeApproval => &[
             "agentId",
             "venue",
@@ -107,6 +121,21 @@ pub(super) fn validate_payload_shape(
             "settlementSequence",
             "reason",
         ],
+        ClearSignActionKind::RecurringSchedule => &[
+            "scheduleId",
+            "recipient",
+            "recipientEncoding",
+            "amount",
+            "asset",
+            "assetEncoding",
+            "decimals",
+            "displayAsset",
+            "intervalSeconds",
+            "firstExecutionAt",
+            "paymentCount",
+            "status",
+            "reason",
+        ],
         ClearSignActionKind::RecoveryAction => &["recoveryAction"],
         ClearSignActionKind::SwapIntent => &["from", "toAsset", "minReceive"],
     };
@@ -137,6 +166,21 @@ pub(super) fn validate_payload_shape(
             ],
             "payload.fiatEstimate",
         )?;
+    }
+    if let Some(execution) = payload.get("execution") {
+        validate_object_keys(execution, ESCROW_EXECUTION_FIELDS, "payload.execution")?;
+        if let Some(rows) = execution.get("tokenReturns") {
+            let rows = rows.as_array().ok_or_else(|| {
+                ApiError::BadRequest("payload.execution.tokenReturns must be an array".into())
+            })?;
+            for (index, row) in rows.iter().enumerate() {
+                validate_object_keys(
+                    row,
+                    &["destinationToken", "funderOwner"],
+                    &format!("payload.execution.tokenReturns row {index}"),
+                )?;
+            }
+        }
     }
     Ok(())
 }

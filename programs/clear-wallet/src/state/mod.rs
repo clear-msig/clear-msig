@@ -30,3 +30,6 @@ pub use ika_config::*;
 
 pub mod dwallet_ownership;
 pub use dwallet_ownership::*;
+
+pub mod recurring_schedule;
+pub use recurring_schedule::*;

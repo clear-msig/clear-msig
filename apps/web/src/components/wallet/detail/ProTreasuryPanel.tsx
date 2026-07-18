@@ -27,12 +27,7 @@ import {
 } from "@/components/wallet/detail/ManageActionPrimitives";
 import type { ActionNeededRow } from "@/lib/hooks/useActionNeeded";
 import type { RecentActivityRow } from "@/lib/hooks/useRecentActivity";
-import { useContacts } from "@/lib/hooks/useContacts";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
-import {
-  isValidSolanaAddress,
-  shortAddress,
-} from "@/lib/retail/contacts";
 import {
   buildActivityCsv,
   downloadActivityCsv,
@@ -44,7 +39,6 @@ import {
   downloadProAccountingCsv,
   getProTreasuryRuntime,
   useProSchedules,
-  type ProSchedule,
 } from "@/lib/pro/treasury";
 import { useProAuditEvents } from "@/lib/pro/audit";
 
@@ -79,7 +73,6 @@ function ProOperationsPanel({
 }) {
   type ProPanelKey =
     | "payments"
-    | "recurring"
     | "protection"
     | "audit"
     | "admin";
@@ -92,20 +85,7 @@ function ProOperationsPanel({
   const auditEvents = useProAuditEvents(name);
   const budgetUsage = useWalletBudgetUsage(name);
   const [activePanel, setActivePanel] = useState<ProPanelKey | null>(null);
-  const [scheduleDraft, setScheduleDraft] = useState({
-    name: "",
-    address: "",
-    category: "vendor" as ProSchedule["category"],
-    amount: "",
-    asset: runtime.defaultPaymentAsset,
-    cadence: "Monthly" as ProSchedule["cadence"],
-    nextRun: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10),
-    note: "",
-  });
   const lastReceipt = attempts[0] ?? null;
-  const dueSchedules = schedules.rows.filter(isScheduleDue);
   const limitsReady = hasAnyProLimit(budgetUsage);
   const commandTiles: Array<{
     key: ProPanelKey;
@@ -116,7 +96,7 @@ function ProOperationsPanel({
     {
       key: "payments",
       label: "Payments",
-      value: dueSchedules.length > 0 ? `${dueSchedules.length} due` : "Pay out",
+      value: schedules.rows.length > 0 ? `${schedules.rows.length} scheduled` : "Pay out",
       icon: Banknote,
     },
     {
@@ -133,26 +113,6 @@ function ProOperationsPanel({
     },
   ];
 
-  const saveSchedule = () => {
-    const payee = scheduleDraft.name.trim();
-    const amount = scheduleDraft.amount.trim();
-    if (!payee || !amount) return;
-    schedules.add({
-      ...scheduleDraft,
-      name: payee,
-      address: scheduleDraft.address.trim(),
-      amount,
-      asset: scheduleDraft.asset.trim().toUpperCase() || "USDC",
-      note: scheduleDraft.note.trim(),
-    });
-    setScheduleDraft((current) => ({
-      ...current,
-      name: "",
-      address: "",
-      amount: "",
-      note: "",
-    }));
-  };
 
   const exportAudit = () => {
     const csv = buildActivityCsv({
@@ -270,24 +230,12 @@ function ProOperationsPanel({
             icon={FileCheck2}
             title="Project escrow"
           />
-          <ActionButton
+          <ActionRow
+            href={`/app/wallet/${encoded}/recurring`}
             icon={Repeat2}
             title="Recurring"
-            onClick={() => setActivePanel("recurring")}
           />
         </ActionGroup>
-      ) : null}
-
-      {activePanel === "recurring" ? (
-        <ProScheduleCard
-          draft={scheduleDraft}
-          rows={schedules.rows}
-          walletName={name}
-          defaultAsset={runtime.defaultPaymentAsset}
-          onDraftChange={setScheduleDraft}
-          onSave={saveSchedule}
-          onRemove={schedules.remove}
-        />
       ) : null}
 
       {activePanel === "protection" ? (
@@ -389,236 +337,6 @@ function hasAnyProLimit(usage: ReturnType<typeof useWalletBudgetUsage>): boolean
     !!velocity ||
     usage.perChain.some((row) => row.cap !== null)
   );
-}
-
-type ProScheduleDraft = Omit<ProSchedule, "id" | "createdAt"> & {
-  address: string;
-  note: string;
-};
-
-function ProScheduleCard({
-  draft,
-  rows,
-  walletName,
-  defaultAsset,
-  onDraftChange,
-  onSave,
-  onRemove,
-}: {
-  draft: ProScheduleDraft;
-  rows: ProSchedule[];
-  walletName: string;
-  defaultAsset: string;
-  onDraftChange: (next: ProScheduleDraft) => void;
-  onSave: () => void;
-  onRemove: (id: string) => void;
-}) {
-  const encoded = encodeURIComponent(walletName);
-  const contacts = useContacts();
-  const datalistId = `pro-payees-${encoded}`;
-  const sortedRows = useMemo(
-    () =>
-      [...rows].sort((a, b) => {
-        const aDue = isScheduleDue(a) ? 0 : 1;
-        const bDue = isScheduleDue(b) ? 0 : 1;
-        if (aDue !== bDue) return aDue - bDue;
-        return a.nextRun.localeCompare(b.nextRun);
-      }),
-    [rows],
-  );
-  return (
-    <section
-      id="pro-recurring"
-      className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
-          Recurring
-        </h3>
-        <span className="font-numerals text-xs tabular-nums text-text-soft">
-          {rows.length}
-        </span>
-      </div>
-      <div className="mt-3 grid gap-2">
-        <input
-          aria-label="Schedule name"
-          value={draft.name}
-          onChange={(event) =>
-            onDraftChange({ ...draft, name: event.target.value })
-          }
-          placeholder="Vendor or team member"
-          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
-        />
-        <input
-          aria-label="Schedule recipient"
-          value={draft.address ?? ""}
-          onChange={(event) =>
-            onDraftChange({ ...draft, address: event.target.value })
-          }
-          list={datalistId}
-          placeholder="Wallet address or saved contact"
-          spellCheck={false}
-          autoComplete="off"
-          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
-        />
-        <datalist id={datalistId}>
-          {contacts.contacts.map((contact) => (
-            <option key={contact.address} value={contact.address}>
-              {contact.name}
-            </option>
-          ))}
-        </datalist>
-        <div className="grid grid-cols-[1fr_88px] gap-2">
-          <input
-            aria-label="Schedule amount"
-            value={draft.amount}
-            onChange={(event) =>
-              onDraftChange({ ...draft, amount: event.target.value })
-            }
-            placeholder="Amount"
-            inputMode="decimal"
-            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
-          />
-          <input
-            value={draft.asset}
-            onChange={(event) =>
-              onDraftChange({ ...draft, asset: event.target.value })
-            }
-            aria-label="Asset"
-            placeholder={defaultAsset}
-            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm font-semibold uppercase text-text-strong outline-none focus:border-accent/50"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <select
-            aria-label="Schedule category"
-            value={draft.category}
-            onChange={(event) =>
-              onDraftChange({
-                ...draft,
-                category: event.target.value as ProSchedule["category"],
-              })
-            }
-            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
-          >
-            <option value="vendor">Vendor</option>
-            <option value="payroll">Payroll</option>
-          </select>
-          <select
-            aria-label="Schedule cadence"
-            value={draft.cadence}
-            onChange={(event) =>
-              onDraftChange({
-                ...draft,
-                cadence: event.target.value as ProSchedule["cadence"],
-              })
-            }
-            className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
-          >
-            <option value="Weekly">Weekly</option>
-            <option value="Monthly">Monthly</option>
-          </select>
-        </div>
-        <input
-          type="date"
-          aria-label="Next payment date"
-          value={draft.nextRun}
-          onChange={(event) =>
-            onDraftChange({ ...draft, nextRun: event.target.value })
-          }
-          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none focus:border-accent/50"
-        />
-        <input
-          aria-label="Schedule note"
-          value={draft.note ?? ""}
-          onChange={(event) =>
-            onDraftChange({ ...draft, note: event.target.value })
-          }
-          placeholder="Note (optional)"
-          maxLength={80}
-          className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-sm text-text-strong outline-none placeholder:text-text-soft focus:border-accent/50"
-        />
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={!draft.name.trim() || !draft.amount.trim()}
-          className={
-            "min-h-11 rounded-soft bg-accent px-4 text-sm font-semibold text-text-on-accent shadow-accent-rest " +
-            "transition-[background-color,transform,opacity] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
-          }
-        >
-          Save schedule
-        </button>
-      </div>
-      {rows.length > 0 ? (
-        <ul className="mt-3 divide-y divide-border-soft">
-          {sortedRows.slice(0, 4).map((row) => {
-            const due = isScheduleDue(row);
-            const payHref = schedulePaymentHref(row, encoded);
-            return (
-            <li key={row.id} className="flex items-center justify-between gap-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-text-strong">
-                  {row.name}
-                  {due ? (
-                    <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
-                      Due
-                    </span>
-                  ) : null}
-                </p>
-                <p className="truncate text-xs text-text-soft">
-                  {row.amount} {row.asset} · {row.cadence} · {row.nextRun}
-                  {row.address ? ` · ${formatScheduleAddress(row.address)}` : ""}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <Link
-                  href={payHref}
-                  className="rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-semibold text-text-strong transition hover:border-accent/40 hover:text-accent"
-                >
-                  Pay
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => onRemove(row.id)}
-                  className="rounded-full border border-border-soft px-2.5 py-1 text-[11px] text-text-soft transition hover:text-text-strong"
-                >
-                  Done
-                </button>
-              </div>
-            </li>
-          );
-          })}
-        </ul>
-      ) : null}
-    </section>
-  );
-}
-
-function isScheduleDue(row: ProSchedule): boolean {
-  if (!row.nextRun) return false;
-  const dueAt = new Date(`${row.nextRun}T00:00:00`);
-  return Number.isFinite(dueAt.getTime()) && dueAt.getTime() <= Date.now();
-}
-
-function schedulePaymentHref(row: ProSchedule, encodedWalletName: string): string {
-  if (row.category === "payroll") {
-    return `/app/wallet/${encodedWalletName}/send/batch?template=payroll`;
-  }
-  const asset = row.asset.trim().toUpperCase();
-  const params = new URLSearchParams({ kind: "vendor" });
-  if (asset === "SOL") {
-    params.set("recipient", row.address?.trim() || row.name);
-    params.set("amount", row.amount);
-    params.set("note", row.note?.trim() || `${row.cadence} vendor payment`);
-  }
-  return `/app/wallet/${encodedWalletName}/send?${params.toString()}`;
-}
-
-function formatScheduleAddress(address: string): string {
-  const trimmed = address.trim();
-  if (!trimmed) return "";
-  return isValidSolanaAddress(trimmed) ? shortAddress(trimmed) : trimmed;
 }
 
 function ProAuditCard({

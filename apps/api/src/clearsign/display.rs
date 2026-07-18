@@ -184,6 +184,26 @@ pub(super) fn action_lines(envelope: &NormalizedEnvelope) -> Result<Vec<String>,
                 payload_text(&envelope.payload, "settlementArtifactHash")?
             ),
         ]),
+        ClearSignActionKind::RecurringSchedule => {
+            let row = recipient_amount(&envelope.payload)?;
+            Ok(vec![
+                format!(
+                    "{} recurring payment of {}",
+                    if payload_text(&envelope.payload, "status")? == "revoked" {
+                        "Revoke"
+                    } else {
+                        "Create"
+                    },
+                    format_money(&row.money),
+                ),
+                format!("Recipient {}", row.recipient),
+                format!(
+                    "Every {} seconds, maximum {} payments",
+                    payload_u32(&envelope.payload, "intervalSeconds")?,
+                    payload_u32(&envelope.payload, "paymentCount")?,
+                ),
+            ])
+        }
         ClearSignActionKind::AddMember => Ok(vec![format!(
             "Add {} as {} to {}",
             payload_text(&envelope.payload, "member")?,

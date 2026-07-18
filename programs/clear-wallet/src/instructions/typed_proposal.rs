@@ -342,6 +342,16 @@ fn validate_v4_execution_shape(
         | V4Action::AgentSession(_)
         | V4Action::AgentRiskPolicy(_)
         | V4Action::AgentSettlement(_) => {}
+        V4Action::RecurringSchedule(schedule) => {
+            require!(
+                intent.common.network.chain_kind() == 0
+                    && schedule.payment.recipient_encoding == V4IdentityEncoding::SolanaPubkey
+                    && schedule.payment.asset_encoding == V4IdentityEncoding::Text
+                    && schedule.payment.asset == b"SOL"
+                    && schedule.payment.decimals == 9,
+                WalletError::InvalidClearSignEnvelope
+            );
+        }
     }
     Ok(())
 }

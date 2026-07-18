@@ -7,6 +7,7 @@
 //! can parse and render exactly the same authoritative values without an
 //! allocator.
 
+mod authority_codec;
 mod codec;
 mod compact;
 mod fiat;
@@ -21,6 +22,7 @@ use fiat::{read_fiat_estimate_bytes, write_fiat_estimate};
 use full::render_full_document;
 use io::{Reader, Writer};
 
+pub use authority_codec::*;
 pub use codec::*;
 pub use hashing::*;
 pub use model::*;
@@ -133,6 +135,10 @@ fn write_review_footer(writer: &mut Writer<'_>, intent: &CanonicalIntent<'_>) ->
         ActionKind::AgentTradeSettlement => (
             b"Agent execution".as_slice(),
             b"Verify execution identity, amounts, sequence, and immutable evidence".as_slice(),
+        ),
+        ActionKind::RecurringSchedule => (
+            b"Recurring funds movement".as_slice(),
+            b"Verify recipient, amount, cadence, first run, and payment count".as_slice(),
         ),
         _ => return Err(Error::UnsupportedAction),
     };

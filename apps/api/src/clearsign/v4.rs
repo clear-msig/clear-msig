@@ -2,16 +2,22 @@ use axum::{extract::State, Json};
 use clear_msig_signing::{
     document_hash, encode_agent_risk_policy, encode_agent_session, encode_agent_settlement,
     encode_agent_trade_approval, encode_batch_transfer, encode_escrow_release,
-    encode_escrow_return, encode_governance, encode_policy_update, encode_transfer, envelope_hash,
-    parse_intent, policy_commitment, render_document, replay_hash, wallet_policy_commitment,
-    ActionKind, AgentRiskPolicyInput, AgentSessionInput, AgentSettlementInput,
-    AgentTradeApprovalInput, BatchTransferInput, CommonFields, DeviceProfile, EscrowReleaseInput,
-    EscrowReturnInput, FiatEstimateInput, GovernanceInput, IdentityEncoding, Network,
-    PolicyUpdateInput, TransferInput, TransferRowInput, MAX_CANONICAL_INTENT_BYTES,
-    MAX_DOCUMENT_BYTES,
+    encode_escrow_return, encode_governance, encode_policy_update, encode_recurring_schedule,
+    encode_transfer, envelope_hash, parse_intent, policy_commitment, render_document, replay_hash,
+    wallet_policy_commitment, ActionKind, AgentRiskPolicyInput, AgentSessionInput,
+    AgentSettlementInput, AgentTradeApprovalInput, BatchTransferInput, CommonFields, DeviceProfile,
+    EscrowReleaseInput, EscrowReturnInput, FiatEstimateInput, GovernanceInput, IdentityEncoding,
+    Network, PolicyUpdateInput, RecurringScheduleInput, TransferInput, TransferRowInput,
+    MAX_CANONICAL_INTENT_BYTES, MAX_DOCUMENT_BYTES,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+mod escrow_binding;
+
+use escrow_binding::{
+    escrow_execution_commitment, resolve_trusted_escrow_binding, TrustedEscrowBinding,
+};
 
 use super::v4_input::{
     asset_encoding, decode_base58_32, decode_bounded_hex, decode_hex_32, decode_payload_hash,
@@ -101,13 +107,14 @@ struct TrustedIntentContext {
     proposers: Vec<[u8; 32]>,
     execution_commitment: [u8; 32],
     current_policy_commitment: Option<[u8; 32]>,
+    escrow_binding: TrustedEscrowBinding,
 }
 
 struct OwnedTransferRow {
     recipient_encoding: IdentityEncoding,
     recipient: Vec<u8>,
     asset_encoding: IdentityEncoding,
-    asset: String,
+    asset: Vec<u8>,
     raw_amount: u128,
     decimals: u8,
     display_asset: String,
@@ -198,6 +205,8 @@ async fn resolve_trusted_context(
     } else {
         None
     };
+    let escrow_binding =
+        resolve_trusted_escrow_binding(state, req, intent, &wallet_name, chain_kind).await?;
 
     Ok(TrustedIntentContext {
         wallet_id,
@@ -209,6 +218,7 @@ async fn resolve_trusted_context(
         proposers,
         execution_commitment,
         current_policy_commitment,
+        escrow_binding,
     })
 }
 
@@ -318,7 +328,7 @@ fn prepare_clearsign_v4_response(
                     recipient_encoding: row.recipient_encoding,
                     recipient: &row.recipient,
                     asset_encoding: row.asset_encoding,
-                    asset: row.asset.as_bytes(),
+                    asset: &row.asset,
                     raw_amount: row.raw_amount,
                     decimals: row.decimals,
                     display_asset: row.display_asset.as_bytes(),
@@ -354,7 +364,7 @@ fn prepare_clearsign_v4_response(
                     recipient_encoding: row.recipient_encoding,
                     recipient: &row.recipient,
                     asset_encoding: row.asset_encoding,
-                    asset: row.asset.as_bytes(),
+                    asset: &row.asset,
                     raw_amount: row.raw_amount,
                     decimals: row.decimals,
                     display_asset: row.display_asset.as_bytes(),
@@ -432,6 +442,12 @@ fn prepare_clearsign_v4_response(
         }
         ClearSignActionKind::ReleaseMilestone => {
             let row = owned_transfer_row(&req.envelope.payload)?;
+            let escrow_execution_commitment = escrow_execution_commitment(
+                &req.envelope.payload,
+                &trusted,
+                true,
+                core::slice::from_ref(&row),
+            )?;
             let escrow_id = strict_required_text(&req.envelope.payload, "escrowId", 96)?;
             let escrow_title = strict_required_text(&req.envelope.payload, "escrowTitle", 96)?;
             let milestone_id = strict_required_text(&req.envelope.payload, "milestoneId", 96)?;
@@ -442,7 +458,7 @@ fn prepare_clearsign_v4_response(
                 recipient_encoding: row.recipient_encoding,
                 recipient: &row.recipient,
                 asset_encoding: row.asset_encoding,
-                asset: row.asset.as_bytes(),
+                asset: &row.asset,
                 raw_amount: row.raw_amount,
                 decimals: row.decimals,
                 display_asset: row.display_asset.as_bytes(),
@@ -455,7 +471,7 @@ fn prepare_clearsign_v4_response(
                     milestone_id: milestone_id.as_bytes(),
                     milestone_title: milestone_title.as_bytes(),
                     payment,
-                    execution_commitment: [0u8; 32],
+                    execution_commitment: escrow_execution_commitment,
                     reason: reason.as_bytes(),
                 },
                 &mut canonical_bytes,
@@ -475,13 +491,15 @@ fn prepare_clearsign_v4_response(
                 .iter()
                 .map(owned_transfer_row)
                 .collect::<Result<Vec<_>, _>>()?;
+            let escrow_execution_commitment =
+                escrow_execution_commitment(&req.envelope.payload, &trusted, false, &owned)?;
             let rows = owned
                 .iter()
                 .map(|row| TransferRowInput {
                     recipient_encoding: row.recipient_encoding,
                     recipient: &row.recipient,
                     asset_encoding: row.asset_encoding,
-                    asset: row.asset.as_bytes(),
+                    asset: &row.asset,
                     raw_amount: row.raw_amount,
                     decimals: row.decimals,
                     display_asset: row.display_asset.as_bytes(),
@@ -494,7 +512,7 @@ fn prepare_clearsign_v4_response(
                     escrow_id: escrow_id.as_bytes(),
                     escrow_title: escrow_title.as_bytes(),
                     rows: &rows,
-                    execution_commitment: [0u8; 32],
+                    execution_commitment: escrow_execution_commitment,
                     reason: reason.as_bytes(),
                 },
                 &mut canonical_bytes,
@@ -625,6 +643,58 @@ fn prepare_clearsign_v4_response(
             )
             .map_err(signing_error)?
         }
+        ClearSignActionKind::RecurringSchedule => {
+            if trusted.chain_kind != 0 {
+                return Err(ApiError::BadRequest(
+                    "recurring schedules currently require a Solana intent".into(),
+                ));
+            }
+            let row = owned_transfer_row(&req.envelope.payload)?;
+            if row.recipient_encoding != IdentityEncoding::SolanaPubkey
+                || row.asset_encoding != IdentityEncoding::Text
+                || row.asset != b"SOL"
+                || row.decimals != 9
+            {
+                return Err(ApiError::BadRequest(
+                    "recurring schedules currently require a SOL payment to a Solana address"
+                        .into(),
+                ));
+            }
+            let schedule_id = strict_required_text(&req.envelope.payload, "scheduleId", 96)?;
+            validate_replay_label(&schedule_id, "payload.scheduleId")?;
+            let interval_seconds = payload_u32(&req.envelope.payload, "intervalSeconds")?;
+            let first_execution_at = payload_i64(&req.envelope.payload, "firstExecutionAt")?;
+            let payment_count = payload_u32(&req.envelope.payload, "paymentCount")?;
+            let status = payload_status(
+                &req.envelope.payload,
+                "status",
+                &[("active", 1), ("revoked", 2)],
+            )?;
+            let reason = strict_optional_text(&req.envelope.payload, "reason", 160)?;
+            let payment = TransferRowInput {
+                recipient_encoding: row.recipient_encoding,
+                recipient: &row.recipient,
+                asset_encoding: row.asset_encoding,
+                asset: &row.asset,
+                raw_amount: row.raw_amount,
+                decimals: row.decimals,
+                display_asset: row.display_asset.as_bytes(),
+            };
+            encode_recurring_schedule(
+                &RecurringScheduleInput {
+                    common,
+                    schedule_id: schedule_id.as_bytes(),
+                    payment,
+                    interval_seconds,
+                    first_execution_at,
+                    payment_count,
+                    status,
+                    reason: reason.as_bytes(),
+                },
+                &mut canonical_bytes,
+            )
+            .map_err(signing_error)?
+        }
         _ => {
             return Err(ApiError::BadRequest(format!(
                 "ClearSign v4 preparation is not yet available for {}",
@@ -728,11 +798,18 @@ fn owned_transfer_row(payload: &Value) -> Result<OwnedTransferRow, ApiError> {
         }
         IdentityEncoding::Text | IdentityEncoding::Sha256Text => row.recipient.into_bytes(),
     };
+    let asset_encoding = asset_encoding(row.money.asset_encoding);
+    let asset = match asset_encoding {
+        IdentityEncoding::SolanaPubkey => {
+            decode_base58_32(&row.money.asset, "payload.asset")?.to_vec()
+        }
+        IdentityEncoding::Text | IdentityEncoding::Sha256Text => row.money.asset.into_bytes(),
+    };
     Ok(OwnedTransferRow {
         recipient_encoding,
         recipient,
-        asset_encoding: asset_encoding(row.money.asset_encoding),
-        asset: row.money.asset,
+        asset_encoding,
+        asset,
         raw_amount: row.money.raw_amount,
         decimals: u8::try_from(row.money.decimals)
             .map_err(|_| ApiError::BadRequest("payload.decimals must fit in one byte".into()))?,

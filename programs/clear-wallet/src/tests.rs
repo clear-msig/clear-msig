@@ -19,10 +19,11 @@ use {
         encode_batch_transfer as encode_v4_batch_transfer,
         encode_escrow_release as encode_v4_escrow_release,
         encode_escrow_return as encode_v4_escrow_return,
-        encode_policy_update as encode_v4_policy_update, encode_transfer as encode_v4_transfer,
-        envelope_hash as hash_v4_envelope, execution_commitment as v4_execution_commitment,
-        parse_intent as parse_v4_intent, policy_commitment as v4_policy_commitment,
-        render_document as render_v4_document,
+        encode_policy_update as encode_v4_policy_update,
+        encode_recurring_schedule as encode_v4_recurring_schedule,
+        encode_transfer as encode_v4_transfer, envelope_hash as hash_v4_envelope,
+        execution_commitment as v4_execution_commitment, parse_intent as parse_v4_intent,
+        policy_commitment as v4_policy_commitment, render_document as render_v4_document,
         spl_escrow_return_execution_commitment as v4_spl_return_execution_commitment,
         wallet_policy_commitment as v4_wallet_policy_commitment,
         AgentRiskPolicyInput as V4AgentRiskPolicyInput, AgentSessionInput as V4AgentSessionInput,
@@ -32,8 +33,8 @@ use {
         DeviceProfile as V4DeviceProfile, EscrowReleaseInput as V4EscrowReleaseInput,
         EscrowReturnInput as V4EscrowReturnInput, IdentityEncoding as V4IdentityEncoding,
         Network as V4Network, PolicyUpdateInput as V4PolicyUpdateInput,
-        TransferInput as V4TransferInput, TransferRowInput as V4TransferRowInput,
-        MAX_CANONICAL_INTENT_BYTES, MAX_DOCUMENT_BYTES,
+        RecurringScheduleInput as V4RecurringScheduleInput, TransferInput as V4TransferInput,
+        TransferRowInput as V4TransferRowInput, MAX_CANONICAL_INTENT_BYTES, MAX_DOCUMENT_BYTES,
     },
     clear_wallet_client::{
         intent_builder::IntentBuilder,
@@ -41,8 +42,8 @@ use {
         pda::{
             compute_name_hash, find_agent_risk_address, find_agent_session_address,
             find_agent_settlement_receipt_address, find_intent_address, find_policy_spend_address,
-            find_proposal_address, find_typed_proposal_address, find_vault_address,
-            find_wallet_address, find_wallet_policy_address,
+            find_proposal_address, find_recurring_schedule_address, find_typed_proposal_address,
+            find_vault_address, find_wallet_address, find_wallet_policy_address,
         },
     },
     ed25519_dalek::Signer as DalekSigner,
@@ -204,6 +205,7 @@ mod legacy_intent_lifecycle;
 mod legacy_proposal_creation;
 mod legacy_proposal_enforcement;
 mod legacy_transfers;
+mod recurring_schedule;
 mod remote_assets;
 mod solana_batch;
 mod solana_policy_enforcement;

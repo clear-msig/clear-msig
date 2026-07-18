@@ -68,7 +68,7 @@ export async function prepareClearSignV4Action(
     response.kind !== intent.kind ||
     !Number.isSafeInteger(response.actionKindCode) ||
     response.actionKindCode < 1 ||
-    response.actionKindCode > 14 ||
+    response.actionKindCode > 15 ||
     !/^[0-9a-f]{64}$/.test(response.payloadHash) ||
     !/^[0-9a-f]{64}$/.test(response.envelopeHash) ||
     !/^[0-9a-f]{64}$/.test(response.canonicalIntentHash) ||

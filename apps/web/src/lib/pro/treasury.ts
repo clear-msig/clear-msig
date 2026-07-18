@@ -19,6 +19,11 @@ export interface ProSchedule {
   note?: string;
   createdAt: number;
   updatedAt?: number;
+  proposalAddress?: string;
+  intentAddress?: string;
+  intervalSeconds?: number;
+  firstExecutionAt?: number;
+  paymentCount?: number;
 }
 
 export interface ProTreasuryRuntime {
@@ -113,6 +118,11 @@ function isProSchedule(value: unknown): value is ProSchedule {
     (row.note === undefined || typeof row.note === "string") &&
     typeof row.createdAt === "number" &&
     (row.updatedAt === undefined || typeof row.updatedAt === "number")
+    && (row.proposalAddress === undefined || typeof row.proposalAddress === "string")
+    && (row.intentAddress === undefined || typeof row.intentAddress === "string")
+    && (row.intervalSeconds === undefined || typeof row.intervalSeconds === "number")
+    && (row.firstExecutionAt === undefined || typeof row.firstExecutionAt === "number")
+    && (row.paymentCount === undefined || typeof row.paymentCount === "number")
   );
 }
 
@@ -188,6 +198,11 @@ export function useProSchedules(walletName: string) {
           nextRun: row.nextRun,
         },
       });
+    },
+    upsert: (row: ProSchedule) => {
+      const next = [row, ...rows.filter((item) => item.id !== row.id)].slice(0, 50);
+      saveRows(next);
+      void upsertProSchedule(walletName, row);
     },
     remove: (id: string) => {
       const row = rows.find((item) => item.id === id);

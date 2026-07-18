@@ -182,6 +182,30 @@ pub(super) fn render_compact_document(
             writer.push(b"\nORACLE ")?;
             writer.hex(&agent.oracle_policy_hash)?;
         }
+        Action::RecurringSchedule(schedule) => {
+            writer.push(if schedule.status == 1 {
+                b"RECURRING CREATE"
+            } else {
+                b"RECURRING REVOKE"
+            })?;
+            writer.push(b"\nSCHEDULE ")?;
+            writer.push(schedule.schedule_id)?;
+            writer.push(b"\nPAY ")?;
+            writer.amount(schedule.payment.raw_amount, schedule.payment.decimals)?;
+            writer.push(b" ")?;
+            writer.push(display_asset(schedule.payment))?;
+            writer.push(b" TO ")?;
+            writer.identity(
+                schedule.payment.recipient_encoding,
+                schedule.payment.recipient,
+            )?;
+            writer.push(b"\nEVERY ")?;
+            writer.decimal_u128(schedule.interval_seconds as u128)?;
+            writer.push(b" SECONDS\nFIRST ")?;
+            writer.signed_decimal_i64(schedule.first_execution_at)?;
+            writer.push(b"\nCOUNT ")?;
+            writer.decimal_u128(schedule.payment_count as u128)?;
+        }
     }
     writer.push(b"\nNET ")?;
     writer.push(intent.common.network.display_name())?;

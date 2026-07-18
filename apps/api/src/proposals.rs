@@ -25,20 +25,31 @@ use typed_execution::{
     execute_typed_agent_session_grant as build_typed_agent_session_grant,
     execute_typed_agent_trade_approval as build_typed_agent_trade_approval,
     execute_typed_chain_send as build_typed_chain_send,
+    execute_typed_cross_chain_escrow_release as build_typed_cross_chain_escrow_release,
+    execute_typed_cross_chain_escrow_return as build_typed_cross_chain_escrow_return,
     execute_typed_escrow_release as build_typed_escrow_release,
     execute_typed_escrow_return as build_typed_escrow_return,
     execute_typed_intent_governance as build_typed_intent_governance,
+    execute_typed_private_escrow_release as build_typed_private_escrow_release,
+    execute_typed_private_escrow_return as build_typed_private_escrow_return,
+    execute_typed_recurring_schedule as build_typed_recurring_schedule,
     execute_typed_sol_batch_send as build_typed_sol_batch_send,
     execute_typed_sol_send as build_typed_sol_send,
+    execute_typed_spl_escrow_release as build_typed_spl_escrow_release,
+    execute_typed_spl_escrow_return as build_typed_spl_escrow_return,
     execute_typed_wallet_policy_update as build_typed_wallet_policy_update,
 };
 use types::{
-    ExecuteProposalRequest, ExecuteTypedAgentRiskPolicyRequest,
+    ExecuteProposalRequest, ExecuteRecurringPaymentRequest, ExecuteTypedAgentRiskPolicyRequest,
     ExecuteTypedAgentSessionGrantRequest, ExecuteTypedAgentTradeApprovalRequest,
     ExecuteTypedAgentTradeSettlementRequest, ExecuteTypedChainSendRequest,
+    ExecuteTypedCrossChainEscrowReleaseRequest, ExecuteTypedCrossChainEscrowReturnRequest,
     ExecuteTypedEscrowReleaseRequest, ExecuteTypedEscrowReturnRequest,
-    ExecuteTypedIntentGovernanceRequest, ExecuteTypedSolBatchSendRequest,
-    ExecuteTypedSolSendRequest, ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
+    ExecuteTypedIntentGovernanceRequest, ExecuteTypedPrivateEscrowReleaseRequest,
+    ExecuteTypedPrivateEscrowReturnRequest, ExecuteTypedRecurringScheduleRequest,
+    ExecuteTypedSolBatchSendRequest, ExecuteTypedSolSendRequest,
+    ExecuteTypedSplEscrowReleaseRequest, ExecuteTypedSplEscrowReturnRequest,
+    ExecuteTypedWalletPolicyUpdateRequest, PrepareApproveCancelRequest,
     PrepareProposalCreateRequest, PrepareTypedProposalCreateRequest, SignedApproveCancelRequest,
     SignedProposalCreateRequest, SignedTypedProposalCreateRequest,
 };
@@ -83,6 +94,38 @@ pub(crate) fn router() -> Router<AppState> {
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-escrow-return",
             post(execute_typed_escrow_return),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-spl-escrow-release",
+            post(execute_typed_spl_escrow_release),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-spl-escrow-return",
+            post(execute_typed_spl_escrow_return),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-cross-chain-escrow-release",
+            post(execute_typed_cross_chain_escrow_release),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-cross-chain-escrow-return",
+            post(execute_typed_cross_chain_escrow_return),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-private-escrow-release",
+            post(execute_typed_private_escrow_release),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-private-escrow-return",
+            post(execute_typed_private_escrow_return),
+        )
+        .route(
+            "/wallets/{name}/proposals/{proposal}/typed-recurring-schedule",
+            post(execute_typed_recurring_schedule),
+        )
+        .route(
+            "/wallets/{name}/recurring/execute",
+            post(execute_recurring_payment),
         )
         .route(
             "/wallets/{name}/proposals/{proposal}/typed-sol-send",
@@ -481,6 +524,119 @@ async fn execute_typed_escrow_return(
         .check(&format!("execute:escrow-return:{name}"))
         .await?;
     let execution = build_typed_escrow_return(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_spl_escrow_release(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedSplEscrowReleaseRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:spl-escrow-release:{name}"))
+        .await?;
+    let execution = build_typed_spl_escrow_release(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_spl_escrow_return(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedSplEscrowReturnRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:spl-escrow-return:{name}"))
+        .await?;
+    let execution = build_typed_spl_escrow_return(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_cross_chain_escrow_release(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedCrossChainEscrowReleaseRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:cross-chain-escrow-release:{name}"))
+        .await?;
+    let execution = build_typed_cross_chain_escrow_release(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_cross_chain_escrow_return(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedCrossChainEscrowReturnRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:cross-chain-escrow-return:{name}"))
+        .await?;
+    let execution = build_typed_cross_chain_escrow_return(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_private_escrow_release(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedPrivateEscrowReleaseRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:private-escrow-release:{name}"))
+        .await?;
+    let execution = build_typed_private_escrow_release(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_private_escrow_return(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedPrivateEscrowReturnRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:private-escrow-return:{name}"))
+        .await?;
+    let execution = build_typed_private_escrow_return(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_typed_recurring_schedule(
+    State(state): State<AppState>,
+    Path((name, proposal)): Path<(String, String)>,
+    Json(body): Json<ExecuteTypedRecurringScheduleRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .rate_limiter
+        .check(&format!("execute:recurring-config:{name}"))
+        .await?;
+    let execution = build_typed_recurring_schedule(name, proposal, body)?;
+    Ok(Json(state.runner.run_typed_proposal(execution).await?))
+}
+
+async fn execute_recurring_payment(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(body): Json<ExecuteRecurringPaymentRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ensure_wallet_name(&name, "name")?;
+    ensure_base58(&body.intent, "intent", 32, 88)?;
+    ensure_base58(&body.recipient, "recipient", 32, 88)?;
+    ensure_non_empty(&body.schedule_id, "scheduleId")?;
+    state
+        .rate_limiter
+        .check(&format!("execute:recurring-payment:{name}"))
+        .await?;
+    let execution = clear_msig_command_contract::TypedProposalExecution::RecurringPayment {
+        wallet: name,
+        intent: body.intent,
+        schedule_id: body.schedule_id,
+        recipient: body.recipient,
+    };
     Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
 

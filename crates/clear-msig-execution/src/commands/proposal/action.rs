@@ -2,6 +2,38 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum ProposalAction {
+    /// Create, replace, or revoke an approved on-chain recurring SOL schedule.
+    TypedRecurringSchedule {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        proposal: String,
+        #[arg(long)]
+        schedule_id: String,
+        #[arg(long)]
+        recipient: String,
+        #[arg(long)]
+        amount_lamports: u64,
+        #[arg(long)]
+        interval_seconds: u32,
+        #[arg(long)]
+        first_execution_at: i64,
+        #[arg(long)]
+        payment_count: u32,
+        #[arg(long)]
+        status: u8,
+    },
+    /// Execute one due payment from an on-chain recurring schedule.
+    RecurringPayment {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        intent: String,
+        #[arg(long)]
+        schedule_id: String,
+        #[arg(long)]
+        recipient: String,
+    },
     /// Create a new proposal for a custom intent
     Create {
         #[arg(long)]
@@ -508,6 +540,7 @@ pub(super) enum HandlerGroup {
     Escrow,
     Agent,
     Send,
+    Recurring,
     Legacy,
 }
 
@@ -538,6 +571,9 @@ impl ProposalAction {
             | Self::TypedChainSend { .. }
             | Self::TypedChainSendIka { .. }
             | Self::TypedSolBatchSend { .. } => HandlerGroup::Send,
+            Self::TypedRecurringSchedule { .. } | Self::RecurringPayment { .. } => {
+                HandlerGroup::Recurring
+            }
             Self::Execute { .. } | Self::List { .. } | Self::Show { .. } | Self::Cleanup { .. } => {
                 HandlerGroup::Legacy
             }

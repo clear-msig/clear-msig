@@ -54,6 +54,7 @@ mod escrow;
 mod governance;
 mod lifecycle;
 mod proposal;
+mod recurring;
 mod remote;
 mod solana;
 
@@ -62,6 +63,7 @@ pub use escrow::*;
 pub use governance::*;
 pub use lifecycle::*;
 pub use proposal::*;
+pub use recurring::*;
 pub use remote::*;
 pub use solana::*;
 

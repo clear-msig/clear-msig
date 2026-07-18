@@ -264,6 +264,174 @@ export const backendApi = {
       ),
     ),
 
+  executeTypedSplEscrowRelease: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      mint: string;
+      sourceToken: string;
+      destinationToken: string;
+      recipientOwner: string;
+      amountTokens: number;
+      escrowId: string;
+      milestoneId: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-spl-escrow-release`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedSplEscrowReturn: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      mint: string;
+      sourceToken: string;
+      escrowId: string;
+      returns: Array<{
+        destinationToken: string;
+        funderOwner: string;
+        amountTokens: number;
+      }>;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-spl-escrow-return`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedCrossChainEscrowRelease: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      chainKind: number;
+      amountRaw: string;
+      escrowId: string;
+      milestoneId: string;
+      recipientHash: string;
+      assetIdHash: string;
+      routeHash: string;
+      settlementArtifactHash: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-cross-chain-escrow-release`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedCrossChainEscrowReturn: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      chainKind: number;
+      amountRaw: string;
+      escrowId: string;
+      refundRecipientHash: string;
+      assetIdHash: string;
+      routeHash: string;
+      settlementArtifactHash: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-cross-chain-escrow-return`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedPrivateEscrowRelease: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      amountRaw: string;
+      escrowId: string;
+      milestoneId: string;
+      recipientHash: string;
+      assetIdHash: string;
+      privateEvaluationHash: string;
+      settlementArtifactHash: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-private-escrow-release`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedPrivateEscrowReturn: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      amountRaw: string;
+      escrowId: string;
+      refundRecipientHash: string;
+      assetIdHash: string;
+      privateEvaluationHash: string;
+      settlementArtifactHash: string;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-private-escrow-return`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeTypedRecurringSchedule: (
+    walletName: string,
+    proposalAddress: string,
+    input: {
+      scheduleId: string;
+      recipient: string;
+      amountLamports: number;
+      intervalSeconds: number;
+      firstExecutionAt: number;
+      paymentCount: number;
+      status: 1 | 2;
+    },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-recurring-schedule`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
+  executeRecurringPayment: (
+    walletName: string,
+    input: { intent: string; scheduleId: string; recipient: string },
+  ) =>
+    withRetry(() =>
+      apiRequest<Record<string, unknown>, typeof input>(
+        `/wallets/${encodeURIComponent(walletName)}/recurring/execute`,
+        "POST",
+        input,
+        { timeoutMs: 55_000 },
+      ),
+    ),
+
   executeTypedSolSend: (
     walletName: string,
     proposalAddress: string,

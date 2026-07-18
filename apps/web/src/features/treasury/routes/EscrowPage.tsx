@@ -50,6 +50,19 @@ import { EscrowInput } from "@/features/treasury/ui/EscrowInput";
 import { EscrowProjectCard } from "@/features/treasury/ui/EscrowProjectCard";
 
 const emptyDraft: EscrowDraft = {
+  executionMode: "sol",
+  network: "Solana devnet",
+  chainKind: "0",
+  asset: "SOL",
+  assetId: "SOL",
+  decimals: "9",
+  mint: "",
+  sourceToken: "",
+  funderTokenAccount: "",
+  recipientTokenAccount: "",
+  routeHash: "",
+  settlementArtifactHash: "",
+  privateEvaluationHash: "",
   title: "",
   counterparty: "",
   funderName: "",
@@ -94,6 +107,9 @@ export default function ProEscrowPage() {
     const recipient = draft.recipient.trim();
     const recipientEntity = draft.recipientEntity.trim();
     const milestoneAmount = draft.milestoneAmount.trim();
+    const decimals = Number(draft.decimals);
+    const chainKind = Number(draft.chainKind);
+    const asset = draft.asset.trim().toUpperCase();
 
     if (!title || !counterparty) {
       toast.error("Name the escrow");
@@ -104,11 +120,44 @@ export default function ProEscrowPage() {
       return;
     }
     if (!isPositiveAmount(fundedAmount) || !isPositiveAmount(milestoneAmount)) {
-      toast.error("Enter valid SOL amounts");
+      toast.error("Enter valid escrow amounts");
       return;
     }
     if (Number(milestoneAmount) > Number(fundedAmount)) {
       toast.error("Milestone is larger than the escrow balance");
+      return;
+    }
+    if (!asset || !Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
+      toast.error("Add a valid asset and decimals");
+      return;
+    }
+    if (draft.executionMode !== "sol" && !draft.assetId.trim()) {
+      toast.error("Add the executable asset identifier");
+      return;
+    }
+    if (
+      draft.executionMode === "spl" &&
+      (!draft.mint.trim() ||
+        !draft.sourceToken.trim() ||
+        !draft.funderTokenAccount.trim() ||
+        !draft.recipientTokenAccount.trim())
+    ) {
+      toast.error("Add the SPL mint and token accounts");
+      return;
+    }
+    if (
+      draft.executionMode === "cross_chain" &&
+      (!draft.routeHash.trim() || !draft.settlementArtifactHash.trim())
+    ) {
+      toast.error("Add the verified route and settlement artifact hashes");
+      return;
+    }
+    if (
+      draft.executionMode === "private" &&
+      (!draft.privateEvaluationHash.trim() ||
+        !draft.settlementArtifactHash.trim())
+    ) {
+      toast.error("Add the private evaluation and settlement artifact hashes");
       return;
     }
 
@@ -122,8 +171,9 @@ export default function ProEscrowPage() {
           name: draft.funderName.trim() || counterparty,
           entity: funderEntity || undefined,
           address: funderAddress,
-          asset: "SOL",
+          asset,
           amount: fundedAmount,
+          tokenAccount: draft.funderTokenAccount.trim() || undefined,
         },
       ],
       milestones: [
@@ -132,11 +182,32 @@ export default function ProEscrowPage() {
           title: milestoneTitle || "Milestone 1",
           recipient,
           recipientEntity: recipientEntity || undefined,
-          asset: "SOL",
+          asset,
           amount: milestoneAmount,
           status: "planned",
+          tokenAccount: draft.recipientTokenAccount.trim() || undefined,
         },
       ],
+      execution:
+        draft.executionMode === "sol"
+          ? undefined
+          : {
+              mode: draft.executionMode,
+              network: draft.network,
+              chainKind,
+              decimals,
+              assetId:
+                draft.executionMode === "spl"
+                  ? draft.mint.trim()
+                  : draft.assetId.trim(),
+              mint: draft.mint.trim() || undefined,
+              sourceToken: draft.sourceToken.trim() || undefined,
+              routeHash: draft.routeHash.trim() || undefined,
+              settlementArtifactHash:
+                draft.settlementArtifactHash.trim() || undefined,
+              privateEvaluationHash:
+                draft.privateEvaluationHash.trim() || undefined,
+            },
     });
     setDraft(emptyDraft);
     toast.success("Escrow project saved");
@@ -210,6 +281,71 @@ export default function ProEscrowPage() {
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-sm text-text-soft">
+            Settlement rail
+            <select
+              value={draft.executionMode}
+              onChange={(event) => {
+                const executionMode = event.target.value as EscrowDraft["executionMode"];
+                setDraft((current) => ({
+                  ...current,
+                  executionMode,
+                  network: executionMode === "spl" || executionMode === "sol" ? "Solana devnet" : current.network,
+                  chainKind: executionMode === "spl" || executionMode === "sol" ? "0" : current.chainKind === "0" ? "1" : current.chainKind,
+                  asset: executionMode === "sol" ? "SOL" : current.asset,
+                  assetId: executionMode === "sol" ? "SOL" : current.assetId,
+                  decimals: executionMode === "sol" ? "9" : current.decimals,
+                }));
+              }}
+              className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-text-strong outline-none focus:border-accent"
+            >
+              <option value="sol">SOL</option>
+              <option value="spl">Solana token</option>
+              <option value="cross_chain">Cross-chain settlement</option>
+              <option value="private">Private settlement</option>
+            </select>
+          </label>
+          {draft.executionMode === "cross_chain" || draft.executionMode === "private" ? (
+            <label className="grid gap-1.5 text-sm text-text-soft">
+              Network
+              <select
+                value={`${draft.chainKind}:${draft.network}`}
+                onChange={(event) => {
+                  const [chainKind, network] = event.target.value.split(":") as [string, EscrowDraft["network"]];
+                  setDraft((current) => ({ ...current, chainKind, network }));
+                }}
+                className="min-h-11 rounded-soft border border-border-soft bg-canvas px-3 text-text-strong outline-none focus:border-accent"
+              >
+                <option value="1:Ethereum Sepolia">Ethereum</option>
+                <option value="2:Bitcoin testnet">Bitcoin</option>
+                <option value="3:Zcash testnet">Zcash</option>
+                <option value="5:Hyperliquid testnet">Hyperliquid</option>
+              </select>
+            </label>
+          ) : null}
+          {draft.executionMode !== "sol" ? (
+            <>
+              <EscrowInput label="Asset symbol" value={draft.asset} placeholder="USDC" onChange={(asset) => setDraft((current) => ({ ...current, asset }))} />
+              <EscrowInput label={draft.executionMode === "spl" ? "Mint" : "Asset identifier"} value={draft.executionMode === "spl" ? draft.mint : draft.assetId} placeholder={draft.executionMode === "spl" ? "Mint address" : "USDC"} onChange={(value) => setDraft((current) => draft.executionMode === "spl" ? ({ ...current, mint: value, assetId: value }) : ({ ...current, assetId: value }))} />
+              <EscrowInput label="Decimals" value={draft.decimals} placeholder="6" inputMode="decimal" onChange={(decimals) => setDraft((current) => ({ ...current, decimals }))} />
+            </>
+          ) : null}
+          {draft.executionMode === "spl" ? (
+            <>
+              <EscrowInput label="Treasury token account" value={draft.sourceToken} placeholder="Source token account" onChange={(sourceToken) => setDraft((current) => ({ ...current, sourceToken }))} />
+              <EscrowInput label="Funder token account" value={draft.funderTokenAccount} placeholder="Return destination" onChange={(funderTokenAccount) => setDraft((current) => ({ ...current, funderTokenAccount }))} />
+              <EscrowInput label="Recipient token account" value={draft.recipientTokenAccount} placeholder="Release destination" onChange={(recipientTokenAccount) => setDraft((current) => ({ ...current, recipientTokenAccount }))} />
+            </>
+          ) : null}
+          {draft.executionMode === "cross_chain" ? (
+            <EscrowInput label="Route hash" value={draft.routeHash} placeholder="64-character hash" onChange={(routeHash) => setDraft((current) => ({ ...current, routeHash }))} />
+          ) : null}
+          {draft.executionMode === "private" ? (
+            <EscrowInput label="Private evaluation hash" value={draft.privateEvaluationHash} placeholder="64-character hash" onChange={(privateEvaluationHash) => setDraft((current) => ({ ...current, privateEvaluationHash }))} />
+          ) : null}
+          {draft.executionMode === "cross_chain" || draft.executionMode === "private" ? (
+            <EscrowInput label="Settlement artifact hash" value={draft.settlementArtifactHash} placeholder="64-character hash" onChange={(settlementArtifactHash) => setDraft((current) => ({ ...current, settlementArtifactHash }))} />
+          ) : null}
           <EscrowInput
             label="Project"
             value={draft.title}

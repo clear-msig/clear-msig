@@ -8,6 +8,7 @@ pub mod cleanup_proposal;
 pub mod cleanup_typed_proposal;
 pub mod create_wallet;
 pub mod execute;
+pub mod execute_recurring_payment;
 pub mod execute_typed;
 pub mod execute_typed_agent_risk_policy;
 pub mod execute_typed_agent_session_grant;
@@ -21,6 +22,7 @@ pub mod execute_typed_escrow_return;
 pub mod execute_typed_intent_governance;
 pub mod execute_typed_private_escrow_release;
 pub mod execute_typed_private_escrow_return;
+pub mod execute_typed_recurring_schedule;
 pub mod execute_typed_sol_batch_send;
 pub mod execute_typed_sol_send;
 pub mod execute_typed_spl_escrow_release;
@@ -41,6 +43,7 @@ pub use cleanup_proposal::*;
 pub use cleanup_typed_proposal::*;
 pub use create_wallet::*;
 pub use execute::*;
+pub use execute_recurring_payment::*;
 pub use execute_typed::*;
 pub use execute_typed_agent_risk_policy::*;
 pub use execute_typed_agent_session_grant::*;
@@ -54,6 +57,7 @@ pub use execute_typed_escrow_return::*;
 pub use execute_typed_intent_governance::*;
 pub use execute_typed_private_escrow_release::*;
 pub use execute_typed_private_escrow_return::*;
+pub use execute_typed_recurring_schedule::*;
 pub use execute_typed_sol_batch_send::*;
 pub use execute_typed_sol_send::*;
 pub use execute_typed_spl_escrow_release::*;
@@ -267,6 +271,20 @@ pub enum ProgramInstruction {
         signature: [u8; 64],
         policy_bytes: DynVec<u8>,
         canonical_intent: TailBytes,
+    },
+    ExecuteTypedRecurringSchedule {
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        schedule_id_hash: [u8; 32],
+        recipient: [u8; 32],
+        amount_lamports: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    },
+    ExecuteRecurringPayment {
+        schedule_id_hash: [u8; 32],
     },
     ApproveTyped {
         approver_index: u8,
@@ -897,6 +915,43 @@ pub fn decode_instruction(data: &[u8]) -> Option<ProgramInstruction> {
                 policy_bytes,
                 canonical_intent,
             })
+        }
+        32 => {
+            let payload = &data[1..];
+            let mut offset = 0usize;
+            let policy_commitment: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&policy_commitment).ok()? as usize;
+            let envelope_hash: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&envelope_hash).ok()? as usize;
+            let schedule_id_hash: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&schedule_id_hash).ok()? as usize;
+            let recipient: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&recipient).ok()? as usize;
+            let amount_lamports: u64 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&amount_lamports).ok()? as usize;
+            let interval_seconds: u32 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&interval_seconds).ok()? as usize;
+            let first_execution_at: i64 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&first_execution_at).ok()? as usize;
+            let payment_count: u32 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&payment_count).ok()? as usize;
+            let status: u8 = wincode::deserialize(&payload[offset..]).ok()?;
+            Some(ProgramInstruction::ExecuteTypedRecurringSchedule {
+                policy_commitment,
+                envelope_hash,
+                schedule_id_hash,
+                recipient,
+                amount_lamports,
+                interval_seconds,
+                first_execution_at,
+                payment_count,
+                status,
+            })
+        }
+        33 => {
+            let payload = &data[1..];
+            let schedule_id_hash: [u8; 32] = wincode::deserialize(payload).ok()?;
+            Some(ProgramInstruction::ExecuteRecurringPayment { schedule_id_hash })
         }
         9 => {
             let payload = &data[1..];

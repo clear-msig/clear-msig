@@ -572,6 +572,45 @@ pub mod clear_wallet {
         )
     }
 
+    /// Configure or revoke a threshold-approved recurring SOL schedule.
+    #[instruction(discriminator = 32)]
+    pub fn execute_typed_recurring_schedule(
+        ctx: Ctx<ExecuteTypedRecurringSchedule>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        schedule_id_hash: [u8; 32],
+        recipient: [u8; 32],
+        amount_lamports: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_recurring_schedule(ExecuteTypedRecurringScheduleArgs {
+                policy_commitment,
+                envelope_hash,
+                schedule_id_hash,
+                recipient,
+                amount_lamports,
+                interval_seconds,
+                first_execution_at,
+                payment_count,
+                status,
+            })
+    }
+
+    /// Execute one due recurring payment. Any relayer may submit this; the
+    /// program-owned schedule is the authority and advances atomically.
+    #[instruction(discriminator = 33)]
+    pub fn execute_recurring_payment(
+        ctx: Ctx<ExecuteRecurringPayment>,
+        schedule_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_recurring_payment(schedule_id_hash, &ctx.bumps)
+    }
+
     #[instruction(discriminator = 9)]
     pub fn approve_typed(
         ctx: Ctx<ApproveTyped>,

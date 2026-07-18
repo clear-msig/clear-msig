@@ -6,6 +6,7 @@ mod creation;
 mod escrow;
 mod governance;
 mod legacy;
+mod recurring;
 mod send;
 mod votes;
 
@@ -16,6 +17,7 @@ pub(super) fn handle(action: ProposalAction, config: &RuntimeConfig) -> Result<(
         HandlerGroup::Escrow => escrow::handle(action, config),
         HandlerGroup::Governance => governance::handle(action, config),
         HandlerGroup::Legacy => legacy::handle(action, config),
+        HandlerGroup::Recurring => recurring::handle(action, config),
         HandlerGroup::Send => send::handle(action, config),
         HandlerGroup::Votes => votes::handle(action, config),
     }

@@ -98,6 +98,11 @@ impl ProStore {
             note: trim_optional(input.note),
             created_at,
             updated_at: now,
+            proposal_address: input.proposal_address,
+            intent_address: input.intent_address,
+            interval_seconds: input.interval_seconds,
+            first_execution_at: input.first_execution_at,
+            payment_count: input.payment_count,
         };
 
         doc.schedules
@@ -156,6 +161,7 @@ impl ProStore {
             funders: normalize_escrow_funders(input.funders)?,
             milestones: normalize_escrow_milestones(input.milestones)?,
             policy: input.policy.map(normalize_escrow_policy).transpose()?,
+            execution: input.execution,
             created_at,
             updated_at: input.updated_at.unwrap_or(now),
         };

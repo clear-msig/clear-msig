@@ -252,6 +252,35 @@ pub(super) fn render_full_document(
             writer.push(b"\nOracle policy: ")?;
             writer.hex(&agent.oracle_policy_hash)?;
         }
+        Action::RecurringSchedule(schedule) => {
+            writer.push(b"ClearSig Approval\n\nACTION\n")?;
+            writer.push(if schedule.status == 1 {
+                b"Create recurring payment"
+            } else {
+                b"Revoke recurring payment"
+            })?;
+            writer.push(b"\n\nDETAILS\nWallet: ")?;
+            writer.push(wallet_name)?;
+            writer.push(b"\nNetwork: ")?;
+            writer.push(intent.common.network.display_name())?;
+            writer.push(b"\nSchedule: ")?;
+            writer.push(schedule.schedule_id)?;
+            writer.push(b"\nAmount per payment: ")?;
+            writer.amount(schedule.payment.raw_amount, schedule.payment.decimals)?;
+            writer.push(b" ")?;
+            writer.push(display_asset(schedule.payment))?;
+            writer.push(b"\nRecipient: ")?;
+            writer.identity(
+                schedule.payment.recipient_encoding,
+                schedule.payment.recipient,
+            )?;
+            writer.push(b"\nCadence seconds: ")?;
+            writer.decimal_u128(schedule.interval_seconds as u128)?;
+            writer.push(b"\nFirst payment (Unix): ")?;
+            writer.signed_decimal_i64(schedule.first_execution_at)?;
+            writer.push(b"\nMaximum payments: ")?;
+            writer.decimal_u128(schedule.payment_count as u128)?;
+        }
     }
     write_review_footer(&mut writer, intent)?;
     if writer.len > intent.common.profile.max_document_bytes() {

@@ -1,6 +1,6 @@
 # Product implementation status
 
-Verified against repository paths on 2026-07-13. "On-chain" means the named
+Verified against repository paths on 2026-07-18. "On-chain" means the named
 rule is checked by the Clear Wallet or Ikavery program. It does not imply a
 mainnet deployment, audited code, distributed signing, or a trustless external
 adapter.
@@ -13,8 +13,10 @@ adapter.
 | BTC, ZEC, ETH, ERC-20, HYPE sends | Clear Wallet typed chain-send plus Ika/destination adapter | Approval bytes are program-verified; production distributed MPC and audited destination delivery are not complete. Testnet/pre-alpha only. |
 | Contacts, watched wallets, UI preferences | Browser storage | Convenience state only; not on-chain and not a security control. |
 | Pro SOL escrow release/return | Clear Wallet program | Product-wired typed execution. Escrow project descriptions remain application state. |
-| SPL, cross-chain, private escrow executors | Program and CLI | Program-only. No verified end-to-end product UI. |
-| Pro recurring/scheduled payments | Browser/backend scheduling | Not autonomously enforced or executed on-chain. A schedule is not a chain guarantee. |
+| SPL escrow release/return | Clear Wallet program | Product-wired typed execution. Mint, source/destination token accounts, owners, amounts, and escrow identifiers are bound before SPL tokens move. |
+| Cross-chain escrow release/return | Clear Wallet program plus Ika binding and settlement artifact | Product-wired typed accounting. It verifies the current IkaConfig/dWallet, route, intent template, and artifact commitment on Solana; it does not itself prove or move destination-chain value. |
+| Private escrow release/return | Clear Wallet program plus encrypted-policy and evaluation artifacts | Product-wired ciphertext-bound accounting. It binds the onchain ciphertext references, private evaluation, and settlement artifact; the program does not decrypt or independently prove the evaluation. |
+| Pro recurring/scheduled SOL payments | RecurringSchedule PDA and Clear Wallet program | Product-wired onchain schedule state. Configuration/revocation require typed threshold governance; one due payment can be executed permissionlessly at a time under current policy. An external caller is still required to trigger each due execution. |
 | Agent session, notional/leverage grant, risk cap | Clear Wallet program | Program-owned PDAs and typed threshold governance. |
 | Agent connected trade approval | Clear Wallet program | Reserves session allowance and open exposure on-chain; venue submission still uses an operator-controlled testnet API wallet. |
 | Agent connected settlement | Hyperliquid testnet executor, Redis artifact, Clear Wallet program | Product-wired owner-attested settlement. Venue fill creates a trusted-server artifact; chain sequence/exposure are read from the risk ledger; threshold approval updates accounting and replay receipt. Hyperliquid signatures are not verified by the program. |

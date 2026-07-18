@@ -48,6 +48,7 @@ impl CanonicalIntent<'_> {
             Action::AgentSession(_) => ActionKind::AgentSessionGrant,
             Action::AgentRiskPolicy(_) => ActionKind::AgentRiskPolicy,
             Action::AgentSettlement(_) => ActionKind::AgentTradeSettlement,
+            Action::RecurringSchedule(_) => ActionKind::RecurringSchedule,
         }
     }
 
@@ -157,6 +158,24 @@ impl CanonicalIntent<'_> {
                 hasher.update([agent.outcome]);
                 hasher.update(agent.pnl_abs_raw.to_le_bytes());
                 hasher.update(agent.settlement_sequence.to_le_bytes());
+            }
+            Action::RecurringSchedule(schedule) => {
+                update_bytes(&mut hasher, &text_hash(schedule.schedule_id));
+                update_identity(
+                    &mut hasher,
+                    schedule.payment.recipient_encoding,
+                    schedule.payment.recipient,
+                );
+                update_identity(
+                    &mut hasher,
+                    schedule.payment.asset_encoding,
+                    schedule.payment.asset,
+                );
+                hasher.update(schedule.payment.raw_amount.to_le_bytes());
+                hasher.update(schedule.interval_seconds.to_le_bytes());
+                hasher.update(schedule.first_execution_at.to_le_bytes());
+                hasher.update(schedule.payment_count.to_le_bytes());
+                hasher.update([schedule.status]);
             }
         }
         hasher.finalize().into()
@@ -303,6 +322,32 @@ where
         hasher.update(raw_amount.to_le_bytes());
     }
     update_execution_commitment(&mut hasher, &execution_commitment);
+    hasher.finalize().into()
+}
+
+pub struct RecurringSchedulePayloadParts<'a> {
+    pub schedule_id_hash: &'a [u8; 32],
+    pub recipient: &'a [u8],
+    pub asset: &'a [u8],
+    pub amount_raw: u128,
+    pub interval_seconds: u32,
+    pub first_execution_at: i64,
+    pub payment_count: u32,
+    pub status: u8,
+}
+
+pub fn committed_recurring_schedule_payload_hash(
+    parts: RecurringSchedulePayloadParts<'_>,
+) -> [u8; 32] {
+    let mut hasher = payload_hasher(ActionKind::RecurringSchedule);
+    update_bytes(&mut hasher, parts.schedule_id_hash);
+    update_bytes(&mut hasher, parts.recipient);
+    update_bytes(&mut hasher, parts.asset);
+    hasher.update(parts.amount_raw.to_le_bytes());
+    hasher.update(parts.interval_seconds.to_le_bytes());
+    hasher.update(parts.first_execution_at.to_le_bytes());
+    hasher.update(parts.payment_count.to_le_bytes());
+    hasher.update([parts.status]);
     hasher.finalize().into()
 }
 

@@ -269,6 +269,8 @@ Typed proposal instruction discriminators are:
 | 21 | `execute_typed_private_escrow_release` |
 | 22 | `execute_typed_private_escrow_return` |
 | 23 | `execute_typed_agent_trade_approval` |
+| 32 | `execute_typed_recurring_schedule` |
+| 33 | `execute_recurring_payment` |
 
 `execute_typed` remains the generic status gate. The SOL escrow-specific
 executors additionally move SOL from the wallet vault after recomputing the
@@ -295,6 +297,12 @@ The agent trade approval executor finalizes a verified agent decision without
 placing a venue order directly; it binds the proposal to venue, market, side,
 asset id, amount, max leverage, session id, route, and risk-check artifact
 commitments so a changed trade/risk digest cannot reuse the human approval.
+The recurring schedule executor creates or revokes a schedule PDA only from an
+approved v4 `RecurringSchedule` document. The payment executor is permissionless
+but transfers exactly one due SOL payment, advances the due time, decrements the
+remaining count, and rechecks the wallet's current supported send policy before
+funds move. Unsupported proposal-dependent policy rules fail closed during
+schedule configuration.
 
 ## Security Review Snapshot: 2026-07-04
 

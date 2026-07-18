@@ -7,7 +7,31 @@ pub struct LamportPayment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenPayment {
+    pub destination_token: String,
+    pub funder_owner: String,
+    pub amount_tokens: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypedProposalExecution {
+    RecurringSchedule {
+        wallet: String,
+        proposal: String,
+        schedule_id: String,
+        recipient: String,
+        amount_lamports: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    },
+    RecurringPayment {
+        wallet: String,
+        intent: String,
+        schedule_id: String,
+        recipient: String,
+    },
     EscrowRelease {
         wallet: String,
         proposal: String,
@@ -21,6 +45,69 @@ pub enum TypedProposalExecution {
         proposal: String,
         escrow_id: String,
         returns: Vec<LamportPayment>,
+    },
+    SplEscrowRelease {
+        wallet: String,
+        proposal: String,
+        mint: String,
+        source_token: String,
+        destination_token: String,
+        recipient_owner: String,
+        amount_tokens: u64,
+        escrow_id: String,
+        milestone_id: String,
+    },
+    SplEscrowReturn {
+        wallet: String,
+        proposal: String,
+        mint: String,
+        source_token: String,
+        escrow_id: String,
+        returns: Vec<TokenPayment>,
+    },
+    CrossChainEscrowRelease {
+        wallet: String,
+        proposal: String,
+        chain_kind: u8,
+        amount_raw: u128,
+        escrow_id: String,
+        milestone_id: String,
+        recipient_hash: String,
+        asset_id_hash: String,
+        route_hash: String,
+        settlement_artifact_hash: String,
+    },
+    CrossChainEscrowReturn {
+        wallet: String,
+        proposal: String,
+        chain_kind: u8,
+        amount_raw: u128,
+        escrow_id: String,
+        refund_recipient_hash: String,
+        asset_id_hash: String,
+        route_hash: String,
+        settlement_artifact_hash: String,
+    },
+    PrivateEscrowRelease {
+        wallet: String,
+        proposal: String,
+        amount_raw: u128,
+        escrow_id: String,
+        milestone_id: String,
+        recipient_hash: String,
+        asset_id_hash: String,
+        private_evaluation_hash: String,
+        settlement_artifact_hash: String,
+    },
+    PrivateEscrowReturn {
+        wallet: String,
+        proposal: String,
+        amount_raw: u128,
+        escrow_id: String,
+        refund_recipient_hash: String,
+        asset_id_hash: String,
+        private_evaluation_hash: String,
+        settlement_artifact_hash: String,
     },
     SolSend {
         wallet: String,
@@ -124,8 +211,16 @@ pub enum TypedProposalExecution {
 impl TypedProposalExecution {
     pub fn label(&self) -> &'static str {
         match self {
+            Self::RecurringSchedule { .. } => "proposal typed-recurring-schedule",
+            Self::RecurringPayment { .. } => "proposal recurring-payment",
             Self::EscrowRelease { .. } => "proposal typed-escrow-release",
             Self::EscrowReturn { .. } => "proposal typed-escrow-return",
+            Self::SplEscrowRelease { .. } => "proposal typed-spl-escrow-release",
+            Self::SplEscrowReturn { .. } => "proposal typed-spl-escrow-return",
+            Self::CrossChainEscrowRelease { .. } => "proposal typed-cross-chain-escrow-release",
+            Self::CrossChainEscrowReturn { .. } => "proposal typed-cross-chain-escrow-return",
+            Self::PrivateEscrowRelease { .. } => "proposal typed-private-escrow-release",
+            Self::PrivateEscrowReturn { .. } => "proposal typed-private-escrow-return",
             Self::SolSend { .. } => "proposal typed-sol-send",
             Self::WalletPolicyUpdate { .. } => "proposal typed-wallet-policy-update",
             Self::IntentGovernance { .. } => "proposal typed-intent-governance",
@@ -142,6 +237,29 @@ impl TypedProposalExecution {
     pub fn validate_boundary(&self) -> Result<(), String> {
         let mut values = Vec::new();
         match self {
+            Self::RecurringSchedule {
+                wallet,
+                proposal,
+                schedule_id,
+                recipient,
+                ..
+            } => values.extend([
+                wallet.as_str(),
+                proposal.as_str(),
+                schedule_id.as_str(),
+                recipient.as_str(),
+            ]),
+            Self::RecurringPayment {
+                wallet,
+                intent,
+                schedule_id,
+                recipient,
+            } => values.extend([
+                wallet.as_str(),
+                intent.as_str(),
+                schedule_id.as_str(),
+                recipient.as_str(),
+            ]),
             Self::EscrowRelease {
                 wallet,
                 proposal,
@@ -165,6 +283,123 @@ impl TypedProposalExecution {
                 values.extend([wallet.as_str(), proposal.as_str(), escrow_id.as_str()]);
                 values.extend(returns.iter().map(|row| row.recipient.as_str()));
             }
+            Self::SplEscrowRelease {
+                wallet,
+                proposal,
+                mint,
+                source_token,
+                destination_token,
+                recipient_owner,
+                escrow_id,
+                milestone_id,
+                ..
+            } => values.extend([
+                wallet.as_str(),
+                proposal.as_str(),
+                mint.as_str(),
+                source_token.as_str(),
+                destination_token.as_str(),
+                recipient_owner.as_str(),
+                escrow_id.as_str(),
+                milestone_id.as_str(),
+            ]),
+            Self::SplEscrowReturn {
+                wallet,
+                proposal,
+                mint,
+                source_token,
+                escrow_id,
+                returns,
+            } => {
+                values.extend([
+                    wallet.as_str(),
+                    proposal.as_str(),
+                    mint.as_str(),
+                    source_token.as_str(),
+                    escrow_id.as_str(),
+                ]);
+                values.extend(
+                    returns.iter().flat_map(|row| {
+                        [row.destination_token.as_str(), row.funder_owner.as_str()]
+                    }),
+                );
+            }
+            Self::CrossChainEscrowRelease {
+                wallet,
+                proposal,
+                escrow_id,
+                milestone_id,
+                recipient_hash,
+                asset_id_hash,
+                route_hash,
+                settlement_artifact_hash,
+                ..
+            } => values.extend([
+                wallet.as_str(),
+                proposal.as_str(),
+                escrow_id.as_str(),
+                milestone_id.as_str(),
+                recipient_hash.as_str(),
+                asset_id_hash.as_str(),
+                route_hash.as_str(),
+                settlement_artifact_hash.as_str(),
+            ]),
+            Self::CrossChainEscrowReturn {
+                wallet,
+                proposal,
+                escrow_id,
+                refund_recipient_hash,
+                asset_id_hash,
+                route_hash,
+                settlement_artifact_hash,
+                ..
+            } => values.extend([
+                wallet.as_str(),
+                proposal.as_str(),
+                escrow_id.as_str(),
+                refund_recipient_hash.as_str(),
+                asset_id_hash.as_str(),
+                route_hash.as_str(),
+                settlement_artifact_hash.as_str(),
+            ]),
+            Self::PrivateEscrowRelease {
+                wallet,
+                proposal,
+                escrow_id,
+                milestone_id,
+                recipient_hash,
+                asset_id_hash,
+                private_evaluation_hash,
+                settlement_artifact_hash,
+                ..
+            } => values.extend([
+                wallet.as_str(),
+                proposal.as_str(),
+                escrow_id.as_str(),
+                milestone_id.as_str(),
+                recipient_hash.as_str(),
+                asset_id_hash.as_str(),
+                private_evaluation_hash.as_str(),
+                settlement_artifact_hash.as_str(),
+            ]),
+            Self::PrivateEscrowReturn {
+                wallet,
+                proposal,
+                escrow_id,
+                refund_recipient_hash,
+                asset_id_hash,
+                private_evaluation_hash,
+                settlement_artifact_hash,
+                ..
+            } => values.extend([
+                wallet.as_str(),
+                proposal.as_str(),
+                escrow_id.as_str(),
+                refund_recipient_hash.as_str(),
+                asset_id_hash.as_str(),
+                private_evaluation_hash.as_str(),
+                settlement_artifact_hash.as_str(),
+            ]),
             Self::SolSend {
                 wallet,
                 proposal,

@@ -12,7 +12,8 @@ export type ClearSignActionKind =
   | "swap_intent"
   | "agent_session_grant"
   | "agent_risk_policy"
-  | "agent_trade_settlement";
+  | "agent_trade_settlement"
+  | "recurring_schedule";
 
 export type ClearSignNetwork =
   | "Solana devnet"
@@ -52,6 +53,7 @@ export type ClearSignPayload =
   | AgentSessionGrantPayload
   | AgentRiskPolicyPayload
   | AgentTradeSettlementPayload
+  | RecurringSchedulePayload
   | RecoveryPayload
   | SwapPayload;
 
@@ -60,7 +62,7 @@ export interface MoneyAmount {
   amount: string;
   /** Native ticker or executable token identifier. */
   asset: string;
-  assetEncoding?: "text" | "sha256_text";
+  assetEncoding?: "text" | "solana_pubkey" | "sha256_text";
   decimals?: number;
   displayAsset?: string;
 }
@@ -122,6 +124,7 @@ export interface MilestonePayload extends RecipientAmount {
   escrowTitle: string;
   milestoneId?: string;
   milestoneTitle: string;
+  execution?: EscrowExecutionBinding;
   reason?: string;
 }
 
@@ -129,8 +132,29 @@ export interface EscrowReturnPayload {
   escrowId?: string;
   escrowTitle: string;
   returns: RecipientAmount[];
+  execution?: EscrowExecutionBinding;
   reason?: string;
 }
+
+export type EscrowExecutionBinding =
+  | {
+      mode: "spl";
+      mint: string;
+      sourceToken: string;
+      destinationToken?: string;
+      recipientOwner?: string;
+      tokenReturns?: Array<{ destinationToken: string; funderOwner: string }>;
+    }
+  | {
+      mode: "cross_chain";
+      routeHash: string;
+      settlementArtifactHash: string;
+    }
+  | {
+      mode: "private";
+      privateEvaluationHash: string;
+      settlementArtifactHash: string;
+    };
 
 export interface AgentTradePayload {
   agentId?: string;
@@ -176,6 +200,15 @@ export interface AgentTradeSettlementPayload {
   outcome: "profit" | "loss" | "flat";
   pnlAbsRaw: string;
   settlementSequence: number;
+  reason?: string;
+}
+
+export interface RecurringSchedulePayload extends RecipientAmount {
+  scheduleId: string;
+  intervalSeconds: number;
+  firstExecutionAt: number;
+  paymentCount: number;
+  status: "active" | "revoked";
   reason?: string;
 }
 

@@ -12,6 +12,8 @@ pub(super) struct ProEscrowFunder {
     pub(super) address: String,
     pub(super) asset: String,
     pub(super) amount: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) token_account: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -25,6 +27,28 @@ pub(super) struct ProEscrowMilestone {
     pub(super) asset: String,
     pub(super) amount: String,
     pub(super) status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) token_account: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ProEscrowExecution {
+    pub(super) mode: String,
+    pub(super) network: String,
+    pub(super) chain_kind: u8,
+    pub(super) decimals: u8,
+    pub(super) asset_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) mint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) source_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) route_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) settlement_artifact_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) private_evaluation_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -52,6 +76,8 @@ pub(super) struct ProEscrowRecord {
     pub(super) milestones: Vec<ProEscrowMilestone>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) policy: Option<ProEscrowPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) execution: Option<ProEscrowExecution>,
     pub(super) created_at: i64,
     pub(super) updated_at: i64,
 }
@@ -67,6 +93,8 @@ pub(super) struct ProEscrowInput {
     pub(super) milestones: Vec<ProEscrowMilestone>,
     #[serde(default)]
     pub(super) policy: Option<ProEscrowPolicy>,
+    #[serde(default)]
+    pub(super) execution: Option<ProEscrowExecution>,
     pub(super) created_at: Option<i64>,
     pub(super) updated_at: Option<i64>,
 }
@@ -172,6 +200,49 @@ pub(super) fn validate_pro_escrow(input: &ProEscrowInput) -> Result<(), ApiError
     if let Some(policy) = &input.policy {
         normalize_escrow_policy(policy.clone())?;
     }
+    if let Some(execution) = &input.execution {
+        match execution.mode.as_str() {
+            "spl" if execution.chain_kind == 0 => {
+                ensure_non_empty(execution.mint.as_deref().unwrap_or(""), "execution.mint")?;
+                ensure_non_empty(
+                    execution.source_token.as_deref().unwrap_or(""),
+                    "execution.sourceToken",
+                )?;
+            }
+            "cross_chain" if execution.chain_kind > 0 => {
+                ensure_non_empty(
+                    execution.route_hash.as_deref().unwrap_or(""),
+                    "execution.routeHash",
+                )?;
+                ensure_non_empty(
+                    execution.settlement_artifact_hash.as_deref().unwrap_or(""),
+                    "execution.settlementArtifactHash",
+                )?;
+            }
+            "private" => {
+                ensure_non_empty(
+                    execution.private_evaluation_hash.as_deref().unwrap_or(""),
+                    "execution.privateEvaluationHash",
+                )?;
+                ensure_non_empty(
+                    execution.settlement_artifact_hash.as_deref().unwrap_or(""),
+                    "execution.settlementArtifactHash",
+                )?;
+            }
+            _ => {
+                return Err(ApiError::BadRequest(
+                    "unsupported escrow execution mode or chain".to_string(),
+                ));
+            }
+        }
+        ensure_non_empty(&execution.network, "execution.network")?;
+        ensure_non_empty(&execution.asset_id, "execution.assetId")?;
+        if execution.decimals > 36 {
+            return Err(ApiError::BadRequest(
+                "execution.decimals must be 36 or less".to_string(),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -199,6 +270,7 @@ pub(super) fn normalize_escrow_funders(
                 address: row.address.trim().to_string(),
                 asset: row.asset.trim().to_ascii_uppercase(),
                 amount: row.amount.trim().to_string(),
+                token_account: trim_optional(row.token_account),
             })
         })
         .collect()
@@ -217,6 +289,7 @@ pub(super) fn normalize_escrow_milestones(
                 asset: row.asset.trim().to_ascii_uppercase(),
                 amount: row.amount.trim().to_string(),
                 status: normalize_milestone_status(&row.status)?,
+                token_account: trim_optional(row.token_account),
             })
         })
         .collect()
@@ -542,6 +615,7 @@ mod tests {
                     address: "AliceSol".to_string(),
                     asset: "SOL".to_string(),
                     amount: "6".to_string(),
+                    token_account: None,
                 },
                 ProEscrowFunder {
                     id: "bob".to_string(),
@@ -550,6 +624,7 @@ mod tests {
                     address: "BobSol".to_string(),
                     asset: "SOL".to_string(),
                     amount: "4".to_string(),
+                    token_account: None,
                 },
             ],
             milestones: vec![ProEscrowMilestone {
@@ -560,8 +635,10 @@ mod tests {
                 asset: "SOL".to_string(),
                 amount: "2.5".to_string(),
                 status: "released".to_string(),
+                token_account: None,
             }],
             policy: None,
+            execution: None,
             created_at: 1,
             updated_at: 1,
         }

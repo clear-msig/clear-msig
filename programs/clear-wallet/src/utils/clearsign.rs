@@ -35,6 +35,7 @@ pub enum ClearSignActionKind {
     AgentSessionGrant = 12,
     AgentRiskPolicy = 13,
     AgentTradeSettlement = 14,
+    RecurringSchedule = 15,
 }
 
 impl ClearSignActionKind {
@@ -54,6 +55,7 @@ impl ClearSignActionKind {
             12 => Some(Self::AgentSessionGrant),
             13 => Some(Self::AgentRiskPolicy),
             14 => Some(Self::AgentTradeSettlement),
+            15 => Some(Self::RecurringSchedule),
             _ => None,
         }
     }
@@ -78,8 +80,32 @@ impl ClearSignActionKind {
             Self::AgentSessionGrant => "Grant agent session",
             Self::AgentRiskPolicy => "Set agent risk policy",
             Self::AgentTradeSettlement => "Settle agent trade",
+            Self::RecurringSchedule => "Configure recurring payment",
         }
     }
+}
+
+pub fn hash_recurring_schedule_payload(
+    schedule_id_hash: &[u8; 32],
+    recipient: &[u8; 32],
+    amount_lamports: u64,
+    interval_seconds: u32,
+    first_execution_at: i64,
+    payment_count: u32,
+    status: u8,
+) -> [u8; 32] {
+    clear_msig_signing::committed_recurring_schedule_payload_hash(
+        clear_msig_signing::RecurringSchedulePayloadParts {
+            schedule_id_hash,
+            recipient,
+            asset: b"SOL",
+            amount_raw: amount_lamports as u128,
+            interval_seconds,
+            first_execution_at,
+            payment_count,
+            status,
+        },
+    )
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

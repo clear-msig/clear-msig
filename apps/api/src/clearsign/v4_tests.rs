@@ -47,7 +47,148 @@ fn trusted() -> TrustedIntentContext {
         proposers: vec![actor],
         execution_commitment: [0u8; 32],
         current_policy_commitment: None,
+        escrow_binding: TrustedEscrowBinding::default(),
     }
+}
+
+fn escrow_request(payload: Value) -> ClearSignV4PrepareRequest {
+    let (_, actor) = pubkey(8);
+    let (_, wallet) = pubkey(7);
+    ClearSignV4PrepareRequest {
+        envelope: ClearSignV4EnvelopeRequest {
+            version: 4,
+            kind: "release_milestone".into(),
+            network: "Solana devnet".into(),
+            wallet_name: "Team treasury".into(),
+            wallet_id: Some(wallet),
+            action_id: "escrow-action-1".into(),
+            nonce: "escrow-nonce-1".into(),
+            expires_at: current_unix_timestamp().unwrap() + 600,
+            policy_commitment: Some(to_hex(&policy_commitment(&[]))),
+            payload,
+        },
+        intent_index: 3,
+        actor_pubkey: actor,
+        policy_bytes_hex: None,
+        device_profile: None,
+    }
+}
+
+#[test]
+fn spl_escrow_binds_token_accounts_and_owner_to_readable_payment() {
+    let (_, mint) = pubkey(20);
+    let (_, source) = pubkey(21);
+    let (_, destination) = pubkey(22);
+    let (_, other_destination) = pubkey(23);
+    let (_, owner) = pubkey(24);
+    let payload = |destination_token: &str, recipient: &str| {
+        serde_json::json!({
+            "escrowId": "escrow-1",
+            "escrowTitle": "Vendor delivery",
+            "milestoneId": "milestone-1",
+            "milestoneTitle": "Accepted",
+            "recipient": recipient,
+            "recipientEncoding": "solana_pubkey",
+            "amount": "12.5",
+            "asset": mint,
+            "assetEncoding": "solana_pubkey",
+            "decimals": 6,
+            "displayAsset": "USDC",
+            "execution": {
+                "mode": "spl",
+                "mint": mint,
+                "sourceToken": source,
+                "destinationToken": destination_token,
+                "recipientOwner": owner
+            }
+        })
+    };
+    let first =
+        prepare_clearsign_v4_response(escrow_request(payload(&destination, &owner)), trusted())
+            .unwrap();
+    let changed = prepare_clearsign_v4_response(
+        escrow_request(payload(&other_destination, &owner)),
+        trusted(),
+    )
+    .unwrap();
+    assert_ne!(first.payload_hash, changed.payload_hash);
+    assert!(first.signable_text.contains("12.5 USDC"));
+    let (_, wrong_owner) = pubkey(25);
+    assert!(prepare_clearsign_v4_response(
+        escrow_request(payload(&destination, &wrong_owner)),
+        trusted(),
+    )
+    .is_err());
+}
+
+#[test]
+fn remote_and_private_escrow_evidence_changes_the_signed_payload() {
+    let hash = |byte: u8| to_hex(&[byte; 32]);
+    let remote_payload = |route: &str, artifact: &str| {
+        serde_json::json!({
+            "escrowId": "escrow-remote",
+            "escrowTitle": "Remote vendor",
+            "milestoneId": "milestone-remote",
+            "milestoneTitle": "Settlement verified",
+            "recipient": "0x1111111111111111111111111111111111111111",
+            "recipientEncoding": "sha256_text",
+            "amount": "3",
+            "asset": "USDC",
+            "assetEncoding": "sha256_text",
+            "decimals": 6,
+            "execution": {
+                "mode": "cross_chain",
+                "routeHash": route,
+                "settlementArtifactHash": artifact
+            }
+        })
+    };
+    let mut remote_context = trusted();
+    remote_context.chain_kind = 1;
+    remote_context.execution_commitment = [31; 32];
+    remote_context.escrow_binding = TrustedEscrowBinding {
+        ika_config: Some([32; 32]),
+        dwallet: Some([33; 32]),
+        policy_ciphertexts_hash: None,
+    };
+    let mut first_request = escrow_request(remote_payload(&hash(34), &hash(35)));
+    first_request.envelope.network = "Ethereum Sepolia".into();
+    let first = prepare_clearsign_v4_response(first_request, remote_context.clone()).unwrap();
+    let mut changed_request = escrow_request(remote_payload(&hash(36), &hash(35)));
+    changed_request.envelope.network = "Ethereum Sepolia".into();
+    let changed = prepare_clearsign_v4_response(changed_request, remote_context).unwrap();
+    assert_ne!(first.payload_hash, changed.payload_hash);
+
+    let private_payload = |evaluation: &str| {
+        serde_json::json!({
+            "escrowId": "escrow-private",
+            "escrowTitle": "Private vendor",
+            "milestoneId": "milestone-private",
+            "milestoneTitle": "Private policy passed",
+            "recipient": "private-recipient",
+            "recipientEncoding": "sha256_text",
+            "amount": "2",
+            "asset": "USDC",
+            "assetEncoding": "sha256_text",
+            "decimals": 6,
+            "execution": {
+                "mode": "private",
+                "privateEvaluationHash": evaluation,
+                "settlementArtifactHash": hash(41)
+            }
+        })
+    };
+    let mut private_context = trusted();
+    private_context.escrow_binding.policy_ciphertexts_hash = Some([40; 32]);
+    let private_first = prepare_clearsign_v4_response(
+        escrow_request(private_payload(&hash(42))),
+        private_context.clone(),
+    )
+    .unwrap();
+    let private_changed =
+        prepare_clearsign_v4_response(escrow_request(private_payload(&hash(43))), private_context)
+            .unwrap();
+    assert_ne!(private_first.payload_hash, private_changed.payload_hash);
 }
 
 #[test]

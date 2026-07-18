@@ -83,6 +83,26 @@ pub(super) struct ExecuteTypedEscrowReleaseRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedRecurringScheduleRequest {
+    pub(super) schedule_id: String,
+    pub(super) recipient: String,
+    pub(super) amount_lamports: u64,
+    pub(super) interval_seconds: u32,
+    pub(super) first_execution_at: i64,
+    pub(super) payment_count: u32,
+    pub(super) status: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteRecurringPaymentRequest {
+    pub(super) intent: String,
+    pub(super) schedule_id: String,
+    pub(super) recipient: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ExecuteTypedEscrowReturnRequest {
     pub(super) escrow_id: String,
     pub(super) returns: Vec<ExecuteTypedEscrowReturnRow>,
@@ -93,6 +113,83 @@ pub(super) struct ExecuteTypedEscrowReturnRequest {
 pub(super) struct ExecuteTypedEscrowReturnRow {
     pub(super) recipient: String,
     pub(super) amount_lamports: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedSplEscrowReleaseRequest {
+    pub(super) mint: String,
+    pub(super) source_token: String,
+    pub(super) destination_token: String,
+    pub(super) recipient_owner: String,
+    pub(super) amount_tokens: u64,
+    pub(super) escrow_id: String,
+    pub(super) milestone_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedSplEscrowReturnRequest {
+    pub(super) mint: String,
+    pub(super) source_token: String,
+    pub(super) escrow_id: String,
+    pub(super) returns: Vec<ExecuteTypedSplEscrowReturnRow>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedSplEscrowReturnRow {
+    pub(super) destination_token: String,
+    pub(super) funder_owner: String,
+    pub(super) amount_tokens: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedCrossChainEscrowReleaseRequest {
+    pub(super) chain_kind: u8,
+    pub(super) amount_raw: String,
+    pub(super) escrow_id: String,
+    pub(super) milestone_id: String,
+    pub(super) recipient_hash: String,
+    pub(super) asset_id_hash: String,
+    pub(super) route_hash: String,
+    pub(super) settlement_artifact_hash: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedCrossChainEscrowReturnRequest {
+    pub(super) chain_kind: u8,
+    pub(super) amount_raw: String,
+    pub(super) escrow_id: String,
+    pub(super) refund_recipient_hash: String,
+    pub(super) asset_id_hash: String,
+    pub(super) route_hash: String,
+    pub(super) settlement_artifact_hash: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedPrivateEscrowReleaseRequest {
+    pub(super) amount_raw: String,
+    pub(super) escrow_id: String,
+    pub(super) milestone_id: String,
+    pub(super) recipient_hash: String,
+    pub(super) asset_id_hash: String,
+    pub(super) private_evaluation_hash: String,
+    pub(super) settlement_artifact_hash: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ExecuteTypedPrivateEscrowReturnRequest {
+    pub(super) amount_raw: String,
+    pub(super) escrow_id: String,
+    pub(super) refund_recipient_hash: String,
+    pub(super) asset_id_hash: String,
+    pub(super) private_evaluation_hash: String,
+    pub(super) settlement_artifact_hash: String,
 }
 
 #[derive(Deserialize)]
