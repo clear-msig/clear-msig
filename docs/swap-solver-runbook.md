@@ -4,13 +4,13 @@ This is the operator checklist for the Private Swap MVP. Keep it on testnet/pre-
 
 ## Data To Provide
 
-Add these to `frontend/.env.local` for local testing and to Vercel/Railway env when deploying:
+Add these to `apps/web/.env.local` for local testing and to Vercel/Railway env when deploying:
 
 ```bash
 CLEARSIG_SWAP_IKA_ENABLED=0
 NEXT_PUBLIC_IKA_DWALLET_PROGRAM_ID=87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY
 NEXT_PUBLIC_IKA_GRPC_URL=https://pre-alpha-dev-1.ika.ika-network.net:443
-NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 
 CLEARSIG_SWAP_SOLVER_ID=clearsig-testnet-solver
 CLEARSIG_SWAP_SOLVER_URL=https://your-solver.example.com

@@ -49,7 +49,7 @@ pub struct CleanupTypedProposal<'info> {
             @ WalletError::ProposalNotFinalized,
         constraint = typed_proposal_cleanup_allowed(
             proposal.action_kind,
-            proposal.policy_bytes().as_ref()
+            proposal.policy_bytes()
         ) @ WalletError::InvalidPolicy
     )]
     pub proposal: Account<TypedProposal<'info>>,
@@ -66,7 +66,10 @@ impl<'info> CleanupTypedProposal<'info> {
 }
 
 fn typed_proposal_cleanup_allowed(action_kind: u8, policy_bytes: &[u8]) -> bool {
-    action_kind != ClearSignActionKind::SetProtection.code() || policy_bytes.is_empty()
+    !matches!(
+        ClearSignActionKind::from_code(action_kind),
+        Some(ClearSignActionKind::SetProtection | ClearSignActionKind::SetAssetProtection)
+    ) || policy_bytes.is_empty()
 }
 
 #[cfg(test)]
@@ -83,6 +86,10 @@ mod tests {
         assert!(typed_proposal_cleanup_allowed(
             ClearSignActionKind::SetProtection.code(),
             &[]
+        ));
+        assert!(!typed_proposal_cleanup_allowed(
+            ClearSignActionKind::SetAssetProtection.code(),
+            b"CSP2"
         ));
         assert!(typed_proposal_cleanup_allowed(
             ClearSignActionKind::Send.code(),

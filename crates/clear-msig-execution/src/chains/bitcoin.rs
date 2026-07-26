@@ -215,8 +215,8 @@ struct ChosenScalars {
 ///   - digest = sha256(preimage)          × {canonical (r,s), reversed (r,s)}
 ///   - digest = keccak256(preimage)       × {canonical (r,s), reversed (r,s)}
 ///   - digest = preimage truncated to 32  × {canonical (r,s), reversed (r,s)}
-///       (covers "Ika is signing the message bytes directly without
-///       hashing" — only meaningful when preimage is ≥ 32 bytes)
+///     (covers "Ika is signing the message bytes directly without
+///     hashing" — only meaningful when preimage is ≥ 32 bytes)
 ///
 /// Whichever passes wins; we ALWAYS DER-encode the recovered (r, s)
 /// (low-s normalized) into a Bitcoin witness — Bitcoin nodes

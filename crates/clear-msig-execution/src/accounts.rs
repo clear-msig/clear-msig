@@ -455,7 +455,7 @@ pub fn zcash_transparent_address(compressed: &[u8], mainnet: bool) -> Result<Str
     payload.extend_from_slice(&h160);
     // Double-SHA256 checksum
     let hash1 = Sha256::digest(&payload);
-    let hash2 = Sha256::digest(&hash1);
+    let hash2 = Sha256::digest(hash1);
     payload.extend_from_slice(&hash2[..4]);
     Ok(bs58::encode(&payload).into_string())
 }
@@ -469,6 +469,7 @@ fn _bech32_unused() {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 
@@ -777,6 +778,15 @@ impl IntentAccount {
         } else {
             ""
         }
+    }
+
+    pub fn tx_template_hash(&self) -> [u8; 32] {
+        let start = self.tx_template_offset as usize;
+        let end = start.saturating_add(self.tx_template_len as usize);
+        if end > self.byte_pool.len() {
+            return [0u8; 32];
+        }
+        Sha256::digest(&self.byte_pool[start..end]).into()
     }
 
     pub fn policy_ciphertext_ids(&self) -> Vec<String> {

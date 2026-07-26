@@ -2,8 +2,8 @@
 #
 # Seed the deployed devnet program with state that makes the live demo
 # look populated for Colosseum judges. Runs against the *deployed*
-# clear-msig-backend.fly.dev relayer, so it ships the same TXs the
-# frontend would. No backend mutation, no schema migration — just on-
+# ClearSig backend relayer, so it ships the same TXs the frontend would.
+# No backend mutation, no schema migration — just on-
 # chain calls.
 #
 # What it leaves behind:
@@ -32,7 +32,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEMO_DIR="${DEMO_DIR:-$HOME/clear-msig-demo}"
-RPC_URL="${RPC_URL:-https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH}"
+RPC_URL="${RPC_URL:-https://api.devnet.solana.com}"
 IKA_PROGRAM="${IKA_PROGRAM:-87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY}"
 IKA_GRPC="${IKA_GRPC:-https://pre-alpha-dev-1.ika.ika-network.net:443}"
 WALLET_BASE="${WALLET_BASE:-treasury-judge}"

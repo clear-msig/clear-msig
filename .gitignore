@@ -3,7 +3,7 @@ test-ledger/
 .DS_Store
 
 # Keypairs and secrets — never commit.
-backend-api/keys/
+apps/api/keys/
 *.keypair.json
 # Don't block solana-keygen default CLI config which lives outside the repo.
 !.config/
@@ -16,13 +16,22 @@ backend-api/keys/
 .env.development.local
 .env.production.local
 .env.test.local
-backend-api/.env.pre-alpha
+apps/api/.env.pre-alpha
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.p12
+*.pfx
+*.mnemonic
+*.seed
+id.json
 
 
 # Node
 /node_modules/
-frontend/node_modules/
-frontend/.next
+apps/web/node_modules/
+apps/web/.next
 .next/
 .vercel/
 .turbo/

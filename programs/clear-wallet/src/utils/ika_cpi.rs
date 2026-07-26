@@ -55,6 +55,7 @@ impl<'a> DWalletContext<'a> {
     /// 4. `[readonly, signer]` cpi_authority — clear-wallet's CPI authority PDA
     /// 5. `[writable, signer]` payer — pays for the new PDA's rent
     /// 6. `[readonly]`         system_program
+    #[allow(clippy::too_many_arguments)]
     pub fn approve_message(
         &self,
         coordinator: &'a AccountView,

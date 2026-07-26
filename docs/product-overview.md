@@ -401,11 +401,11 @@ The stronger claim is product novelty, not cryptographic novelty:
 
 ## Repository Map
 
-- `frontend/` Next.js app and browser logic
-- `backend-api/` JSON adapter over the shared Rust execution library
-- `cli/` transaction assembly and broadcast
+- `apps/web/` Next.js app and browser logic
+- `apps/api/` JSON adapter over the shared Rust execution library
+- `apps/cli/` transaction assembly and broadcast
 - `programs/clear-wallet/` Solana program
-- `rust-settlement/` buy/sell settlement sidecar
+- `apps/settlement/` buy/sell settlement sidecar
 - `docs/` product and rollout notes
 - `examples/intents/` intent templates
 - `scripts/` bootstrap and demo flows
@@ -415,8 +415,8 @@ The stronger claim is product novelty, not cryptographic novelty:
 1. `README.md`
 2. `SECURITY.md`
 3. `docs/encrypt-prealpha-testing.md`
-4. `backend-api/README.md`
-5. `rust-settlement/README.md`
+4. `apps/api/README.md`
+5. `apps/settlement/README.md`
 
 ## Status Statement
 

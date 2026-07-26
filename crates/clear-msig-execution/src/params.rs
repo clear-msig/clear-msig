@@ -155,7 +155,7 @@ fn read_param_name(pool: &[u8], name_start: usize, name_len: usize) -> Result<&s
 /// Parse a hex string (with optional 0x prefix) into raw bytes.
 fn parse_hex(s: &str) -> Result<Vec<u8>> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(anyhow!("hex string has odd length"));
     }
     (0..s.len() / 2)

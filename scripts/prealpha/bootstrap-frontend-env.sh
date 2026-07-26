@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENV_LOCAL="$ROOT_DIR/frontend/.env.local"
-ENV_EXAMPLE="$ROOT_DIR/frontend/.env.example"
+ENV_LOCAL="$ROOT_DIR/apps/web/.env.local"
+ENV_EXAMPLE="$ROOT_DIR/apps/web/.env.example"
 
 if [[ ! -f "$ENV_LOCAL" ]]; then
   cp "$ENV_EXAMPLE" "$ENV_LOCAL"

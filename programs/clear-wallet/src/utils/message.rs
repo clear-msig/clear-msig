@@ -495,6 +495,7 @@ fn param_offset(params: &[ParamEntry], data: &[u8], target: u8) -> Result<usize,
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     extern crate std;
 

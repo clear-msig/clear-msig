@@ -1,11 +1,12 @@
 use crate::config::RuntimeConfig;
 use crate::error::*;
-use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
-use solana_client::rpc_filter::{Memcmp, RpcFilterType};
+use solana_account_decoder_client_types::UiAccountEncoding;
 use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
+use solana_rpc_client_api::config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
+use solana_rpc_client_api::filter::{Memcmp, RpcFilterType};
 use solana_sdk::hash::Hash;
 use solana_signature::Signature;
 use solana_signer::Signer;
@@ -29,7 +30,7 @@ pub struct LiveSolanaRpcFactory;
 impl SolanaRpcFactory for LiveSolanaRpcFactory {
     fn connect(&self, rpc_url: String, control: crate::ExecutionControl) -> Client {
         let port = LiveSolanaRpcPort {
-            inner: solana_client::nonblocking::rpc_client::RpcClient::new_with_commitment(
+            inner: solana_rpc_client::nonblocking::rpc_client::RpcClient::new_with_commitment(
                 rpc_url,
                 CommitmentConfig::confirmed(),
             ),
@@ -40,7 +41,7 @@ impl SolanaRpcFactory for LiveSolanaRpcFactory {
 }
 
 struct LiveSolanaRpcPort {
-    inner: solana_client::nonblocking::rpc_client::RpcClient,
+    inner: solana_rpc_client::nonblocking::rpc_client::RpcClient,
     control: crate::ExecutionControl,
 }
 
@@ -84,7 +85,7 @@ impl SolanaRpcPort for LiveSolanaRpcPort {
                 vec![1u8],
             ))]),
             account_config: RpcAccountInfoConfig {
-                encoding: None,
+                encoding: Some(UiAccountEncoding::Base64),
                 commitment: Some(CommitmentConfig::confirmed()),
                 data_slice: None,
                 min_context_slot: None,
@@ -94,12 +95,18 @@ impl SolanaRpcPort for LiveSolanaRpcPort {
         };
         let accounts = self.run(
             self.inner
-                .get_program_accounts_with_config(program_id, config),
+                .get_program_ui_accounts_with_config(program_id, config),
         )?;
-        Ok(accounts
+        accounts
             .into_iter()
-            .map(|(pubkey, account)| (pubkey, account.data))
-            .collect())
+            .map(|(pubkey, account)| {
+                account
+                    .data
+                    .decode()
+                    .map(|data| (pubkey, data))
+                    .ok_or_else(|| anyhow!("RPC returned undecodable account data for {pubkey}"))
+            })
+            .collect()
     }
 
     fn latest_blockhash(&self) -> Result<Hash> {
@@ -388,7 +395,7 @@ mod tests {
     fn cancelled_rpc_drops_a_pending_network_future() {
         let control = crate::ExecutionControl::default();
         let rpc = LiveSolanaRpcPort {
-            inner: solana_client::nonblocking::rpc_client::RpcClient::new(
+            inner: solana_rpc_client::nonblocking::rpc_client::RpcClient::new(
                 "http://127.0.0.1:1".to_string(),
             ),
             control: control.clone(),

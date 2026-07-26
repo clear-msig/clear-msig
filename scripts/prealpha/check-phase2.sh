@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BACKEND_MAIN="$ROOT_DIR/backend-api/src/main.rs"
-FRONTEND_ENDPOINTS="$ROOT_DIR/frontend/src/lib/api/endpoints.ts"
+BACKEND_MAIN="$ROOT_DIR/apps/api/src/main.rs"
+FRONTEND_ENDPOINTS="$ROOT_DIR/apps/web/src/lib/api/endpoints.ts"
 
 require_pattern() {
   local pattern="$1"
@@ -56,9 +56,9 @@ echo "== Phase 2: No direct frontend chain/RPC bypass =="
 # Allowed files that MAY call fetch() directly.
 #   - lib/api/client.ts      — the central backend API gateway used by all hooks
 #   - lib/organizations/client.ts — POSTs to Next.js /api/invitations (same-origin)
-ALLOWED_FETCH_PATTERN='frontend/src/lib/(api|organizations)/client\.ts'
+ALLOWED_FETCH_PATTERN='apps/web/src/lib/(api|organizations)/client\.ts'
 
-matches=$(grep -R --line-number -E '(^|[^[:alnum:]_])fetch\(' "$ROOT_DIR/frontend/src" || true)
+matches=$(grep -R --line-number -E '(^|[^[:alnum:]_])fetch\(' "$ROOT_DIR/apps/web/src" || true)
 disallowed=$(echo "$matches" | grep -vE "$ALLOWED_FETCH_PATTERN" || true)
 
 if [[ -n "$disallowed" ]]; then

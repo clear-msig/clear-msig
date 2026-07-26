@@ -92,12 +92,12 @@ Product language:
 
 Frontend domain modules:
 
-- `frontend/src/lib/agents/types.ts`
-- `frontend/src/lib/agents/policy.ts`
-- `frontend/src/lib/agents/encryption.ts`
-- `frontend/src/lib/agents/scoring.ts`
-- `frontend/src/lib/agents/storage.ts`
-- `frontend/src/lib/agents/mockVenue.ts` later
+- `apps/web/src/lib/agents/types.ts`
+- `apps/web/src/lib/agents/policy.ts`
+- `apps/web/src/lib/agents/encryption.ts`
+- `apps/web/src/lib/agents/scoring.ts`
+- `apps/web/src/lib/agents/storage.ts`
+- `apps/web/src/lib/agents/mockVenue.ts` later
 
 Backend modules later:
 
@@ -461,7 +461,7 @@ What ClearSig should not promise in the MVP:
 ## Phase 8: Market-Ready Launch Gates
 
 These gates are now locked into the shipping path. They are tracked in code by
-`frontend/src/lib/agents/marketReadiness.ts` so the product can distinguish
+`apps/web/src/lib/agents/marketReadiness.ts` so the product can distinguish
 controlled paper testing, public paper testing, and live-capital readiness.
 
 Locked public-beta build order:

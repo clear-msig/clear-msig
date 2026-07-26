@@ -6,7 +6,7 @@ use crate::output::print_json;
 use crate::rpc;
 use clap::Subcommand;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 #[derive(Subcommand)]
 pub enum WalletAction {
@@ -43,6 +43,20 @@ pub enum WalletAction {
         /// Wallet name
         #[arg(long)]
         name: String,
+    },
+    /// Read the active on-chain policy commitment for one destination chain.
+    PolicyCommitment {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        chain_kind: u8,
+    },
+    /// Read the active CSP2 commitment for one SPL token mint.
+    AssetPolicyCommitment {
+        #[arg(long)]
+        wallet: String,
+        #[arg(long)]
+        asset_id: String,
     },
     /// Give the wallet an identity on a remote chain via Ika dWallet.
     ///
@@ -120,7 +134,7 @@ fn chain_kind_name(k: u8) -> &'static str {
 
 fn parse_hex(s: &str) -> Result<Vec<u8>> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(anyhow!("hex string has odd length"));
     }
     (0..s.len() / 2)
@@ -216,12 +230,34 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
             });
 
             let client = rpc::client(config);
-            let sig = rpc::send_instruction(&client, config, ix)?;
+            let mut already_exists =
+                wallet_exists_at_address(&client, &wallet, &name, &payer_pubkey)?;
+            let sig = if already_exists {
+                None
+            } else {
+                match rpc::send_instruction(&client, config, ix) {
+                    Ok(signature) => Some(signature),
+                    Err(error) => {
+                        // A cancelled or disconnected browser can miss the
+                        // successful response after the sponsored create has
+                        // landed. Re-reading the deterministic PDA makes the
+                        // command idempotent without replaying create_account.
+                        already_exists =
+                            wallet_exists_at_address(&client, &wallet, &name, &payer_pubkey)?;
+                        if already_exists {
+                            None
+                        } else {
+                            return Err(error);
+                        }
+                    }
+                }
+            };
 
             print_json(&serde_json::json!({
-                "txid": sig.to_string(),
+                "txid": sig.map(|signature| signature.to_string()),
                 "wallet": wallet.to_string(),
                 "vault": vault.to_string(),
+                "already_exists": already_exists,
             }));
         }
         WalletAction::AddChain {
@@ -604,8 +640,101 @@ pub fn handle(action: WalletAction, config: &RuntimeConfig) -> Result<()> {
                 "intent_index": account.intent_index,
             }));
         }
+        WalletAction::PolicyCommitment {
+            wallet: wallet_name,
+            chain_kind,
+        } => {
+            const CHAIN_SLOTS: usize = 6;
+            const POLICY_LEN: usize = 1 + 32 + (32 * CHAIN_SLOTS) + 8 + 8 + 1;
+            if chain_kind as usize >= CHAIN_SLOTS {
+                return Err(anyhow!("chain-kind must be between 0 and 5"));
+            }
+            let client = rpc::client(config);
+            let (wallet, _) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet.to_bytes());
+            let program_id = crate::instructions::program_id();
+            let pid = solana_address::Address::new_from_array(program_id.to_bytes());
+            let (policy_addr, _) =
+                clear_wallet_client::pda::find_wallet_policy_address(&wallet_addr, &pid);
+            let policy = Pubkey::new_from_array(policy_addr.to_bytes());
+            let commitment = match rpc::fetch_account_optional(&client, &policy)? {
+                None => [0u8; 32],
+                Some(data) => {
+                    if data.len() < POLICY_LEN || data[0] != 8 || data[1..33] != wallet.to_bytes() {
+                        return Err(anyhow!("wallet policy account is malformed"));
+                    }
+                    let offset = 33 + chain_kind as usize * 32;
+                    data[offset..offset + 32]
+                        .try_into()
+                        .map_err(|_| anyhow!("wallet policy commitment is malformed"))?
+                }
+            };
+            print_json(&serde_json::json!({
+                "wallet": wallet.to_string(),
+                "chain_kind": chain_kind,
+                "commitment": hex_encode(&commitment),
+            }));
+        }
+        WalletAction::AssetPolicyCommitment {
+            wallet: wallet_name,
+            asset_id,
+        } => {
+            const POLICY_LEN: usize = 114;
+            let client = rpc::client(config);
+            let (wallet, _) = rpc::resolve_wallet_by_name(&client, &wallet_name)?;
+            let asset = Pubkey::from_str(&asset_id).context("invalid asset-id pubkey")?;
+            let wallet_addr = solana_address::Address::new_from_array(wallet.to_bytes());
+            let asset_addr = solana_address::Address::new_from_array(asset.to_bytes());
+            let program_id = crate::instructions::program_id();
+            let pid = solana_address::Address::new_from_array(program_id.to_bytes());
+            let (policy_addr, _) = clear_wallet_client::pda::find_asset_policy_address(
+                &wallet_addr,
+                &asset_addr,
+                &pid,
+            );
+            let policy = Pubkey::new_from_array(policy_addr.to_bytes());
+            let commitment = match rpc::fetch_account_optional(&client, &policy)? {
+                None => [0u8; 32],
+                Some(data) => {
+                    if data.len() < POLICY_LEN
+                        || data[0] != 14
+                        || data[1..33] != wallet.to_bytes()
+                        || data[33..65] != asset.to_bytes()
+                    {
+                        return Err(anyhow!("asset policy account is malformed"));
+                    }
+                    data[65..97]
+                        .try_into()
+                        .map_err(|_| anyhow!("asset policy commitment is malformed"))?
+                }
+            };
+            print_json(&serde_json::json!({
+                "wallet": wallet.to_string(),
+                "asset_id": asset.to_string(),
+                "commitment": hex_encode(&commitment),
+            }));
+        }
     }
     Ok(())
+}
+
+fn wallet_exists_at_address(
+    client: &rpc::Client,
+    wallet: &Pubkey,
+    expected_name: &str,
+    expected_creator: &Pubkey,
+) -> Result<bool> {
+    let Some(data) = rpc::fetch_account_optional(client, wallet)? else {
+        return Ok(false);
+    };
+    let existing = accounts::parse_wallet(&data)
+        .with_context(|| format!("existing wallet account {wallet} is malformed"))?;
+    if existing.name != expected_name || existing.creator != expected_creator.to_string() {
+        return Err(anyhow!(
+            "existing wallet account {wallet} does not match its deterministic name and creator"
+        ));
+    }
+    Ok(true)
 }
 
 fn build_atomic_dwallet_bind_plan(

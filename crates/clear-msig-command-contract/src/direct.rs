@@ -54,6 +54,14 @@ pub enum DirectCommand {
     WalletShow {
         name: String,
     },
+    WalletPolicyCommitment {
+        wallet: String,
+        chain_kind: u8,
+    },
+    AssetPolicyCommitment {
+        wallet: String,
+        asset_id: String,
+    },
     WalletAddChain {
         wallet: String,
         chain: String,
@@ -137,6 +145,8 @@ impl DirectCommand {
         match self {
             Self::WalletCreate { .. } => "wallet create",
             Self::WalletShow { .. } => "wallet show",
+            Self::WalletPolicyCommitment { .. } => "wallet policy-commitment",
+            Self::AssetPolicyCommitment { .. } => "wallet asset-policy-commitment",
             Self::WalletAddChain { .. } => "wallet add-chain",
             Self::WalletChains { .. } => "wallet chains",
             Self::IntentAdd { .. } => "intent add",
@@ -169,6 +179,10 @@ impl DirectCommand {
                 values.extend(policy_ciphertexts.iter().map(String::as_str));
             }
             Self::WalletShow { name } => values.push(name),
+            Self::WalletPolicyCommitment { wallet, .. } => values.push(wallet),
+            Self::AssetPolicyCommitment { wallet, asset_id } => {
+                values.extend([wallet.as_str(), asset_id.as_str()]);
+            }
             Self::WalletAddChain {
                 wallet,
                 chain,

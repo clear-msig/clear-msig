@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENV_FILE="$ROOT_DIR/backend-api/.env.pre-alpha"
+ENV_FILE="$ROOT_DIR/apps/api/.env.pre-alpha"
 
 "$ROOT_DIR/scripts/prealpha/bootstrap-backend-env.sh"
 
@@ -20,6 +20,6 @@ if [[ ! -f "$CLEAR_MSIG_SIGNER" ]]; then
   exit 1
 fi
 
-echo "Using CLEAR_MSIG_URL=${CLEAR_MSIG_URL:-https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH}"
+echo "Using CLEAR_MSIG_URL=${CLEAR_MSIG_URL:-https://api.devnet.solana.com}"
 cd "$ROOT_DIR"
 cargo run -p clear-msig-backend-api

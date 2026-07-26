@@ -12,7 +12,7 @@ earlier ones are done where noted.
 ## P0 — Do first (fund-theft path)
 
 ### T1. Auth-gate `/v1/internal/chain/confirm`
-- **File:** `rust-settlement/src/http/handlers.rs:65` (route), `:500-556` (`chain_confirm` handler), `:50-69` (`build_router`), `rust-settlement/src/main.rs:103-105` (middleware stack)
+- **File:** `apps/settlement/src/http/handlers.rs:65` (route), `:500-556` (`chain_confirm` handler), `:50-69` (`build_router`), `apps/settlement/src/main.rs:103-105` (middleware stack)
 - **Problem:** Route has zero authentication. Anyone can POST a fabricated `ChainTransferConfirmationRequest{finalized: true}` for an `intent_id` they created, which flows through `workers/chain_confirmation.rs` → `workers/payout_dispatch.rs` and fires a real Paystack/Kora bank payout with no crypto ever received.
 - **Fix:**
   1. Add a shared-secret or HMAC auth check on this route (mirror the pattern already used correctly for `/v1/webhooks/kora` — `mac.verify_slice`, constant-time). A static internal bearer token checked via `axum::middleware::from_fn`, scoped only to this route, is sufficient for a first pass.
@@ -22,14 +22,14 @@ earlier ones are done where noted.
 - **Verify:** attempt the exploit — POST to `/v1/internal/chain/confirm` without credentials should now 401/403; with a forged-but-unauthenticated request the intent must not reach `settlement_completed`.
 
 ### T2. Reconcile payout amount against actual confirmed transfer
-- **File:** `rust-settlement/src/contracts/api.rs:22-35`, `rust-settlement/src/services/intents.rs:88-236`, `rust-settlement/src/workers/webhook_processing.rs:172-200`, `rust-settlement/src/workers/payout_dispatch.rs`
+- **File:** `apps/settlement/src/contracts/api.rs:22-35`, `apps/settlement/src/services/intents.rs:88-236`, `apps/settlement/src/workers/webhook_processing.rs:172-200`, `apps/settlement/src/workers/payout_dispatch.rs`
 - **Problem:** The NGN amount paid out is `ramp_quotes.estimated_ngn_amount_minor`, computed from client-supplied `usd_amount_cents` at intent-creation time, and is **never** re-verified against what was actually confirmed received. Even after T1 is fixed, this is a standalone reconciliation gap.
 - **Fix:** Before `payout_dispatch` calls `payment_provider.initiate_payout`, re-derive the expected NGN amount from the actually-confirmed on-chain amount (post-T1, this is RPC-verified) and compare against the quoted amount within a tolerance band. Reject/flag-for-manual-review on mismatch instead of paying unconditionally.
 - **Effort:** M
 - **Depends on:** T1 (need a trustworthy "actually confirmed" amount to reconcile against)
 
 ### T3. Replace `x-user-id` header trust with verified identity
-- **File:** `rust-settlement/src/http/handlers.rs:37-44` (`user_id_from_headers`), call sites: `create_intent` (:87-99), `get_intent` (:170), `prepare_signature` (:217), `initialize_payment` (:270); `rust-settlement/src/services/intents.rs:347` (ownership check)
+- **File:** `apps/settlement/src/http/handlers.rs:37-44` (`user_id_from_headers`), call sites: `create_intent` (:87-99), `get_intent` (:170), `prepare_signature` (:217), `initialize_payment` (:270); `apps/settlement/src/services/intents.rs:347` (ownership check)
 - **Problem:** `x-user-id` is a self-asserted UUID header with no session/JWT/signature backing it. Any caller can impersonate any other user's ramp intents (read, advance, pay).
 - **Fix:** Introduce a verified identity layer — either (a) a session token issued after a wallet-signature challenge, validated server-side and mapped to `user_id`, or (b) if the frontend already gets a Dynamic Labs WaaS session, validate that session's claims server-side per request. Derive `user_id` from the verified identity, never from a client header. Reject requests with no valid credential before the handler runs (use `axum::middleware::from_fn` applied to the whole `/v1/ramp/*` router group, not per-handler).
 - **Effort:** M
@@ -53,20 +53,20 @@ earlier ones are done where noted.
 - **Verify:** `docker run --rm <image> whoami` should not print `root`; entrypoint should complete a normal boot without permission errors.
 
 ### T5. Disable npm lifecycle scripts in CI and locally
-- **File:** new `frontend/.npmrc`, `.github/workflows/ci.yml:83`
+- **File:** new `apps/web/.npmrc`, `.github/workflows/ci.yml:83`
 - **Problem:** No `.npmrc` exists; CI runs plain `npm ci`. Any compromised package's `preinstall`/`postinstall`/`install` script executes with CI-runner or developer-machine privileges. Confirmed live example: `bigint-buffer`'s `install` script runs `node-gyp rebuild`.
 - **Fix:**
-  1. `frontend/.npmrc`:
+  1. `apps/web/.npmrc`:
      ```
      ignore-scripts=true
      ```
   2. `.github/workflows/ci.yml:83`: change `npm ci` to `npm ci --ignore-scripts`.
   3. Add an explicit, reviewed rebuild step for packages that need native builds: `npm rebuild bigint-buffer bufferutil utf-8-validate sharp` run right after install, so these are visible and auditable rather than implicit.
 - **Effort:** S–M (test that the app still builds/runs with scripts disabled)
-- **Verify:** `npm ci` in `frontend/` completes and the app still builds; native modules (`bigint-buffer` etc.) still function at runtime.
+- **Verify:** `npm ci` in `apps/web/` completes and the app still builds; native modules (`bigint-buffer` etc.) still function at runtime.
 
 ### T6. Collapse floating `axios` versions in the wallet-signing bundle
-- **File:** `frontend/package.json` (add `overrides`), `frontend/package-lock.json` (will regenerate)
+- **File:** `apps/web/package.json` (add `overrides`), `apps/web/package-lock.json` (will regenerate)
 - **Problem:** `axios@1.9.0`/`1.13.2`/`1.15.0` all resolve, confirmed reachable via `@dynamic-labs/sdk-react-core` → `@dynamic-labs-wallet/*`. Each pre-patch version carries known SSRF/credential-leak/ReDoS issues, running in the browser wallet-signing path.
 - **Fix:**
   ```json
@@ -99,8 +99,8 @@ earlier ones are done where noted.
 ## P2 — Backlog
 
 ### T9. Constant-time Paystack HMAC comparison
-- **File:** `rust-settlement/src/paystack/signature.rs:37`
-- **Fix:** replace `if expected == provided_lower` with `subtle::ConstantTimeEq` or decode both sides and use `hmac::Mac::verify_slice`, matching the pattern already correct in `rust-settlement/src/kora/signature.rs:28`.
+- **File:** `apps/settlement/src/paystack/signature.rs:37`
+- **Fix:** replace `if expected == provided_lower` with `subtle::ConstantTimeEq` or decode both sides and use `hmac::Mac::verify_slice`, matching the pattern already correct in `apps/settlement/src/kora/signature.rs:28`.
 - **Effort:** S
 
 ### T10. Fix `workflow_dispatch` shell interpolation
@@ -114,13 +114,13 @@ earlier ones are done where noted.
 - **Effort:** S
 
 ### T12. Kora webhook HMAC scope
-- **File:** `rust-settlement/src/kora/signature.rs:4-29`
+- **File:** `apps/settlement/src/kora/signature.rs:4-29`
 - **Problem:** HMAC is computed over a re-serialized `data` sub-object, not the raw request body — `event` (used for dispatch in `workers/webhook_processing.rs:48-57`) is unauthenticated.
 - **Fix:** confirm against Kora's webhook-signing spec whether the raw body or just `data` is signed. If raw body, verify against the exact bytes received instead of re-serializing. If `data`-only is correct per spec, extend the MAC'd context to cover `event` as well, or otherwise stop treating unsigned `event` values as trusted for dispatch decisions.
 - **Effort:** M (needs Kora spec confirmation first)
 
 ### T13. Exact-pin and manually review `@encrypt.xyz/pre-alpha-solana-client`
-- **File:** `frontend/package.json:28`, `frontend/src/lib/ikavery/` (vendored `@ika.xyz` sibling)
+- **File:** `apps/web/package.json:28`, `apps/web/src/lib/ikavery/` (vendored `@ika.xyz` sibling)
 - **Problem:** Single-maintainer, ~2-month-old, ~100 downloads/month, used for confidential escrow/policy crypto operations. Sibling package is vendored source (not installed), bypassing lockfile integrity entirely.
 - **Fix:** Change `"@encrypt.xyz/pre-alpha-solana-client": "^0.1.1"` to an exact pin `"0.1.1"`. Manually review the unpacked tarball source for both packages for anything unexpected before relying on them further; diff the vendored `@ika.xyz` copy against its published upstream. This is a product/trust decision as much as a code fix — flag to whoever owns the escrow feature.
 - **Effort:** S (pin) + review time
@@ -132,7 +132,7 @@ earlier ones are done where noted.
 - **Effort:** S (re-scan) + variable per confirmed finding
 
 ### T15. KMS/HSM-backed treasury signer
-- **File:** `rust-settlement/src/signer/solana.rs:53-78`
+- **File:** `apps/settlement/src/signer/solana.rs:53-78`
 - **Problem:** Treasury private key lives as a single plaintext env var, no rotation, no independent spend cap.
 - **Fix:** Move signing to a KMS/HSM-backed service or a policy-limited co-signer, and add a hard per-transaction / per-day spend cap enforced independently of the ramp-intent business logic (so even a fully-compromised app can't move more than the cap in a day).
 - **Effort:** L — treat as a project, not a quick patch

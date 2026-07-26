@@ -460,7 +460,7 @@ pub mod clear_wallet {
                 current_policy_commitment,
                 envelope_hash,
                 chain_kind,
-                new_policy_bytes: new_policy_bytes.as_ref(),
+                new_policy_bytes,
             },
             &ctx.bumps,
         )
@@ -533,23 +533,185 @@ pub mod clear_wallet {
         policy_bytes: Vec<u8, 2048>,
         clear_text: &[u8],
     ) -> Result<(), ProgramError> {
-        ctx.accounts.propose_typed(
+        let _ = (
             proposal_index,
-            ProposeTypedArgs {
-                expiry,
-                action_kind,
-                action_id: &action_id,
-                nonce: &nonce,
-                policy_commitment,
-                payload_hash,
-                envelope_hash,
-                proposer_pubkey: &proposer_pubkey,
+            expiry,
+            action_kind,
+            policy_commitment,
+            payload_hash,
+            envelope_hash,
+            proposer_pubkey,
+            signature,
+            action_id,
+            nonce,
+            policy_bytes,
+            clear_text,
+        );
+        ctx.accounts.propose_typed()
+    }
+
+    /// Creates a typed proposal from canonical intent bytes. The program
+    /// derives both the execution payload hash and readable signing document;
+    /// callers cannot provide either independently.
+    #[instruction(discriminator = 31)]
+    pub fn propose_typed_v4(
+        ctx: Ctx<ProposeTyped>,
+        proposal_index: u64,
+        signature: [u8; 64],
+        policy_bytes: Vec<u8, 2048>,
+        canonical_intent: &[u8],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.propose_typed_v4(
+            proposal_index,
+            ProposeTypedV4Args {
                 signature: &signature,
-                clear_text,
-                policy_bytes: policy_bytes.as_ref(),
+                policy_bytes,
+                canonical_intent,
             },
             &ctx.bumps,
         )
+    }
+
+    /// Configure or revoke a threshold-approved recurring SOL schedule.
+    #[instruction(discriminator = 32)]
+    pub fn execute_typed_recurring_schedule(
+        ctx: Ctx<ExecuteTypedRecurringSchedule>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        schedule_id_hash: [u8; 32],
+        recipient: [u8; 32],
+        amount_lamports: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_recurring_schedule(ExecuteTypedRecurringScheduleArgs {
+                policy_commitment,
+                envelope_hash,
+                schedule_id_hash,
+                recipient,
+                amount_lamports,
+                interval_seconds,
+                first_execution_at,
+                payment_count,
+                status,
+            })
+    }
+
+    /// Execute one due recurring payment. Any relayer may submit this; the
+    /// program-owned schedule is the authority and advances atomically.
+    #[instruction(discriminator = 33)]
+    pub fn execute_recurring_payment(
+        ctx: Ctx<ExecuteRecurringPayment>,
+        schedule_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_recurring_payment(schedule_id_hash, &ctx.bumps)
+    }
+
+    /// Configure or revoke a threshold-approved recurring USDC schedule. The
+    /// mint and token accounts are part of the signed execution commitment.
+    #[instruction(discriminator = 34)]
+    pub fn execute_typed_recurring_token_schedule(
+        ctx: Ctx<ExecuteTypedRecurringTokenSchedule>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        schedule_id_hash: [u8; 32],
+        amount_tokens: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_recurring_token_schedule(
+            ExecuteTypedRecurringTokenScheduleArgs {
+                policy_commitment,
+                envelope_hash,
+                schedule_id_hash,
+                amount_tokens,
+                interval_seconds,
+                first_execution_at,
+                payment_count,
+                status,
+            },
+        )
+    }
+
+    /// Execute one due USDC payment. Any caller may submit it; the program
+    /// checks the approved schedule and advances it atomically with the token
+    /// transfer.
+    #[instruction(discriminator = 35)]
+    pub fn execute_recurring_token_payment(
+        ctx: Ctx<ExecuteRecurringTokenPayment>,
+        schedule_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_recurring_token_payment(schedule_id_hash, &ctx.bumps)
+    }
+
+    /// Replace or clear one SPL asset's active CSP2 policy after typed approval.
+    #[instruction(discriminator = 36)]
+    pub fn execute_typed_asset_policy_update(
+        ctx: Ctx<ExecuteTypedAssetPolicyUpdate>,
+        current_policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        scope_kind: u8,
+        decimals: u8,
+        asset_id: [u8; 32],
+        display_asset: Vec<u8, 16>,
+        new_policy_bytes: Vec<u8, 2048>,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_typed_asset_policy_update(ExecuteTypedAssetPolicyUpdateArgs {
+                current_policy_commitment,
+                envelope_hash,
+                chain_kind,
+                scope_kind,
+                decimals,
+                asset_id,
+                display_asset,
+                new_policy_bytes,
+            })
+    }
+
+    /// Configure or revoke a recurring USDC schedule governed by CSP2.
+    #[instruction(discriminator = 37)]
+    pub fn execute_typed_recurring_asset_schedule(
+        ctx: Ctx<ExecuteTypedRecurringAssetSchedule>,
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        schedule_id_hash: [u8; 32],
+        amount_tokens: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    ) -> Result<(), ProgramError> {
+        ctx.accounts.execute_typed_recurring_asset_schedule(
+            ExecuteTypedRecurringAssetScheduleArgs {
+                policy_commitment,
+                envelope_hash,
+                schedule_id_hash,
+                amount_tokens,
+                interval_seconds,
+                first_execution_at,
+                payment_count,
+                status,
+            },
+        )
+    }
+
+    /// Execute one due CSP2-governed USDC payment.
+    #[instruction(discriminator = 38)]
+    pub fn execute_recurring_asset_payment(
+        ctx: Ctx<ExecuteRecurringAssetPayment>,
+        schedule_id_hash: [u8; 32],
+    ) -> Result<(), ProgramError> {
+        ctx.accounts
+            .execute_recurring_asset_payment(schedule_id_hash, &ctx.bumps)
     }
 
     #[instruction(discriminator = 9)]

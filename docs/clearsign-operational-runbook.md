@@ -20,12 +20,14 @@ start from the same baseline.
 SOL send is the current verified baseline for the typed ClearSign path:
 
 1. Frontend asks the backend to prepare the typed proposal.
-2. Backend builds the canonical ClearSign v3 approval document and envelope hash.
-3. Frontend verifies the readable action locally before opening the wallet
-   signer.
-4. Wallet signs the complete ClearSign v3 document bytes.
+2. Backend derives trusted chain context and builds canonical ClearSign v4 bytes,
+   approval document, payload hash, and envelope with `clear-msig-signing`.
+3. Frontend validates the bounded preparation response and opens the wallet
+   signer without independently inventing authority commitments.
+4. Wallet signs the complete ClearSign v4 document and typed vote suffix.
 5. Backend submits the signed bytes.
-6. On-chain program verifies the ClearSign envelope before executing.
+6. On-chain program parses the same canonical bytes, renders the same document,
+   verifies the envelope, and later recomputes the actual execution payload.
 
 Regression checks:
 
@@ -65,11 +67,9 @@ Compatible signer posture:
 
 `custom program error: 0x1788`
 
-Usually `InvalidClearSignEnvelope`. Check hash parity between:
-
-- `programs/clear-wallet/src/utils/clearsign.rs`
-- `backend-api/src/clearsign/hash.rs`
-- `frontend/src/lib/clearsign/actions.ts`
+Usually `InvalidClearSignEnvelope`. Check the canonical v4 bytes and shared
+`clear-msig-signing` version used by the backend, execution library, and program.
+The frontend is not an authority-hash implementation.
 
 This can also happen when Railway or Vercel is still serving old code, or when
 the user retries an old proposal created before the latest deploy.
@@ -124,26 +124,24 @@ After deploy:
 - BTC balance and explorer links must stay network-specific. Testnet/signet
   links must not point users to mainnet mempool.
 
-## V3 Migration Rule
+## V4 Migration Rule
 
-- New typed proposals must use a canonical v3 document. The upgraded program
-  rejects new v2 proposal creation.
-- Existing on-chain v2 proposals remain approvable and cancellable through the
+- New typed proposals must use canonical v4 bytes and a derived v4 document. The
+  upgraded program rejects new v2/v3 proposal creation.
+- Existing on-chain v2/v3 proposals remain approvable and cancellable through the
   legacy verifier. This compatibility path must not be used for new proposals.
-- V3 approval documents bind the signer pubkey, required threshold, and status
+- V4 approval documents bind the signer pubkey, required threshold, and status
   if accepted. A signer or threshold mismatch must fail before submission and
   again during program signature verification.
-- Program, backend, and frontend must deploy in that order. Creating a v3
-  proposal before the program upgrade, or creating a v2 proposal after it, is
+- Program, backend, and frontend must deploy in that order. Creating a v4
+  proposal before the program upgrade, or creating a v2/v3 proposal after it, is
   expected to fail closed.
 
 ## Remaining Trust Boundary
 
-The v3 envelope binds the readable document hash, canonical payload hash,
-policy commitment, replay fields, wallet, and expiry. Action-specific executors
-recompute the payload and policy commitments before execution. The program does
-not yet derive every human-readable sentence from raw structured proposal data;
-therefore frontend/backend parity and wallet byte verification remain trusted
-client controls. Do not claim that every displayed sentence is independently
-rendered by the program until a future schema stores and validates structured
-display fields onchain.
+The v4 envelope binds the canonical document hash, payload hash, network, policy,
+threshold, replay fields, actor, wallet, proposal, and expiry. The program derives
+the signer document from canonical bytes and action-specific executors recompute
+the payload from actual execution inputs. Swap, staking, arbitrary contract
+interaction, and governance vote remain review-only because they do not yet have
+that executor-level semantic verification.

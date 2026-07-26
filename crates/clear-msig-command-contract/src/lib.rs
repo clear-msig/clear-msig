@@ -3,7 +3,7 @@ mod execution;
 mod lifecycle;
 
 pub use direct::{DirectCommand, DirectExecutionContext};
-pub use execution::{LamportPayment, TypedProposalExecution};
+pub use execution::{LamportPayment, TokenPayment, TypedProposalExecution};
 pub use lifecycle::{TypedExecutionContext, TypedProposalLifecycle};
 
 const MAX_VALUES: usize = 256;

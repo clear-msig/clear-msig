@@ -205,7 +205,7 @@ fn velocity_matches(
 }
 
 fn keys(bytes: &[u8]) -> Result<&[[u8; 32]], ProgramError> {
-    require!(bytes.len() % 32 == 0, WalletError::InvalidPolicy);
+    require!(bytes.len().is_multiple_of(32), WalletError::InvalidPolicy);
     Ok(unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const [u8; 32], bytes.len() / 32) })
 }
 

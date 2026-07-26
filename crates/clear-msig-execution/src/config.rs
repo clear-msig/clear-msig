@@ -279,7 +279,7 @@ pub fn load_config(
 fn decode_hex(s: &str) -> Result<Vec<u8>> {
     let s = s.trim();
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(anyhow!("hex string has odd length"));
     }
     (0..s.len() / 2)

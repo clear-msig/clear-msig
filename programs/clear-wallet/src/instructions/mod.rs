@@ -34,6 +34,9 @@ pub use typed_send::*;
 pub mod wallet_policy;
 pub use wallet_policy::*;
 
+pub mod asset_policy;
+pub use asset_policy::*;
+
 pub mod typed_governance;
 pub use typed_governance::*;
 
@@ -44,6 +47,10 @@ pub use execute::*;
 
 pub mod cleanup_proposal;
 pub use cleanup_proposal::*;
+pub mod recurring_schedule;
+pub use recurring_schedule::*;
+pub mod recurring_asset_schedule;
+pub use recurring_asset_schedule::*;
 
 pub mod bind_dwallet;
 pub use bind_dwallet::*;

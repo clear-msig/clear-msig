@@ -17,6 +17,7 @@ use crate::{
 };
 
 const POLICY_DOMAIN: &[u8] = b"typed-sol-send-policy-v1";
+const ASSET_POLICY_DOMAIN: &[u8] = b"typed-asset-send-policy-v2";
 const MAGIC: &[u8; 4] = b"CSP1";
 const MODE_ANY: u8 = 0;
 const MODE_ALLOWLIST: u8 = 1;
@@ -35,7 +36,12 @@ const EXT_ALLOWED_TIME_LEN: usize = 1 + 1 + 1 + 2;
 const EXT_MEMBER_ALLOWANCE_ENTRY_LEN: usize = 32 + 8 + 4;
 
 pub fn hash_typed_policy(policy_bytes: &[u8]) -> [u8; 32] {
-    hash_policy_commitment(&[POLICY_DOMAIN, policy_bytes])
+    let domain = if policy_bytes.starts_with(b"CSP2") {
+        ASSET_POLICY_DOMAIN
+    } else {
+        POLICY_DOMAIN
+    };
+    hash_policy_commitment(&[domain, policy_bytes])
 }
 
 pub fn enforce_wallet_policy_account(
@@ -77,6 +83,7 @@ pub fn enforce_wallet_policy_account(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn enforce_typed_sol_send_policy(
     policy_bytes: &[u8],
     committed_policy_hash: [u8; 32],
@@ -103,6 +110,7 @@ pub fn enforce_typed_sol_send_policy(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn enforce_typed_remote_send_policy(
     policy_bytes: &[u8],
     committed_policy_hash: [u8; 32],
@@ -132,6 +140,121 @@ pub fn enforce_typed_remote_send_policy(
         member_allowance,
         member_allowance_bump,
     )
+}
+
+/// Recurring execution cannot consult a historical proposal on every run.
+/// Reject policy features whose meaning depends on that proposal, then enforce
+/// all reusable recipient, amount, time, velocity, and send-count controls.
+pub fn validate_recurring_sol_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+    amount_lamports: u64,
+) -> Result<(), ProgramError> {
+    if policy_bytes.is_empty() {
+        return Ok(());
+    }
+    require!(
+        hash_typed_policy(policy_bytes) == committed_policy_hash,
+        WalletError::InvalidPolicy
+    );
+    let policy = TypedSolPolicy::parse(policy_bytes)?;
+    require!(
+        policy.extra_cooldown_seconds == 0
+            && policy.required_approvers.is_empty()
+            && policy.member_cap_count == 0
+            && policy.advanced_rules.is_none(),
+        WalletError::RecurringSchedulePolicyUnsupported
+    );
+    policy.enforce_recipient(recipient)?;
+    policy.enforce_amount(amount_lamports)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn enforce_recurring_sol_payment_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+    amount_lamports: u64,
+    intent: &Intent<'_>,
+    policy_spend: &mut PolicySpendState,
+    policy_spend_bump: u8,
+) -> Result<(), ProgramError> {
+    validate_recurring_sol_policy(
+        policy_bytes,
+        committed_policy_hash,
+        recipient,
+        amount_lamports,
+    )?;
+    initialize_policy_spend(
+        intent,
+        committed_policy_hash,
+        policy_spend,
+        policy_spend_bump,
+    )?;
+    if policy_bytes.is_empty() {
+        return Ok(());
+    }
+    let policy = TypedSolPolicy::parse(policy_bytes)?;
+    policy.enforce_allowed_time()?;
+    policy.enforce_velocity(
+        amount_lamports,
+        intent,
+        committed_policy_hash,
+        policy_spend,
+        policy_spend_bump,
+    )?;
+    policy.enforce_send_count(
+        intent,
+        committed_policy_hash,
+        policy_spend,
+        policy_spend_bump,
+    )
+}
+
+/// The current CSP1 numeric fields are denominated in lamports. A token
+/// schedule must not reinterpret those numbers as token base units. Until an
+/// asset-scoped policy format lands, SPL recurring schedules accept only the
+/// reusable recipient and allowed-time controls; the schedule itself binds the
+/// exact token amount and maximum payment count.
+pub fn validate_recurring_token_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+) -> Result<(), ProgramError> {
+    if policy_bytes.is_empty() {
+        return Ok(());
+    }
+    require!(
+        hash_typed_policy(policy_bytes) == committed_policy_hash,
+        WalletError::InvalidPolicy
+    );
+    let policy = TypedSolPolicy::parse(policy_bytes)?;
+    require!(
+        policy.max_amount_lamports == 0
+            && policy.extra_cooldown_seconds == 0
+            && policy.velocity_cap_lamports == 0
+            && policy.velocity_window_seconds == 0
+            && policy.max_send_count == 0
+            && policy.count_window_seconds == 0
+            && policy.required_approvers.is_empty()
+            && policy.member_cap_count == 0
+            && policy.advanced_rules.is_none(),
+        WalletError::RecurringSchedulePolicyUnsupported
+    );
+    policy.enforce_recipient(recipient)
+}
+
+pub fn enforce_recurring_token_payment_policy(
+    policy_bytes: &[u8],
+    committed_policy_hash: [u8; 32],
+    recipient: &[u8; 32],
+) -> Result<(), ProgramError> {
+    validate_recurring_token_policy(policy_bytes, committed_policy_hash, recipient)?;
+    if policy_bytes.is_empty() {
+        return Ok(());
+    }
+    TypedSolPolicy::parse(policy_bytes)?.enforce_allowed_time()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -629,7 +752,7 @@ fn intent_pda(intent: &Intent<'_>) -> Address {
 }
 
 fn bytes_to_keys(bytes: &[u8]) -> Result<&[[u8; 32]], ProgramError> {
-    require!(bytes.len() % 32 == 0, WalletError::InvalidPolicy);
+    require!(bytes.len().is_multiple_of(32), WalletError::InvalidPolicy);
     Ok(unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const [u8; 32], bytes.len() / 32) })
 }
 
@@ -747,7 +870,7 @@ fn parse_extensions(bytes: &[u8]) -> Result<PolicyExtensions<'_>, ProgramError> 
             }
             EXT_MEMBER_ALLOWANCE => {
                 require!(
-                    len > 0 && len % EXT_MEMBER_ALLOWANCE_ENTRY_LEN == 0,
+                    len > 0 && len.is_multiple_of(EXT_MEMBER_ALLOWANCE_ENTRY_LEN),
                     WalletError::InvalidPolicy
                 );
                 let count = len / EXT_MEMBER_ALLOWANCE_ENTRY_LEN;

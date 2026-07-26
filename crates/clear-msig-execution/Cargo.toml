@@ -2,36 +2,36 @@
 name = "clear-msig-execution"
 version = "0.1.0"
 edition = "2021"
+license = "BSD-3-Clause-Clear"
 
 [dependencies]
 clear-msig-command-contract = { path = "../clear-msig-command-contract" }
 clear-msig-intent = { path = "../clear-msig-intent" }
+clear-msig-signing = { path = "../clear-msig-signing" }
 clear-wallet-client = { path = "../../programs/clear-wallet/client" }
 clear-wallet = { path = "../../programs/clear-wallet", features = ["client"] }
-quasar-lang = { git = "https://github.com/blueshift-gg/quasar", branch = "fix/signer-check-and-wincode-versions" }
+quasar-lang = { git = "https://github.com/blueshift-gg/quasar", rev = "0e7559496b86aebe300254d90baa7210672c1cbf" }
 clap = { version = "4", features = ["derive"] }
-# solana-instruction v3 matches quasar's generated types.
-# solana-client/transaction/remote-wallet stay on v2 (v4 is beta-only).
-solana-pubkey = { version = "2", features = ["sha2", "curve25519"] }
-solana-instruction = "2"
-solana-instruction-v3 = { package = "solana-instruction", version = "3" }
-solana-pubkey-v4 = { package = "solana-pubkey", version = "4" }
-solana-signer = "2"
-solana-keypair = "2"
-solana-signature = "2"
-solana-transaction = "2"
-solana-commitment-config = "2"
-solana-client = "2"
-solana-remote-wallet = "2"
-solana-sdk-ids = "2"
-solana-derivation-path = "2"
+# Stable Solana v3 runtime. Keep generated instructions, RPC transactions,
+# keypairs, and hardware-wallet signers on one major and one type graph.
+solana-pubkey = { version = "3", features = ["sha2", "curve25519"] }
+solana-instruction = "3"
+solana-signer = "3"
+solana-keypair = "3"
+solana-signature = "3"
+solana-transaction = "3"
+solana-commitment-config = "3"
+solana-compute-budget-interface = "3"
+solana-account-decoder-client-types = "3.1"
+solana-rpc-client = "3.1"
+solana-rpc-client-api = "3.1"
+solana-remote-wallet = { version = "3.1", features = ["agave-unstable-api"] }
+solana-sdk-ids = "3"
+solana-derivation-path = "3"
 solana-address = { version = "2", features = ["curve25519"] }
-# Umbrella crate kept for the session work that uses solana_sdk::{system_program,
-# pubkey::Pubkey, signer::Signer, instruction::*}. Upstream's "Cli using actual
-# generated types" commit dropped it in favor of split crates; we re-add it
-# here so the dWallet integration code (which predates that split) keeps
-# compiling without a sweeping rewrite.
-solana-sdk = "2"
+# Umbrella SDK remains for transaction assembly; constituent crates above use
+# the same stable major.
+solana-sdk = "3"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 brine-ed25519 = { git = "https://github.com/ChewingGlass/brine-ed25519", default-features = false }
 sha2 = "0.10"

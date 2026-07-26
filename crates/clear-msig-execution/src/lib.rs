@@ -22,7 +22,6 @@ mod lifecycle;
 mod message;
 mod output;
 mod params;
-mod quasar_client;
 mod resolve;
 mod rpc;
 mod signing;
@@ -40,7 +39,7 @@ pub use clear_msig_command_contract::{
 pub use control::ExecutionControl;
 pub use direct::prepare_direct_command;
 pub use execution::prepare_typed_proposal_execution;
-pub use ika::{IkaGrpcPort, IkaSubmitRequest};
+pub use ika::{IkaGrpcPort, IkaSubmitRequest, DEFAULT_GRPC_URL as IKA_PREALPHA_GRPC_URL};
 pub use lifecycle::prepare_typed_proposal_lifecycle;
 pub use rpc::{SolanaRpcFactory, SolanaRpcPort};
 

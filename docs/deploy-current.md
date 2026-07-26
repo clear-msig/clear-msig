@@ -7,9 +7,9 @@ This is the current ClearSig production/devnet deployment shape.
 - On-chain program: Solana devnet `clear_wallet`
 - Program id: `53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v`
 - Current upgrade authority: `GpTfW9LiJb8pM2xmi7oENuUiV1e4LurPu9rzcPfhaJCM`
-- Last deployed slot: `476437950`
-- Current artifact SHA-256: `955b4d5bf9ec6e4c406889b8c40bd44688485250f560d2553dff667ce4786c9a`
-- Deployment signature: `2DiWJE8JtciHYJhHbkGkavTwBQsa9rsHESSLiWBtmXVHwSJV3f3wmzWw2ZQt55gBN1HbBEyEwRx7jeiq65A37M8`
+- Last deployed slot: `477230343`
+- Current artifact SHA-256: `bac83a3792bc29ed6515c9d671134f670219c23d929ac0b25ce907f8ed4d1af0`
+- Deployment signature: `xuMFEJ3xp1TVMQkV5H1pBxmHKxkjUF2wKFPbU9WqSUu7rjxDSaFJRweS6AtA9ercm7y12U2zNNCsTYbikham65w`
 - Local authority keypair: `target/deploy/clear_wallet-keypair.json`
 - Devnet RPC: Alchemy devnet
 - Backend: Railway service `clear-msig-backend`
@@ -18,7 +18,7 @@ This is the current ClearSig production/devnet deployment shape.
   `UPSTASH_REDIS_REST_TOKEN`
 
 Do not use the older `XiVxc8...` authority notes for current deploys.
-Do not default program deploys to `backend-api/keys/payer.json`.
+Do not default program deploys to `apps/api/keys/payer.json`.
 
 ## Program deploy
 
@@ -40,9 +40,12 @@ The helper defaults to:
 PAYER_KEYPAIR=target/deploy/clear_wallet-keypair.json
 UPGRADE_AUTHORITY=target/deploy/clear_wallet-keypair.json
 PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
-DEVNET_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+DEVNET_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 DEPLOY_TRANSPORT=--use-rpc
 ```
+
+Set `DEPLOY_DRY_RUN=1` to verify the artifact, authority, RPC, live program,
+and temporary rent requirement without submitting an on-chain write.
 
 After deploy:
 
@@ -58,7 +61,7 @@ and rerun the helper:
 solana program extend \
   53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v \
   10240 \
-  --url https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH \
+  --url https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY> \
   --keypair target/deploy/clear_wallet-keypair.json
 ```
 
@@ -76,7 +79,7 @@ Required Railway environment:
 
 ```text
 CLEAR_MSIG_ENV=production
-CLEAR_MSIG_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+CLEAR_MSIG_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 CLEAR_MSIG_PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
 CLEAR_MSIG_ALLOWED_ORIGIN=https://clearsig.xyz,https://www.clearsig.xyz
 CLEAR_MSIG_ATTESTATION_DIR=/data/attestations
@@ -90,6 +93,11 @@ CLEAR_MSIG_DEFAULT_GRPC_URL=<Ika gRPC URL>
 CLEAR_MSIG_DEFAULT_DEST_RPC_URL=<destination chain RPC URL>
 ```
 
+`/health` reports `ika_signing_assurance`. The currently deployed Solana Ika
+coordinator is expected to report `prealpha_mock` and
+`ika_distributed_signing=false`. Do not treat infrastructure environment name
+`production` as evidence that distributed MPC is active.
+
 Do not set `BACKEND_API_BIND` or `PORT` manually. Railway provides `PORT`, and
 the entrypoint binds to `0.0.0.0:$PORT`. The container fails closed before
 binding when either Upstash variable or either backend keypair is missing.
@@ -100,17 +108,31 @@ state, and rate-limit store; do not provision a second Redis service.
 
 ## Frontend deploy
 
-Vercel builds `frontend/` with `frontend/vercel.json`.
+Vercel builds `apps/web/` with `apps/web/vercel.json`.
+
+The production `clear-msig` project Root Directory is `apps/web`. Do not add a
+top-level `frontend` alias or symlink: Vercel validates the configured root as
+a real repository directory before it starts the build.
 
 Required Vercel environment:
 
 ```text
 NEXT_PUBLIC_BACKEND_API_URL=https://clear-msig-backend-production.up.railway.app
 NEXT_PUBLIC_CLEAR_WALLET_PROGRAM_ID=53aZBmukjX5sYxbrYVRDd2DWzsRWVmvVFPY6PcyomR5v
-NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/olIm3vyHF32h_G4dZgMPH
+NEXT_PUBLIC_SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/<ALCHEMY_API_KEY>
 UPSTASH_REDIS_REST_URL=<Upstash Redis REST URL>
 UPSTASH_REDIS_REST_TOKEN=<Upstash Redis REST token>
 ```
 
 Redeploy Vercel after frontend API contract, ClearSign hashing, or program id
 changes.
+
+The public backend and frontend version routes expose only a coarse RPC
+provider label. They must never serialize configured RPC endpoints because
+provider paths can contain credentials.
+
+`NEXT_PUBLIC_SOLANA_RPC_URL` is still browser-visible by definition. Its
+provider credential must be restricted to the production origins and minimum
+required methods, or replaced with a server-side RPC proxy before a
+restricted-value pilot. Redacting the version route does not make a public
+browser environment variable secret.

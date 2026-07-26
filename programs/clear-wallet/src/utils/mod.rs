@@ -1,4 +1,5 @@
 pub mod advanced_policy;
+pub mod asset_policy;
 pub mod base58;
 pub mod clearsign;
 pub mod datetime;
@@ -8,3 +9,4 @@ pub mod ika_cpi;
 pub mod keccak;
 pub mod message;
 pub mod policy;
+pub mod token;

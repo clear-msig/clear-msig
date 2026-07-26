@@ -1,6 +1,9 @@
 import time
 import unittest
+import os
+import tempfile
 from decimal import Decimal
+from pathlib import Path
 
 from server import (
     ExecutorSettings,
@@ -8,6 +11,7 @@ from server import (
     ValidationError,
     artifact_from_order_result,
     artifact_from_settlement_fills,
+    load_env_file,
     rounded_size,
     validate_executor_request,
     validate_settlement_request,
@@ -49,6 +53,31 @@ def request():
 
 
 class ExecutorTests(unittest.TestCase):
+    def test_load_env_file_is_read_only_and_preserves_existing_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / ".env"
+            path.write_text(
+                "\n".join(
+                    [
+                        "# comment",
+                        "CLEARSIG_TEST_ENV_LOADER=from-file",
+                        "CLEARSIG_TEST_ENV_EXISTING=from-file",
+                        "QUOTED_VALUE='hello world'",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            os.environ["CLEARSIG_TEST_ENV_EXISTING"] = "already-set"
+            try:
+                load_env_file(path)
+                self.assertEqual(os.environ["CLEARSIG_TEST_ENV_LOADER"], "from-file")
+                self.assertEqual(os.environ["CLEARSIG_TEST_ENV_EXISTING"], "already-set")
+                self.assertEqual(os.environ["QUOTED_VALUE"], "hello world")
+            finally:
+                os.environ.pop("CLEARSIG_TEST_ENV_LOADER", None)
+                os.environ.pop("CLEARSIG_TEST_ENV_EXISTING", None)
+                os.environ.pop("QUOTED_VALUE", None)
+
     def test_accepts_bounded_fresh_request(self):
         self.assertEqual(validate_executor_request(request(), SETTINGS)["network"], "testnet")
 

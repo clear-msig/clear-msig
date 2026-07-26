@@ -1,5 +1,9 @@
 use core::mem::MaybeUninit;
 
+use clear_msig_signing::{
+    committed_escrow_release_payload_hash, committed_escrow_return_payload_hash,
+    execution_commitment, spl_escrow_return_execution_commitment,
+};
 use quasar_lang::prelude::*;
 use quasar_lang::remaining::RemainingAccounts;
 
@@ -10,19 +14,14 @@ use crate::{
         intent::Intent, proposal::ProposalStatus, typed_proposal::TypedProposal,
         wallet::ClearWallet,
     },
-    utils::clearsign::{
-        hash_release_token_milestone_payload, hash_return_token_escrow_payload_iter,
-        ClearSignActionKind, ClearSignAmount,
+    utils::{
+        clearsign::ClearSignActionKind,
+        token::{
+            token_account_address, token_account_state, transfer_tokens, transfer_tokens_view,
+            SPL_TOKEN_ID, TOKEN_ACCOUNT_STATE_INITIALIZED, TOKEN_MINT_OFFSET, TOKEN_OWNER_OFFSET,
+        },
     },
 };
-
-const SPL_TOKEN_ID: Address = address!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-const TOKEN_ACCOUNT_LEN: usize = 165;
-const TOKEN_MINT_OFFSET: usize = 0;
-const TOKEN_OWNER_OFFSET: usize = 32;
-const TOKEN_STATE_OFFSET: usize = 108;
-const TOKEN_ACCOUNT_STATE_INITIALIZED: u8 = 1;
-const TOKEN_ACCOUNT_STATE_FROZEN: u8 = 2;
 
 #[derive(Accounts)]
 pub struct ExecuteTypedSplEscrowRelease<'info> {
@@ -156,18 +155,19 @@ impl<'info> ExecuteTypedSplEscrowRelease<'info> {
             ProgramError::UninitializedAccount
         );
 
-        let amount = ClearSignAmount {
-            asset: self.mint.address().as_ref(),
-            raw_amount: args.amount_tokens as u128,
-        };
-        let payload_hash = hash_release_token_milestone_payload(
-            &args.escrow_id_hash,
-            &args.milestone_id_hash,
+        let execution_commitment = execution_commitment(&[
+            b"spl_escrow_release",
             self.mint.address().as_ref(),
             self.source_token.address().as_ref(),
             self.destination_token.address().as_ref(),
+        ]);
+        let payload_hash = committed_escrow_release_payload_hash(
+            &args.escrow_id_hash,
+            &args.milestone_id_hash,
             self.recipient_owner.address().as_ref(),
-            &amount,
+            self.mint.address().as_ref(),
+            args.amount_tokens as u128,
+            execution_commitment,
         );
         verify_typed_execution_ready(
             &self.intent,
@@ -204,7 +204,7 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
             ProgramError::InvalidInstructionData
         );
         require!(
-            args.amount_tokens_le.len() % 8 == 0,
+            args.amount_tokens_le.len().is_multiple_of(8),
             ProgramError::InvalidInstructionData
         );
         let return_count = args.amount_tokens_le.len() / 8;
@@ -243,7 +243,11 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
         let mut funders: [MaybeUninit<AccountView>; 16] =
             unsafe { MaybeUninit::uninit().assume_init() };
         let mut remaining_iter = remaining.iter();
-        for index in 0..return_count {
+        for (destination_slot, funder_slot) in destinations
+            .iter_mut()
+            .zip(funders.iter_mut())
+            .take(return_count)
+        {
             let destination = remaining_iter
                 .next()
                 .ok_or(ProgramError::NotEnoughAccountKeys)??;
@@ -269,27 +273,31 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
                 token_account_state(&destination)? == TOKEN_ACCOUNT_STATE_INITIALIZED,
                 ProgramError::UninitializedAccount
             );
-            destinations[index].write(destination);
-            funders[index].write(funder);
+            destination_slot.write(destination);
+            funder_slot.write(funder);
         }
         require!(
             remaining_iter.next().is_none(),
             WalletError::AccountCountMismatch
         );
 
-        let payload_hash = hash_return_token_escrow_payload_iter(
-            &args.escrow_id_hash,
+        let execution_commitment = spl_escrow_return_execution_commitment(
             self.mint.address().as_ref(),
             self.source_token.address().as_ref(),
+            (0..return_count)
+                .map(|index| unsafe { destinations[index].assume_init_ref().address().as_ref() }),
+        );
+        let payload_hash = committed_escrow_return_payload_hash(
+            &args.escrow_id_hash,
             (0..return_count).map(|index| {
-                let destination = unsafe { destinations[index].assume_init_ref() };
                 let funder = unsafe { funders[index].assume_init_ref() };
                 (
-                    destination.address().as_ref(),
                     funder.address().as_ref(),
-                    read_amount(args.amount_tokens_le, index),
+                    self.mint.address().as_ref(),
+                    read_amount(args.amount_tokens_le, index) as u128,
                 )
             }),
+            execution_commitment,
         );
         verify_typed_execution_ready(
             &self.intent,
@@ -303,8 +311,8 @@ impl<'info> ExecuteTypedSplEscrowReturn<'info> {
         let vault_seeds = self.vault_seeds(bumps);
         let source = self.source_token.to_account_view();
         let authority = self.vault.to_account_view();
-        for index in 0..return_count {
-            let destination = unsafe { destinations[index].assume_init_ref() };
+        for (index, destination) in destinations.iter().enumerate().take(return_count) {
+            let destination = unsafe { destination.assume_init_ref() };
             transfer_tokens_view(
                 self.token_program,
                 source,
@@ -332,70 +340,4 @@ fn read_amount(amounts_le: &[u8], index: usize) -> u64 {
         amounts_le[offset + 6],
         amounts_le[offset + 7],
     ])
-}
-
-fn transfer_tokens(
-    token_program: &UncheckedAccount,
-    source: &UncheckedAccount,
-    destination: &UncheckedAccount,
-    authority: &UncheckedAccount,
-    vault_seeds: &[Seed],
-    amount: u64,
-) -> Result<(), ProgramError> {
-    transfer_tokens_view(
-        token_program,
-        source.to_account_view(),
-        destination.to_account_view(),
-        authority.to_account_view(),
-        vault_seeds,
-        amount,
-    )
-}
-
-fn transfer_tokens_view(
-    token_program: &UncheckedAccount,
-    source: &AccountView,
-    destination: &AccountView,
-    authority: &AccountView,
-    vault_seeds: &[Seed],
-    amount: u64,
-) -> Result<(), ProgramError> {
-    let mut cpi = DynCpiCall::<3, 9>::new(token_program.address());
-    cpi.push_account(source, false, true)?;
-    cpi.push_account(destination, false, true)?;
-    cpi.push_account(authority, true, false)?;
-    let data = cpi.data_mut() as *mut u8;
-    unsafe {
-        *data = 3;
-        core::ptr::copy_nonoverlapping(amount.to_le_bytes().as_ptr(), data.add(1), 8);
-    }
-    cpi.set_data_len(9)?;
-    cpi.invoke_signed(vault_seeds)
-}
-
-fn token_account_address(account: &AccountView, offset: usize) -> Result<Address, ProgramError> {
-    require!(
-        account.data_len() >= TOKEN_ACCOUNT_LEN,
-        ProgramError::AccountDataTooSmall
-    );
-    let data = unsafe { account.borrow_unchecked() };
-    Ok(Address::new_from_array(
-        data[offset..offset + 32]
-            .try_into()
-            .map_err(|_| ProgramError::InvalidAccountData)?,
-    ))
-}
-
-fn token_account_state(account: &AccountView) -> Result<u8, ProgramError> {
-    require!(
-        account.data_len() >= TOKEN_ACCOUNT_LEN,
-        ProgramError::AccountDataTooSmall
-    );
-    let data = unsafe { account.borrow_unchecked() };
-    let state = data[TOKEN_STATE_OFFSET];
-    require!(
-        state != TOKEN_ACCOUNT_STATE_FROZEN,
-        ProgramError::InvalidAccountData
-    );
-    Ok(state)
 }

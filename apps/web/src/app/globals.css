@@ -1,0 +1,758 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme tokens ─────────────────────────────────────────────────
+ * Dual-theme system. Every theme-sensitive value lives behind a CSS
+ * var; tailwind.config's `colors:` and `boxShadow:` reference these
+ * vars so utility classes resolve consistently in both themes.
+ *
+ * Default (no data-theme) = dark. `[data-theme="light"]` flips the
+ * full palette. theme.ts persists user preference; theme-init-script
+ * applies the right theme before paint to avoid FOUC + the SSR /
+ * hydration mismatch that grounded the previous attempt.
+ *
+ * The user's theme preference applies everywhere, including landing
+ * and onboarding.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Build-stable font tokens. These intentionally use local system
+     stacks so `next build` never needs network access for Google Fonts. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font-numerals: var(--font-mono);
+  --font-grotesk: var(--font-sans);
+
+  /* Surfaces - three steps so modals/popovers can lift above cards. */
+  --clear-canvas: #0c0c0c;
+  --clear-surface-raised: #131316;
+  --clear-surface-elevated: #18181d;
+  --clear-surface-sunken: #0a0a0a;
+
+  /* Text */
+  --clear-text-strong: #ebebeb;
+  --clear-text-soft: rgba(235, 235, 235, 0.6);
+  --clear-text-softer: rgba(235, 235, 235, 0.4);
+
+  /* Borders */
+  --clear-border-soft: rgba(255, 255, 255, 0.08);
+  --clear-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Glass overlays - replace hard-coded `bg-white/[0.04|0.06|0.08]`.
+     Dark = white-on-dark tint; light = black-on-white tint. */
+  --clear-glass-soft: rgba(255, 255, 255, 0.04);
+  --clear-glass-mid: rgba(255, 255, 255, 0.06);
+  --clear-glass-strong: rgba(255, 255, 255, 0.08);
+
+  /* Card 3D shadow components (composed in tailwind.config). Dark
+     uses heavy blacks; light uses soft cool-grey drops. */
+  --clear-card-rim-top: rgba(255, 255, 255, 0.05);
+  --clear-card-rim-bottom: rgba(0, 0, 0, 0.4);
+  --clear-card-shadow-close: rgba(0, 0, 0, 0.5);
+  --clear-card-shadow-mid: rgba(0, 0, 0, 0.35);
+  --clear-card-shadow-far: rgba(0, 0, 0, 0.45);
+  --clear-card-rim-top-raised: rgba(255, 255, 255, 0.08);
+  --clear-card-rim-bottom-raised: rgba(0, 0, 0, 0.5);
+  --clear-card-shadow-close-raised: rgba(0, 0, 0, 0.55);
+  --clear-card-shadow-mid-raised: rgba(0, 0, 0, 0.45);
+  --clear-card-shadow-far-raised: rgba(0, 0, 0, 0.6);
+
+  /* Accent - lime in dark mode (Obsidian & Lime brand). The same
+     identity in light mode would render as invisible yellow on
+     white surfaces, so light mode swaps in a deeper emerald-green
+     (the legacy brand-green) that still reads as the same family
+     but actually shows. text-on-accent flips from black to white
+     to keep button contrast. */
+  --clear-accent: #ccff00;
+  --clear-accent-hover: #d8ff33;
+  --clear-accent-bright: #e0ff66;
+  --clear-text-on-accent: #000000;
+
+  /* Accent glows */
+  --clear-accent-glow-rest: rgba(204, 255, 0, 0.14);
+  --clear-accent-glow-hover: rgba(204, 255, 0, 0.22);
+
+  /* Body backdrop - radial blooms over obsidian linear */
+  --clear-body-bg-image:
+    radial-gradient(60% 40% at 50% -10%, rgba(204, 255, 0, 0.06) 0%, rgba(0, 0, 0, 0) 60%),
+    radial-gradient(40% 30% at 90% 100%, rgba(16, 185, 129, 0.05) 0%, rgba(0, 0, 0, 0) 70%),
+    linear-gradient(180deg, #0a0a0a 0%, #0c0c0c 55%, #0a0a0a 100%);
+  --clear-body-text: #ebebeb;
+  --wallet-dot-primary: rgba(235, 235, 235, 0.075);
+  --wallet-dot-accent: rgba(204, 255, 0, 0.13);
+  --wallet-dot-size: 34px;
+
+  /* Theme switch transition. Apply via .theme-transitioning class on
+     <html> so we only pay the cost during the actual swap, never on
+     every render. */
+  --clear-theme-transition:
+    background-color 220ms ease-out,
+    border-color 220ms ease-out,
+    color 180ms ease-out,
+    box-shadow 220ms ease-out,
+    fill 180ms ease-out;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces - cool, near-white. Elevated = same white with stronger
+     shadow; sunken = a soft cool grey for input fields. */
+  --clear-canvas: #f6f7f9;
+  --clear-surface-raised: #ffffff;
+  --clear-surface-elevated: #ffffff;
+  --clear-surface-sunken: #eef0f4;
+
+  /* Text - slate-near-black with cool tint to match the brand vibe. */
+  --clear-text-strong: #0a0e16;
+  --clear-text-soft: rgba(10, 14, 22, 0.62);
+  --clear-text-softer: rgba(10, 14, 22, 0.42);
+
+  /* Borders - black-on-white tints, mirroring dark's white-on-black. */
+  --clear-border-soft: rgba(10, 14, 22, 0.08);
+  --clear-border-strong: rgba(10, 14, 22, 0.16);
+
+  /* Glass overlays - flip from white-on-dark to black-on-light so
+     `bg-glass-soft/mid/strong` reads correctly on a light canvas. */
+  --clear-glass-soft: rgba(10, 14, 22, 0.03);
+  --clear-glass-mid: rgba(10, 14, 22, 0.05);
+  --clear-glass-strong: rgba(10, 14, 22, 0.08);
+
+  /* Card shadow - lighter, less aggressive on white. Cool slate
+     drops instead of pure black. */
+  --clear-card-rim-top: rgba(255, 255, 255, 0.7);
+  --clear-card-rim-bottom: rgba(10, 14, 22, 0.04);
+  --clear-card-shadow-close: rgba(15, 23, 42, 0.04);
+  --clear-card-shadow-mid: rgba(15, 23, 42, 0.06);
+  --clear-card-shadow-far: rgba(15, 23, 42, 0.08);
+  --clear-card-rim-top-raised: rgba(255, 255, 255, 0.85);
+  --clear-card-rim-bottom-raised: rgba(10, 14, 22, 0.06);
+  --clear-card-shadow-close-raised: rgba(15, 23, 42, 0.08);
+  --clear-card-shadow-mid-raised: rgba(15, 23, 42, 0.10);
+  --clear-card-shadow-far-raised: rgba(15, 23, 42, 0.14);
+
+  /* Accent - the darkest lime in the #ccff00 family that still
+     hits AA contrast on white. Stays visibly the same brand colour
+     as the dark-mode lime (yellow-green tint, not emerald), just
+     dropped down the lightness axis so primary text / buttons /
+     borders read on light surfaces. text-on-accent flips to white
+     because the dark lime needs a white foreground. */
+  --clear-accent: #4d7c0f;
+  --clear-accent-hover: #3f6212;
+  --clear-accent-bright: #65a30d;
+  --clear-text-on-accent: #ffffff;
+
+  /* Accent glows - lime tint at higher opacity so the bloom is
+     visible against white. Matches the dark-mode glow shape but
+     uses the darker lime base. */
+  --clear-accent-glow-rest: rgba(77, 124, 15, 0.20);
+  --clear-accent-glow-hover: rgba(77, 124, 15, 0.32);
+
+  /* Body backdrop - soft warm white with quieter brand blooms. */
+  --clear-body-bg-image:
+    radial-gradient(60% 40% at 50% -10%, rgba(204, 255, 0, 0.10) 0%, rgba(247, 248, 250, 0) 60%),
+    radial-gradient(40% 30% at 90% 100%, rgba(16, 185, 129, 0.08) 0%, rgba(247, 248, 250, 0) 70%),
+    linear-gradient(180deg, #ffffff 0%, #f6f7f9 55%, #f1f3f6 100%);
+  --clear-body-text: #0a0e16;
+  --wallet-dot-primary: rgba(10, 14, 22, 0.13);
+  --wallet-dot-accent: rgba(77, 124, 15, 0.16);
+}
+
+/* Theme-swap transition. Class is added to <html> by setStoredTheme
+   right before the data-theme flip and removed after the transition
+   completes (~250ms). Scoping via class means hover/focus animations
+   keep their own timing on every other interaction. */
+.theme-transitioning,
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: var(--clear-theme-transition) !important;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--clear-body-bg-image);
+  color: var(--clear-body-text);
+  /* Base sans-serif stack . overridden per-page by Tailwind font-sans/display/mono. */
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Smooth scroll only when the user hasn't asked for reduced motion.
+ * Globally-applied smooth scrolling fights iOS Safari momentum
+ * scroll: an anchor jump from a hash change ends up animating into
+ * the user's manual scroll, producing visible jank. Per-call sites
+ * that need smooth still call `scrollIntoView({ behavior: "smooth" })`
+ * explicitly, so they get the right behaviour either way. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ── accessibility ─────────────────────────────────────────────────── */
+
+*:focus-visible {
+  outline: 2px solid var(--clear-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Kill the iOS / Android default tap-highlight flash. Browsers
+   draw a translucent rectangle around any tapped link / button /
+   role="button" element by default, and it reads as a stray border
+   in our otherwise calm UI. We replace it with our own hover /
+   active states (per-component scale, color shifts) which are
+   already wired everywhere. Touch users get the visual feedback
+   from those states; keyboard users still get :focus-visible
+   above. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Form fields keep an explicit focus indicator. Several fields are
+   standalone rather than wrapped, so removing their outline made
+   keyboard focus invisible on those screens. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--clear-accent);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: disable non-essential decorative animations. Critical
+   animations (hover transitions, page transitions) still play because
+   they're coded via framer-motion which respects `useReducedMotion()`
+   directly in each component. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Better scrollbar for desktop dark UI . keeps the page feeling premium. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(22, 163, 74, 0.25);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(22, 163, 74, 0.5);
+  background-clip: content-box;
+}
+
+/* Hide scrollbar on mobile - desktop keeps the styled lime track. */
+@media (max-width: 767px) {
+  html {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge legacy */
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
+/* ── utility classes reused across landing + app ──────────────────── */
+
+.hide-scroll::-webkit-scrollbar {
+  display: none;
+}
+.hide-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.text-pretty {
+  text-wrap: pretty;
+}
+
+/* ── headline weight (post-Fraunces, 2026-05-03) ───────────────────
+ * `font-display` used to swap in Fraunces (semibold by default in
+ * its display masters). After the single-sans rebuild, the class
+ * resolves to Geist - but Geist regular at 2.5rem reads thin and
+ * editorial. Lift to 700 here so every existing call site picks up
+ * the right weight without a 30-file diff. Override with
+ * `font-medium` / `font-semibold` per-call where you want lighter.
+ */
+.font-display {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/* ── landing-only: Obsidian & Lime ─────────────────────────────────
+ * Scoped to `.landing-shell` so the dark/glass/lime aesthetic on the
+ * marketing page doesn't bleed into /app/* (which keeps the existing
+ * canvas/surface-raised semantic tokens).
+ */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes float-slower {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+@keyframes glow-drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(40px, -30px); }
+}
+@keyframes landing-chain-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.landing-shell {
+  --lime: #ccff00;
+  --emerald: #10b981;
+  --obsidian: #0c0c0c;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --landing-display-font: var(--font-grotesk), var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --landing-small-font: "Montserrat", var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--landing-small-font);
+  letter-spacing: 0;
+}
+.landing-shell *,
+.landing-shell .font-mono-tech {
+  font-family: var(--landing-small-font);
+}
+.landing-shell .landing-section-heading,
+.landing-shell .landing-section-heading * {
+  font-family: var(--landing-display-font);
+}
+.landing-shell .glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+}
+.landing-shell .grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+.landing-shell .noise-bg {
+  /* SVG turbulence noise, encoded inline so it ships with the CSS */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>");
+}
+.landing-shell .float-slow { animation: float-slow 6s ease-in-out infinite; }
+.landing-shell .float-slower { animation: float-slower 7.5s ease-in-out infinite; }
+.landing-shell .glow-drift { animation: glow-drift 14s ease-in-out infinite; }
+.landing-shell .landing-chain-marquee {
+  --marquee-fade: 24%;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--marquee-fade),
+    #000 calc(100% - var(--marquee-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--marquee-fade),
+    #000 calc(100% - var(--marquee-fade)),
+    transparent 100%
+  );
+}
+.landing-shell .landing-chain-marquee-track {
+  animation: landing-chain-marquee 30s linear infinite;
+  will-change: transform;
+}
+.landing-shell .landing-chain-marquee:hover .landing-chain-marquee-track {
+  animation-play-state: paused;
+}
+@media (min-width: 640px) {
+  .landing-shell .landing-chain-marquee {
+    --marquee-fade: 16%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-shell .landing-chain-marquee {
+    --marquee-fade: 10%;
+  }
+}
+
+/* Heading "italic" - Space Grotesk has no true italic, so we slant
+ * via skew. Paired with the lime→white gradient text for the
+ * gradient span in the hero headline. */
+.landing-shell .italic-skew {
+  display: inline-block;
+  font-style: italic;
+  transform: skewX(-6deg);
+  background: linear-gradient(135deg, #ccff00 0%, #ebebeb 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Lime CTA: white slide-up reveal on hover */
+.landing-shell .neon-cta {
+  position: relative;
+  overflow: hidden;
+  background-color: #ccff00;
+  color: #000;
+  isolation: isolate;
+  box-shadow: 0 0 14px rgba(204, 255, 0, 0.16);
+  transition: transform 350ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.landing-shell .neon-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  transform: translateY(101%);
+  transition: transform 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
+}
+.landing-shell .neon-cta:hover { transform: scale(1.03); box-shadow: 0 0 18px rgba(204, 255, 0, 0.22); }
+.landing-shell .neon-cta:hover::before { transform: translateY(0); }
+
+/* Hero mockup - flat glass approval card.
+ * The previous 3D tilt distorted the card and clipped content
+ * inside the fixed aspect ratio. The card now sits flat, with
+ * depth coming from the shadow + ambient glow alone. Content
+ * dictates the card's height naturally - no aspect-ratio cage,
+ * no flex-1 stretch in the middle. */
+.landing-shell .hero-mockup-card {
+  /* Solid translucent glass - no lime gradient, no shouty glow.
+     Depth comes from a softened drop shadow alone. */
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 18px 50px -16px rgba(0, 0, 0, 0.55),
+    0 6px 18px -6px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+}
+
+.landing-shell .product-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
+    #101114;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 60px -28px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.landing-shell .product-field {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+/* ── ClearSig app-wide control surface ──────────────────────────────
+ * The product's signature object is the clear-signing receipt: a
+ * readable action, policy facts, and an approval state. These styles
+ * carry that object into every app page through the shared shell and
+ * primitives, without changing the brand lime.
+ */
+.app-experience,
+.clear-ui-root main[class*="bg-canvas"] {
+  isolation: isolate;
+  background: var(--clear-canvas);
+}
+
+.app-experience .app-content-stage::before {
+  content: none;
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+
+.app-experience.wallet-dot-canvas {
+  background-color: var(--clear-canvas);
+  background-image:
+    radial-gradient(circle, var(--wallet-dot-accent) 0 1px, transparent 1.2px),
+    radial-gradient(circle, var(--wallet-dot-primary) 0 1px, transparent 1.2px);
+  background-position: 0 0, calc(var(--wallet-dot-size) / 2) calc(var(--wallet-dot-size) / 2);
+  background-size:
+    var(--wallet-dot-size) var(--wallet-dot-size),
+    var(--wallet-dot-size) var(--wallet-dot-size);
+}
+
+.app-experience .app-mobile-header :is(a, button) {
+  box-shadow: inset 0 0 0 1px var(--clear-border-soft);
+}
+
+.app-experience :is([class*="rounded-card"][class*="bg-surface-raised"], [class*="rounded-2xl"][class*="bg-surface-raised"]),
+.clear-ui-root main[class*="bg-canvas"] :is([class*="rounded-card"][class*="bg-surface-raised"], [class*="rounded-2xl"][class*="bg-surface-raised"]) {
+  box-shadow: var(--clear-card-shadow, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+.clear-receipt-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.clear-receipt-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--clear-accent);
+  box-shadow: 0 0 18px var(--clear-accent-glow-hover);
+}
+
+.clear-receipt-card::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(204, 255, 0, 0.08), transparent 30%),
+    repeating-linear-gradient(180deg, transparent 0 31px, rgba(255, 255, 255, 0.035) 31px 32px);
+  opacity: 0.42;
+}
+
+.clear-receipt-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.clear-receipt-row {
+  background-image: linear-gradient(90deg, rgba(204, 255, 0, 0.035), transparent 44%);
+}
+
+.clear-primary-button {
+  box-shadow:
+    0 14px 34px -20px var(--clear-accent-glow-hover),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.22);
+}
+
+.clear-primary-button:hover {
+  box-shadow:
+    0 18px 42px -20px var(--clear-accent-glow-hover),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+}
+
+.product-experience .product-choice-card,
+.product-experience .product-preview-card {
+  box-shadow:
+    inset 3px 0 0 rgba(204, 255, 0, 0.14),
+    0 24px 90px rgba(0, 0, 0, 0.22);
+}
+
+.landing-shell .intent-rail {
+  background:
+    linear-gradient(90deg, rgba(204, 255, 0, 0.075), rgba(255, 255, 255, 0.025) 34%, rgba(255, 255, 255, 0.018)),
+    rgba(255, 255, 255, 0.018);
+}
+
+.landing-shell .intent-rail::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #ccff00;
+  box-shadow: 0 0 18px rgba(204, 255, 0, 0.34);
+}
+
+.landing-shell .intent-rail-row {
+  background: rgba(12, 12, 12, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Signing-state typing dots - three lime dots that pulse one
+ * after the other. Used by the landing bento "Ada is signing..."
+ * row and by the /app/secure VaultMockup. Generalised (no
+ * `.landing-shell` scope) so it works on any surface. */
+@keyframes signing-dot-pulse {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+.signing-dot {
+  animation: signing-dot-pulse 1.3s ease-in-out infinite;
+}
+.signing-dot:nth-child(2) { animation-delay: 0.18s; }
+.signing-dot:nth-child(3) { animation-delay: 0.36s; }
+
+/* VaultMockup one-shot scan line - sweeps across the card on
+ * entry, then disappears. The accent value is read from the
+ * theme so the line tints correctly in light + dark modes. */
+@keyframes vault-mockup-scan-sweep {
+  0% { transform: translateX(-100%); opacity: 0; }
+  10% { opacity: 0.55; }
+  85% { opacity: 0.55; }
+  100% { transform: translateX(180%); opacity: 0; }
+}
+.vault-mockup-scan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  width: 38%;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--accent) 18%, transparent) 50%,
+    transparent 70%
+  );
+  animation: vault-mockup-scan-sweep 2.4s cubic-bezier(0.22, 1, 0.36, 1) 0.5s 1
+    forwards;
+  opacity: 0;
+}
+
+/* Continuous lime glow on the signed amount. Subtle text-shadow
+ * pulse keeps the focal number alive without distracting from
+ * the rest of the receipt. */
+@keyframes amount-glow-pulse {
+  0%, 100% { text-shadow: 0 0 8px rgba(204, 255, 0, 0.18); }
+  50% { text-shadow: 0 0 14px rgba(204, 255, 0, 0.32); }
+}
+.landing-shell .amount-glow {
+  animation: amount-glow-pulse 2.6s ease-in-out infinite;
+}
+
+/* One-shot lime scan line that sweeps across the receipt when it
+ * enters view - implies the wallet "reading" the signed message.
+ * forwards keeps the line gone after the single pass; the sweep
+ * triggers on `whileInView` via the parent's mount, but since the
+ * pseudo-element animation runs on first paint, we time it via a
+ * delay so it matches the receipt's slide-in. */
+@keyframes receipt-scan-sweep {
+  0% { transform: translateX(-100%); opacity: 0; }
+  10% { opacity: 0.7; }
+  85% { opacity: 0.7; }
+  100% { transform: translateX(180%); opacity: 0; }
+}
+.landing-shell .receipt-scan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    rgba(204, 255, 0, 0) 30%,
+    rgba(204, 255, 0, 0.14) 50%,
+    rgba(204, 255, 0, 0) 70%
+  );
+  width: 40%;
+  animation: receipt-scan-sweep 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.7s 1 forwards;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-shell .float-slow,
+  .landing-shell .float-slower,
+  .landing-shell .glow-drift,
+  .landing-shell .landing-chain-marquee-track,
+  .landing-shell .amount-glow { animation: none !important; }
+  .signing-dot { animation: none !important; }
+  .landing-shell .receipt-scan::after,
+  .vault-mockup-scan::after { display: none; }
+}
+
+/* ── @media print ─────────────────────────────────────────────────
+ * Compliance / audit binder hand-off. Designed for the proposal
+ * detail page (/app/proposals/[id]) but applies globally so any
+ * surface a treasury team prints comes out reader-friendly.
+ *
+ * - Force black-on-white: chip backgrounds, borders, and shadows
+ *   eat ink and don't carry meaning on paper.
+ * - Hide app chrome (sticky bars, FAB, bottom nav) via `print:hidden`
+ *   utility class call sites - page.tsx files apply it where
+ *   appropriate. This block sets the global background + colors.
+ * - Drop motion entirely so animated dots / pulses don't render
+ *   as half-frames.
+ */
+@media print {
+  :root {
+    color-scheme: light only;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  /* Print resets - strip any layered backgrounds, shadows, and
+   * fancy borders so the page renders as plain text + lines. */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    background-image: none !important;
+    background-color: transparent !important;
+    color: #000 !important;
+    border-color: #999 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Halt all CSS animations - most are decorative pings or pulse
+   * skeletons that print as garbled half-frames. */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  /* Bottom-nav, FAB, and other absolutely-positioned overlays
+   * shouldn't follow the user onto the page. The codebase tags
+   * those with print:hidden where they exist; this is the
+   * belt-and-braces fallback for anything missed. */
+  nav[aria-label="Primary"],
+  [data-print="hide"] {
+    display: none !important;
+  }
+  /* Headline scaling - the in-app display sizes are tuned for
+   * mobile screens. On A4/Letter they read as overlarge. */
+  h1,
+  .font-display.text-display-sm,
+  .font-display.text-display-xs {
+    font-size: 1.5rem !important;
+    line-height: 1.2 !important;
+  }
+  /* Force a sane page break after each top-level section so a
+   * long approver list doesn't get stranded across pages with a
+   * widow. */
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

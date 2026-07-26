@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BACKEND_ENV="$ROOT_DIR/backend-api/.env.pre-alpha"
-FRONTEND_ENV="$ROOT_DIR/frontend/.env.local"
+BACKEND_ENV="$ROOT_DIR/apps/api/.env.pre-alpha"
+FRONTEND_ENV="$ROOT_DIR/apps/web/.env.local"
 
 if [[ ! -f "$BACKEND_ENV" ]]; then
   "$ROOT_DIR/scripts/prealpha/bootstrap-backend-env.sh"

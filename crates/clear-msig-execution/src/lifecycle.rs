@@ -17,6 +17,7 @@ impl From<TypedProposalLifecycle> for ProposalAction {
                 nonce,
                 policy_bytes_hex,
                 signable_text,
+                canonical_intent_hex,
                 expiry,
             } => Self::TypedCreate {
                 wallet,
@@ -29,6 +30,7 @@ impl From<TypedProposalLifecycle> for ProposalAction {
                 nonce,
                 policy_bytes_hex,
                 signable_text,
+                canonical_intent_hex,
                 expiry,
             },
             TypedProposalLifecycle::Approve { wallet, proposal } => {
@@ -162,6 +164,7 @@ mod tests {
             nonce: "nonce".into(),
             policy_bytes_hex: Some("00".into()),
             signable_text: Some("readable".into()),
+            canonical_intent_hex: None,
             expiry: Some("expiry".into()),
         }
         .into();
@@ -194,6 +197,7 @@ mod tests {
                 nonce: "nonce".into(),
                 policy_bytes_hex: None,
                 signable_text: Some("x".repeat(16 * 1024 + 1)),
+                canonical_intent_hex: None,
                 expiry: None,
             },
         );
@@ -216,6 +220,7 @@ mod tests {
                 nonce: "nonce".into(),
                 policy_bytes_hex: None,
                 signable_text: Some("ClearSign v2\nWallet Team\nSend 1 SOL".into()),
+                canonical_intent_hex: None,
                 expiry: None,
             },
         );

@@ -127,6 +127,8 @@ pub struct TypedDryRunDescriptor<'a> {
     pub envelope_hash_hex: String,
     pub action_id: String,
     pub nonce: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_intent_hex: Option<String>,
     /// Exact readable ClearSign proposal document bytes to sign.
     pub message_hex: String,
     pub message_flavor: &'a str,

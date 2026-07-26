@@ -1,3 +1,4 @@
+use clear_msig_signing::committed_transfer_payload_hash;
 use quasar_lang::{prelude::*, sysvars::Sysvar as _};
 use sha2::{Digest, Sha256};
 
@@ -22,7 +23,7 @@ use crate::{
         wallet::ClearWallet,
     },
     utils::{
-        clearsign::{hash_send_payload, ClearSignActionKind, ClearSignAmount},
+        clearsign::ClearSignActionKind,
         ika_cpi::{DWalletContext, CPI_AUTHORITY_SEED},
         policy::{enforce_typed_remote_send_policy, enforce_wallet_policy_account},
     },
@@ -160,11 +161,12 @@ impl<'info> IkaSignTypedChainSend<'info> {
             &args.asset_id_hash,
         )?;
 
-        let amount = ClearSignAmount {
-            asset: &args.asset_id_hash,
-            raw_amount: amount_raw,
-        };
-        let payload_hash = hash_send_payload(&args.recipient_hash, &amount);
+        let payload_hash = committed_transfer_payload_hash(
+            &args.recipient_hash,
+            &args.asset_id_hash,
+            amount_raw,
+            args.tx_template_hash,
+        );
         verify_typed_execution_ready(
             &self.intent,
             &self.proposal,
@@ -178,18 +180,18 @@ impl<'info> IkaSignTypedChainSend<'info> {
             self.wallet_policy,
             args.chain_kind,
             args.policy_commitment,
-            self.proposal.policy_bytes().as_ref(),
+            self.proposal.policy_bytes(),
         )?;
         enforce_typed_remote_send_policy(
-            self.proposal.policy_bytes().as_ref(),
+            self.proposal.policy_bytes(),
             args.policy_commitment,
             &args.recipient_hash,
             amount_raw,
             &self.intent,
             &self.proposal,
-            &mut self.policy_spend,
+            self.policy_spend,
             bumps.policy_spend,
-            &mut self.member_allowance,
+            self.member_allowance,
             bumps.member_allowance,
         )?;
 
@@ -459,6 +461,7 @@ fn pkh_text_commitment(prefix: &[u8], pkh: &[u8; 20]) -> [u8; 32] {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 

@@ -1,6 +1,7 @@
 # Security model
 
-Honest accounting of attack surfaces in Clear today + what's mitigated, what's open, and what's deferred. Written by walking the codebase as an attacker would; updated when the model changes.
+Honest accounting of attack surfaces in ClearSig today, including what is
+mitigated, open, and deferred. It is updated when the model changes.
 
 The product is in pre-alpha. Native-chain recipient, amount, time, velocity,
 member-allowance, approval, and cooldown controls are enforced by the deployed
@@ -25,7 +26,7 @@ Agent session, loss, exposure, and settlement controls are documented in
 - `<WalletPopupNarration>` adapts its copy: software wallets get the "technical-looking text is normal" disclaimer, Ledger users get "read the device — it shows the full message."
 - For contact-resolved sends, `<SignPayloadPreview>` shows the abbreviated destination address alongside the contact name, so a `localStorage`-tampered contact (see C) is easier to spot.
 - Strict CSP (`frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`) closes the trivial frame-injection paths a hostile script might use to host a fake wallet popup.
-- **Client-side sign-payload rebuild + verify.** Every signed write goes through `signDescriptor()` in `useSignWithWallet`. The hook fetches the on-chain intent account from Solana RPC, parses it, rebuilds the offchain-wrapped signable bytes locally with `buildSignableMessage`, and byte-compares against the descriptor's `message_hex` before opening the wallet popup. A mismatch throws `WalletSignError("message_mismatch")`. The wallet signs the locally-rebuilt bytes, not the backend-supplied bytes. See `frontend/src/lib/msig/verify.ts`.
+- **Client-side sign-payload rebuild + verify.** Every signed write goes through `signDescriptor()` in `useSignWithWallet`. The hook fetches the on-chain intent account from Solana RPC, parses it, rebuilds the offchain-wrapped signable bytes locally with `buildSignableMessage`, and byte-compares against the descriptor's `message_hex` before opening the wallet popup. A mismatch throws `WalletSignError("message_mismatch")`. The wallet signs the locally-rebuilt bytes, not the backend-supplied bytes. See `apps/web/src/lib/msig/verify.ts`.
 
 **Mitigation today (Ledger path — closes this surface end-to-end).**
 - Ledger over WebHID is a first-class signer in the retail app. `useWallet` prefers an active `LedgerSession` over Dynamic; all signing routes through `Solana.signOffchainMessage` on the device.
@@ -60,7 +61,7 @@ Agent session, loss, exposure, and settlement controls are documented in
 **Mitigation today.**
 - React auto-escapes by default. The codebase has zero uses of `dangerouslySetInnerHTML`. Confirmed: `grep -r dangerouslySetInnerHTML src/` returns nothing. No `innerHTML =`, no `eval(`, no `postMessage` listeners.
 - Strict CSP defence-in-depth: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`. Enforced policy still allows inline scripts/styles (Next 15 hydration + framer-motion + Tailwind runtime need them).
-- Per-request nonce + `'strict-dynamic'` CSP shipped as `Content-Security-Policy-Report-Only` via `frontend/src/middleware.ts`. Modern browsers report violations to console without blocking; once the violation report is clean we flip the header name from `-Report-Only` to enforcing in one line. Server components can read the nonce via `headers().get('x-nonce')` for any custom `<Script>` they emit.
+- Per-request nonce + `'strict-dynamic'` CSP shipped as `Content-Security-Policy-Report-Only` via `apps/web/src/middleware.ts`. Modern browsers report violations to console without blocking; once the violation report is clean we flip the header name from `-Report-Only` to enforcing in one line. Server components can read the nonce via `headers().get('x-nonce')` for any custom `<Script>` they emit.
 - Email template (`buildMultisigInviteEmail`) escapes every interpolated value.
 
 **Caveat.** SVG / icon libraries we depend on (lucide-react, framer-motion) need their own audits. Worth a periodic `npm audit` pass — see surface M.
@@ -126,7 +127,7 @@ Agent session, loss, exposure, and settlement controls are documented in
 **Vector / motivation.** This is not a vulnerability — it's the hardening tier the upstream `Iamknownasfesal/clear-msig-ika` repo's "clear signing" claim was built around, and the one most retail flows opt out of by going email-first.
 
 **Mitigation today.**
-- `frontend/src/lib/wallet/ledger.ts` connects via `@ledgerhq/hw-transport-webhid` and signs via `Solana.signOffchainMessage`. The bytes handed over are exactly the `wrapOffchain(body)` output, so the Solana app on the device renders the body as text and asks the user to confirm on hardware.
+- `apps/web/src/lib/wallet/ledger.ts` connects via `@ledgerhq/hw-transport-webhid` and signs via `Solana.signOffchainMessage`. The bytes handed over are exactly the `wrapOffchain(body)` output, so the Solana app on the device renders the body as text and asks the user to confirm on hardware.
 - `LedgerProvider` + `useLedger` give the rest of the app a `session` to read; `useWallet` prefers it over Dynamic.
 - `/connect` and `/security` both expose connect buttons. Friendly error mapping for "no device", "app not open", "rejected on device", "transport lost".
 
@@ -154,7 +155,7 @@ Agent session, loss, exposure, and settlement controls are documented in
 - Tight token-bucket rate limit (5 burst, 1 every 30 seconds per IP). A real signer never trips this.
 - Body fields are length-clamped and stripped of CR/LF/control characters before they reach nodemailer (defence-in-depth on top of nodemailer's own header sanitization).
 - Email + base58 address fields are regex-validated; malformed values 400 before SMTP fires.
-- `nodemailer` bumped to v8 to clear several SMTP-command-injection CVEs (`GHSA-vvjj-xcjg-gr5g`, `GHSA-c7w3-x93f-qmm8`, etc.).
+- `nodemailer` bumped to v9 to clear known SMTP-command-injection advisories.
 
 **What this does NOT mitigate.** A spammer running through a botnet of cold Vercel instances can still exceed the in-process budget. Real fix is the same KV-backed limiter as surface E.
 
@@ -164,8 +165,8 @@ Agent session, loss, exposure, and settlement controls are documented in
 
 **Mitigation today.**
 - Removed the entire `@solana/wallet-adapter-*` package family (dead code after the Dynamic migration). This cleared 700+ packages and 8 critical vulns including `protobufjs` arbitrary code execution (via the Trezor adapter we never used).
-- `nodemailer` bumped to v8 (multiple SMTP-injection fixes).
-- `npm audit --omit=dev` now reports 0 critical, 10 high — all transitive through `@dynamic-labs/*` and `@solana/spl-token`. The high-severity items (axios DoS / SSRF, lodash prototype pollution, bigint-buffer overflow) are not directly reachable from our code paths: we never hand attacker-controlled URLs to axios, never call `_.template`/`_.unset` with user paths, and Solana token amount parsing comes from chain rather than user input.
+- `nodemailer` bumped to v9 (multiple SMTP-injection fixes).
+- The production dependency ratchet reports 0 critical findings and four high package nodes in one transitive Dynamic/Solana chain ending at `bigint-buffer@1.1.5`. The registry has no patched `bigint-buffer` release. This remains accepted pre-alpha debt, not a resolved or proven-unreachable risk; see `docs/security/dependency-risk.md`.
 
 **What this does NOT mitigate.** Upstream-blocked. When Dynamic and `@solana/spl-token` ship updated transitives, re-run `npm audit` and bump.
 
@@ -193,41 +194,42 @@ while a signed-in browser is active; this is not background push. Adding a
 chain indexer or worker would allow notifications to arrive while every client
 is offline.
 
-### O. ClearSign v3 typed proposals
+### O. ClearSign v4 canonical typed proposals
 
-**Vector.** The product creates typed v3 approval records for escrow and
-future protected actions. A bad implementation could let a signer approve one
-human-readable action while the program records or executes a different action,
-or could let the same signature be replayed against another proposal/wallet.
+**Vector.** A bad implementation could let a signer approve one human-readable
+action while the program records or executes a different action, or replay the
+same signature against another proposal, wallet, network, or policy.
 
 **Mitigation today.**
-- The program domain-separates action payload hashes, envelope hashes, and vote
-  hashes in `programs/clear-wallet/src/utils/clearsign.rs`.
+- `clear-msig-signing` owns a fixed-order, versioned, non-JSON canonical schema,
+  action payload hashes, deterministic rendering, device profiles, and golden
+  vectors. The backend and program consume the same no-std crate.
 - Typed proposal signatures bind vote kind, wallet PDA, proposal index, and
   envelope hash. Propose, approve, and cancel votes are not interchangeable.
-- The program recomputes the envelope hash from action kind, wallet name,
-  wallet PDA, action id, nonce, expiry, policy commitment, and payload hash
-  before storing a typed proposal.
-- The signed v3 document has ordered `ACTION`, `DETAILS`, `POLICY`, `RISK`, and
+- The program parses canonical bytes, renders the exact document, and recomputes
+  the envelope from action kind, network, proposal, wallet, actor, action ID,
+  nonce, expiry, threshold, policy, payload, and document hash before storage.
+- The signed v4 document has ordered `ACTION`, `DETAILS`, `POLICY`, `RISK`, and
   `PURPOSE` sections. The approval wrapper binds the signer, proposal index,
   threshold, resulting approval count, exact UTC expiry, and full envelope hash.
-- New v2 proposals are rejected. Existing v2 records retain a narrow
+- The backend independently recomputes the canonical assertions, exact rendered
+  document, document hash, and envelope before invoking execution.
+- New v2/v3 proposals are rejected. Existing records retain a narrow
   approve/cancel compatibility path so migration does not strand funds.
 - The program rejects expired typed proposals and caps action lifetime.
 - Execute rechecks action kind, policy commitment, payload hash, envelope hash,
   status, expiry, and timelock before marking a typed proposal executed.
-- Typed SOL escrow release and return-to-funder executors recompute the payload
-  hash from the actual destination account(s), amount(s), escrow id, and
-  milestone id before moving lamports from the wallet vault.
+- SOL, SPL, remote-chain, escrow, governance, policy, and agent executors
+  recompute their action-specific fields from actual accounts and instruction
+  arguments. Remote sends bind the immutable onchain transaction template;
+  cross-chain/private escrow additionally bind settlement evidence.
 - Frontend typed proposal parsing and PDA derivation have regression tests, so
   the proposal inbox/detail UI does not silently drift from program layout.
 
-**What this does NOT mitigate yet.** The program binds the exact signed text,
-payload hash, policy commitment, and execution inputs, but does not derive every
-human sentence from the raw payload. Until action-specific onchain document
-renderers or approved template identifiers exist, the trusted preparation
-clients remain responsible for truthful prose. Device-specific compact hardware
-templates are also not active yet.
+**What this does NOT mitigate yet.** Swap, staking, arbitrary contract calls,
+and governance votes have no action-specific authoritative executor and remain
+review-only with approval disabled. The compact hardware profile is implemented
+for Ledger Solana; other devices require measured, versioned capability data.
 
 ## Posture summary
 
@@ -247,14 +249,15 @@ What's solid today:
 - One-click passkey enrollment for embedded-wallet users on /security; soft passkey nudge after wallet create
 - SMTP body sanitization + tight invite limits
 - Replay protection via signed nonce in messages
-- ClearSign v3 typed proposal documents and hashes/signatures for escrow, sends, wallet policy, and **intent governance** (members/threshold/timelock)
+- ClearSign v4 canonical proposal documents and transaction binding for sends,
+  escrow, wallet policy, intent governance, and current agent actions
 - TSS-MPC keys via Dynamic (single-host compromise resistant)
 - Pre-alpha caveat on every "encrypted" / "private" chip
-- 0 critical npm vulns; high-severity remainders are transitive + non-reachable
+- 0 critical npm findings; four high transitive package nodes remain explicitly unresolved
 
 What's load-bearing pre-alpha and ships when the network does:
 - **FHE-encrypted policies are NOT live today.** Honest accounting of where each layer stands:
-  - Frontend (`frontend/src/lib/encrypt/client.ts`): wired. Every policy change routes through `encryptPolicy` / `encryptPolicyBatch`. When `NEXT_PUBLIC_ENCRYPT_GRPC_URL` and `NEXT_PUBLIC_ENCRYPT_NETWORK_KEY_HEX` are set, the browser calls Encrypt's published pre-alpha gRPC-Web `createInput` endpoint and forwards the returned ciphertext identifiers. Without those env vars it falls back to the local pre-alpha stub.
+  - Frontend (`apps/web/src/lib/encrypt/client.ts`): wired. Every policy change routes through `encryptPolicy` / `encryptPolicyBatch`. When `NEXT_PUBLIC_ENCRYPT_GRPC_URL` and `NEXT_PUBLIC_ENCRYPT_NETWORK_KEY_HEX` are set, the browser calls Encrypt's published pre-alpha gRPC-Web `createInput` endpoint and forwards the returned ciphertext identifiers. Without those env vars it falls back to the local pre-alpha stub.
   - Execution library (`crates/clear-msig-execution/src/commands/intent.rs`): receives the ciphertext IDs and **logs them only** (`[encrypt] intent-add received N policy ciphertext id(s): …`). They are not forwarded into the on-chain instruction yet.
   - Solana program (`programs/clear-wallet/`): has zero FHE-aware code today. No `#[encrypt_fn]` handlers, no `EUint*` types, no encrypted-bytes account fields. Approval threshold + allowance arithmetic operate on plaintext.
   - Net: a "flip a flag and you're encrypting" story would be misleading. The program work is the bulk of the lift; the frontend can now exercise Encrypt's pre-alpha API surface. UI status text (`encryptStatus().description`) and the /privacy page reflect this.

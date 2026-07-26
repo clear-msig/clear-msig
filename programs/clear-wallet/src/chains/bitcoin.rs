@@ -20,7 +20,7 @@
 //!   3.  hashSequence   (32)
 //!   4.  outpoint       (36)
 //!   5.  scriptCode     (varint length + bytes; for P2WPKH this is
-//!                       `1976a914{20-byte-pubkey-hash}88ac` = 26 bytes total)
+//!       `1976a914{20-byte-pubkey-hash}88ac` = 26 bytes total)
 //!   6.  amount         (8 LE) — value of the input being spent
 //!   7.  nSequence      (4 LE)
 //!   8.  hashOutputs    (32)

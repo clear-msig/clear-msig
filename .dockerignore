@@ -3,10 +3,20 @@ target/
 **/node_modules/
 .git/
 .github/
-frontend/.next/
-frontend/.env*
-backend-api/.env*
+apps/web/.next/
+apps/web/.env*
+apps/api/.env*
+**/.env
+**/.env.*
+!**/.env.example
 deps/*/target/
+*.keypair.json
+*.pem
+*.p12
+*.pfx
+*.mnemonic
+*.seed
+id.json
 
 # OS noise
 .DS_Store

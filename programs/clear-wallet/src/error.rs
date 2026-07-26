@@ -80,4 +80,10 @@ pub enum WalletError {
     AgentSettlementInvalid,
     /// A new typed proposal attempted to use a legacy ClearSign document.
     ClearSignVersionDowngrade,
+    /// Recurring schedule is revoked, complete, malformed, or not active.
+    RecurringScheduleInactive,
+    /// Recurring schedule cannot execute before its next on-chain due time.
+    RecurringScheduleNotDue,
+    /// Recurring schedule policy contains rules that cannot be safely replayed.
+    RecurringSchedulePolicyUnsupported,
 }

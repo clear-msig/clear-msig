@@ -4,12 +4,16 @@
 # Security-critical ownership is stated explicitly so these paths cannot drift
 # out of review as the repository grows.
 /programs/clear-wallet/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
+/programs/clear-wallet/client/src/generated/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
 /crates/clear-msig-command-contract/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
 /crates/clear-msig-execution/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
-/backend-api/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
-/frontend/src/features/agents/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
-/frontend/src/lib/agents/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
+/apps/api/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
+/apps/settlement/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
+/apps/web/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
+/crates/clear-msig-signing/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
+/apps/web/src/features/agents/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
+/apps/web/src/lib/agents/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
 /.github/ @Almils @Prozymax @Rexzy2005 @HackingSpectre
 /Dockerfile @Almils @Prozymax @Rexzy2005 @HackingSpectre
-/render.yaml @Almils @Prozymax @Rexzy2005 @HackingSpectre
+/railway.json @Almils @Prozymax @Rexzy2005 @HackingSpectre
 /scripts/prealpha/ @Almils @Prozymax @Rexzy2005 @HackingSpectre

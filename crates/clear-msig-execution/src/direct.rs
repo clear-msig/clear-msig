@@ -34,6 +34,12 @@ pub fn prepare_direct_command(
         DirectCommand::WalletShow { name } => Command::Wallet {
             action: WalletAction::Show { name },
         },
+        DirectCommand::WalletPolicyCommitment { wallet, chain_kind } => Command::Wallet {
+            action: WalletAction::PolicyCommitment { wallet, chain_kind },
+        },
+        DirectCommand::AssetPolicyCommitment { wallet, asset_id } => Command::Wallet {
+            action: WalletAction::AssetPolicyCommitment { wallet, asset_id },
+        },
         DirectCommand::WalletAddChain {
             wallet,
             chain,

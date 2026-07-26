@@ -1,3 +1,7 @@
+use clear_msig_signing::{
+    committed_escrow_release_payload_hash, committed_escrow_return_payload_hash,
+    execution_commitment,
+};
 use quasar_lang::prelude::*;
 use sha2::{Digest, Sha256};
 
@@ -8,10 +12,7 @@ use crate::{
         intent::Intent, proposal::ProposalStatus, typed_proposal::TypedProposal,
         wallet::ClearWallet,
     },
-    utils::clearsign::{
-        hash_private_escrow_release_payload, hash_private_escrow_return_payload,
-        ClearSignActionKind, ClearSignAmount,
-    },
+    utils::clearsign::ClearSignActionKind,
 };
 
 #[derive(Accounts)]
@@ -84,18 +85,19 @@ impl<'info> ExecuteTypedPrivateEscrowRelease<'info> {
         require!(amount_raw > 0, ProgramError::InvalidInstructionData);
         verify_policy_ciphertexts_hash(&self.intent, &args.policy_ciphertexts_hash)?;
 
-        let amount = ClearSignAmount {
-            asset: &args.asset_id_hash,
-            raw_amount: amount_raw,
-        };
-        let payload_hash = hash_private_escrow_release_payload(
-            &args.escrow_id_hash,
-            &args.milestone_id_hash,
-            &args.recipient_hash,
-            &amount,
+        let execution_commitment = execution_commitment(&[
+            b"private_escrow_release",
             &args.policy_ciphertexts_hash,
             &args.private_evaluation_hash,
             &args.settlement_artifact_hash,
+        ]);
+        let payload_hash = committed_escrow_release_payload_hash(
+            &args.escrow_id_hash,
+            &args.milestone_id_hash,
+            &args.recipient_hash,
+            &args.asset_id_hash,
+            amount_raw,
+            execution_commitment,
         );
         verify_typed_execution_ready(
             &self.intent,
@@ -120,17 +122,21 @@ impl<'info> ExecuteTypedPrivateEscrowReturn<'info> {
         require!(amount_raw > 0, ProgramError::InvalidInstructionData);
         verify_policy_ciphertexts_hash(&self.intent, &args.policy_ciphertexts_hash)?;
 
-        let amount = ClearSignAmount {
-            asset: &args.asset_id_hash,
-            raw_amount: amount_raw,
-        };
-        let payload_hash = hash_private_escrow_return_payload(
-            &args.escrow_id_hash,
-            &args.refund_recipient_hash,
-            &amount,
+        let execution_commitment = execution_commitment(&[
+            b"private_escrow_return",
             &args.policy_ciphertexts_hash,
             &args.private_evaluation_hash,
             &args.settlement_artifact_hash,
+        ]);
+        let rows = [(
+            args.refund_recipient_hash.as_slice(),
+            args.asset_id_hash.as_slice(),
+            amount_raw,
+        )];
+        let payload_hash = committed_escrow_return_payload_hash(
+            &args.escrow_id_hash,
+            rows.into_iter(),
+            execution_commitment,
         );
         verify_typed_execution_ready(
             &self.intent,
