@@ -58,6 +58,8 @@ function fixture() {
     readObservedRisk: vi.fn(async () => structuredClone(observed)),
     ledger: {
       claim: vi.fn(async () => ({ state: "acquired" as const, leaseId: "lease-1" })),
+      lookup: vi.fn(async () => null),
+      beginSubmission: vi.fn(async () => undefined),
       complete: vi.fn(async () => undefined), blockBeforeSubmission: vi.fn(async () => undefined),
       markUncertain: vi.fn(async () => undefined),
     },
@@ -217,5 +219,39 @@ describe("new order descriptor binding", () => {
     for (const changed of [{ stopLossPrice: "" }, { notionalUsdRaw: "1.1" }, { leverageMode: "cross" }, { version: 1 }]) {
       expect(() => agentVenueOrderCommitment({ ...f.order, ...changed } as AgentVenueOrderV2)).toThrow();
     }
+  });
+});
+
+
+describe("durable handoff and recovery", () => {
+  it("does not submit or release a possibly persisted handoff after a lost storage response", async () => {
+    const f = fixture();
+    vi.mocked(f.ports.ledger.beginSubmission).mockRejectedValue(new Error("response lost"));
+    vi.mocked(f.ports.ledger.markUncertain).mockRejectedValue(new Error("storage offline"));
+    await expect(f.execute()).rejects.toThrow("response lost");
+    expect(f.ports.venue.submitProtectedOrder).not.toHaveBeenCalled();
+    expect(f.ports.ledger.blockBeforeSubmission).not.toHaveBeenCalled();
+  });
+  it("rechecks expiry after a slow durable handoff", async () => {
+    const f = fixture();
+    vi.mocked(f.ports.ledger.beginSubmission).mockImplementation(async () => { f.ports.now = () => now + 120000; });
+    await expect(f.execute()).rejects.toThrow("grant");
+    expect(f.ports.venue.submitProtectedOrder).not.toHaveBeenCalled();
+    expect(f.ports.ledger.markUncertain).toHaveBeenCalled();
+  });
+  it("reconciles an existing uncertain delivery after expiry without reacquiring authority", async () => {
+    const f = fixture(); f.ports.now = () => now + 120000;
+    vi.mocked(f.ports.ledger.lookup).mockResolvedValue({ state: "uncertain" });
+    await expect(createAgentVenueExecutionBridge(f.ports).reconcileExisting({ order: f.order, proposalPda })).resolves.toEqual(f.receipt);
+    expect(f.ports.readFinalizedTradeAuthority).not.toHaveBeenCalled();
+    expect(f.ports.ledger.claim).not.toHaveBeenCalled();
+    expect(f.ports.venue.submitProtectedOrder).not.toHaveBeenCalled();
+    expect(f.ports.ledger.complete).toHaveBeenCalledWith(f.deliveryKey, null, f.receipt);
+  });
+  it("cannot use recovery to create a new delivery", async () => {
+    const f = fixture();
+    await expect(createAgentVenueExecutionBridge(f.ports).reconcileExisting({ order: f.order, proposalPda })).rejects.toThrow("No uncertain");
+    expect(f.ports.venue.reconcile).not.toHaveBeenCalled();
+    expect(f.ports.ledger.claim).not.toHaveBeenCalled();
   });
 });

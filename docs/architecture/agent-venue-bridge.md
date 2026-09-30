@@ -1,6 +1,6 @@
 # Agent venue authorization bridge
 
-Status: contract implementation and mocked tests; external execution is blocked.
+Status: real finalized Solana reader and Redis registry/delivery ledger implemented locally; external execution remains blocked. Offline RPC fixtures and real local Redis integration tests cover these adapters; no live provider execution is claimed.
 This gate applies to testnet as well as production. Setting executor credentials
 cannot enable it. No live accounts, grants, keys, or orders are created by this
 implementation.
@@ -53,14 +53,35 @@ into API routes and do not authorize real transactions by themselves.
 reports `authorization_required` even with valid credentials. Legacy direct
 order, settlement and kill-switch helpers throw before `fetch`.
 
-Required reviewed implementations before enabling any route:
+Implemented adapters, still requiring reviewed integration and deployment configuration:
 
-- Finalized authority reader pinned to the deployment's chain/program, checking
-  actual owner/layout/PDA and canonical bytes, with an explicit finality policy
-- Exclusive canonical-wallet/venue-account registry with approved assignment,
-  rotation and recovery semantics; display names are never registry identity
-- Durable atomic delivery ledger with account-scoped risk reservations, changed
-  payload rejection, non-evicting consumption records and restart reconciliation
+- `serverSolanaTradeAuthority.ts`: pinned genesis/program, finalized multi-account
+  snapshot with `minContextSlot`, owner/layout/PDA/bump verification, exact v4
+  payload/envelope recomputation, threshold bitmap and session/risk identity.
+  No request selects the RPC/deployment. Tests use synthetic account bytes;
+  live deployed-program compatibility is not yet verified.
+- `serverVenueRedis.ts`: atomic immutable initial wallet/account/API-key-address
+  bindings, including cross-role/cross-deployment account collision rejection.
+  Rotation/recovery is deliberately unsupported pending an explicit workflow.
+  No API exposes registration and no account/credential is provisioned.
+- The same adapter provides atomic reservations, durable pre-send handoff,
+  changed-payload rejection and receipt completion. Lease expiry becomes
+  uncertain and never authorizes another send. All records are non-expiring;
+  the service must use durable persistence, no eviction, and the same venue
+  registry across deployments. Local integration tests use actual Redis AOF,
+  `appendfsync always`, `noeviction` and a database restart.
+- `reconcileExisting` may resolve a previously recorded uncertain delivery after
+  grant expiry/revocation without claiming or submitting an order. A lost storage
+  response cannot release a possibly persisted handoff.
+
+Still-required code before enabling any route:
+
+- Authoritative resolution of venue limits (daily loss/cooldown/open positions/
+  take-profit) bound to approved policy. Existing typed policy bytes do not
+  encode all of these fields; `resolveCommittedLimits` is mandatory with no
+  default. A callback returning an echoed commitment is not a finished adapter.
+- Canonical v2 order preparation and authenticated server composition of these
+  adapters; existing legacy order routes must not acquire new v2 semantics
 - Native venue adapter that truly guarantees atomic protected entry and verifies
   exact reduce-only stop/take-profit orders through independent reads
 - Separate threshold-authorized close/emergency-stop contract. Post-fill
@@ -99,6 +120,26 @@ budgets, venue assignments and trade history stay preserved separately.
 
 Server routes now require a signed Dynamic session and fresh program-owned governance membership for private access. Storage runs in a mandatory canonical-wallet request context and uses new v2 namespaces; old name-only Redis records are preserved unassigned, never inferred to belong to the current caller. Public profile reads resolve the canonical wallet separately and remain publication-filtered.
 
-Storage and signal domains use the genesis hash discovered through the fixed server Connection plus the configured program ID. The genesis reader validates the returned hash, caches by Connection, evicts failed reads and checks NEXT_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH when configured. Browser local scope also uses the resolved genesis, with endpoint changes invalidating the wallet query. Provider/API-key rotation on the same chain preserves the namespace; another genesis is isolated. The production execution bridge still requires a real pinned-chain canonical authority reader, not merely this identity discovery.
+Storage and signal domains use the genesis hash discovered through the fixed server Connection plus the configured program ID. The genesis reader validates the returned hash, caches by Connection, evicts failed reads and checks NEXT_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH when configured. Browser local scope also uses the resolved genesis, with endpoint changes invalidating the wallet query. Provider/API-key rotation on the same chain preserves the namespace; another genesis is isolated. The production execution bridge has a separate pinned-chain canonical authority reader, but it is not wired into execution routes; discovery alone remains insufficient.
 
 `serverSettlementProof.ts` defines the exact finalized threshold settlement predicate, with wallet/policy/session/execution/artifact/oracle/closed-size/PnL/sequence checks. Settlement proof promotion remains blocked until a real trusted reader and immutable native-evidence claim store are wired into that predicate.
+
+
+## Evidence and operational limits for the local adapter slice
+
+RPC methods follow the official [getMultipleAccounts](https://solana.com/docs/rpc/http/getmultipleaccounts)
+and [getGenesisHash](https://solana.com/docs/rpc/http/getgenesishash) contracts.
+Binary/hash layouts mirror the checked-in Rust state structs and
+`crates/clear-msig-signing/src/hashing.rs`. This is a trusted RPC verification
+adapter, not a Solana light client. Program identity/version and RPC trust must
+be reviewed at configuration time; no mainnet-specific guard is weakened.
+
+Redis integration tests are opt-in with `CLEARSIG_TEST_REDIS_BIN` and
+`CLEARSIG_TEST_REDIS_CLI`, pointing to local official Redis binaries. Tests spawn
+only loopback servers with temporary data directories; they never use application
+Redis credentials. Default tests explicitly skip this integration suite when
+those binaries are absent. There is no in-memory storage fallback in production.
+
+The native settlement evidence reader/immutable artifact claim adapter remains
+unimplemented. A protected order receipt is not settlement/PnL evidence, and
+these changes do not promote synthetic receipts to trusted settlement.

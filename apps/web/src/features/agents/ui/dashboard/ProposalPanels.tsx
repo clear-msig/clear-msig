@@ -62,7 +62,7 @@ export function DecisionJournalSummary({ proposal }: { proposal: AgentTradePropo
           Why this trade
         </p>
         <details className="group">
-          <summary className="inline-flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
+          <summary className="inline-flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full text-text-soft transition-colors hover:bg-glass-mid hover:text-accent">
             <Info className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="sr-only">Decision details</span>
           </summary>
@@ -245,7 +245,7 @@ export function ActionButton({
       onClick={onClick}
       title={title}
       className={clsx(
-        "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border px-2 py-1 text-[11px] font-medium",
+        "inline-flex min-h-11 items-center justify-center gap-1 rounded-soft border px-2 py-1 text-[11px] font-medium",
         "transition-colors duration-base ease-out-soft",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
         "disabled:cursor-not-allowed disabled:opacity-60",
@@ -347,7 +347,7 @@ export function ExecutionCard({
                   onClose(execution.id, pnlUsd || performance?.unrealizedPnlUsd || "0")
                 }
                 className={clsx(
-                  "inline-flex min-h-8 items-center justify-center rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
+                  "inline-flex min-h-11 items-center justify-center rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
                   "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                   "disabled:cursor-not-allowed disabled:opacity-60",

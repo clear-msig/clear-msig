@@ -76,18 +76,20 @@ export type VenueDeliveryClaim =
   | { state: "in_flight" }
   | { state: "uncertain" };
 
-/** Trusted server ports only. No production implementations are wired yet. */
+/** Trusted server ports only. Readers/storage exist; no production route is wired. */
 export interface AgentVenueBridgePorts {
   /** Pinned server deployment, never supplied by the caller. */
   deployment: { chainGenesisHash: string; programId: string };
   now(): number;
   readDedicatedBinding(walletPda: string): Promise<DedicatedVenueBinding>;
   /** Must verify owner/layout/PDA and canonical v4 bytes from trusted RPC. */
-  readFinalizedTradeAuthority(proposalPda: string): Promise<ExecutedAgentTradeAuthority>;
+  readFinalizedTradeAuthority(proposalPda: string, order: AgentVenueOrderV2): Promise<ExecutedAgentTradeAuthority>;
   readObservedRisk(accountAddress: string, excludingDeliveryKey: string): Promise<ObservedVenueRisk>;
   ledger: {
     /** Atomic durable compare/claim; account reservations serialize concurrent risk checks. */
     claim(deliveryKey: string, commitment: string, accountAddress: string): Promise<VenueDeliveryClaim>;
+    lookup(deliveryKey: string, commitment: string, accountAddress: string): Promise<Exclude<VenueDeliveryClaim, { state: "acquired" }> | null>;
+    beginSubmission(deliveryKey: string, leaseId: string): Promise<void>;
     complete(deliveryKey: string, leaseId: string | null, receipt: ProtectedVenueReceipt): Promise<void>;
     blockBeforeSubmission(deliveryKey: string, leaseId: string): Promise<void>;
     markUncertain(deliveryKey: string, leaseId: string): Promise<void>;
@@ -114,11 +116,28 @@ export function assertAgentVenueSubmissionPermit(permit: object, order: AgentVen
 
 /**
  * Complete orchestration against explicit trusted ports. Production readiness
- * remains blocked until real readers, registry, ledger and protected venue
- * adapter are implemented and reviewed; unit-test ports do not enable routes.
+ * remains blocked until committed limits and native protected venue adapters
+ * are implemented and the complete integration is reviewed; unit-test ports do not enable routes.
  */
 export function createAgentVenueExecutionBridge(ports: AgentVenueBridgePorts) {
   return {
+    /** Recover an existing delivery even after its grant expires/revokes. Never grants send authority. */
+    async reconcileExisting(input: { order: AgentVenueOrderV2; proposalPda: string }): Promise<ProtectedVenueReceipt> {
+      const order = validateAgentVenueOrder(input.order);
+      if (order.chainGenesisHash !== ports.deployment.chainGenesisHash || order.programId !== ports.deployment.programId) {
+        throw new Error("Order does not belong to this trusted chain/program deployment.");
+      }
+      validateBinding(await ports.readDedicatedBinding(order.walletPda), order);
+      const deliveryKey = agentVenueDeliveryKey(order, input.proposalPda);
+      const commitment = agentVenueOrderCommitment(order);
+      const existing = await ports.ledger.lookup(deliveryKey, commitment, order.accountAddress);
+      if (!existing || existing.state === "in_flight") throw new Error("No uncertain or completed delivery is available for reconciliation.");
+      const receipt = existing.state === "completed" ? existing.receipt : await ports.venue.reconcile(deliveryKey, order);
+      if (!receipt) throw new Error("Venue outcome is uncertain; independent reconciliation is required.");
+      validateReceipt(receipt, order, input.proposalPda, deliveryKey, commitment);
+      if (existing.state !== "completed") await ports.ledger.complete(deliveryKey, null, receipt);
+      return receipt;
+    },
     async execute(input: { order: AgentVenueOrderV2; proposalPda: string }): Promise<ProtectedVenueReceipt> {
       const order = validateAgentVenueOrder(input.order);
       if (order.chainGenesisHash !== ports.deployment.chainGenesisHash || order.programId !== ports.deployment.programId) {
@@ -128,7 +147,7 @@ export function createAgentVenueExecutionBridge(ports: AgentVenueBridgePorts) {
       const commitment = agentVenueOrderCommitment(order);
       if (!ports.venue.supportsAtomicProtection) throw new Error("Venue adapter cannot guarantee atomic stop-loss protection.");
       validateBinding(await ports.readDedicatedBinding(order.walletPda), order);
-      validateAuthority(await ports.readFinalizedTradeAuthority(input.proposalPda), order, input.proposalPda, ports.now());
+      validateAuthority(await ports.readFinalizedTradeAuthority(input.proposalPda, order), order, input.proposalPda, ports.now());
       const claim = await ports.ledger.claim(deliveryKey, commitment, order.accountAddress);
       if (claim.state === "completed") {
         validateReceipt(claim.receipt, order, input.proposalPda, deliveryKey, commitment);
@@ -143,23 +162,28 @@ export function createAgentVenueExecutionBridge(ports: AgentVenueBridgePorts) {
         return receipt;
       }
       if (!claim.leaseId) throw new Error("Durable delivery lease is missing.");
-      let sideEffectAttempted = false;
+      let handoffStarted = false;
       const permit = Object.freeze({});
       try {
         // Re-read after acquiring the account-scoped reservation. Preparing a
         // proposal cannot preserve authority through a later revocation/expiry.
         validateBinding(await ports.readDedicatedBinding(order.walletPda), order);
-        const authority = await ports.readFinalizedTradeAuthority(input.proposalPda);
+        const authority = await ports.readFinalizedTradeAuthority(input.proposalPda, order);
         validateAuthority(authority, order, input.proposalPda, ports.now());
         const observed = await ports.readObservedRisk(order.accountAddress, deliveryKey);
         // Risk observation can itself await a provider. Recheck chain authority
         // after that wait, immediately before issuing the single-use capability.
-        const finalAuthority = await ports.readFinalizedTradeAuthority(input.proposalPda);
+        const finalAuthority = await ports.readFinalizedTradeAuthority(input.proposalPda, order);
         validateAuthority(finalAuthority, order, input.proposalPda, ports.now());
         validateObservedRisk(observed, finalAuthority, order, ports.now());
         if (order.expiresAtMs <= ports.now()) throw new Error("Trade authorization expired before submission.");
+        // Persist the point after which a crash can never permit automatic resubmission.
+        handoffStarted = true;
+        await ports.ledger.beginSubmission(deliveryKey, claim.leaseId);
+        // Storage can await a network request too. Never use stale risk or expiry after that wait.
+        validateAuthority(finalAuthority, order, input.proposalPda, ports.now());
+        validateObservedRisk(observed, finalAuthority, order, ports.now());
         permits.set(permit, { commitment, deliveryKey });
-        sideEffectAttempted = true;
         await ports.venue.submitProtectedOrder({ order, clientOrderId: `0x${deliveryKey.slice(0, 32)}`, permit });
         const receipt = await ports.venue.reconcile(deliveryKey, order);
         if (!receipt) throw new Error("Submitted order lacks independently reconciled protection.");
@@ -167,8 +191,14 @@ export function createAgentVenueExecutionBridge(ports: AgentVenueBridgePorts) {
         await ports.ledger.complete(deliveryKey, claim.leaseId, receipt);
         return receipt;
       } catch (error) {
-        if (sideEffectAttempted) await ports.ledger.markUncertain(deliveryKey, claim.leaseId);
-        else await ports.ledger.blockBeforeSubmission(deliveryKey, claim.leaseId);
+        // A lost begin response may mean the durable transition succeeded. Never release it.
+        try {
+          if (handoffStarted) await ports.ledger.markUncertain(deliveryKey, claim.leaseId);
+          else await ports.ledger.blockBeforeSubmission(deliveryKey, claim.leaseId);
+        } catch {
+          // Retain the original failure. A reserved/submitting record remains locked;
+          // lease expiry can only make it uncertain, never sendable again.
+        }
         throw error;
       } finally {
         permits.delete(permit);
