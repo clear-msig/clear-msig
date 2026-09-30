@@ -3,11 +3,11 @@
  * not deploy-time feature flags. Testnet uses the same authority requirements.
  */
 export const AGENT_VENUE_BRIDGE_BLOCKERS = [
-  "Finalized typed-proposal/session/risk authority reader",
-  "Exclusive canonical-wallet-to-venue-account registry",
-  "Durable account-scoped delivery and reconciliation ledger",
+  "Reviewed integration of finalized authority, dedicated accounts and durable delivery adapters",
+  "Versioned threshold-approved venue limits and exact order preparation",
   "Independently reconciled atomic stop-loss order adapter",
   "Threshold-authorized close and emergency-stop contracts",
+  "Execution-linked native settlement accounting and evidence promotion",
 ] as const;
 
 export const AGENT_VENUE_EXECUTION_BLOCKED_MESSAGE =

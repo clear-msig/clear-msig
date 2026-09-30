@@ -7,6 +7,8 @@ import {
   findTypedProposalAddress,
   findAgentRiskAddress,
 } from "@/lib/msig/pda";
+import { createSolanaSettlementAuthorityReader } from "../serverSolanaSettlementAuthority";
+import type { ExpectedAgentSettlement } from "../serverSettlementProof";
 import { createSolanaTradeAuthorityReader } from "../serverSolanaTradeAuthority";
 import {
   agentVenueOrderRoute,
@@ -33,7 +35,7 @@ const digest = (s: string) => Buffer.from(s, "hex");
 
 // Synthetic program-layout fixtures. Encodings follow the checked-in Rust
 // state structs and hashing.rs; they are not live chain execution evidence.
-function fixture() {
+function fixture(kind: 9 | 14 = 9) {
   const program = key(2);
   const creator = key(3);
   const proposer = key(4);
@@ -78,26 +80,59 @@ function fixture() {
     takeProfitPrice: "80000",
     expiresAtMs: 1800000060000,
   };
-  const payload = sha(
-    Buffer.concat([
-      vector("clearsig:policy-engine:v2:payload"),
-      number(9, 1),
-      ...[
-        order.agentIdHash,
-        hashText(order.venue),
-        hashText(order.market),
-        hashText(order.side),
-        hashText(`USDC:${order.venue}`),
-      ].map((v) => vector(digest(v))),
-      number(BigInt(order.notionalUsdRaw), 16),
-      number(order.leverageX100, 4),
-      ...[
-        order.sessionIdHash,
-        hashText(agentVenueOrderRoute(order)),
-        order.riskCheckHash,
-      ].map((v) => vector(digest(v))),
-    ]),
-  );
+  const expected: ExpectedAgentSettlement = {
+    chainGenesisHash: order.chainGenesisHash,
+    programId: order.programId,
+    walletPda: order.walletPda,
+    policyCommitment,
+    sessionIdHash: order.sessionIdHash,
+    executionIdHash: hashText("execution-1"),
+    settlementArtifactHash: hashText("artifact-1"),
+    oraclePolicyHash: hashText("oracle-1"),
+    closedNotionalRaw: "250000000",
+    outcome: 2,
+    pnlAbsRaw: "1250000",
+    settlementSequence: "0",
+  };
+  const payload =
+    kind === 14
+      ? sha(
+          Buffer.concat([
+            vector("clearsig:policy-engine:v2:payload"),
+            number(14, 1),
+            vector("agent_trade_settlement"),
+            ...[
+              expected.sessionIdHash,
+              expected.executionIdHash,
+              expected.settlementArtifactHash,
+              expected.oraclePolicyHash,
+            ].map(digest),
+            number(BigInt(expected.closedNotionalRaw), 16),
+            number(expected.outcome, 1),
+            number(BigInt(expected.pnlAbsRaw), 16),
+            number(BigInt(expected.settlementSequence), 8),
+          ]),
+        )
+      : sha(
+          Buffer.concat([
+            vector("clearsig:policy-engine:v2:payload"),
+            number(9, 1),
+            ...[
+              order.agentIdHash,
+              hashText(order.venue),
+              hashText(order.market),
+              hashText(order.side),
+              hashText(`USDC:${order.venue}`),
+            ].map((v) => vector(digest(v))),
+            number(BigInt(order.notionalUsdRaw), 16),
+            number(order.leverageX100, 4),
+            ...[
+              order.sessionIdHash,
+              hashText(agentVenueOrderRoute(order)),
+              order.riskCheckHash,
+            ].map((v) => vector(digest(v))),
+          ]),
+        );
   const actionId = digest(hashText(order.actionId));
   const nonce = digest(hashText("nonce-1"));
   const document = Buffer.from(
@@ -106,7 +141,7 @@ function fixture() {
   const envelope = sha(
     Buffer.concat([
       vector("clearsig:policy-engine:v4"),
-      Buffer.from([4, 9, 7]),
+      Buffer.from([4, kind, 7]),
       number(8, 8),
       vector(name),
       vector(wallet.toBuffer()),
@@ -126,7 +161,7 @@ function fixture() {
     intent.toBuffer(),
     number(8, 8),
     proposer.toBuffer(),
-    Buffer.from([2, 9]),
+    Buffer.from([2, kind]),
     number(1800000000, 8),
     number(1800000001, 8),
     number(order.expiresAtMs / 1000, 8),
@@ -249,7 +284,16 @@ function fixture() {
     },
     resolveCommittedLimits,
   });
+  const readSettlement = createSolanaSettlementAuthorityReader({
+    rpc,
+    deployment: {
+      chainGenesisHash: order.chainGenesisHash,
+      programId: order.programId,
+    },
+  });
   return {
+    expected,
+    readSettlement,
     order,
     infos,
     rpc,
@@ -377,6 +421,75 @@ describe("finalized canonical Solana trade reader", () => {
     f.resolveCommittedLimits.mockRejectedValue(new Error("policy unavailable"));
     await expect(f.read(f.proposal, f.order)).rejects.toThrow(
       "policy unavailable",
+    );
+  });
+});
+
+describe("finalized canonical settlement authority", () => {
+  it("verifies complete accounting bytes without requiring an active session or submitting anything", async () => {
+    const f = fixture(14);
+    const authority = await f.readSettlement(f.proposal, f.expected);
+    expect(authority).toMatchObject({
+      actionKind: 14,
+      status: "executed",
+      clearSignVersion: 4,
+      approvals: 2,
+      threshold: 2,
+      canonical: {
+        settlementSequence: "0",
+        pnlAbsRaw: "1250000",
+        closedNotionalRaw: "250000000",
+      },
+    });
+    expect(
+      f.rpc.getMultipleAccountsInfoAndContext.mock.calls[1][0],
+    ).toHaveLength(3);
+    expect(f.resolveCommittedLimits).not.toHaveBeenCalled();
+  });
+  it.each([
+    "sessionIdHash",
+    "executionIdHash",
+    "settlementArtifactHash",
+    "oraclePolicyHash",
+    "policyCommitment",
+  ] as const)("rejects changed %s", async (field) => {
+    const f = fixture(14);
+    await expect(
+      f.readSettlement(f.proposal, {
+        ...f.expected,
+        [field]: hashText("changed"),
+      }),
+    ).rejects.toThrow();
+  });
+  it.each([
+    { closedNotionalRaw: "250000001" },
+    { pnlAbsRaw: "1250001" },
+    { settlementSequence: "1" },
+    { outcome: 1 as const },
+  ])("rejects changed accounting %j", async (change) => {
+    const f = fixture(14);
+    await expect(
+      f.readSettlement(f.proposal, { ...f.expected, ...change }),
+    ).rejects.toThrow("payload");
+  });
+  it("does not reinterpret a trade approval as settlement authority", async () => {
+    const f = fixture();
+    await expect(f.readSettlement(f.proposal, f.expected)).rejects.toThrow(
+      "executed",
+    );
+  });
+  it("rejects a bad envelope even when accounting payload matches", async () => {
+    const f = fixture(14);
+    f.infos[0].data[232] ^= 1;
+    await expect(f.readSettlement(f.proposal, f.expected)).rejects.toThrow(
+      "envelope",
+    );
+  });
+  it("rejects insufficient threshold evidence", async () => {
+    const f = fixture(14);
+    f.infos[0].data.writeUInt16LE(1, 132);
+    await expect(f.readSettlement(f.proposal, f.expected)).rejects.toThrow(
+      "threshold",
     );
   });
 });

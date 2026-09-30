@@ -89,57 +89,15 @@ export function createSolanaTradeAuthorityReader(
         "Proposal changed during authority resolution; retry from a fresh snapshot.",
       );
     const proposal = parseProposal(proposalBytes);
-    const wallet = parseWallet(owned(snapshot.value[1], program, 256));
-    const intentBytes = owned(snapshot.value[2], program, 65536);
-    const intent = parseIntent(intentBytes);
-    const [walletPda, walletBump] = findWalletAddress(
-      wallet.name,
-      canonicalKey(wallet.creator),
-      program,
-    );
-    const [intentPda, intentBump] = findIntentAddress(
+    const { wallet, intent, approvals } = verifyContext(
+      proposal,
+      proposalKey,
       walletKey,
-      intent.intentIndex,
-      program,
-    );
-    const [proposalPda, proposalBump] = findTypedProposalAddress(
       intentKey,
-      proposal.index,
       program,
+      snapshot.value[1],
+      snapshot.value[2],
     );
-    if (
-      !walletPda.equals(walletKey) ||
-      wallet.bump !== walletBump ||
-      !intentPda.equals(intentKey) ||
-      intent.bump !== intentBump ||
-      !proposalPda.equals(proposalKey) ||
-      proposal.bump !== proposalBump ||
-      intent.wallet !== order.walletPda
-    )
-      throw new Error("Canonical authority PDA or bump mismatch.");
-    if (
-      !/^[\x20-\x7e]{1,64}$/.test(wallet.name) ||
-      intentBytes[37] !== 1 ||
-      intent.chainKind !== 5 ||
-      intent.approvers.length < 1 ||
-      intent.approvers.length > 16 ||
-      new Set(intent.approvers).size !== intent.approvers.length ||
-      intent.approvalThreshold < 1 ||
-      intent.approvalThreshold > intent.approvers.length ||
-      !intent.proposers.includes(proposal.proposer)
-    )
-      throw new Error("Invalid trade intent authority.");
-    const mask = (1 << intent.approvers.length) - 1;
-    const approvals = popcount(proposal.approvalBitmap);
-    if (
-      (proposal.approvalBitmap & ~mask) !== 0 ||
-      (proposal.cancellationBitmap & ~mask) !== 0 ||
-      (proposal.approvalBitmap & proposal.cancellationBitmap) !== 0 ||
-      approvals < intent.approvalThreshold
-    )
-      throw new Error(
-        "Executed trade lacks valid threshold approval evidence.",
-      );
     const policyCommitment = policyHash(proposal.policyBytes);
     const payloadHash = tradePayloadHash(order);
     if (
@@ -351,14 +309,14 @@ class Reader {
       throw new Error("Unknown authority account tail.");
   }
 }
-function parseProposal(data: Buffer) {
+function parseProposal(data: Buffer, actionKind: 9 | 14 = 9) {
   const r = new Reader(data);
   if (r.u8() !== 6) throw new Error("Expected typed proposal.");
   const wallet = r.key();
   const intent = r.key();
   const index = r.u64();
   const proposer = r.key();
-  if (r.u8() !== 2 || r.u8() !== 9)
+  if (r.u8() !== 2 || r.u8() !== actionKind)
     throw new Error("Expected executed agent trade proposal.");
   r.take(16);
   const expiresAtMs = r.time();
@@ -463,3 +421,77 @@ function popcount(value: number): number {
   for (; value; value >>>= 1) count += value & 1;
   return count;
 }
+
+function verifyContext(
+  proposal: ReturnType<typeof parseProposal>,
+  proposalKey: PublicKey,
+  walletKey: PublicKey,
+  intentKey: PublicKey,
+  program: PublicKey,
+  walletInfo: AccountInfo<Buffer> | null,
+  intentInfo: AccountInfo<Buffer> | null,
+) {
+  const wallet = parseWallet(owned(walletInfo, program, 256));
+  const intentBytes = owned(intentInfo, program, 65536);
+  const intent = parseIntent(intentBytes);
+  const [walletPda, walletBump] = findWalletAddress(
+    wallet.name,
+    canonicalKey(wallet.creator),
+    program,
+  );
+  const [intentPda, intentBump] = findIntentAddress(
+    walletKey,
+    intent.intentIndex,
+    program,
+  );
+  const [proposalPda, proposalBump] = findTypedProposalAddress(
+    intentKey,
+    proposal.index,
+    program,
+  );
+  if (
+    !walletPda.equals(walletKey) ||
+    wallet.bump !== walletBump ||
+    !intentPda.equals(intentKey) ||
+    intent.bump !== intentBump ||
+    !proposalPda.equals(proposalKey) ||
+    proposal.bump !== proposalBump ||
+    intent.wallet !== walletKey.toBase58()
+  )
+    throw new Error("Canonical authority PDA or bump mismatch.");
+  if (
+    !/^[\x20-\x7e]{1,64}$/.test(wallet.name) ||
+    intentBytes[37] !== 1 ||
+    intent.chainKind !== 5 ||
+    intent.approvers.length < 1 ||
+    intent.approvers.length > 16 ||
+    new Set(intent.approvers).size !== intent.approvers.length ||
+    intent.approvalThreshold < 1 ||
+    intent.approvalThreshold > intent.approvers.length ||
+    !intent.proposers.includes(proposal.proposer)
+  )
+    throw new Error("Invalid trade intent authority.");
+  const mask = (1 << intent.approvers.length) - 1;
+  const approvals = popcount(proposal.approvalBitmap);
+  if (
+    (proposal.approvalBitmap & ~mask) !== 0 ||
+    (proposal.cancellationBitmap & ~mask) !== 0 ||
+    (proposal.approvalBitmap & proposal.cancellationBitmap) !== 0 ||
+    approvals < intent.approvalThreshold
+  )
+    throw new Error("Executed trade lacks valid threshold approval evidence.");
+  return { wallet, intent, approvals };
+}
+
+/** Shared server-only binary verifier; it does not grant execution authority. */
+export const solanaAuthorityCodec = Object.freeze({
+  canonicalKey,
+  validSlot,
+  owned,
+  parseProposal,
+  verifyContext,
+  policyHash,
+  hash,
+  uint,
+  bytes,
+});

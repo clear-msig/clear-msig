@@ -1,3 +1,5 @@
+import { createSettlementEvidenceStore } from "../serverSettlementEvidenceStore";
+import { verifyHyperliquidTestnetSettlementEvidence } from "../hyperliquidSettlementEvidence";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
@@ -258,5 +260,182 @@ describe.skipIf(!bin || !cli)("real Redis durable venue ledger", () => {
         "other-chain",
       ),
     ).rejects.toThrow("already assigned");
+  });
+  it("atomically consumes native settlement evidence once, survives restart, and rejects forged claims", async () => {
+    const walletPda = key(20);
+    const venue = account(20);
+    await store().registerInitialBinding(
+      { walletPda, accountAddress: venue, agentWalletAddress: account(21) },
+      "settlement-review",
+    );
+    const now = 1800000000000;
+    const fillHash = `0x${"a".repeat(64)}`;
+    const proof = await verifyHyperliquidTestnetSettlementEvidence({
+      claim: {
+        accountAddress: venue,
+        closingOrderId: "100",
+        market: "BTC-PERP",
+        side: "long",
+        closedSize: "0.2",
+        realizedPnlUsd: "-1",
+        fillHashes: [fillHash],
+        queryStartTime: now - 1000,
+        settledAt: now,
+      },
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify(
+            body.type === "orderStatus"
+              ? {
+                  status: "order",
+                  order: {
+                    status: "filled",
+                    statusTimestamp: now,
+                    order: {
+                      coin: "BTC",
+                      oid: 100,
+                      side: "A",
+                      origSz: "0.2",
+                      sz: "0",
+                      reduceOnly: true,
+                    },
+                  },
+                }
+              : [
+                  {
+                    coin: "BTC",
+                    oid: 100,
+                    side: "A",
+                    dir: "Close Long",
+                    sz: "0.2",
+                    px: "60000",
+                    closedPnl: "-1",
+                    hash: fillHash,
+                    tid: 1001,
+                    time: now,
+                  },
+                ],
+          ),
+        );
+      },
+    });
+    const registry = createSettlementEvidenceStore(command, deployment);
+    const input = {
+      walletPda,
+      executionIdHash: hex(100),
+      sessionIdHash: hex(101),
+      evidence: proof,
+    };
+    await expect(
+      registry.claim({ ...input, evidence: structuredClone(proof) }),
+    ).rejects.toThrow("Fresh independently");
+    await expect(
+      registry.claim({ ...input, walletPda: key(21) }),
+    ).rejects.toThrow("Missing dedicated");
+    const attempts = await Promise.allSettled([
+      registry.claim(input),
+      registry.claim({ ...input, executionIdHash: hex(102) }),
+    ]);
+    expect(attempts.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const winner = attempts[0].status === "fulfilled" ? hex(100) : hex(102);
+    await stop();
+    await start();
+    const recovered = await createSettlementEvidenceStore(
+      command,
+      deployment,
+    ).read(walletPda, winner);
+    expect(recovered?.evidence.venueEvidence.evidenceHash).toBe(
+      proof.venueEvidence.evidenceHash,
+    );
+    expect(await registry.read(walletPda, hex(999))).toBeNull();
+    await expect(
+      registry.claim({
+        ...input,
+        executionIdHash: hex(106),
+        evidence: recovered!.evidence,
+      }),
+    ).rejects.toThrow("Fresh independently");
+    await expect(
+      registry.claim({ ...input, executionIdHash: winner }),
+    ).resolves.toEqual({ evidenceHash: proof.venueEvidence.evidenceHash });
+    await expect(
+      registry.claim({
+        ...input,
+        executionIdHash: winner,
+        sessionIdHash: hex(103),
+      }),
+    ).rejects.toThrow("Conflicting");
+    await expect(
+      registry.claim({ ...input, executionIdHash: hex(104) }),
+    ).rejects.toThrow("already claimed");
+    await store().registerInitialBinding(
+      {
+        walletPda: key(21),
+        accountAddress: account(22),
+        agentWalletAddress: account(23),
+      },
+      "other-settlement-wallet",
+    );
+    await expect(
+      registry.claim({ ...input, walletPda: key(21) }),
+    ).rejects.toThrow("does not belong");
+    const reusedFill = await verifyHyperliquidTestnetSettlementEvidence({
+      claim: {
+        accountAddress: venue,
+        closingOrderId: "101",
+        market: "BTC-PERP",
+        side: "long",
+        closedSize: "0.2",
+        realizedPnlUsd: "-1",
+        fillHashes: [fillHash],
+        queryStartTime: now - 1000,
+        settledAt: now,
+      },
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify(
+            body.type === "orderStatus"
+              ? {
+                  status: "order",
+                  order: {
+                    status: "filled",
+                    statusTimestamp: now,
+                    order: {
+                      coin: "BTC",
+                      oid: 101,
+                      side: "A",
+                      origSz: "0.2",
+                      sz: "0",
+                      reduceOnly: true,
+                    },
+                  },
+                }
+              : [
+                  {
+                    coin: "BTC",
+                    oid: 101,
+                    side: "A",
+                    dir: "Close Long",
+                    sz: "0.2",
+                    px: "60000",
+                    closedPnl: "-1",
+                    hash: fillHash,
+                    tid: 1001,
+                    time: now,
+                  },
+                ],
+          ),
+        );
+      },
+    });
+    await expect(
+      registry.claim({
+        ...input,
+        executionIdHash: hex(105),
+        evidence: reusedFill,
+      }),
+    ).rejects.toThrow("fill already claimed");
   });
 });

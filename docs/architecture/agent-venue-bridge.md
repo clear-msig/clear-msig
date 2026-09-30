@@ -122,7 +122,7 @@ Server routes now require a signed Dynamic session and fresh program-owned gover
 
 Storage and signal domains use the genesis hash discovered through the fixed server Connection plus the configured program ID. The genesis reader validates the returned hash, caches by Connection, evicts failed reads and checks NEXT_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH when configured. Browser local scope also uses the resolved genesis, with endpoint changes invalidating the wallet query. Provider/API-key rotation on the same chain preserves the namespace; another genesis is isolated. The production execution bridge has a separate pinned-chain canonical authority reader, but it is not wired into execution routes; discovery alone remains insufficient.
 
-`serverSettlementProof.ts` defines the exact finalized threshold settlement predicate, with wallet/policy/session/execution/artifact/oracle/closed-size/PnL/sequence checks. Settlement proof promotion remains blocked until a real trusted reader and immutable native-evidence claim store are wired into that predicate.
+`serverSettlementProof.ts` defines the exact finalized threshold settlement predicate. `serverSolanaSettlementAuthority.ts` now implements its pinned finalized v4 account reader; `serverSettlementEvidenceStore.ts` atomically consumes independently verified native closing-order evidence. Promotion remains blocked on opening-execution allocation, accounting semantics and reviewed route composition. Native evidence is not silently converted into a protocol artifact hash.
 
 
 ## Evidence and operational limits for the local adapter slice
@@ -140,6 +140,8 @@ only loopback servers with temporary data directories; they never use applicatio
 Redis credentials. Default tests explicitly skip this integration suite when
 those binaries are absent. There is no in-memory storage fallback in production.
 
-The native settlement evidence reader/immutable artifact claim adapter remains
-unimplemented. A protected order receipt is not settlement/PnL evidence, and
-these changes do not promote synthetic receipts to trusted settlement.
+Native closing-order verification and immutable evidence consumption now exist,
+as does the finalized canonical settlement reader. A protected order receipt is
+not settlement/PnL evidence, and these changes do not promote synthetic receipts
+to trusted settlement. See `docs/security/completion-boundary-2026-09-30.md` for
+the venue capability findings and exact remaining product/configuration gates.

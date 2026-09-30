@@ -51,6 +51,23 @@ export interface VerifiedHyperliquidSettlement {
   venueEvidence: HyperliquidVenueSettlementEvidence;
 }
 
+const verifiedEvidence = new WeakMap<VerifiedHyperliquidSettlement, string>();
+
+/** Only freshly verified, unmodified native evidence can be persisted as trusted. */
+export function assertVerifiedHyperliquidSettlement(
+  value: VerifiedHyperliquidSettlement,
+): void {
+  if (
+    !verifiedEvidence.has(value) ||
+    verifiedEvidence.get(value) !==
+      createHash("sha256").update(stableJson(value)).digest("hex")
+  ) {
+    throw new Error(
+      "Fresh independently verified native settlement evidence is required.",
+    );
+  }
+}
+
 export async function verifyHyperliquidTestnetSettlementEvidence({
   claim,
   fetchImpl = fetch,
@@ -65,22 +82,44 @@ export async function verifyHyperliquidTestnetSettlementEvidence({
     throw new Error("Hyperliquid settlement account address is invalid.");
   }
   const orderId = integerString(claim.closingOrderId, "closing order id");
+  // The API accepts a JSON u64 or a 128-bit hex cloid, not a decimal string.
+  // Refuse numeric IDs JS cannot serialize exactly; never round an identity.
+  const numericOrderId = Number(orderId);
+  if (!Number.isSafeInteger(numericOrderId))
+    throw new Error("Order id requires lossless u64 transport.");
+  if (
+    !["long", "short"].includes(claim.side) ||
+    !Number.isSafeInteger(claim.queryStartTime) ||
+    claim.queryStartTime <= 0 ||
+    !Number.isSafeInteger(claim.settledAt) ||
+    claim.settledAt < claim.queryStartTime ||
+    claim.settledAt > Number.MAX_SAFE_INTEGER - MAX_SETTLEMENT_CLOCK_SKEW_MS
+  ) {
+    throw new Error("Settlement query bounds are invalid.");
+  }
   const market = marketCoin(claim.market);
   const expectedSide: "A" | "B" = claim.side === "long" ? "A" : "B";
-  const expectedDirection = claim.side === "long" ? "Close Long" : "Close Short";
+  const expectedDirection =
+    claim.side === "long" ? "Close Long" : "Close Short";
 
   const orderStatusResponse = await postInfo(
-    { type: "orderStatus", user: accountAddress, oid: orderId },
+    { type: "orderStatus", user: accountAddress, oid: numericOrderId },
     fetchImpl,
   );
   const orderStatus = parseOrderStatus(orderStatusResponse);
   if (
+    orderStatus.timestamp >
+      Number.MAX_SAFE_INTEGER - MAX_SETTLEMENT_CLOCK_SKEW_MS ||
     orderStatus.status !== "filled" ||
     orderStatus.orderId !== orderId ||
     orderStatus.market !== market ||
-    orderStatus.side !== expectedSide
+    orderStatus.side !== expectedSide ||
+    orderStatus.remainingSize !== "0" ||
+    !orderStatus.reduceOnly
   ) {
-    throw new Error("Hyperliquid did not confirm the claimed closing order as filled.");
+    throw new Error(
+      "Hyperliquid did not confirm the claimed closing order as filled.",
+    );
   }
 
   let matchingFills: HyperliquidVenueSettlementFill[] = [];
@@ -90,12 +129,25 @@ export async function verifyHyperliquidTestnetSettlementEvidence({
         type: "userFillsByTime",
         user: accountAddress,
         startTime: claim.queryStartTime,
-        endTime: Math.max(claim.settledAt, orderStatus.timestamp) + MAX_SETTLEMENT_CLOCK_SKEW_MS,
+        endTime:
+          Math.max(claim.settledAt, orderStatus.timestamp) +
+          MAX_SETTLEMENT_CLOCK_SKEW_MS,
         aggregateByTime: false,
       },
       fetchImpl,
     );
-    matchingFills = parseVenueFills(fillsResponse).filter(
+    const fills = parseVenueFills(fillsResponse);
+    if (fills.length >= 2000)
+      throw new Error(
+        "Native fill history may be truncated; complete evidence is required.",
+      );
+    const seen = new Set<string>();
+    for (const fill of fills) {
+      if (seen.has(fill.tradeId))
+        throw new Error("Duplicate native fill identity.");
+      seen.add(fill.tradeId);
+    }
+    matchingFills = fills.filter(
       (fill) =>
         fill.orderId === orderId &&
         fill.market === market &&
@@ -108,24 +160,45 @@ export async function verifyHyperliquidTestnetSettlementEvidence({
     }
   }
   if (matchingFills.length === 0) {
-    throw new Error("Hyperliquid returned no matching native fills for the closing order.");
+    throw new Error(
+      "Hyperliquid returned no matching native fills for the closing order.",
+    );
   }
 
   matchingFills.sort(
-    (left, right) => left.filledAt - right.filledAt || left.tradeId.localeCompare(right.tradeId),
+    (left, right) =>
+      left.filledAt - right.filledAt ||
+      left.tradeId.localeCompare(right.tradeId),
   );
   const closedSize = sumDecimals(matchingFills.map((fill) => fill.size));
-  const realizedPnlUsd = sumDecimals(matchingFills.map((fill) => fill.closedPnlUsd));
+  if (
+    closedSize !== orderStatus.originalSize ||
+    matchingFills.some(
+      (fill) =>
+        fill.filledAt < claim.queryStartTime ||
+        fill.filledAt > orderStatus.timestamp + MAX_SETTLEMENT_CLOCK_SKEW_MS,
+    )
+  ) {
+    throw new Error("Native fills do not cover the complete closing order.");
+  }
+  const realizedPnlUsd = sumDecimals(
+    matchingFills.map((fill) => fill.closedPnlUsd),
+  );
   const fillHashes = unique(matchingFills.map((fill) => fill.transactionHash));
   const settledAt = Math.max(...matchingFills.map((fill) => fill.filledAt));
 
   if (
     canonicalDecimal(claim.closedSize) !== closedSize ||
     canonicalDecimal(claim.realizedPnlUsd) !== realizedPnlUsd ||
-    !sameStrings(unique(claim.fillHashes.map(normalizeTransactionHash)), fillHashes) ||
+    !sameStrings(
+      unique(claim.fillHashes.map(normalizeTransactionHash)),
+      fillHashes,
+    ) ||
     Math.abs(claim.settledAt - settledAt) > MAX_SETTLEMENT_CLOCK_SKEW_MS
   ) {
-    throw new Error("Executor settlement fields do not match Hyperliquid native fill evidence.");
+    throw new Error(
+      "Executor settlement fields do not match Hyperliquid native fill evidence.",
+    );
   }
 
   const evidenceBody = {
@@ -140,23 +213,64 @@ export async function verifyHyperliquidTestnetSettlementEvidence({
   };
   const venueEvidence: HyperliquidVenueSettlementEvidence = {
     ...evidenceBody,
-    evidenceHash: createHash("sha256").update(stableJson(evidenceBody)).digest("hex"),
+    evidenceHash: createHash("sha256")
+      .update(stableJson(evidenceBody))
+      .digest("hex"),
   };
-  return { closedSize, realizedPnlUsd, fillHashes, settledAt, venueEvidence };
+  const verified = {
+    closedSize,
+    realizedPnlUsd,
+    fillHashes,
+    settledAt,
+    venueEvidence,
+  };
+  verifiedEvidence.set(
+    verified,
+    createHash("sha256").update(stableJson(verified)).digest("hex"),
+  );
+  return verified;
 }
 
-async function postInfo(body: Record<string, unknown>, fetchImpl: typeof fetch): Promise<unknown> {
+async function postInfo(
+  body: Record<string, unknown>,
+  fetchImpl: typeof fetch,
+): Promise<unknown> {
   const response = await fetchImpl(HYPERLIQUID_TESTNET_INFO_URL, {
     method: "POST",
     headers: { accept: "application/json", "content-type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
+    redirect: "error",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
-    throw new Error(`Hyperliquid settlement evidence request failed with HTTP ${response.status}.`);
+    throw new Error(
+      `Hyperliquid settlement evidence request failed with HTTP ${response.status}.`,
+    );
   }
-  return response.json();
+  if (!response.body) throw new Error("Native evidence response has no body.");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      length += part.value.length;
+      if (length > 2_000_000) {
+        await reader.cancel();
+        throw new Error("Native evidence response is too large.");
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"), (_key, value) => {
+    if (typeof value === "number" && !Number.isSafeInteger(value))
+      throw new Error("Native evidence contains an inexact numeric identity.");
+    return value;
+  });
 }
 
 function parseOrderStatus(input: unknown): {
@@ -165,22 +279,34 @@ function parseOrderStatus(input: unknown): {
   market: string;
   side: string;
   timestamp: number;
+  originalSize: string;
+  remainingSize: string;
+  reduceOnly: boolean;
 } {
   const root = objectValue(input);
   const statusEnvelope = objectValue(root?.order);
   const order = objectValue(statusEnvelope?.order);
-  const timestamp = safeInteger(statusEnvelope?.statusTimestamp, "order status timestamp");
+  if (root?.status !== "order")
+    throw new Error("Native order status is unavailable.");
+  const timestamp = safeInteger(
+    statusEnvelope?.statusTimestamp,
+    "order status timestamp",
+  );
   return {
     status: stringValue(statusEnvelope?.status),
     orderId: integerString(order?.oid, "order status id"),
     market: stringValue(order?.coin).toUpperCase(),
     side: stringValue(order?.side),
     timestamp,
+    originalSize: positiveDecimal(order?.origSz, "original order size"),
+    remainingSize: canonicalDecimal(order?.sz),
+    reduceOnly: order?.reduceOnly === true,
   };
 }
 
 function parseVenueFills(input: unknown): HyperliquidVenueSettlementFill[] {
-  if (!Array.isArray(input)) throw new Error("Hyperliquid returned an invalid fills response.");
+  if (!Array.isArray(input))
+    throw new Error("Hyperliquid returned an invalid fills response.");
   return input.map((item) => {
     const fill = objectValue(item);
     const side = stringValue(fill?.side);
@@ -204,8 +330,11 @@ function parseVenueFills(input: unknown): HyperliquidVenueSettlementFill[] {
 
 function marketCoin(value: string): string {
   const normalized = value.trim().toUpperCase();
-  const coin = normalized.endsWith("-PERP") ? normalized.slice(0, -5) : normalized;
-  if (!/^[A-Z0-9:_-]{1,32}$/.test(coin)) throw new Error("Hyperliquid market is invalid.");
+  const coin = normalized.endsWith("-PERP")
+    ? normalized.slice(0, -5)
+    : normalized;
+  if (!/^[A-Z0-9:_-]{1,32}$/.test(coin))
+    throw new Error("Hyperliquid market is invalid.");
   return coin;
 }
 
@@ -219,17 +348,20 @@ function normalizeTransactionHash(value: string): string {
 
 function integerString(value: unknown, label: string): string {
   if (typeof value === "number") {
-    if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Hyperliquid ${label} is invalid.`);
+    if (!Number.isSafeInteger(value) || value < 0)
+      throw new Error(`Hyperliquid ${label} is invalid.`);
     return String(value);
   }
   const normalized = typeof value === "string" ? value.trim() : "";
-  if (!/^\d{1,20}$/.test(normalized)) throw new Error(`Hyperliquid ${label} is invalid.`);
+  if (!/^\d{1,20}$/.test(normalized))
+    throw new Error(`Hyperliquid ${label} is invalid.`);
   return normalized.replace(/^0+(?=\d)/, "");
 }
 
 function safeInteger(value: unknown, label: string): number {
   const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new Error(`Hyperliquid ${label} is invalid.`);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0)
+    throw new Error(`Hyperliquid ${label} is invalid.`);
   return parsed;
 }
 
@@ -242,7 +374,7 @@ function positiveDecimal(value: unknown, label: string): string {
 }
 
 function canonicalDecimal(value: unknown): string {
-  const raw = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+  const raw = typeof value === "string" ? value.trim() : "";
   const match = /^(-?)(\d{1,38})(?:\.(\d{1,18}))?$/.exec(raw);
   if (!match) throw new Error("Hyperliquid decimal value is invalid.");
   const whole = match[2].replace(/^0+(?=\d)/, "");
@@ -271,7 +403,9 @@ function decimalParts(value: string): { atoms: bigint; scale: number } {
 
 function decimalFromAtoms(atoms: bigint, scale: number): string {
   const negative = atoms < 0n;
-  const digits = (negative ? -atoms : atoms).toString().padStart(scale + 1, "0");
+  const digits = (negative ? -atoms : atoms)
+    .toString()
+    .padStart(scale + 1, "0");
   const whole = scale === 0 ? digits : digits.slice(0, -scale);
   const fraction = scale === 0 ? "" : digits.slice(-scale).replace(/0+$/, "");
   const magnitude = fraction ? `${whole}.${fraction}` : whole;
@@ -279,7 +413,10 @@ function decimalFromAtoms(atoms: bigint, scale: number): string {
 }
 
 function sameStrings(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
 function unique(values: string[]): string[] {

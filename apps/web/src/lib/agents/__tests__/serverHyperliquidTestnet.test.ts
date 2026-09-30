@@ -219,11 +219,11 @@ describe("Hyperliquid testnet server boundary", () => {
         const body = JSON.parse(String(init?.body));
         if (body.type === "orderStatus") {
           expect(body.user).toBe(config.accountAddress);
-          expect(body.oid).toBe("654321");
+          expect(body.oid).toBe(654321);
           return new Response(JSON.stringify({
             status: "order",
             order: {
-              order: { coin: "BTC", oid: 654321, side: "A" },
+              order: { coin: "BTC", oid: 654321, side: "A", origSz: "0.0037", sz: "0", reduceOnly: true },
               status: "filled",
               statusTimestamp: 1_780_000_002_000,
             },
