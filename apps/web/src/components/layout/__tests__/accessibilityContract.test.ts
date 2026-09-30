@@ -83,12 +83,12 @@ describe("application accessibility contract", () => {
   it("keeps theme text and primary actions at AA contrast", () => {
     expect(globals).toContain("--clear-text-soft-opacity: 0.6");
     expect(globals).toContain("--clear-text-soft-opacity: 0.62");
-    expect(globals).toContain("--clear-accent-rgb: 163 190 140");
-    expect(globals).toContain("--clear-accent-rgb: 71 102 60");
+    expect(globals).toContain("--clear-accent-rgb: 204 255 0");
+    expect(globals).toContain("--clear-accent-rgb: 77 124 15");
     expect(contrast("#929292", "#0c0c0c")).toBeGreaterThanOrEqual(4.5);
     expect(contrast("#64676c", "#f6f7f9")).toBeGreaterThanOrEqual(4.5);
-    expect(contrast("#000000", "#a3be8c")).toBeGreaterThanOrEqual(4.5);
-    expect(contrast("#ffffff", "#47663c")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast("#000000", "#ccff00")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast("#ffffff", "#4d7c0f")).toBeGreaterThanOrEqual(4.5);
   });
 });
 

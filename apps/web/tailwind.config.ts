@@ -61,11 +61,11 @@ const config: Config = {
         "surface-card-strong": "#27272a",
         "surface-soft": "#52525b",
 
-        // Restrained sage accents. Text-on-accent flips with the theme so
+        // Original lime accents. Text-on-accent flips with the theme so
         // primary actions keep sufficient contrast in both appearances.
-        accent: themeColor("--clear-accent-rgb", "163 190 140"),
-        "accent-hover": themeColor("--clear-accent-hover-rgb", "178 205 160"),
-        "accent-bright": themeColor("--clear-accent-bright-rgb", "193 215 179"),
+        accent: themeColor("--clear-accent-rgb", "204 255 0"),
+        "accent-hover": themeColor("--clear-accent-hover-rgb", "216 255 51"),
+        "accent-bright": themeColor("--clear-accent-bright-rgb", "224 255 102"),
         "accent-emerald": "#10b981",
         "text-on-accent": themeColor("--clear-text-on-accent-rgb", "0 0 0"),
 
@@ -209,12 +209,12 @@ const config: Config = {
         "accent-hover": "0 6px 14px -6px var(--clear-accent-glow-hover)",
 
         // ── Legacy ────────────────────────────────────────────────
-        glow: "0 10px 30px -10px rgba(163, 190, 140, 0.30)",
-        "glow-hover": "0 20px 40px -10px rgba(163, 190, 140, 0.45)",
-        "glow-strong": "0 0 60px -10px rgba(163, 190, 140, 0.35)",
+        glow: "0 10px 30px -10px rgba(204, 255, 0, 0.30)",
+        "glow-hover": "0 20px 40px -10px rgba(204, 255, 0, 0.45)",
+        "glow-strong": "0 0 60px -10px rgba(204, 255, 0, 0.35)",
         "card-shadow": "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
         "card-dark": "0 20px 45px -15px rgba(0, 0, 0, 0.65)",
-        "inner-glow": "inset 0 0 0 1px rgba(163, 190, 140, 0.18)",
+        "inner-glow": "inset 0 0 0 1px rgba(204, 255, 0, 0.18)",
       },
 
       animation: {
@@ -250,9 +250,9 @@ const config: Config = {
 
       backgroundImage: {
         "hero-grid":
-          "radial-gradient(circle at 50% 0%, rgba(163, 190, 140,0.10), transparent 60%)",
+          "radial-gradient(circle at 50% 0%, rgba(204, 255, 0,0.10), transparent 60%)",
         "hero-noise":
-          "linear-gradient(135deg, rgba(163, 190, 140,0.06) 0%, rgba(16,185,129,0.04) 100%)",
+          "linear-gradient(135deg, rgba(204, 255, 0,0.06) 0%, rgba(16,185,129,0.04) 100%)",
         "skeleton-shimmer":
           "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0) 100%)",
       },

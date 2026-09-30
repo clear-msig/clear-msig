@@ -171,13 +171,13 @@ function ConnectPage() {
                   className="pointer-events-none absolute -right-24 -top-24 h-48 w-48 rounded-full opacity-50"
                   style={{
                     background:
-                      "radial-gradient(circle at center, rgba(163, 190, 140,0.18) 0%, rgba(163, 190, 140,0) 70%)",
+                      "radial-gradient(circle at center, rgba(204, 255, 0,0.18) 0%, rgba(204, 255, 0,0) 70%)",
                     filter: "blur(40px)",
                   }}
                 />
 
                 <div className="relative flex flex-col items-center text-center">
-                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/30 shadow-[0_0_24px_rgba(163, 190, 140,0.15)]">
+                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/30 shadow-[0_0_24px_rgba(204, 255, 0,0.15)]">
                     <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
                   </div>
                   <h2 className="landing-section-heading mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-text-strong">

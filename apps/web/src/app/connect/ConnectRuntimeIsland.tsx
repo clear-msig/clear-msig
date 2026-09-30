@@ -176,7 +176,7 @@ function SignedInWaiting({
                 stiffness: 220,
                 delay: 0.05,
               }}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-[0_0_40px_rgba(163,190,140,0.5)]"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-[0_0_40px_rgba(204,255,0,0.5)]"
             >
               <MotionCheck
                 className="h-8 w-8"

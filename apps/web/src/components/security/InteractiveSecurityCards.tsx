@@ -95,8 +95,8 @@ function PasskeyCard() {
           className={
             "flex h-10 w-10 items-center justify-center rounded-xl ring-1 " +
             (hasPasskey
-              ? "bg-[#a3be8c]/15 text-[#a3be8c] ring-[#a3be8c]/30"
-              : "bg-[#a3be8c]/10 text-[#a3be8c] ring-[#a3be8c]/20")
+              ? "bg-[#ccff00]/15 text-[#ccff00] ring-[#ccff00]/30"
+              : "bg-[#ccff00]/10 text-[#ccff00] ring-[#ccff00]/20")
           }
         >
           {hasPasskey ? (
@@ -106,7 +106,7 @@ function PasskeyCard() {
           )}
         </div>
         {hasPasskey && (
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#a3be8c]">
+          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
             Active
           </span>
         )}
@@ -126,8 +126,8 @@ function PasskeyCard() {
           disabled={registering}
           className={
             "mt-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[12px] font-semibold text-black " +
-            "transition-colors duration-200 hover:bg-[#a3be8c] " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c] " +
+            "transition-colors duration-200 hover:bg-[#ccff00] " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c] " +
             "disabled:cursor-not-allowed disabled:opacity-60"
           }
         >
@@ -179,8 +179,8 @@ function LedgerCard() {
           className={
             "flex h-10 w-10 items-center justify-center rounded-xl ring-1 " +
             (connected
-              ? "bg-[#a3be8c]/15 text-[#a3be8c] ring-[#a3be8c]/30"
-              : "bg-[#a3be8c]/10 text-[#a3be8c] ring-[#a3be8c]/20")
+              ? "bg-[#ccff00]/15 text-[#ccff00] ring-[#ccff00]/30"
+              : "bg-[#ccff00]/10 text-[#ccff00] ring-[#ccff00]/20")
           }
         >
           {connected ? (
@@ -190,7 +190,7 @@ function LedgerCard() {
           )}
         </div>
         {connected && (
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#a3be8c]">
+          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
             Connected
           </span>
         )}
@@ -212,7 +212,7 @@ function LedgerCard() {
           className={
             "mt-4 inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-[12px] font-medium text-white/70 " +
             "transition-colors duration-200 hover:border-white/40 hover:text-white " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c]"
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c]"
           }
         >
           Disconnect Ledger
@@ -224,8 +224,8 @@ function LedgerCard() {
           disabled={ledger.connecting}
           className={
             "mt-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[12px] font-semibold text-black " +
-            "transition-colors duration-200 hover:bg-[#a3be8c] " +
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c] " +
+            "transition-colors duration-200 hover:bg-[#ccff00] " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c] " +
             "disabled:cursor-not-allowed disabled:opacity-60"
           }
         >

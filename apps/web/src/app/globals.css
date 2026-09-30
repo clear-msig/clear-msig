@@ -71,28 +71,28 @@
   --clear-card-shadow-mid-raised: rgba(0, 0, 0, 0.45);
   --clear-card-shadow-far-raised: rgba(0, 0, 0, 0.6);
 
-  /* Muted sage: brand emphasis without luminous full-surface color. */
-  --clear-accent-rgb: 163 190 140;
+  /* Original Obsidian & Lime palette; keep alpha-capable RGB tokens. */
+  --clear-accent-rgb: 204 255 0;
   --clear-accent: rgb(var(--clear-accent-rgb));
-  --clear-accent-hover-rgb: 178 205 160;
+  --clear-accent-hover-rgb: 216 255 51;
   --clear-accent-hover: rgb(var(--clear-accent-hover-rgb));
-  --clear-accent-bright-rgb: 193 215 179;
+  --clear-accent-bright-rgb: 224 255 102;
   --clear-accent-bright: rgb(var(--clear-accent-bright-rgb));
   --clear-text-on-accent-rgb: 0 0 0;
   --clear-text-on-accent: rgb(var(--clear-text-on-accent-rgb));
 
   /* Accent glows */
-  --clear-accent-glow-rest: rgba(163, 190, 140, 0.05);
-  --clear-accent-glow-hover: rgba(163, 190, 140, 0.09);
+  --clear-accent-glow-rest: rgba(204, 255, 0, 0.14);
+  --clear-accent-glow-hover: rgba(204, 255, 0, 0.22);
 
   /* Body backdrop - radial blooms over obsidian linear */
   --clear-body-bg-image:
-    radial-gradient(60% 40% at 50% -10%, rgba(163, 190, 140, 0.06) 0%, rgba(0, 0, 0, 0) 60%),
+    radial-gradient(60% 40% at 50% -10%, rgba(204, 255, 0, 0.06) 0%, rgba(0, 0, 0, 0) 60%),
     radial-gradient(40% 30% at 90% 100%, rgba(16, 185, 129, 0.05) 0%, rgba(0, 0, 0, 0) 70%),
     linear-gradient(180deg, #0a0a0a 0%, #0c0c0c 55%, #0a0a0a 100%);
   --clear-body-text: #ebebeb;
   --wallet-dot-primary: rgba(235, 235, 235, 0.075);
-  --wallet-dot-accent: rgba(163, 190, 140, 0.13);
+  --wallet-dot-accent: rgba(204, 255, 0, 0.13);
   --wallet-dot-size: 34px;
 
   /* Theme switch transition. Apply via .theme-transitioning class on
@@ -155,12 +155,12 @@
   --clear-card-shadow-mid-raised: rgba(15, 23, 42, 0.10);
   --clear-card-shadow-far-raised: rgba(15, 23, 42, 0.14);
 
-  /* The light-theme sage is darker to retain AA text/button contrast. */
-  --clear-accent-rgb: 71 102 60;
+  /* Original light-theme lime retains AA text/button contrast. */
+  --clear-accent-rgb: 77 124 15;
   --clear-accent: rgb(var(--clear-accent-rgb));
-  --clear-accent-hover-rgb: 60 86 50;
+  --clear-accent-hover-rgb: 63 98 18;
   --clear-accent-hover: rgb(var(--clear-accent-hover-rgb));
-  --clear-accent-bright-rgb: 82 111 70;
+  --clear-accent-bright-rgb: 101 163 13;
   --clear-accent-bright: rgb(var(--clear-accent-bright-rgb));
   --clear-text-on-accent-rgb: 255 255 255;
   --clear-text-on-accent: rgb(var(--clear-text-on-accent-rgb));
@@ -168,17 +168,17 @@
   /* Accent glows - lime tint at higher opacity so the bloom is
      visible against white. Matches the dark-mode glow shape but
      uses the darker lime base. */
-  --clear-accent-glow-rest: rgba(71, 102, 60, 0.04);
-  --clear-accent-glow-hover: rgba(71, 102, 60, 0.08);
+  --clear-accent-glow-rest: rgba(77, 124, 15, 0.20);
+  --clear-accent-glow-hover: rgba(77, 124, 15, 0.32);
 
   /* Body backdrop - soft warm white with quieter brand blooms. */
   --clear-body-bg-image:
-    radial-gradient(60% 40% at 50% -10%, rgba(163, 190, 140, 0.10) 0%, rgba(247, 248, 250, 0) 60%),
+    radial-gradient(60% 40% at 50% -10%, rgba(204, 255, 0, 0.10) 0%, rgba(247, 248, 250, 0) 60%),
     radial-gradient(40% 30% at 90% 100%, rgba(16, 185, 129, 0.08) 0%, rgba(247, 248, 250, 0) 70%),
     linear-gradient(180deg, #ffffff 0%, #f6f7f9 55%, #f1f3f6 100%);
   --clear-body-text: #0a0e16;
   --wallet-dot-primary: rgba(10, 14, 22, 0.13);
-  --wallet-dot-accent: rgba(71, 102, 60, 0.16);
+  --wallet-dot-accent: rgba(77, 124, 15, 0.16);
 }
 
 /* Theme-swap transition. Class is added to <html> by setStoredTheme
@@ -472,9 +472,9 @@ select:focus-visible {
 .landing-reveal {
   opacity: 1;
   transform: none;
-  transition: opacity 500ms ease-out, transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 350ms ease-out, transform 350ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.landing-reveal[data-reveal="pending"] { opacity: 0; transform: translateY(16px); }
+.landing-reveal[data-reveal="pending"] { opacity: 0; transform: translateY(10px); }
 .landing-reveal:focus-within { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .landing-reveal, .landing-reveal[data-reveal="pending"] {
@@ -578,7 +578,7 @@ select:focus-visible {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(163, 190, 140, 0.08), transparent 30%),
+    linear-gradient(90deg, rgba(204, 255, 0, 0.08), transparent 30%),
     repeating-linear-gradient(180deg, transparent 0 31px, rgba(255, 255, 255, 0.035) 31px 32px);
   opacity: 0.42;
 }
@@ -589,7 +589,7 @@ select:focus-visible {
 }
 
 .clear-receipt-row {
-  background-image: linear-gradient(90deg, rgba(163, 190, 140, 0.035), transparent 44%);
+  background-image: linear-gradient(90deg, rgba(204, 255, 0, 0.035), transparent 44%);
 }
 
 .clear-primary-button {
@@ -607,13 +607,13 @@ select:focus-visible {
 .product-experience .product-choice-card,
 .product-experience .product-preview-card {
   box-shadow:
-    inset 3px 0 0 rgba(163, 190, 140, 0.14),
+    inset 3px 0 0 rgba(204, 255, 0, 0.14),
     0 24px 90px rgba(0, 0, 0, 0.22);
 }
 
 .landing-shell .intent-rail {
   background:
-    linear-gradient(90deg, rgba(163, 190, 140, 0.075), rgba(255, 255, 255, 0.025) 34%, rgba(255, 255, 255, 0.018)),
+    linear-gradient(90deg, rgba(204, 255, 0, 0.075), rgba(255, 255, 255, 0.025) 34%, rgba(255, 255, 255, 0.018)),
     rgba(255, 255, 255, 0.018);
 }
 
@@ -623,7 +623,7 @@ select:focus-visible {
   inset: 0 auto 0 0;
   width: 3px;
   background: var(--clear-accent);
-  box-shadow: 0 0 18px rgba(163, 190, 140, 0.34);
+  box-shadow: 0 0 18px rgba(204, 255, 0, 0.34);
 }
 
 .landing-shell .intent-rail-row {
@@ -675,8 +675,8 @@ select:focus-visible {
  * pulse keeps the focal number alive without distracting from
  * the rest of the receipt. */
 @keyframes amount-glow-pulse {
-  0%, 100% { text-shadow: 0 0 8px rgba(163, 190, 140, 0.18); }
-  50% { text-shadow: 0 0 14px rgba(163, 190, 140, 0.32); }
+  0%, 100% { text-shadow: 0 0 8px rgba(204, 255, 0, 0.18); }
+  50% { text-shadow: 0 0 14px rgba(204, 255, 0, 0.32); }
 }
 .landing-shell .amount-glow {
   animation: amount-glow-pulse 2.6s ease-in-out infinite;
@@ -701,9 +701,9 @@ select:focus-visible {
   pointer-events: none;
   background: linear-gradient(
     100deg,
-    rgba(163, 190, 140, 0) 30%,
-    rgba(163, 190, 140, 0.14) 50%,
-    rgba(163, 190, 140, 0) 70%
+    rgba(204, 255, 0, 0) 30%,
+    rgba(204, 255, 0, 0.14) 50%,
+    rgba(204, 255, 0, 0) 70%
   );
   width: 40%;
   animation: receipt-scan-sweep 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.7s 1 forwards;

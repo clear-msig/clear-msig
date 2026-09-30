@@ -77,7 +77,7 @@ export default function PrivacyPage() {
           <h1 className="mt-6 text-[clamp(2.25rem,7vw,5rem)] font-medium leading-[0.92] tracking-[-0.04em] text-white sm:mt-8">
             Your rules are
             <br />
-            <span className="italic-skew text-[#a3be8c]">yours alone</span>.
+            <span className="italic-skew text-[#ccff00]">yours alone</span>.
           </h1>
 
           <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 sm:text-base">
@@ -114,8 +114,8 @@ export default function PrivacyPage() {
           className="mt-12 overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-white/[0.02] backdrop-blur-md sm:mt-16"
         >
           <div className="grid grid-cols-1 gap-0 md:grid-cols-[auto_1fr]">
-            <div className="flex items-center justify-center border-b border-white/[0.08] bg-[#a3be8c]/[0.04] p-8 md:border-b-0 md:border-r md:p-10">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#a3be8c]/15 text-[#a3be8c] ring-1 ring-[#a3be8c]/30 sm:h-20 sm:w-20">
+            <div className="flex items-center justify-center border-b border-white/[0.08] bg-[#ccff00]/[0.04] p-8 md:border-b-0 md:border-r md:p-10">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#ccff00]/15 text-[#ccff00] ring-1 ring-[#ccff00]/30 sm:h-20 sm:w-20">
                 <ShieldCheck
                   className="h-8 w-8 sm:h-10 sm:w-10"
                   strokeWidth={1.5}
@@ -124,7 +124,7 @@ export default function PrivacyPage() {
               </div>
             </div>
             <div className="p-6 sm:p-8">
-              <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#a3be8c]">
+              <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
                 Verified, not just trusted
               </p>
               <h2 className="mt-3 font-display text-2xl leading-tight tracking-[-0.01em] text-white sm:text-3xl">
@@ -151,7 +151,7 @@ export default function PrivacyPage() {
           className={
             "mt-6 overflow-hidden rounded-[1.25rem] border p-5 backdrop-blur-md sm:p-6 " +
             (status.live
-              ? "border-[#a3be8c]/30 bg-[#a3be8c]/[0.04]"
+              ? "border-[#ccff00]/30 bg-[#ccff00]/[0.04]"
               : "border-white/[0.12] bg-white/[0.02]")
           }
         >
@@ -159,7 +159,7 @@ export default function PrivacyPage() {
             <span
               className={
                 "font-mono-tech text-[10px] uppercase tracking-[0.28em] " +
-                (status.live ? "text-[#a3be8c]" : "text-white/60")
+                (status.live ? "text-[#ccff00]" : "text-white/60")
               }
             >
               {status.live ? "Encryption active" : "Preview note"}
@@ -214,7 +214,7 @@ function Tile({
 }) {
   const accent =
     tone === "hidden"
-      ? "bg-[#a3be8c]/10 text-[#a3be8c] ring-[#a3be8c]/20"
+      ? "bg-[#ccff00]/10 text-[#ccff00] ring-[#ccff00]/20"
       : "bg-white/[0.06] text-white/80 ring-white/[0.12]";
   return (
     <article className="group relative overflow-hidden rounded-[1.25rem] border border-white/[0.08] bg-white/[0.02] p-5 backdrop-blur-md transition-colors duration-300 hover:border-white/[0.16] sm:p-6">

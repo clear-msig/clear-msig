@@ -53,7 +53,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
     <ProductShell>
       <section className="relative z-10 mx-auto grid min-h-[calc(100vh-96px)] w-full max-w-6xl gap-8 px-5 pb-14 pt-10 sm:px-8 lg:grid-cols-[minmax(0,1fr)_390px] lg:px-10">
         <div className="flex flex-col justify-center">
-          <p className="flex flex-wrap items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#a3be8c]">
+          <p className="flex flex-wrap items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
             <span>{surface.host}</span>
             {planned ? (
               <span className="rounded-full border border-white/[0.12] px-2 py-0.5 tracking-[0.18em] text-white/46">
@@ -99,7 +99,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
           <ProductPreview surfaceId={surface.id} size="lg" />
 
           <div className="mt-6 flex items-start gap-3">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#a3be8c] text-black">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#ccff00] text-black">
               <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={2.2} />
             </span>
             <div>
@@ -179,7 +179,7 @@ function ProductPreview({
         surfaceId === "pro" &&
           "border-sky-300/15 bg-[linear-gradient(135deg,rgba(8,13,22,0.98),rgba(22,33,50,0.72))]",
         surfaceId === "agent" &&
-          "border-[#a3be8c]/20 bg-[linear-gradient(135deg,rgba(5,8,5,0.98),rgba(18,29,12,0.76))]",
+          "border-[#ccff00]/20 bg-[linear-gradient(135deg,rgba(5,8,5,0.98),rgba(18,29,12,0.76))]",
         surfaceId === "secure" &&
           "border-fuchsia-200/15 bg-[linear-gradient(135deg,rgba(15,11,18,0.98),rgba(39,25,48,0.72))]",
       )}
@@ -260,22 +260,22 @@ function AgentPreview() {
   return (
     <div className="flex h-full flex-col justify-between gap-4">
       <div className="flex items-center justify-between">
-        <span className="rounded-full bg-[#a3be8c]/12 px-2.5 py-1 text-[10px] font-semibold text-[#a3be8c]">
+        <span className="rounded-full bg-[#ccff00]/12 px-2.5 py-1 text-[10px] font-semibold text-[#ccff00]">
           Live desk
         </span>
-        <span className="h-2 w-2 rounded-full bg-[#a3be8c]" />
+        <span className="h-2 w-2 rounded-full bg-[#ccff00]" />
       </div>
       <div className="flex items-end gap-1.5">
         {[34, 58, 42, 76, 62, 88, 70].map((height, index) => (
           <span
             key={index}
-            className="flex-1 rounded-t bg-[#a3be8c]/70"
+            className="flex-1 rounded-t bg-[#ccff00]/70"
             style={{ height }}
           />
         ))}
       </div>
       <div className="grid grid-cols-2 gap-2 text-[10px]">
-        <span className="rounded-xl border border-[#a3be8c]/15 bg-[#a3be8c]/[0.08] px-2 py-2 text-[#a3be8c]">
+        <span className="rounded-xl border border-[#ccff00]/15 bg-[#ccff00]/[0.08] px-2 py-2 text-[#ccff00]">
           Rules
         </span>
         <span className="rounded-xl border border-white/[0.08] bg-white/[0.055] px-2 py-2 text-white/68">
@@ -325,7 +325,7 @@ function ProductSupportLink({ surface }: { surface: ProductSurface }) {
           "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border",
           planned
             ? "border-white/[0.08] bg-white/[0.04] text-white/42"
-            : "border-[#a3be8c]/25 bg-[#a3be8c]/10 text-[#a3be8c]",
+            : "border-[#ccff00]/25 bg-[#ccff00]/10 text-[#ccff00]",
         )}
       >
         <Icon className="h-5 w-5" aria-hidden="true" strokeWidth={1.85} />
@@ -376,7 +376,7 @@ function SurfaceIconList({
                   "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
                   muted
                     ? "bg-white/[0.05] text-white/40"
-                    : "bg-[#a3be8c]/10 text-[#a3be8c]",
+                    : "bg-[#ccff00]/10 text-[#ccff00]",
                 )}
               >
                 <ItemIcon className="h-3.5 w-3.5" aria-hidden="true" />

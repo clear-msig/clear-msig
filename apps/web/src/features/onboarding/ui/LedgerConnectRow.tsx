@@ -72,7 +72,7 @@ export function LedgerConnectRow() {
             </span>
           </span>
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-bold text-text-on-accent shadow-[0_0_18px_rgba(163,190,140,0.35)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-bold text-text-on-accent shadow-[0_0_18px_rgba(204,255,0,0.35)]">
           {ledger.connecting ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />

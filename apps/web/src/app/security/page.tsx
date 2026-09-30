@@ -93,7 +93,7 @@ export default function SecurityPage() {
               href="https://github.com/clear-msig/clear-msig/blob/main/SECURITY.md"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-white underline decoration-white/30 underline-offset-4 transition-colors hover:decoration-[#a3be8c]"
+              className="inline-flex items-center gap-1 text-white underline decoration-white/30 underline-offset-4 transition-colors hover:decoration-[#ccff00]"
             >
               SECURITY.md
               <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -132,7 +132,7 @@ export default function SecurityPage() {
             <button
               type="button"
               onClick={() => setSecurityControlsRequested(true)}
-              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#a3be8c]/30 bg-[#a3be8c]/10 px-4 py-2.5 text-sm font-semibold text-[#a3be8c] transition-colors hover:border-[#a3be8c]/55 hover:bg-[#a3be8c]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c]"
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#ccff00]/30 bg-[#ccff00]/10 px-4 py-2.5 text-sm font-semibold text-[#ccff00] transition-colors hover:border-[#ccff00]/55 hover:bg-[#ccff00]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c0c]"
             >
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               Set up account protection
@@ -145,7 +145,7 @@ export default function SecurityPage() {
           {...fadeIn(0.15)}
           className="mt-12 flex items-start gap-3 rounded-[1.25rem] border border-white/[0.08] bg-white/[0.02] p-5 backdrop-blur-md sm:p-6"
         >
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#a3be8c]">
+          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
             Pre-alpha
           </span>
           <p className="text-sm leading-relaxed text-white/60">
@@ -156,7 +156,7 @@ export default function SecurityPage() {
               href="https://github.com/clear-msig/clear-msig/blob/main/SECURITY.md"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-white underline decoration-white/30 underline-offset-4 hover:decoration-[#a3be8c]"
+              className="inline-flex items-center gap-1 text-white underline decoration-white/30 underline-offset-4 hover:decoration-[#ccff00]"
             >
               SECURITY.md
               <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -200,7 +200,7 @@ function InfoCard({
 }) {
   return (
     <article className="group relative overflow-hidden rounded-[1.25rem] border border-white/[0.08] bg-white/[0.02] p-5 backdrop-blur-md transition-colors duration-300 hover:border-white/[0.16] sm:p-6">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#a3be8c]/10 text-[#a3be8c] ring-1 ring-[#a3be8c]/20">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/20">
         <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
       </div>
       <h2 className="mt-4 font-display text-lg leading-tight text-white">

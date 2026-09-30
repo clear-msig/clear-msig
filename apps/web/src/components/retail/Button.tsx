@@ -21,7 +21,7 @@ const variants: Record<Variant, string> = {
   primary:
     "clear-primary-button bg-accent text-text-on-accent font-semibold hover:bg-accent-hover",
   secondary:
-    "bg-surface-raised text-text-strong border border-border-soft shadow-[inset_3px_0_0_rgba(163,190,140,0.12)] hover:border-border-strong",
+    "bg-surface-raised text-text-strong border border-border-soft shadow-[inset_3px_0_0_rgba(204,255,0,0.12)] hover:border-border-strong",
   ghost: "bg-transparent text-text-strong hover:bg-surface-card/5",
   danger: "bg-danger text-white hover:bg-danger/90",
 };

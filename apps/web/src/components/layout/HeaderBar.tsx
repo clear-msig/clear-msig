@@ -214,7 +214,7 @@ export function HeaderBar() {
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
           )}
         >
-          <span className="flex h-5 w-5 items-center justify-center drop-shadow-[0_0_6px_rgba(163,190,140,0.5)]">
+          <span className="flex h-5 w-5 items-center justify-center drop-shadow-[0_0_6px_rgba(204,255,0,0.5)]">
             <BrandMark size={16} />
           </span>
           Clear
