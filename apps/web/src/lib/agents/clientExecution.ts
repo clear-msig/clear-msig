@@ -1,5 +1,7 @@
 "use client";
 
+import { agentSessionHeaders } from "@/lib/agents/clientAuth";
+
 import type { AgentTradeProposal } from "@/lib/agents/client";
 import type { AgentServerExecutionReadiness } from "@/lib/agents/serverExecutionAdapters";
 import type { AgentVenueReconciliationSummary } from "@/lib/agents/venueReconciliation";
@@ -86,7 +88,9 @@ export async function loadAgentVenueReadiness(
   venue: AgentTradeProposal["venue"],
   options: { walletName?: string; agentId?: string; accountAddress?: string } = {},
 ): Promise<AgentVenueReadiness | null> {
-  const response = await fetch(apiPath(venue, options));
+  const response = options.walletName
+    ? await fetch(apiPath(venue, options), { headers: agentSessionHeaders(), cache: "no-store" })
+    : await fetch(apiPath(venue, options));
   const body = (await response.json()) as {
     readiness?: AgentServerExecutionReadiness;
     accountProbe?: HyperliquidTestnetAccountProbe | null;
@@ -119,6 +123,7 @@ export async function loadAgentVenueReadinessForAgents(
   const uniqueAgentIds = Array.from(new Set(options.agentIds.filter(Boolean)));
   if (uniqueAgentIds.length === 0) {
     return loadAgentVenueReadiness(venue, {
+      walletName: options.walletName,
       accountAddress: options.accountAddress,
     });
   }
@@ -210,7 +215,7 @@ export async function submitAgentVenueExecution(
 ): Promise<AgentServerExecutionResult> {
   const response = await fetch(apiPath(proposal.venue), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: agentSessionHeaders(),
     body: JSON.stringify({
       walletName: proposal.walletName,
       agentId: proposal.agentId,
@@ -270,7 +275,7 @@ export async function settleAgentVenueExecution({
 }): Promise<AgentVenueSettlementResult> {
   const response = await fetch("/api/agent-settlement/hyperliquid_testnet", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: agentSessionHeaders(),
     body: JSON.stringify({ walletName, agentId, requestId }),
   });
   const body = await response.json().catch(() => ({})) as {
@@ -308,7 +313,7 @@ export async function saveAgentVenueSettlementProposal({
 }): Promise<void> {
   const response = await fetch("/api/agent-settlement/hyperliquid_testnet", {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: agentSessionHeaders(),
     body: JSON.stringify({ walletName, agentId, requestId, proposalAddress, status, txid }),
   });
   if (!response.ok) {
@@ -323,10 +328,8 @@ function apiPath(
 ): string {
   const path = `/api/agent-execution/${encodeURIComponent(venue)}`;
   const query = new URLSearchParams();
-  if (options.walletName && options.agentId) {
-    query.set("walletName", options.walletName);
-    query.set("agentId", options.agentId);
-  }
+  if (options.walletName) query.set("walletName", options.walletName);
+  if (options.agentId) query.set("agentId", options.agentId);
   if ("accountAddress" in options && options.accountAddress) {
     query.set("accountAddress", options.accountAddress);
   }

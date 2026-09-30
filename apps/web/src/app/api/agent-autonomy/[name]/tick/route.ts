@@ -1,5 +1,7 @@
+import { withWalletMember } from "@/lib/auth/walletAuthorization";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
   AgentServerStatePersistenceError,
@@ -17,6 +19,10 @@ interface RouteContext {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  return withWalletMember(request, decodeRouteParam((await context.params).name), () => postAuthorized(request, context));
+}
+
+async function postAuthorized(request: NextRequest, context: RouteContext) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
@@ -26,7 +32,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   });
   if (limited) return limited;
 
-  const raw = await readBoundedBody(request);
+  const raw = await readBoundedBody(request, MAX_BODY_BYTES, "Autonomy tick body is too large.");
   if (!raw.ok) return raw.response;
 
   let body: unknown = {};
@@ -69,22 +75,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
         : "Agent autonomy tick failed.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
-}
-
-async function readBoundedBody(
-  request: NextRequest,
-): Promise<{ ok: true; text: string } | { ok: false; response: NextResponse }> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: "Autonomy tick body is too large." },
-        { status: 413 },
-      ),
-    };
-  }
-  return { ok: true, text };
 }
 
 function decodeRouteParam(value: string): string {

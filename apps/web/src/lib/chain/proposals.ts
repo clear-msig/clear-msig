@@ -1,24 +1,12 @@
-// Direct-RPC proposal reader.
-//
-// Two shapes:
-//   - `fetchProposal(connection, pda)` . single read; used by the
-//     proposal-detail page.
-//   - `listProposalsForWallet(connection, wallet, walletAccount)` .
-//     scans (intent_index × proposal_index) for every combination up to
-//     the wallet's high-water marks, batching `getMultipleAccountsInfo`.
-//
-// The wallet account tracks the monotonic `proposalIndex`; the on-chain
-// program allocates a new proposal at `(intent, current_proposal_index)`
-// then increments the wallet's counter. So any proposal ever created
-// has an index in `0..walletAccount.proposalIndex`.
-//
-// For most wallets this scan is small (dozens of (intent, proposal)
-// pairs). If scale ever becomes an issue we'll switch to a
-// `getProgramAccounts` filter on disc=3 + wallet==X, but that's a
-// heavier query and overkill at hackathon scale.
+// Direct-RPC proposal reader. List only existing proposal accounts, filtered
+// by discriminator and wallet. This avoids deriving the Cartesian product of
+// every intent and every historical proposal index on each activity refresh.
 
 import { Connection, PublicKey } from "@solana/web3.js";
+import bs58 from "bs58";
 import {
+  DISC_PROPOSAL,
+  DISC_TYPED_PROPOSAL,
   findIntentAddress,
   findProposalAddress,
   findTypedProposalAddress,
@@ -100,11 +88,9 @@ export async function waitForProposalApproval(
   return proposalIsApproved(status);
 }
 
-/// List every proposal ever created for this wallet. The scan space is
-/// `(intent_index, proposal_index) ∈ [0, wallet.intentIndex] × [0, wallet.proposalIndex)`.
-/// PDAs that don't exist on chain (wrong pairing . the proposal was
-/// allocated under a different intent) return null and are filtered
-/// out; the rest come back parsed.
+/// List existing legacy and typed proposals for this wallet snapshot. RPC
+/// filters reduce transfer volume; validate the returned account bindings too
+/// rather than trusting a provider to have applied those filters correctly.
 export async function listProposalsForWallet(
   connection: Connection,
   wallet: PublicKey,
@@ -112,61 +98,52 @@ export async function listProposalsForWallet(
 ): Promise<ProposalWithPda[]> {
   const { intentIndex, proposalIndex } = walletAccount;
   if (proposalIndex === 0n) return [];
-
-  const pdaRows: { pda: PublicKey; intentIndex: number; proposalIndex: bigint }[] = [];
-  for (let i = 0; i <= intentIndex; i++) {
-    const [intentPda] = findIntentAddress(wallet, i, CLEAR_WALLET_PROGRAM_ID);
-    // Proposal index is a u64 monotonic counter on the wallet . not per
-    // intent . so we still iterate over every value in [0, proposalIndex)
-    // and check which (intent, index) pair actually landed on chain.
-    for (let p = 0n; p < proposalIndex; p++) {
-      const [pda] = findProposalAddress(intentPda, p, CLEAR_WALLET_PROGRAM_ID);
-      pdaRows.push({ pda, intentIndex: i, proposalIndex: p });
-      const [typedPda] = findTypedProposalAddress(intentPda, p, CLEAR_WALLET_PROGRAM_ID);
-      pdaRows.push({ pda: typedPda, intentIndex: i, proposalIndex: p });
-    }
+  if (!Number.isInteger(intentIndex) || intentIndex < 0 || intentIndex > 255 ||
+      proposalIndex < 0n || proposalIndex > 0xffffffffffffffffn) {
+    throw new Error("Invalid wallet proposal counters.");
   }
 
-  const accounts = await getMultipleAccountsBatched(
-    connection,
-    pdaRows.map((r) => r.pda)
+  // Intent indices are u8, so this work is bounded independently of history.
+  const intentIndices = new Map<string, number>();
+  for (let i = 0; i <= intentIndex; i++) {
+    const [intentPda] = findIntentAddress(wallet, i, CLEAR_WALLET_PROGRAM_ID);
+    intentIndices.set(intentPda.toBase58(), i);
+  }
+  const walletAddress = wallet.toBase58();
+  const pages = await Promise.all(
+    [DISC_PROPOSAL, DISC_TYPED_PROPOSAL].map((discriminator) =>
+      connection.getProgramAccounts(CLEAR_WALLET_PROGRAM_ID, {
+        commitment: DEFAULT_COMMITMENT,
+        filters: [
+          { memcmp: { offset: 0, bytes: bs58.encode(Uint8Array.of(discriminator)) } },
+          { memcmp: { offset: 1, bytes: walletAddress } },
+        ],
+      }),
+    ),
   );
 
   const out: ProposalWithPda[] = [];
-  for (let i = 0; i < pdaRows.length; i++) {
-    const info = accounts[i];
-    if (!info) continue;
+  const seen = new Set<string>();
+  for (const { pubkey, account: info } of pages.flat()) {
+    if (!info.owner.equals(CLEAR_WALLET_PROGRAM_ID)) continue;
     try {
-      out.push({
-        pda: pdaRows[i].pda,
-        intentIndex: pdaRows[i].intentIndex,
-        proposalIndex: pdaRows[i].proposalIndex,
-        account: parseAnyProposal(new Uint8Array(info.data)),
-      });
+      const account = parseAnyProposal(new Uint8Array(info.data));
+      const index = intentIndices.get(account.intent);
+      if (account.wallet !== walletAddress || index === undefined ||
+          account.proposalIndex >= proposalIndex) continue;
+      const [expected] = (account.typed ? findTypedProposalAddress : findProposalAddress)(
+        new PublicKey(account.intent), account.proposalIndex, CLEAR_WALLET_PROGRAM_ID,
+      );
+      const address = pubkey.toBase58();
+      if (!expected.equals(pubkey) || seen.has(address)) continue;
+      seen.add(address);
+      out.push({ pda: pubkey, intentIndex: index, proposalIndex: account.proposalIndex, account });
     } catch {
-      // Wrong discriminator . PDA collision with another account type.
-      // Skip silently; the real proposal will show up on its correct
-      // (intent, index) pair.
+      // A malformed account must not poison the rest of the activity feed.
     }
   }
-  return out;
-}
-
-// ── internals ─────────────────────────────────────────────────────────
-
-async function getMultipleAccountsBatched(
-  connection: Connection,
-  pdas: PublicKey[]
-) {
-  const CHUNK = 100;
-  if (pdas.length <= CHUNK) {
-    return connection.getMultipleAccountsInfo(pdas, DEFAULT_COMMITMENT);
-  }
-  const out: Awaited<ReturnType<typeof connection.getMultipleAccountsInfo>> = [];
-  for (let i = 0; i < pdas.length; i += CHUNK) {
-    const chunk = pdas.slice(i, i + CHUNK);
-    const page = await connection.getMultipleAccountsInfo(chunk, DEFAULT_COMMITMENT);
-    out.push(...page);
-  }
-  return out;
+  // Preserve the previous intent/index/legacy-before-typed enumeration order.
+  return out.sort((a, b) => a.intentIndex - b.intentIndex ||
+    (a.proposalIndex < b.proposalIndex ? -1 : a.proposalIndex > b.proposalIndex ? 1 :
+      Number(a.account.typed) - Number(b.account.typed)));
 }

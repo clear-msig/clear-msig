@@ -536,7 +536,7 @@ capital performance.
      decisions, verified signing identity, key rotation, freshness checks,
      replay protection, and endpoint review.
    - Current implementation: creator SDK submissions now include an
-     `hmac_sha256_v1` signed-decision envelope by default. The signal API
+     `hmac_sha256_v2` target-bound signed-decision envelope. The signal API
      verifies the signature against the registered submit-only key and rejects
      mismatched signatures before queuing the decision.
 7. **Real market, news, and macro data ingestion**
@@ -607,8 +607,8 @@ before adding more venues or autonomous capital:
      Signal key, and run the documented scenarios.
    - Current implementation:
      `examples/agent-signal-runner`.
-   - Current implementation: the runner submits `hmac_sha256_v1` signed
-     decisions by default and keeps an explicit unsigned compatibility mode.
+   - Current implementation: the runner submits `hmac_sha256_v2` target-bound signed
+     decisions. Unsigned and v1 compatibility modes are rejected.
    - Current implementation: `examples/creator-agent-sdk` explains the
      non-hosted model and provides a dependency-free decision helper for
      evidence-rich trade decisions, freshness/idempotency fields, and

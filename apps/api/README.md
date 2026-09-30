@@ -55,6 +55,7 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 
 - `BACKEND_API_BIND` (default `127.0.0.1:8080`)
 - `CLEAR_MSIG_ENV` (`production` enables fail-closed CORS and redacted internal errors)
+- `CLEAR_MSIG_BACKEND_GATEWAY_TOKEN` (server-only 32–512-character token, shared with the authenticated Next gateway; required for unsigned privileged routes in every environment. Configure outside source control; never expose with a NEXT_PUBLIC prefix)
 - `CLEAR_MSIG_URL` (optional global `--url`)
 - `CLEAR_MSIG_KEYPAIR` (optional global `--keypair`)
 - `CLEAR_MSIG_SIGNER` (optional global `--signer`)
@@ -62,7 +63,8 @@ This sets backend-owned runtime defaults for Solana devnet + Ika pre-alpha so th
 - `CLEAR_MSIG_EXECUTION_WORKERS` (default `8`; bounds in-process blocking work)
 - `CLEAR_MSIG_DEFAULT_DWALLET_PROGRAM` (optional default `--dwallet-program` for chain bind + execute)
 - `CLEAR_MSIG_DEFAULT_GRPC_URL` (optional default `--grpc-url` for chain bind + execute)
-- `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (optional default `--rpc-url` for execute)
+- `CLEAR_MSIG_DEFAULT_DEST_RPC_URL` (trusted default destination `--rpc-url` for execute)
+- `CLEAR_MSIG_ALLOWED_DEST_RPC_URLS` (optional comma-separated exact additional destination URLs, maximum 32; configure the BTC, Zcash, Hyperliquid, and other supported broadcast endpoints here before rollout. Browser requests may only select this allowlist or the trusted default; custom browser RPC settings alone do not authorize backend access)
 - `CLEAR_MSIG_PRO_STORE_PATH` (optional Pro schedules/audit JSON store; production uses `/data/pro-store.json` on the mounted Railway volume)
 - `CLEAR_MSIG_DELIVERY_STORE_PATH` (development-only BTC/EVM/Zcash receipt file)
 - `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (required production Redis REST store for distributed delivery receipts/leases, notifications, agent state, and shared rate-limit paths)
@@ -117,6 +119,15 @@ Upstash through `UPSTASH_REDIS_REST_URL` and
 `UPSTASH_REDIS_REST_TOKEN`. Production startup fails closed when Redis is not
 configured. Local CLI and development backend runs retain the file adapter at
 `CLEAR_MSIG_DELIVERY_STORE_PATH`.
+Destination and Redis HTTP response bodies are streamed with a 4 MiB decoded
+size limit. Reconciliation requires an explicit result and matching
+transaction identity; malformed responses leave delivery unknown rather than
+being treated as confirmation or permission to rebroadcast.
+
+The process-local rate limiter caps key cardinality and key length, expires old
+buckets, and never increments rejected requests. These caller-selected keys do
+not authenticate the requester or replace shared ingress throttling.
+
 Solana account reads, wallet scans, blockhash reads, and transaction submission
 also pass through an injectable execution-library port; command handlers cannot
 construct an SDK RPC client directly.
@@ -133,3 +144,31 @@ no tonic or experimental Ika SDK types; only the live adapter owns that stack.
 - Production Redis is Upstash Redis REST.
 - Run `clear-msig-backend-api` as your backend service.
 - Frontend talks only to this service.
+
+## Authenticated ingress for unsigned operations
+
+All `/v1/pro/**` routes, including metadata reads, and `POST /wallets` plus
+`POST /wallets/{name}/chains/add` require `x-clearsig-backend-token`. Missing
+server configuration fails closed with 503; missing, incorrect, or repeated
+credentials return 401 before parsing bodies, reading private Pro state, or
+invoking an execution command. Comparison uses a constant-time digest check.
+There is no development or devnet bypass. Public health/chain reads and existing
+member-signed command contracts retain their current authorization behavior.
+
+The Next gateway must independently verify the Dynamic session and canonical
+wallet access before adding this server-only header. It must discard any
+client-supplied gateway header. The shared token authenticates the gateway or
+operator, not a wallet member and not a quorum vote.
+
+Wallet sponsorship requires the authenticated actor in the requested initial
+membership and bounded sponsorship requests. Chain binding remains a privileged
+creator/operator bootstrap action: the browser gateway refuses it until a
+quorum-backed binding protocol exists. Membership alone is insufficient. The
+onchain creator is the original payer stored in `wallet.creator`; deployment of
+the creator-only binding guard must be reviewed alongside this ingress change.
+Existing operator bootstrap tooling needs the server token, and old unsigned
+browser chain-add requests must not silently regain access.
+
+No token was generated or installed by this audit. Set matching private
+configuration explicitly before rollout, keep the direct backend behind
+controlled ingress, and independently review migrations and program deployment.

@@ -547,6 +547,7 @@ export function useAgentDashboardController() {
     proposals,
     sessions,
   ]); const {
+    pendingKillSwitch,
     prepareScoutIdea,
     runAutonomyScan,
     setKillSwitch,
@@ -616,7 +617,8 @@ export function useAgentDashboardController() {
     motionProps,
     openExecutionRecords,
     openExecutions,
-    pendingAction,
+    pendingAction: pendingAction || pendingKillSwitch,
+    pendingKillSwitch,
     policy,
     prepareScoutIdea,
     proposals,

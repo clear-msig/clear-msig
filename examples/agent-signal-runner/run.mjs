@@ -9,7 +9,7 @@ import {
 } from "./scenarios.mjs";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const SIGNATURE_SCHEME = "hmac_sha256_v1";
+const SIGNATURE_SCHEME = "hmac_sha256_v2";
 
 export function parseArgs(argv) {
   const options = {
@@ -20,6 +20,7 @@ export function parseArgs(argv) {
     market: "BTC-PERP",
     side: "long",
     dryRun: false,
+    target: process.env.CLEARSIG_SIGNAL_TARGET ? JSON.parse(process.env.CLEARSIG_SIGNAL_TARGET) : undefined,
     signed: true,
     help: false,
   };
@@ -31,8 +32,7 @@ export function parseArgs(argv) {
       continue;
     }
     if (argument === "--unsigned") {
-      options.signed = false;
-      continue;
+      throw new Error("Unsigned signals are no longer accepted.");
     }
     if (argument === "--help" || argument === "-h") {
       options.help = true;
@@ -73,11 +73,13 @@ export async function submitSignal({
   endpoint,
   signalKey,
   signal,
+  target,
   signed = true,
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 }) {
-  const signature = signed ? signSignal({ signal, signalKey }) : null;
+  if (!signed) throw new Error("Unsigned signals are no longer accepted.");
+  const signature = signSignal({ signal, signalKey, target });
   const response = await fetchImpl(endpoint, {
     method: "POST",
     headers: {
@@ -132,7 +134,7 @@ export async function run(options, io = console) {
     endpoint: options.endpoint,
     signalKey: options.signalKey,
     signal,
-    signed: options.signed,
+    target: options.target,
   });
   io.log(formatResponse("First submission", first));
 
@@ -144,7 +146,7 @@ export async function run(options, io = console) {
     endpoint: options.endpoint,
     signalKey: options.signalKey,
     signal,
-    signed: options.signed,
+    target: options.target,
   });
   io.log(formatResponse("Retry submission", second));
   if (first.duplicate !== false || second.duplicate !== true || first.id !== second.id) {
@@ -170,7 +172,7 @@ Options:
   --market <market>    Market for the signal (default: BTC-PERP)
   --side <side>        long | short (default: long)
   --dry-run            Print a fresh payload without sending it
-  --unsigned           Submit with signal key only, for compatibility testing
+  CLEARSIG_SIGNAL_TARGET must contain the JSON target copied from the connection screen
   --help, -h           Show this help
 `;
 }
@@ -224,10 +226,14 @@ function validateHttpUrl(value, label) {
   return parsed;
 }
 
-export function signSignal({ signal, signalKey }) {
+export function signSignal({ signal, signalKey, target }) {
   if (!signalKey) throw new Error("Signal key is required for signed submissions.");
+  if (!target?.walletAddress || !target.agentId || !target.programId || !target.network ||
+      !signal.clientSignalId || !Number.isSafeInteger(signal.submittedAt) || signal.submittedAt <= 0) {
+    throw new Error("Signed signal requires a canonical target, nonce and timestamp. Copy the signal target from the connection screen.");
+  }
   return createHmac("sha256", signalKey)
-    .update(canonicalSignal(signal))
+    .update(canonicalSignal({ domain: "clearsig.agent.signal", scheme: "hmac_sha256_v2", target, signal: signal }))
     .digest("hex");
 }
 

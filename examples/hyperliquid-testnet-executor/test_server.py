@@ -1,4 +1,7 @@
 import time
+import copy
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 import os
 import tempfile
@@ -7,6 +10,7 @@ from pathlib import Path
 
 from server import (
     ExecutorSettings,
+    ExecutorService,
     ExchangeError,
     ValidationError,
     artifact_from_order_result,
@@ -160,6 +164,79 @@ class ExecutorTests(unittest.TestCase):
                 },
                 request()["intent"],
             )
+
+
+class StubExchangeClient:
+    agent_wallet_address = "0x" + "3" * 40
+
+    def __init__(self):
+        self.calls = 0
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.fail = False
+
+    def submit_market_order(self, body):
+        self.calls += 1
+        self.started.set()
+        self.release.wait(2)
+        if self.fail:
+            raise ExchangeError("Transport failed after submission")
+        return {"orderId": "123", "status": "filled"}
+
+    def cancel_open_orders(self, body):
+        self.calls += 1
+        return {"status": "cancelled"}
+
+
+class ExecutorReplayTests(unittest.TestCase):
+    def setUp(self):
+        self.client = StubExchangeClient()
+        self.service = ExecutorService(SETTINGS, self.client)
+        self.body = request()
+        self.body["agentWalletAddress"] = self.client.agent_wallet_address
+
+    def test_simultaneous_retries_submit_only_once(self):
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(self.service.submit, self.body)
+            self.assertTrue(self.client.started.wait(1))
+            second = pool.submit(self.service.submit, copy.deepcopy(self.body))
+            time.sleep(0.05)
+            self.client.release.set()
+            results = [first.result(), second.result()]
+        self.assertEqual(self.client.calls, 1)
+        self.assertEqual(sorted(duplicate for _, duplicate in results), [False, True])
+
+    def test_same_key_cannot_replace_trade_fields(self):
+        self.client.release.set()
+        self.service.submit(self.body)
+        changed = copy.deepcopy(self.body)
+        changed["intent"]["notionalUsd"] = "100"
+        with self.assertRaisesRegex(ValidationError, "different request"):
+            self.service.submit(changed)
+        self.assertEqual(self.client.calls, 1)
+
+    def test_same_key_cannot_cross_operation_boundaries(self):
+        self.client.release.set()
+        self.service.submit(self.body)
+        kill_switch = {
+            "schemaVersion": 1, "network": "testnet",
+            "idempotencyKey": self.body["idempotencyKey"],
+            "accountAddress": SETTINGS.account_address,
+            "agentWalletAddress": self.client.agent_wallet_address,
+            "walletName": "vault", "reason": "Owner pause",
+        }
+        with self.assertRaisesRegex(ValidationError, "different request"):
+            self.service.kill_switch(kill_switch)
+        self.assertEqual(self.client.calls, 1)
+
+    def test_ambiguous_failure_requires_reconciliation_before_retry(self):
+        self.client.release.set()
+        self.client.fail = True
+        with self.assertRaises(ExchangeError):
+            self.service.submit(self.body)
+        with self.assertRaisesRegex(ExchangeError, "reconciliation"):
+            self.service.submit(self.body)
+        self.assertEqual(self.client.calls, 1)
 
 
 if __name__ == "__main__":

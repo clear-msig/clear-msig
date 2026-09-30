@@ -22,7 +22,7 @@
 // throwaway recoveryId keypair (PDA seed). The throwaway is generated
 // client-side and never referenced again.
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { PublicKey } from "@solana/web3.js";
@@ -65,6 +65,7 @@ function SecureBuildPage() {
   const wallet = useWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const buildInFlight = useRef(false);
 
   // Preselect the threshold shape when the user lands here from
   // /app/wallet/new's "Recover" branch (?preselect=solo|2of3|3of5).
@@ -134,6 +135,7 @@ function SecureBuildPage() {
   };
 
   const handleBuild = async () => {
+    if (buildInFlight.current) return;
     if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
       toast.error("Connect a wallet first");
       return;
@@ -165,6 +167,7 @@ function SecureBuildPage() {
     // passkey-create prompts back-to-back BEFORE DKG. Set the initial
     // sub-stage accordingly so the UI shows "Creating passkey 1 of N"
     // straight away instead of the DKG copy.
+    buildInFlight.current = true;
     setCreateSubStage(shape.members > 1 ? "create-passkey" : "dkg");
     setPasskeyProgress(null);
     setStage("creating");
@@ -230,6 +233,8 @@ function SecureBuildPage() {
       setCreateSubStage(null);
       setPasskeyProgress(null);
       setStage("confirm");
+    } finally {
+      buildInFlight.current = false;
     }
   };
 

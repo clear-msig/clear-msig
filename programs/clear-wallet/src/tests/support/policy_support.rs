@@ -517,7 +517,7 @@ fn execute_typed_remote_send_with_policy(
 ) -> bool {
     let recipient_hash = sha256_hash(recipient_text);
     let asset_id_hash = sha256_hash(asset_text);
-    let (proposal, policy_commitment, envelope_hash) = propose_typed_remote_send_on_wallet(
+    let (proposal, policy_commitment, _) = propose_typed_remote_send_on_wallet(
         svm,
         payer,
         wallet_name,
@@ -532,6 +532,8 @@ fn execute_typed_remote_send_with_policy(
         tx_template_hash,
         policy_bytes,
     );
+
+    let envelope_hash = install_legacy_remote_proposal_fixture(svm, proposal, wallet_name);
 
     let execute = build_execute_typed_chain_send_ix(
         payer,
@@ -550,4 +552,43 @@ fn execute_typed_remote_send_with_policy(
     );
     svm.process_instruction(&execute, &[funded_account(payer)])
         .is_ok()
+}
+
+// Install a pre-existing v3 account fixture to retain legacy policy regression
+// coverage. New proposal creation remains v4-only; no production instruction
+// downgrades documents. The stored legacy envelope is recomputed consistently.
+fn install_legacy_remote_proposal_fixture(
+    svm: &mut QuasarSvm,
+    proposal: Pubkey,
+    wallet_name: &str,
+) -> [u8; 32] {
+    let mut account = svm.get_account(&proposal).unwrap();
+    let mut offset = 264usize;
+    let mut fields = Vec::new();
+    for _ in 0..3 {
+        let len = u32::from_le_bytes(account.data[offset..offset + 4].try_into().unwrap()) as usize;
+        offset += 4;
+        fields.push(account.data[offset..offset + len].to_vec());
+        offset += len;
+    }
+    let envelope = ClearSignEnvelope {
+        kind: ClearSignActionKind::Send,
+        wallet_name: wallet_name.as_bytes(),
+        wallet_id: &account.data[1..33],
+        action_id: &fields[0],
+        nonce: &fields[1],
+        expires_at: i64::from_le_bytes(account.data[123..131].try_into().unwrap()),
+        policy_commitment: account.data[168..200].try_into().unwrap(),
+        payload_hash: account.data[200..232].try_into().unwrap(),
+        clear_text_hash: hash_clear_text(TEST_CLEAR_TEXT).unwrap(),
+    };
+    let hash = hash_envelope(&envelope);
+    account.data[232..264].copy_from_slice(&hash);
+    account.data.truncate(offset);
+    account
+        .data
+        .extend_from_slice(&(TEST_CLEAR_TEXT.len() as u32).to_le_bytes());
+    account.data.extend_from_slice(TEST_CLEAR_TEXT);
+    svm.set_account(account);
+    hash
 }

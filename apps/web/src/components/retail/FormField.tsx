@@ -1,7 +1,10 @@
 "use client";
 
 import {
+  createContext,
   forwardRef,
+  useContext,
+  useId,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -23,6 +26,22 @@ const fieldFocus =
 const fieldDisabled =
   "disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-text-softer disabled:opacity-70";
 const fieldPlaceholder = "placeholder:text-text-softer";
+
+const FieldContext = createContext<{ labelId: string; descriptionId?: string; invalid: boolean } | null>(null);
+
+function useFieldAccessibility(invalid: boolean | undefined, props: {
+  "aria-invalid"?: InputHTMLAttributes<HTMLInputElement>["aria-invalid"];
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
+  "aria-describedby"?: string;
+}) {
+  const field = useContext(FieldContext);
+  return {
+    "aria-invalid": props["aria-invalid"] ?? (invalid || field?.invalid || undefined),
+    "aria-labelledby": props["aria-labelledby"] ?? (props["aria-label"] ? undefined : field?.labelId),
+    "aria-describedby": [props["aria-describedby"], field?.descriptionId].filter(Boolean).join(" ") || undefined,
+  };
+}
 
 export const FIELD_CLASS = cn(
   fieldFrame,
@@ -58,16 +77,21 @@ export function FormField({
   as?: "label" | "div";
 }) {
   const Shell = as;
+  const id = useId();
+  const labelId = `${id}-label`;
+  const descriptionId = error || hint ? `${id}-description` : undefined;
   return (
+    <FieldContext.Provider value={{ labelId, descriptionId, invalid: !!error }}>
     <Shell className={cn("flex min-w-0 flex-col gap-1.5", className)}>
-      <span className="text-xs font-medium text-text-soft">{label}</span>
+      <span id={labelId} className="text-xs font-medium text-text-soft">{label}</span>
       {children}
       {error ? (
-        <span className="text-xs leading-relaxed text-danger">{error}</span>
+        <span id={descriptionId} className="text-xs leading-relaxed text-danger">{error}</span>
       ) : hint ? (
-        <span className="text-xs leading-relaxed text-text-soft">{hint}</span>
+        <span id={descriptionId} className="text-xs leading-relaxed text-text-soft">{hint}</span>
       ) : null}
     </Shell>
+    </FieldContext.Provider>
   );
 }
 
@@ -77,6 +101,7 @@ export interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
   function TextInput({ className, invalid, ...props }, ref) {
+    const accessibility = useFieldAccessibility(invalid, props);
     return (
       <input
         ref={ref}
@@ -86,6 +111,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
           className,
         )}
         {...props}
+        {...accessibility}
       />
     );
   },
@@ -97,6 +123,7 @@ export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
   function TextArea({ className, invalid, rows = 4, ...props }, ref) {
+    const accessibility = useFieldAccessibility(invalid, props);
     return (
       <textarea
         ref={ref}
@@ -107,6 +134,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           className,
         )}
         {...props}
+        {...accessibility}
       />
     );
   },
@@ -118,6 +146,7 @@ export interface NativeSelectProps extends SelectHTMLAttributes<HTMLSelectElemen
 
 export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
   function NativeSelect({ className, invalid, children, ...props }, ref) {
+    const accessibility = useFieldAccessibility(invalid, props);
     return (
       <span className="relative block min-w-0">
         <select
@@ -129,6 +158,7 @@ export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
             className,
           )}
           {...props}
+          {...accessibility}
         >
           {children}
         </select>

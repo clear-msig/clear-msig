@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildAgentVenueReconciliationSummary } from "@/lib/agents/venueReconciliation";
-import type { AgentServerExecutionRecord } from "@/lib/agents/serverExecutionRequests";
+import type { AgentServerExecutionRecord } from "@/test/agents/serverExecutionRequests";
 import type { HyperliquidTestnetAccountSnapshot } from "@/lib/agents/serverHyperliquidTestnet";
 
 const now = Date.UTC(2026, 5, 9, 12, 0, 0);

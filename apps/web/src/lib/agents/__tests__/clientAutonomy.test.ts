@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { configureNotificationTokenGetter } from "@/lib/notifications/sessionToken";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { runAgentAutonomyTickClient } from "@/lib/agents/clientAutonomy";
 import type { AgentTradeProposal } from "@/lib/agents/types";
 
@@ -95,3 +96,5 @@ function tradeProposal(): AgentTradeProposal {
     version: 1,
   };
 }
+
+beforeEach(() => { configureNotificationTokenGetter(() => "signed-test-session"); });

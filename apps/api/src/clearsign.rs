@@ -219,7 +219,7 @@ fn decode_hex_32(value: &str, field: &str) -> Result<[u8; 32], ApiError> {
     ensure_hex_exact_len(value, field, 32)?;
     let hex = value.trim().strip_prefix("0x").unwrap_or(value.trim());
     let mut out = [0u8; 32];
-    for (i, chunk) in hex.as_bytes().chunks_exact(2).enumerate() {
+    for (i, chunk) in hex.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         let byte = std::str::from_utf8(chunk)
             .map_err(|_| ApiError::BadRequest(format!("{field} must be hex encoded")))?;
         out[i] = u8::from_str_radix(byte, 16)

@@ -1,8 +1,36 @@
 import type { AgentServerExecutionRequest } from "@/lib/agents/serverExecutionAdapters";
 import type {
   AgentExecutionRecord,
+  AgentSessionGrant,
   AgentTradeProposal,
 } from "@/lib/agents/types";
+
+export function sessionUpdateMismatch(
+  previous: AgentSessionGrant,
+  incoming: AgentSessionGrant,
+): string | null {
+  const keys = ["walletName", "agentId", "startsAt", "expiresAt", "maxNotionalUsd",
+    "maxLeverage", "maxOpenPositions", "policyHash", "createdAt"] as const;
+  if (keys.some((key) => previous[key] !== incoming[key]) ||
+    JSON.stringify(previous.allowedVenues ?? []) !== JSON.stringify(incoming.allowedVenues ?? []) ||
+    JSON.stringify(previous.allowedMarkets ?? []) !== JSON.stringify(incoming.allowedMarkets ?? [])) {
+    return "Session update changed immutable allowance fields. Create a new signed allowance.";
+  }
+  return null;
+}
+
+export function proposalUpdateMismatch(
+  previous: AgentTradeProposal,
+  incoming: AgentTradeProposal,
+): string | null {
+  const keys = ["walletName", "agentId", "sessionId", "venue", "market", "side", "orderType",
+    "notionalUsd", "leverage", "entryPrice", "stopLossPrice", "takeProfitPrice",
+    "clientSignalId", "expiresAt", "createdAt"] as const;
+  if (keys.some((key) => (previous[key] ?? null) !== (incoming[key] ?? null))) {
+    return "Proposal update changed immutable trade fields. Create a new proposal for a changed trade.";
+  }
+  return null;
+}
 
 export function findDuplicateClientSignal(
   list: AgentTradeProposal[],

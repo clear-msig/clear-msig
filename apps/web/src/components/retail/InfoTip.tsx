@@ -27,6 +27,7 @@ import { createPortal } from "react-dom";
 import { Info, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 interface InfoTipProps {
   /// Tooltip body. Plain string for short hints; ReactNode for
@@ -71,6 +72,7 @@ export function InfoTip({
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const wrapperRef = useRef<HTMLSpanElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Track viewport size so we can pick render mode. matchMedia is
   // client-only; default to false on SSR so server output matches
@@ -87,6 +89,7 @@ export function InfoTip({
   // Lock background scroll while the mobile sheet is open. Desktop
   // popover doesn't need it - it's small and inline.
   useBodyScrollLock(open && isMobile);
+  useFocusTrap(dialogRef, open && isMobile && mounted);
 
   // Escape closes either mode.
   useEffect(() => {
@@ -138,9 +141,10 @@ export function InfoTip({
         <button
           type="button"
           aria-label={label}
-          aria-haspopup="dialog"
+          aria-haspopup={isMobile ? "dialog" : undefined}
           aria-expanded={open}
           aria-controls={open ? id : undefined}
+          aria-describedby={open && !isMobile ? id : undefined}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -205,6 +209,8 @@ export function InfoTip({
           <AnimatePresence>
             {open && (
               <div
+                ref={dialogRef}
+                tabIndex={-1}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={`${id}-title`}
@@ -233,7 +239,7 @@ export function InfoTip({
                     ease: [0.32, 0.72, 0, 1] as const,
                   }}
                   className={
-                    "relative z-[201] w-full rounded-t-[1.5rem] border-t border-border-soft bg-surface-raised " +
+                    "relative z-[201] max-h-[85dvh] w-full overflow-y-auto rounded-t-[1.5rem] border-t border-border-soft bg-surface-raised " +
                     "px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-2 " +
                     "shadow-card-raised"
                   }
@@ -248,6 +254,8 @@ export function InfoTip({
                   <div className="mt-4 flex items-start justify-between gap-3">
                     <p
                       id={`${id}-title`}
+                      tabIndex={-1}
+                      data-dialog-initial-focus
                       className="font-display text-base font-semibold leading-snug text-text-strong"
                     >
                       {sheetTitle}
@@ -256,7 +264,7 @@ export function InfoTip({
                       type="button"
                       aria-label="Close"
                       onClick={() => setOpen(false)}
-                      className="-mr-1 -mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-soft transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong"
+                      className="-mr-1 -mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-soft transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong"
                     >
                       <X className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
                     </button>

@@ -53,6 +53,7 @@ import {
 } from "@/lib/ikavery/webauthn";
 import { SCHEME_SOLANA_ADDRESS, SCHEME_WEBAUTHN } from "@/lib/ikavery/constants";
 import { secureActionErrorCopy } from "@/lib/ikavery/errors";
+import { ApprovalCollectionClosedError, createApprovalCollection } from "@/features/secure/domain/approvalCollection";
 
 type Stage = "intro" | "running" | "done";
 
@@ -136,13 +137,12 @@ function ThresholdPage() {
   // wallet otherwise. The user can flip after; this just picks a sane
   // default based on what's actually available on chain.
   useEffect(() => {
-    if (!vaultQuery.data) return;
     if (!walletIsMember && vaultHasPasskey) {
       setAuthMode("passkey");
     } else if (walletIsMember) {
       setAuthMode("wallet");
     }
-  }, [vaultQuery.data, walletIsMember, vaultHasPasskey]);
+  }, [walletIsMember, vaultHasPasskey]);
 
   // Pre-flight WebAuthn capability check so the user gets a clear
   // message at page load instead of a hung passkey prompt.
@@ -169,9 +169,16 @@ function ThresholdPage() {
   const [collectCount, setCollectCount] = useState(0);
   const [collectBusy, setCollectBusy] = useState(false);
   const [collectError, setCollectError] = useState<string | null>(null);
-  const collectResolveRef = useRef<(() => void) | null>(null);
+  const runBusyRef = useRef(false);
+  const collectBusyRef = useRef(false);
+  const approvalCollection = useMemo(() => createApprovalCollection(recoveryStr), [recoveryStr]);
+  useEffect(() => {
+    approvalCollection.open();
+    return () => approvalCollection.close();
+  }, [approvalCollection]);
 
   const handleRun = async () => {
+    if (runBusyRef.current) return;
     if (!recoveryPk || !vaultQuery.data) return;
     if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
       toast.error("Connect a wallet first");
@@ -186,13 +193,13 @@ function ThresholdPage() {
       });
       return;
     }
+    runBusyRef.current = true;
     setRunStage("stage-sign");
     setStage("running");
     setCollectInfo(null);
     setCollectCount(0);
     setCollectBusy(false);
     setCollectError(null);
-    collectResolveRef.current = null;
     try {
       const result = await bumpThresholdSimple({
         connection,
@@ -207,11 +214,8 @@ function ThresholdPage() {
           setCollectInfo(req);
           setCollectCount(req.currentCount);
           setCollectError(null);
-          await new Promise<void>((resolve) => {
-            collectResolveRef.current = resolve;
-          });
+          await approvalCollection.wait(req.proposal.toBase58());
           setCollectInfo(null);
-          collectResolveRef.current = null;
         },
       });
       setTxSig(result.txSignature);
@@ -223,6 +227,7 @@ function ThresholdPage() {
         queryKey: ["ikavery-vault", recoveryStr],
       });
     } catch (e) {
+      if (e instanceof ApprovalCollectionClosedError) return;
       console.error("[secure/threshold]", e);
       const copy = secureActionErrorCopy(e, "Couldn't change protection");
       toast.error(copy.title, { details: copy.details });
@@ -230,13 +235,14 @@ function ThresholdPage() {
       setCollectInfo(null);
       setCollectBusy(false);
       setCollectError(null);
-      collectResolveRef.current = null;
       setStage("intro");
+    } finally {
+      runBusyRef.current = false;
     }
   };
 
   const handleAddApproval = async (mode: BumpAuthMode) => {
-    if (collectBusy) return;
+    if (collectBusyRef.current) return;
     if (!collectInfo || !recoveryPk) return;
     if (!wallet.publicKey || !wallet.signTransaction) {
       setCollectError("Connect a wallet first.");
@@ -246,6 +252,7 @@ function ThresholdPage() {
       setCollectError("The connected wallet already cast the proposer vote.");
       return;
     }
+    collectBusyRef.current = true;
     setCollectBusy(true);
     setCollectError(null);
     try {
@@ -266,11 +273,7 @@ function ThresholdPage() {
       );
       setCollectCount(liveCount);
       if (liveCount >= collectInfo.threshold) {
-        const resolve = collectResolveRef.current;
-        if (resolve) {
-          collectResolveRef.current = null;
-          resolve();
-        }
+        approvalCollection.complete(collectInfo.proposal.toBase58());
       }
     } catch (e) {
       console.error("[secure/threshold] addApproval", e);
@@ -278,6 +281,7 @@ function ThresholdPage() {
         secureActionErrorCopy(e, "Couldn't add approval").details,
       );
     } finally {
+      collectBusyRef.current = false;
       setCollectBusy(false);
     }
   };

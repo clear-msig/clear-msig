@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { configureNotificationTokenGetter } from "@/lib/notifications/sessionToken";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { getAgentConnectionKit } from "@/lib/agents";
 import { setAgentAutomaticTrading } from "@/lib/agents/clientInbox";
 
@@ -64,7 +65,7 @@ describe("agent inbox client", () => {
       "/api/agent-signals/vault/agent-alpha",
       expect.objectContaining({
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: "Bearer signed-test-session" },
         body: JSON.stringify({
           action: "register",
           signalKey: kit.signalKey,
@@ -108,3 +109,5 @@ describe("agent inbox client", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+beforeEach(() => { configureNotificationTokenGetter(() => "signed-test-session"); });

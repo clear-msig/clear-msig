@@ -61,7 +61,28 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
 
         let mut processing_error: Option<String> = None;
 
-        if payout_success {
+        if payout_success || payout_failure {
+            let payout = sqlx::query("SELECT provider,amount_minor,currency FROM ramp_payouts WHERE transfer_reference=$1")
+                .bind(reference).fetch_optional(&mut *tx).await?;
+            processing_error = match payout {
+                Some(row) => validate_payout_event(
+                    &provider,
+                    row.get::<Option<String>, _>("provider").as_deref(),
+                    &payload,
+                    payout_success,
+                    row.get("amount_minor"),
+                    &row.get::<String, _>("currency"),
+                )
+                .err()
+                .map(|error| error.to_string()),
+                None => Some("payout_reference_not_found".into()),
+            };
+        }
+
+        if processing_error.is_some() {
+            // Authenticated does not mean semantically matching. In particular,
+            // Kora signs data, so its outer event label cannot override status.
+        } else if payout_success {
             if reference.is_empty() {
                 processing_error = Some("missing_reference_for_transfer_success".to_string());
             } else {
@@ -69,11 +90,12 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                     r#"
                     UPDATE ramp_payouts
                     SET provider_status = 'success', webhook_received_at = NOW(), provider_payload = $2
-                    WHERE transfer_reference = $1
+                    WHERE transfer_reference = $1 AND provider = $3 AND provider_status <> 'success'
                     "#,
                 )
                 .bind(reference)
                 .bind(&payload)
+                .bind(&provider)
                 .execute(&mut *tx)
                 .await
                 {
@@ -97,6 +119,7 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                         FROM ramp_payouts p
                         WHERE p.transfer_reference = $1
                           AND p.intent_id = i.id
+                          AND i.status = 'payout_in_progress'
                         "#,
                     )
                     .bind(reference)
@@ -126,12 +149,13 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                     r#"
                     UPDATE ramp_payouts
                     SET provider_status = $2, webhook_received_at = NOW(), provider_payload = $3
-                    WHERE transfer_reference = $1
+                    WHERE transfer_reference = $1 AND provider = $4 AND provider_status <> 'success'
                     "#,
                 )
                 .bind(reference)
                 .bind(event_type.replace("transfer.", ""))
                 .bind(&payload)
+                .bind(&provider)
                 .execute(&mut *tx)
                 .await
                 {
@@ -156,6 +180,7 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                         FROM ramp_payouts p
                         WHERE p.transfer_reference = $1
                           AND p.intent_id = i.id
+                          AND i.status = 'payout_in_progress'
                         "#,
                     )
                     .bind(reference)
@@ -187,6 +212,8 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
                     SET status = 'payment_confirmed', updated_at = NOW()
                     WHERE metadata ->> 'payment_provider' = $2
                       AND metadata ->> 'payment_reference' = $1
+                      AND intent_type = 'onramp'
+                      AND status = 'awaiting_payment'
                     "#,
                 )
                 .bind(reference)
@@ -234,4 +261,78 @@ pub async fn run_webhook_processing_pass(pool: &PgPool) -> anyhow::Result<u64> {
     }
 
     Ok(processed)
+}
+
+fn validate_payout_event(
+    provider: &str,
+    stored_provider: Option<&str>,
+    payload: &serde_json::Value,
+    success: bool,
+    amount_minor: i64,
+    currency: &str,
+) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        stored_provider == Some(provider),
+        "payout webhook provider mismatch"
+    );
+    let data = payload
+        .get("data")
+        .ok_or_else(|| anyhow::anyhow!("missing payout data"))?;
+    let status = data
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("missing payout status"))?;
+    anyhow::ensure!(
+        if success {
+            status == "success"
+        } else {
+            matches!(status, "failed" | "reversed")
+        },
+        "payout event/status mismatch"
+    );
+    anyhow::ensure!(
+        data.get("currency").and_then(serde_json::Value::as_str) == Some(currency),
+        "payout currency mismatch"
+    );
+    let amount = data
+        .get("amount")
+        .ok_or_else(|| anyhow::anyhow!("missing payout amount"))?;
+    let reported = match provider {
+        "paystack" => amount
+            .as_i64()
+            .ok_or_else(|| anyhow::anyhow!("invalid Paystack payout amount"))?,
+        "kora" => i64::try_from(crate::services::deposit_proof::decimal_minor(
+            &amount
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| amount.to_string()),
+            2,
+        )?)?,
+        _ => anyhow::bail!("unsupported payout provider"),
+    };
+    anyhow::ensure!(
+        amount_minor > 0 && reported == amount_minor,
+        "payout amount mismatch"
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_payout_event;
+    use serde_json::json;
+    #[test]
+    fn payout_webhook_must_match_signed_status_provider_amount_and_currency() {
+        let valid = json!({"data":{"status":"success","amount":"12.00","currency":"NGN"}});
+        validate_payout_event("kora", Some("kora"), &valid, true, 1200, "NGN").unwrap();
+        assert!(
+            validate_payout_event("kora", Some("paystack"), &valid, true, 1200, "NGN").is_err()
+        );
+        assert!(validate_payout_event("kora", Some("kora"), &valid, true, 1201, "NGN").is_err());
+        assert!(validate_payout_event("kora", Some("kora"), &valid, true, 1200, "USD").is_err());
+        let mut failed = valid;
+        failed["data"]["status"] = json!("failed");
+        assert!(validate_payout_event("kora", Some("kora"), &failed, true, 1200, "NGN").is_err());
+        validate_payout_event("kora", Some("kora"), &failed, false, 1200, "NGN").unwrap();
+    }
 }

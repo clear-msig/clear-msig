@@ -116,6 +116,11 @@ pub(in crate::commands::proposal) fn ensure_typed_action(
 pub(in crate::commands::proposal) fn ensure_generic_typed_execute_allowed(
     proposal: &accounts::TypedProposalAccount,
 ) -> Result<()> {
+    if is_v4_document(&proposal.clear_text) {
+        return Err(anyhow!(
+            "v4 proposals require an action-specific executor; generic typed-execute only changes status"
+        ));
+    }
     let specialized = match ClearSignActionKind::from_code(proposal.action_kind) {
         Some(ClearSignActionKind::AddMember) => Some("typed-intent-governance"),
         Some(ClearSignActionKind::RemoveMember) => Some("typed-intent-governance"),

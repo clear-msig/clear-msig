@@ -52,6 +52,8 @@ describe("agent owner approval messages", () => {
 
     expect(browser.approvalMethod).toBe("browser_confirm");
     expect(signed.approvalMethod).toBe("wallet_signature");
+    expect(signed.signatureVersion).toBe(2);
+    expect(browser.signatureVersion).toBeUndefined();
     expect(browser.approvalHash).not.toBe(signed.approvalHash);
   });
 });

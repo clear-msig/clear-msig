@@ -816,13 +816,16 @@ async fn execute_typed_chain_send(
         .rate_limiter
         .check(&format!("execute:chain-send:{name}"))
         .await?;
+    let trusted_rpc_url = state
+        .runner
+        .resolve_destination_rpc_url(body.rpc_url.clone())?;
     let execution = build_typed_chain_send(
         name,
         proposal,
         body,
         state.runner.default_dwallet_program.clone(),
         state.runner.default_grpc_url.clone(),
-        state.runner.default_destination_rpc_url.clone(),
+        trusted_rpc_url,
     )?;
     Ok(Json(state.runner.run_typed_proposal(execution).await?))
 }
@@ -930,9 +933,7 @@ fn build_execute_command(
     if let Some(grpc_url) = &grpc_url {
         ensure_non_empty(grpc_url, "grpc_url")?;
     }
-    let rpc_url = body
-        .rpc_url
-        .or_else(|| state.runner.default_destination_rpc_url.clone());
+    let rpc_url = state.runner.resolve_destination_rpc_url(body.rpc_url)?;
     if let Some(rpc_url) = &rpc_url {
         ensure_non_empty(rpc_url, "rpc_url")?;
     }

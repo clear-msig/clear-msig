@@ -1,6 +1,8 @@
 use crate::error::*;
 use std::{future::Future, time::Duration};
 
+const MAX_HTTP_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+
 pub struct HttpResponse {
     pub status: u16,
     pub body: String,
@@ -61,13 +63,40 @@ impl CancellableHttpTransport {
                 .await
                 .context("send destination HTTP request")?;
             let status = response.status().as_u16();
-            let body = response
-                .text()
+            let body = read_bounded_response(response)
                 .await
                 .context("read destination HTTP response")?;
             Ok(HttpResponse { status, body })
         })
     }
+}
+
+/// Bound decoded response bytes while streaming. Content-Length alone is
+/// insufficient for chunked or compressed responses from an untrusted RPC.
+pub(crate) async fn read_bounded_response(mut response: reqwest::Response) -> Result<String> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_HTTP_RESPONSE_BYTES as u64)
+    {
+        return Err(anyhow!(
+            "HTTP response exceeds {MAX_HTTP_RESPONSE_BYTES} bytes"
+        ));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.context("read HTTP response chunk")? {
+        append_response_chunk(&mut body, &chunk)?;
+    }
+    String::from_utf8(body).context("HTTP response is not UTF-8")
+}
+
+fn append_response_chunk(body: &mut Vec<u8>, chunk: &[u8]) -> Result<()> {
+    if chunk.len() > MAX_HTTP_RESPONSE_BYTES.saturating_sub(body.len()) {
+        return Err(anyhow!(
+            "HTTP response exceeds {MAX_HTTP_RESPONSE_BYTES} bytes"
+        ));
+    }
+    body.extend_from_slice(chunk);
+    Ok(())
 }
 
 impl DestinationTransport for CancellableHttpTransport {
@@ -100,7 +129,18 @@ impl DestinationTransport for CancellableHttpTransport {
 
 #[cfg(test)]
 mod tests {
-    use super::CancellableHttpTransport;
+    use super::{append_response_chunk, CancellableHttpTransport, MAX_HTTP_RESPONSE_BYTES};
+
+    #[test]
+    fn caps_response_bytes_across_chunks_before_appending() {
+        let mut body = vec![0; MAX_HTTP_RESPONSE_BYTES - 2];
+        append_response_chunk(&mut body, &[1, 2]).unwrap();
+        assert!(append_response_chunk(&mut body, &[3]).is_err());
+        assert_eq!(body.len(), MAX_HTTP_RESPONSE_BYTES);
+        assert!(
+            append_response_chunk(&mut Vec::new(), &vec![0; MAX_HTTP_RESPONSE_BYTES + 1]).is_err()
+        );
+    }
 
     #[test]
     fn cancellation_drops_pending_destination_io() {

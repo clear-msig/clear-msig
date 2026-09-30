@@ -42,7 +42,7 @@ export function ProductChooser() {
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-16 pt-10 sm:px-8 sm:pt-16">
         <div className="max-w-2xl">
-          <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#ccff00]">
+          <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-[#a3be8c]">
             Choose a product
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
@@ -61,9 +61,9 @@ export function ProductChooser() {
                 <Link
                   href={product.ctaHref}
                   onClick={() => rememberProductSurfaceChoice(product.id)}
-                  className="group flex min-h-36 items-start gap-4 rounded-card border border-white/10 bg-white/[0.035] p-5 transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[#ccff00]/35 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]"
+                  className="group flex min-h-36 items-start gap-4 rounded-card border border-white/10 bg-white/[0.035] p-5 transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[#a3be8c]/35 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c]"
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-soft bg-[#ccff00]/10 text-[#ccff00]">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-soft bg-[#a3be8c]/10 text-[#a3be8c]">
                     <Icon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -73,7 +73,7 @@ export function ProductChooser() {
                     <span className="mt-1 block text-sm leading-relaxed text-white/55">
                       {product.summary}
                     </span>
-                    <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#ccff00]">
+                    <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#a3be8c]">
                       Continue
                       <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                     </span>

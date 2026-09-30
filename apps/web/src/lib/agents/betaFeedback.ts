@@ -1,5 +1,7 @@
 "use client";
 
+import { readScopedAgentStorage, writeScopedAgentStorage } from "@/features/agents/local-state/scope";
+
 export type AgentBetaFeedbackKind =
   | "bug"
   | "confusing"
@@ -72,7 +74,7 @@ export function clearAgentBetaFeedback(walletName: string): void {
 function listAllFeedback(): AgentBetaFeedbackItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = readScopedAgentStorage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
@@ -85,7 +87,7 @@ function listAllFeedback(): AgentBetaFeedbackItem[] {
 
 function writeAll(items: AgentBetaFeedbackItem[]): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  writeScopedAgentStorage(STORAGE_KEY, JSON.stringify(items));
 }
 
 function isFeedbackItem(input: unknown): input is AgentBetaFeedbackItem {

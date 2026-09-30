@@ -35,6 +35,7 @@
 // passkey taps; bundling them in one tx would prompt the OS twice in
 // rapid succession before the wallet popup, which feels like a bug.
 
+import { confirmSuccessfulTransaction } from "./confirmTransaction";
 import {
   Connection,
   PublicKey,
@@ -364,9 +365,8 @@ async function sendBundle(
     preflightCommitment: "confirmed",
   });
   onConfirm();
-  await connection.confirmTransaction(
+  await confirmSuccessfulTransaction(connection,
     { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed",
   );
   return sig;
 }

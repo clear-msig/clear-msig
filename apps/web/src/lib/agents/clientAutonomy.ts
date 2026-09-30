@@ -1,3 +1,4 @@
+import { agentSessionHeaders } from "@/lib/agents/clientAuth";
 import type {
   AgentTradeProposal,
   TradingVenue,
@@ -41,7 +42,7 @@ export async function runAgentAutonomyTickClient({
       `/api/agent-autonomy/${encodeURIComponent(walletName)}/tick`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: agentSessionHeaders(),
         body: JSON.stringify({ agentId, venue, maxMarkets, maxIdeas }),
       },
     );

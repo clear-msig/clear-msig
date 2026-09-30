@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, time::Duration};
 
-use crate::{ensure_non_empty, ApiError, AppState};
+use crate::{ensure_base58_pubkey, ApiError, AppState};
 
 const RPC_PROGRAM_SCAN_ATTEMPTS: usize = 4;
 
@@ -57,7 +57,7 @@ pub(super) async fn lookup_memberships(
     state: &AppState,
     address: String,
 ) -> Result<MembershipResponse, ApiError> {
-    ensure_non_empty(&address, "address")?;
+    ensure_base58_pubkey(&address, "address")?;
     let target_address = address.trim().to_string();
 
     let rpc_url = &state.runner.rpc_url;
@@ -173,6 +173,13 @@ fn read_address_bs58(data: &[u8], offset: &mut usize) -> Result<String, ApiError
 
 fn read_vec_addresses(data: &[u8], offset: &mut usize) -> Result<Vec<String>, ApiError> {
     let len = read_u32_le(data, offset)? as usize;
+    // Validate before allocation: RPC bytes are untrusted, including lengths.
+    let remaining = data.len().saturating_sub(*offset);
+    if len > remaining / 32 {
+        return Err(ApiError::InvalidOutput(
+            "unexpected EOF reading address vector".into(),
+        ));
+    }
     let mut out = Vec::with_capacity(len);
     for _ in 0..len {
         out.push(read_address_bs58(data, offset)?);
@@ -378,4 +385,21 @@ fn is_retryable_rpc_json_error(value: &serde_json::Value) -> bool {
     ]
     .iter()
     .any(|needle| text.contains(needle))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_unbacked_address_count_before_allocating() {
+        assert!(read_vec_addresses(&u32::MAX.to_le_bytes(), &mut 0).is_err());
+        let mut data = 1u32.to_le_bytes().to_vec();
+        data.extend_from_slice(&[7; 31]);
+        assert!(read_vec_addresses(&data, &mut 0).is_err());
+        data.push(7);
+        let mut offset = 0;
+        assert_eq!(read_vec_addresses(&data, &mut offset).unwrap().len(), 1);
+        assert_eq!(offset, data.len());
+    }
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { agentSessionHeaders, type AgentSignalSignatureTarget } from "@/features/agents/infrastructure/inboxClient";
+
 import { FormEvent, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -57,6 +59,7 @@ export default function AgentConnectionPage() {
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [preview, setPreview] = useState<AgentPolicyEvaluation | null>(null);
+  const [signalTarget, setSignalTarget] = useState<AgentSignalSignatureTarget | null>(null);
   const [origin, setOrigin] = useState("");
   const [inbox, setInbox] = useState<AgentSignalInboxItem[]>([]);
   const [inboxPreviews, setInboxPreviews] = useState<Record<string, AgentPolicyEvaluation>>({});
@@ -83,7 +86,7 @@ export default function AgentConnectionPage() {
   ) => {
     const response = await fetch(apiPath(name, agentId), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: agentSessionHeaders(),
       body: JSON.stringify({
         action: "register",
         signalKey,
@@ -94,8 +97,9 @@ export default function AgentConnectionPage() {
     if (!response.ok) {
       throw new Error(await errorText(response));
     }
-    const body = (await response.json()) as { storage?: "redis" | "memory" };
+    const body = (await response.json()) as { storage?: "redis" | "memory"; signalTarget?: AgentSignalSignatureTarget };
     setStorageMode(body.storage ?? "unknown");
+    setSignalTarget(body.signalTarget ?? null);
     setRegistered(true);
   }, [agentId, name]);
 
@@ -138,7 +142,7 @@ export default function AgentConnectionPage() {
   const fetchInbox = useCallback(async (managementKey: string): Promise<AgentSignalInboxItem[]> => {
     const response = await fetch(apiPath(name, agentId), {
       method: "GET",
-      headers: { "x-clearsig-management-key": managementKey },
+      headers: { ...agentSessionHeaders(), "x-clearsig-management-key": managementKey },
     });
     if (!response.ok) {
       throw new Error(await errorText(response));
@@ -586,7 +590,7 @@ export default function AgentConnectionPage() {
           <div>
             <p className="text-sm font-semibold text-text-strong">What your trader needs</p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              Share only these two items with your trader. They let it send ideas and nothing more.
+              Share the address, send-only password, and signing target with your trader. They let it send ideas and nothing more.
             </p>
           </div>
         </div>
@@ -602,6 +606,11 @@ export default function AgentConnectionPage() {
               label="Send-only password"
               value={kit?.signalKey ?? "Loading"}
               onCopy={() => kit?.signalKey && copyText(kit.signalKey, "Send-only password")}
+            />
+            <InfoBox
+              label="Signal signing target (JSON)"
+              value={signalTarget ? JSON.stringify(signalTarget) : "Sign in and register to load target"}
+              onCopy={() => signalTarget && copyText(JSON.stringify(signalTarget), "Signal signing target")}
             />
             <button
               type="button"
@@ -636,7 +645,7 @@ export default function AgentConnectionPage() {
           <div className="rounded-soft border border-border-soft bg-canvas p-3">
             <p className="text-xs font-semibold text-text-strong">What happens next</p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              Give the send-to address and send-only password to your trader.
+              Give these connection details to your trader. Every idea must use the target-bound HMAC v2 signature with a fresh timestamp and unique signal ID.
               New ideas will appear below. ClearSig checks each one against your
               trading style, max-loss rules, and current budget.
             </p>

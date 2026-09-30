@@ -100,27 +100,27 @@ export function CommandPalette() {
         type="button"
         aria-label="Close command palette"
         onClick={close}
-        className="absolute inset-0 -z-10 cursor-default bg-surface-card/50 backdrop-blur-sm"
+        className="absolute inset-0 -z-10 cursor-default bg-black/40 backdrop-blur-sm"
       />
 
-      <div className="mt-[10vh] flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border-soft bg-surface-card-strong shadow-2xl">
-        <div className="flex items-center gap-2 border-b border-border-soft px-3 py-2 text-white/70">
+      <div className="mt-[10vh] flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border-soft bg-surface-raised shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border-soft px-3 py-2 text-text-soft">
           <Search size={14} />
           <Command.Input
             placeholder="Search your wallets and requests…"
-            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/30"
+            className="w-full bg-transparent text-sm text-text-strong outline-none placeholder:text-text-soft"
           />
-          <kbd className="hidden rounded border border-border-soft bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-white/50 sm:inline">
+          <kbd className="hidden rounded border border-border-soft bg-glass-soft px-1.5 py-0.5 font-mono text-[10px] text-text-soft sm:inline">
             esc
           </kbd>
         </div>
 
         <Command.List className="max-h-[60vh] overflow-y-auto px-2 py-2 text-sm">
           <Command.Empty className="px-4 py-8 text-center">
-            <p className="text-sm font-medium text-white/80">
+            <p className="text-sm font-medium text-text-strong">
               No matches
             </p>
-            <p className="mt-1 text-xs text-white/40">
+            <p className="mt-1 text-xs text-text-soft">
               Try a wallet name, a friend, or part of an action like
               &ldquo;send sarah&rdquo;.
             </p>
@@ -129,7 +129,7 @@ export function CommandPalette() {
           {wallets.length > 0 && (
             <Command.Group
               heading="Workspaces"
-              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-white/40"
+              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
             >
               {wallets.map((m) => {
                 const onChainName = m.wallet_name ?? "";
@@ -145,7 +145,7 @@ export function CommandPalette() {
                     onSelect={() =>
                       goto(`/app/wallet/${encodeURIComponent(onChainName)}`)
                     }
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 aria-selected:bg-accent/15 aria-selected:text-accent"
+                    className="flex min-h-tap cursor-pointer items-center gap-2 rounded-soft px-3 py-2 text-xs text-text-strong aria-selected:bg-accent/15 aria-selected:text-accent"
                   >
                     <Wallet size={14} />
                     <span className="truncate font-medium">{display}</span>
@@ -158,7 +158,7 @@ export function CommandPalette() {
           {allProposals.rows.length > 0 && (
             <Command.Group
               heading="Requests"
-              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-white/40"
+              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
             >
               {allProposals.rows.slice(0, 30).map((p) => {
                 const StatusIcon =
@@ -185,13 +185,13 @@ export function CommandPalette() {
                     onSelect={() =>
                       goto(`/app/proposals/${encodeURIComponent(p.proposalPda)}`)
                     }
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 aria-selected:bg-accent/15 aria-selected:text-accent"
+                    className="flex min-h-tap cursor-pointer items-center gap-2 rounded-soft px-3 py-2 text-xs text-text-strong aria-selected:bg-accent/15 aria-selected:text-accent"
                   >
                     <StatusIcon size={12} className={statusTone} />
                     <span className="min-w-0 flex-1 truncate font-medium">
                       {toDisplayName(p.walletName)}
                     </span>
-                    <span className="ml-auto truncate text-[10px] text-white/40">
+                    <span className="ml-auto truncate text-[10px] text-text-soft">
                       {friendly}
                     </span>
                   </Command.Item>
@@ -202,12 +202,12 @@ export function CommandPalette() {
 
           <Command.Group
             heading="Actions"
-            className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-white/40"
+            className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
           >
             <Command.Item
               value="action:new-wallet"
               onSelect={() => goto("/app/wallet/new")}
-              className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 aria-selected:bg-accent/15 aria-selected:text-accent"
+              className="flex min-h-tap cursor-pointer items-center gap-2 rounded-soft px-3 py-2 text-xs text-text-strong aria-selected:bg-accent/15 aria-selected:text-accent"
             >
               <Plus size={14} />
               New wallet
@@ -219,7 +219,7 @@ export function CommandPalette() {
                   wallet.disconnect();
                   close();
                 }}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-rose-300 aria-selected:bg-rose-500/15"
+                className="flex min-h-tap cursor-pointer items-center gap-2 rounded-soft px-3 py-2 text-xs text-danger aria-selected:bg-rose-500/15"
               >
                 <LogOut size={14} />
                 Disconnect wallet
@@ -228,14 +228,14 @@ export function CommandPalette() {
           </Command.Group>
         </Command.List>
 
-        <div className="flex items-center justify-between border-t border-border-soft px-3 py-2 text-[10px] text-white/40">
+        <div className="flex items-center justify-between border-t border-border-soft px-3 py-2 text-[10px] text-text-soft">
           <span className="flex items-center gap-1">
-            <kbd className="rounded border border-border-soft bg-white/5 px-1 py-0.5 font-mono">↑↓</kbd>
-            <kbd className="rounded border border-border-soft bg-white/5 px-1 py-0.5 font-mono">↵</kbd>
+            <kbd className="rounded border border-border-soft bg-glass-soft px-1 py-0.5 font-mono">↑↓</kbd>
+            <kbd className="rounded border border-border-soft bg-glass-soft px-1 py-0.5 font-mono">↵</kbd>
             navigate
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="rounded border border-border-soft bg-white/5 px-1 py-0.5 font-mono">⌘K</kbd>
+            <kbd className="rounded border border-border-soft bg-glass-soft px-1 py-0.5 font-mono">⌘K</kbd>
             toggle
           </span>
         </div>

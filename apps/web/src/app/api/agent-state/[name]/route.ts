@@ -1,5 +1,7 @@
+import { withWalletMember, type WalletMemberAuthorization } from "@/lib/auth/walletAuthorization";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
   AgentServerStateConflictError,
@@ -56,6 +58,10 @@ interface RouteContext {
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
+  return withWalletMember(request, decodeRouteParam((await context.params).name), () => getAuthorized(request, context));
+}
+
+async function getAuthorized(request: NextRequest, context: RouteContext) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
@@ -86,6 +92,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  return withWalletMember(request, decodeRouteParam((await context.params).name), (authorization) => postAuthorized(request, context, authorization));
+}
+
+async function postAuthorized(request: NextRequest, context: RouteContext, authorization: WalletMemberAuthorization) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
@@ -96,7 +106,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (limited) return limited;
 
   const walletName = decodeRouteParam((await context.params).name);
-  const raw = await readBoundedBody(request);
+  const raw = await readBoundedBody(request, MAX_BODY_BYTES, "Agent state body is too large.");
   if (!raw.ok) return raw.response;
 
   let body: unknown;
@@ -162,6 +172,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         !approval.approvalHash
       ) {
         return NextResponse.json({ error: "Invalid approval payload." }, { status: 400 });
+      }
+      // A member may relay another current member's signature, but cannot
+      // relabel an arbitrary external key as this treasury's owner approval.
+      if (approval.signature && !authorization.governanceWallets.includes(approval.approvedBy ?? "")) {
+        return NextResponse.json({ error: "The approval signer is not a current member of this treasury." }, { status: 403 });
       }
       return NextResponse.json({
         ok: true,
@@ -338,22 +353,6 @@ async function requestProtectedKillSwitch(
           : "Protected Hyperliquid testnet kill switch failed.",
     };
   }
-}
-
-async function readBoundedBody(
-  request: NextRequest,
-): Promise<{ ok: true; text: string } | { ok: false; response: NextResponse }> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: "Agent state body is too large." },
-        { status: 413 },
-      ),
-    };
-  }
-  return { ok: true, text };
 }
 
 function decodeRouteParam(value: string): string {

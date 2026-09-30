@@ -15,19 +15,44 @@ pub async fn run_payout_dispatch_pass(
                b.recipient_code, b.bank_code, b.account_number, b.account_name
         FROM ramp_intents i
         JOIN ramp_quotes q ON q.intent_id = i.id
-        JOIN ramp_bank_snapshots b ON b.intent_id = i.id
+        JOIN ramp_bank_snapshots b ON b.intent_id = i.id AND b.id = i.bank_snapshot_id
         WHERE i.status = 'settlement_completed'
+          AND i.intent_type = 'offramp'
+          AND i.metadata->>'executable_quote_version' = '1'
+          AND q.is_locked = TRUE AND q.id = i.quote_id
+          AND EXISTS (SELECT 1 FROM ramp_chain_transfers t WHERE t.intent_id=i.id AND t.verifier_version=1 AND t.is_finalized=TRUE)
+          AND NOT EXISTS (SELECT 1 FROM ramp_payouts p WHERE p.intent_id=i.id)
         ORDER BY i.created_at ASC
-        LIMIT 20
+        LIMIT 1
         FOR UPDATE SKIP LOCKED
         "#,
     )
     .fetch_all(&mut *tx)
     .await?;
 
+    // Claim once durably before calling an external payment provider. If the
+    // worker dies after provider acceptance, retry requires reconciliation.
+    for row in &rows {
+        let intent_id: Uuid = row.get("intent_id");
+        sqlx::query(
+            "UPDATE ramp_intents SET status='payout_in_progress',updated_at=NOW() WHERE id=$1",
+        )
+        .bind(intent_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("INSERT INTO ramp_payouts(id,intent_id,transfer_reference,amount_minor,currency,provider_status,provider_payload,requested_at,provider) VALUES($1,$2,$3,$4,'NGN','unknown',$5,NOW(),$6)")
+            .bind(Uuid::new_v4()).bind(intent_id).bind(format!("ramp-offramp-{intent_id}"))
+            .bind(row.get::<i64,_>("estimated_ngn_amount_minor"))
+            .bind(serde_json::json!({"attempt_state":"claimed","provider":payment_provider.name()}))
+            .bind(payment_provider.name())
+            .execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+
     let mut processed = 0_u64;
 
     for row in rows {
+        let mut tx = pool.begin().await?;
         let intent_id: Uuid = row.get("intent_id");
         let amount_minor: i64 = row.get("estimated_ngn_amount_minor");
         let recipient_code: Option<String> = row.try_get("recipient_code").ok();
@@ -77,34 +102,19 @@ pub async fn run_payout_dispatch_pass(
             })
             .await?;
 
-        sqlx::query(
-            r#"
-            INSERT INTO ramp_payouts (
-                id, intent_id, transfer_reference, amount_minor, currency,
-                provider_status, provider_payload, requested_at
-            )
-            VALUES ($1,$2,$3,$4,'NGN',$5,$6,NOW())
-            ON CONFLICT (transfer_reference) DO NOTHING
-            "#,
-        )
-        .bind(Uuid::new_v4())
-        .bind(intent_id)
-        .bind(&transfer_reference)
-        .bind(amount_minor)
-        .bind(response.provider_status)
-        .bind(response.provider_payload)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE ramp_payouts SET provider_status=$2,provider_payload=$3 WHERE transfer_reference=$1 AND provider_status='unknown'")
+            .bind(&transfer_reference).bind(response.provider_status).bind(response.provider_payload)
+            .execute(&mut *tx).await?;
 
-        sqlx::query("UPDATE ramp_intents SET status = 'payout_in_progress', updated_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE ramp_intents SET status = CASE WHEN $2 THEN 'payout_in_progress' ELSE 'manual_review_required' END, updated_at = NOW() WHERE id = $1 AND status = 'payout_in_progress'")
             .bind(intent_id)
+            .bind(response.accepted)
             .execute(&mut *tx)
             .await?;
 
         processed += 1;
+        tx.commit().await?;
     }
-
-    tx.commit().await?;
 
     if processed > 0 {
         info!(

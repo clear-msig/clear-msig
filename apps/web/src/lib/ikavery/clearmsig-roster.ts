@@ -41,6 +41,7 @@
 // packet cap. The final proposer approval is bundled with execute only
 // when the threshold is already satisfied after that vote.
 
+import { confirmSuccessfulTransaction } from "./confirmTransaction";
 import {
   Connection,
   PublicKey,
@@ -526,9 +527,8 @@ async function sendBundle(
     preflightCommitment: "confirmed",
   });
   onConfirm();
-  await connection.confirmTransaction(
+  await confirmSuccessfulTransaction(connection,
     { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed",
   );
   return sig;
 }

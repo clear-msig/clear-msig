@@ -95,8 +95,12 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         pool: pool.clone(),
         config: config.clone(),
+        auth: rust_settlement::auth::DynamicAuthenticator::new(config.auth.clone())?,
         paystack_client: paystack_client.clone(),
         payment_provider: payment_provider.clone(),
+        quote_provider: std::sync::Arc::new(
+            rust_settlement::services::quotes::UnavailableQuoteProvider,
+        ),
         signer_engine: signer_engine.clone(),
     };
 
@@ -110,6 +114,7 @@ async fn main() -> anyhow::Result<()> {
     let disbursement_pool = pool.clone();
     let payout_provider = payment_provider.clone();
     let disbursement_signer = signer_engine.clone();
+    let disbursement_provider = payment_provider.clone();
     let poll_interval = config.worker_poll_interval_ms;
 
     tokio::spawn(async move {
@@ -126,8 +131,12 @@ async fn main() -> anyhow::Result<()> {
         let mut ticker = tokio::time::interval(Duration::from_millis(poll_interval));
         loop {
             ticker.tick().await;
-            if let Err(err) =
-                disbursement::run_disbursement_pass(&disbursement_pool, &disbursement_signer).await
+            if let Err(err) = disbursement::run_disbursement_pass(
+                &disbursement_pool,
+                &disbursement_signer,
+                disbursement_provider.as_ref(),
+            )
+            .await
             {
                 error!(error = %err, "Disbursement worker pass failed");
             }

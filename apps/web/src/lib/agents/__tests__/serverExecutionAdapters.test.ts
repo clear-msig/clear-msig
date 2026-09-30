@@ -49,7 +49,7 @@ describe("server execution adapters", () => {
     ]);
   });
 
-  it("marks Hyperliquid testnet ready when server keys are present", () => {
+  it("keeps Hyperliquid testnet blocked even when server keys are present", () => {
     const readiness = serverAgentExecutionReadiness("hyperliquid_testnet", {
       CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS:
         "0x1111111111111111111111111111111111111111",
@@ -59,8 +59,8 @@ describe("server execution adapters", () => {
       CLEARSIG_HYPERLIQUID_TESTNET_EXECUTOR_TOKEN: "secret",
     });
 
-    expect(readiness.state).toBe("ready");
-    expect(readiness.canSubmit).toBe(true);
+    expect(readiness.state).toBe("authorization_required");
+    expect(readiness.canSubmit).toBe(false);
     expect(readiness.missingEnvVars).toEqual([]);
   });
 

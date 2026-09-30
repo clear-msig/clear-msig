@@ -50,7 +50,7 @@
 //   1. create_recovery (with `creator` = connected wallet)
 //   2. transfer_dwallet_authority
 //   3. SystemProgram.transfer (imported_key → dwallet PDA)
-// Atomic. If anything fails, no funds move.
+// Atomic on chain. A lost RPC response can still leave submission status unknown.
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -81,12 +81,13 @@ import {
   ReviewStage,
 } from "@/features/secure/routes/ImportKeyStages";
 import { parseSolanaSecretKey } from "@/lib/secure/import";
+import { runImportAttempt } from "@/features/secure/infrastructure/importAttempt";
 
 const LAMPORTS_PER_SOL = 1_000_000_000n;
 /** 5000 lamports per signature × 3 signers (creator + recovery_id + imported). */
 const TX_FEE_RESERVE_LAMPORTS = 15_000n;
 
-type Stage = "intro" | "compose" | "review" | "creating" | "done";
+type Stage = "intro" | "compose" | "review" | "creating" | "done" | "uncertain";
 
 interface ParsedKey {
   keypair: Keypair;
@@ -121,6 +122,7 @@ function SecureImportPage() {
   // it. The derivedAddress is held in state for rendering only. It's
   // a public pubkey, safe to expose.
   const parsedRef = useRef<ParsedKey | null>(null);
+  const inFlight = useRef(false);
   const [derivedAddress, setDerivedAddress] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseFormat, setParseFormat] = useState<"base58" | "json" | null>(
@@ -223,12 +225,8 @@ function SecureImportPage() {
     }
     // Replace any prior parse. Wipe the old one before overwriting
     // the ref so we don't leak a previous decode on key change.
-    if (
-      parsedRef.current &&
-      !r.keypair.publicKey.equals(parsedRef.current.keypair.publicKey)
-    ) {
-      parsedRef.current.wipe();
-    }
+    // A fresh parse owns a new secret buffer even for the same public key.
+    parsedRef.current?.wipe();
     parsedRef.current = { keypair: r.keypair, wipe: r.wipe };
     setDerivedAddress(r.keypair.publicKey.toBase58());
     setParseFormat(r.format);
@@ -250,7 +248,7 @@ function SecureImportPage() {
       });
       return;
     }
-    if (secureContext === false) {
+    if (secureContext !== true) {
       toast.error("HTTPS required", {
         details:
           "Reload over https:// (or localhost). We refuse to ask for a secret key over plain HTTP.",
@@ -289,34 +287,52 @@ function SecureImportPage() {
   };
 
   const handleRun = async () => {
+    if (inFlight.current) return;
     if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
       toast.error("Connect a wallet first");
       return;
     }
     if (!parsedRef.current || !lamports) return;
 
+    inFlight.current = true;
     setCreateSubStage("dkg");
     setStage("creating");
 
+    const creator = wallet.publicKey;
+    const signTransaction = wallet.signTransaction;
     const importKeypair = parsedRef.current.keypair;
     const wipeFn = parsedRef.current.wipe;
 
     try {
-      const result = await createSoloVault({
-        connection,
-        creator: wallet.publicKey,
-        threshold: 1,
-        signTransaction: wallet.signTransaction,
+      const attempt = await runImportAttempt({
+        wipe: wipeFn,
         onProgress: (s) => setCreateSubStage(s),
-        importFunds: {
-          keypair: importKeypair,
-          lamports,
-          // Action-layer wipe runs the instant `tx.sign` returns, so
-          // the secret buffer is zeroed before submit/confirm/Dynamic
-          // popup. Page-level wipe below is the redundant safety net.
-          wipe: wipeFn,
-        },
+        run: (onProgress) => createSoloVault({
+          connection,
+          creator,
+          threshold: 1,
+          signTransaction,
+          onProgress,
+          importFunds: {
+            keypair: importKeypair,
+            lamports,
+            // Action-layer wipe runs the instant `tx.sign` returns, so
+            // the secret buffer is zeroed before submit/confirm/Dynamic
+            // popup. Page-level wipe below is the redundant safety net.
+            wipe: wipeFn,
+          },
+        }),
       });
+      if (!attempt.ok) {
+        const copy = secureActionErrorCopy(attempt.error, "Couldn't import the wallet");
+        toast.error(copy.title, {
+          details: `${copy.details} The imported key was cleared.${attempt.submissionMayHaveStarted ? " Check your vaults and source balance before trying again." : " Paste it again to retry."}`,
+        });
+        setCreateSubStage(null);
+        setStage(attempt.submissionMayHaveStarted ? "uncertain" : "compose");
+        return;
+      }
+      const result = attempt.value;
 
       // Success. Clear the paste surface + ref. Action layer already
       // wiped the buffer; this is just bookkeeping (idempotent wipe
@@ -348,12 +364,17 @@ function SecureImportPage() {
       ]);
     } catch (e) {
       console.error("[secure/import]", e);
-      // Don't wipe the keypair on failure. The user might want to
-      // retry without re-pasting. Wipe-on-unmount still applies.
       const copy = secureActionErrorCopy(e, "Couldn't import the wallet");
       toast.error(copy.title, { details: copy.details });
       setCreateSubStage(null);
-      setStage("review");
+      setStage("uncertain");
+    } finally {
+      wipeFn();
+      parsedRef.current = null;
+      clearPasteSurface();
+      setDerivedAddress(null);
+      setParseFormat(null);
+      inFlight.current = false;
     }
   };
 
@@ -451,6 +472,14 @@ function SecureImportPage() {
 
       {stage === "creating" && (
         <CreatingStage subStage={createSubStage} reduce={!!reduce} />
+      )}
+
+      {stage === "uncertain" && (
+        <section role="alert" className="rounded-card border border-warning/40 bg-surface-raised p-5">
+          <h1 className="text-lg font-semibold text-text-strong">Check the import status</h1>
+          <p className="mt-2 text-sm text-text-soft">The transaction may have been submitted. The imported key was cleared. Check your vaults and source balance before starting another import.</p>
+          <Link href="/app/secure" className="mt-4 inline-flex min-h-tap items-center font-semibold text-accent">Check vaults</Link>
+        </section>
       )}
 
       {stage === "done" && (

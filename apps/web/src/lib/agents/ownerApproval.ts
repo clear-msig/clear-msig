@@ -36,6 +36,7 @@ export async function createBrowserOwnerApproval(
     approvalMethod: input.signature ? "wallet_signature" : "browser_confirm",
     approvedBy: input.approvedBy ?? null,
     signature: input.signature ?? null,
+    signatureVersion: input.signature ? 2 : null,
     createdAt,
     version: 1,
   };
@@ -51,6 +52,7 @@ export async function createBrowserOwnerApproval(
     approvalMethod: input.signature ? "wallet_signature" : "browser_confirm",
     approvedBy: input.approvedBy ?? null,
     signature: input.signature ?? null,
+    signatureVersion: input.signature ? 2 : undefined,
     approvalHash: await sha256Hex(stableJson(hashPayload)),
     createdAt,
     version: 1,
@@ -66,7 +68,7 @@ export function ownerApprovalSignableText(
     .slice(0, 8)
     .map((detail) => `${detail.label.trim()}: ${detail.value.trim()}`);
   return [
-    "ClearSig Agent Trading Approval",
+    "ClearSig Agent Trading Approval v2",
     "",
     `Action: ${input.summary.trim()}`,
     `Wallet: ${input.walletName}`,
@@ -77,6 +79,25 @@ export function ownerApprovalSignableText(
     `Time: ${new Date(createdAt).toISOString()}`,
     "",
     ...details,
+    "",
+    // The readable preview is not an authorization encoding: free text can contain
+    // line breaks and previews truncate details. Bind the complete typed input in
+    // an unambiguous, domain-separated JSON record as part of the signed message.
+    `Authorization: ${stableJson({
+      domain: "clearsig.agent.owner-approval",
+      signatureVersion: 2,
+      walletName: input.walletName,
+      agentId: input.agentId ?? null,
+      action: input.action,
+      summary: input.summary.trim(),
+      details: (input.details ?? []).map((detail) => ({
+        label: detail.label.trim(),
+        value: detail.value.trim(),
+      })),
+      targetType: input.targetType ?? null,
+      targetId: input.targetId ?? null,
+      createdAt,
+    })}`,
   ]
     .filter((line): line is string => line !== null)
     .join("\n");

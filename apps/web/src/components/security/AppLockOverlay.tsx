@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { BrandMark } from "@/components/retail/BrandMark";
+import { BrandLoader } from "@/components/retail/BrandLoader";
 import {
   getAppLockState,
   markUnlocked,
@@ -28,10 +29,9 @@ interface Props {
 }
 
 export function AppLockOverlay({ children }: Props) {
-  // Hydrate on mount - server can't read storage. Until we know,
-  // assume locked-no-pin (renders children) so SSR + first paint
-  // are stable. The check fires immediately client-side and flips
-  // state correctly within a tick.
+  // The server cannot read the device PIN. Keep both SSR and the first client
+  // render neutral until storage is checked; mounting children even briefly
+  // leaks balances and starts their protected queries before the PIN gate.
   const [hydrated, setHydrated] = useState(false);
   const [unlocked, setUnlocked] = useState(true);
   const [hasPin, setHasPin] = useState(false);
@@ -43,7 +43,13 @@ export function AppLockOverlay({ children }: Props) {
     setHydrated(true);
   }, []);
 
-  if (!hydrated) return <>{children}</>;
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center bg-canvas">
+        <BrandLoader label="Checking app lock" size={24} />
+      </div>
+    );
+  }
   if (!hasPin || unlocked) return <>{children}</>;
 
   return (

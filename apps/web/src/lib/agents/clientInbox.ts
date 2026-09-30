@@ -1,5 +1,7 @@
 "use client";
 
+import { agentSessionHeaders } from "@/lib/agents/clientAuth";
+
 import {
   getAgentConnectionKit,
   updateAgentConnectionSettings,
@@ -48,7 +50,7 @@ export async function loadAgentInboxSummary(
   );
   const response = await fetch(path, {
     method: "GET",
-    headers: { "x-clearsig-management-key": kit.managementKey },
+    headers: { ...agentSessionHeaders(), "x-clearsig-management-key": kit.managementKey },
   });
   if (!response.ok) {
     throw new Error(await errorText(response));
@@ -81,7 +83,7 @@ export async function importAgentInboxSignalsOnServer({
   const response = await fetch(apiPath(walletName, agentId), {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      ...agentSessionHeaders(),
       "x-clearsig-management-key": managementKey,
     },
     body: JSON.stringify({
@@ -164,7 +166,7 @@ async function registerInbox(
 ): Promise<void> {
   const response = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: agentSessionHeaders(),
     body: JSON.stringify({
       action: "register",
       signalKey,

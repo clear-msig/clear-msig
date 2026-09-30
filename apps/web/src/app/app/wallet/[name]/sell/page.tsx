@@ -19,7 +19,7 @@
 // The clear-msig multisig is invisible to the ramp service - from its
 // POV, it's just a regular incoming on-chain transfer.
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -28,7 +28,6 @@ import {
   ArrowRight,
   Check,
   Copy,
-  ExternalLink,
   Landmark,
   Loader2,
 } from "lucide-react";
@@ -75,9 +74,11 @@ type Stage =
   | { kind: "failed"; intentId: string; reason: string };
 
 export default function SellPageWrapper() {
+  const wallet = useWallet();
+  const route = useParams<{ name: string }>();
   return (
     <Suspense fallback={<PageLoading />}>
-      <SellPage />
+      <SellPage key={`${route?.name ?? ""}:${wallet.publicKey?.toBase58() ?? ""}`} />
     </Suspense>
   );
 }
@@ -136,6 +137,7 @@ function SellPage() {
   const [accountNumber, setAccountNumber] = useState("");
   const [resolvedName, setResolvedName] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
+  const submitInFlight = useRef(false);
   const [stage, setStage] = useState<Stage>({ kind: "compose" });
   const [txHashInput, setTxHashInput] = useState("");
   const [recordedOutcomes, setRecordedOutcomes] = useState<Set<string>>(
@@ -216,22 +218,25 @@ function SellPage() {
 
   // Resolve account name on debounced bank input.
   useEffect(() => {
+    let current = true;
+    const controller = new AbortController();
+    setResolvedName(null);
+    setResolving(false);
     if (!bankCode || accountNumber.length !== 10) {
-      setResolvedName(null);
       return;
     }
     const handle = setTimeout(async () => {
       setResolving(true);
       try {
-        const r = await rampApi.resolveBank(accountNumber, bankCode);
-        setResolvedName(r.account_name);
+        const r = await rampApi.resolveBank(accountNumber, bankCode, controller.signal);
+        if (current) setResolvedName(r.account_name);
       } catch {
-        setResolvedName(null);
+        if (current) setResolvedName(null);
       } finally {
-        setResolving(false);
+        if (current) setResolving(false);
       }
     }, 300);
-    return () => clearTimeout(handle);
+    return () => { current = false; controller.abort(); clearTimeout(handle); };
   }, [bankCode, accountNumber]);
 
   const selectedChain = selectedKind === null ? null : chainByKind(selectedKind);
@@ -253,6 +258,7 @@ function SellPage() {
     selectedKind !== null &&
     amountMinor !== null &&
     amountMinor > 0n &&
+    amountMinor <= BigInt(Number.MAX_SAFE_INTEGER) &&
     bankCode.length > 0 &&
     accountNumber.length === 10 &&
     resolvedName !== null &&
@@ -261,7 +267,7 @@ function SellPage() {
 
   async function handleSubmit() {
     if (
-      !canSubmit ||
+      submitInFlight.current || !canSubmit ||
       !wallet.publicKey ||
       selectedKind === null ||
       !target ||
@@ -270,6 +276,7 @@ function SellPage() {
     ) {
       return;
     }
+    submitInFlight.current = true;
     setStage({ kind: "submitting" });
     const pubkey = wallet.publicKey.toBase58();
     const idempotencyKey = rampApi.newIdempotencyKey();
@@ -279,10 +286,8 @@ function SellPage() {
       chain_id: target.chain_id,
       asset_symbol: target.asset_symbol,
       asset_amount_minor: Number(amountMinor),
-      // Backend computes NGN from this for the offramp quote.
-      // Without an oracle, we let the backend's USD→NGN flow run on
-      // a coarse 1:1 mapping seeded by the asset_amount_minor.
-      usd_amount_cents: 100, // minimum stub; backend recomputes
+      // The server must obtain an executable quote for this exact quantity.
+      // A browser-provided USD estimate is never a payout authority.
       source_wallet: sourceWallet,
       bank_code: bankCode,
       bank_account_number: accountNumber,
@@ -290,6 +295,9 @@ function SellPage() {
     try {
       const created = await rampApi.createIntent(pubkey, body, idempotencyKey);
       const prep = await rampApi.prepareSignature(pubkey, created.intent_id);
+      if (!prep.deposit_reference?.startsWith("clearsig-ramp:")) {
+        throw new Error("Deposit verification is not configured. Do not send funds.");
+      }
       setStage({
         kind: "awaiting_send",
         intentId: created.intent_id,
@@ -301,16 +309,19 @@ function SellPage() {
         err instanceof RampApiError ? err.message : friendlyError(err).body;
       toast.error("Could not start withdrawal", { details: message });
       setStage({ kind: "compose" });
+    } finally {
+      submitInFlight.current = false;
     }
   }
 
   async function handleConfirmTx() {
-    if (stage.kind !== "awaiting_send") return;
+    if (submitInFlight.current || stage.kind !== "awaiting_send") return;
     const txHash = txHashInput.trim();
     if (!txHash) {
       toast.error("Paste the transaction hash from your send.");
       return;
     }
+    submitInFlight.current = true;
     setStage({ kind: "confirming", intentId: stage.intentId });
     try {
       await rampApi.confirmChainTransfer({
@@ -336,6 +347,8 @@ function SellPage() {
         prep: stage.prep,
         assetAmountMinor: stage.assetAmountMinor,
       });
+    } finally {
+      submitInFlight.current = false;
     }
   }
 
@@ -411,6 +424,12 @@ function SellPage() {
             selectedTicker={selectedChain?.ticker ?? null}
           />
         )}
+        {stage.kind === "compose" && selectedKind !== null && !target && (
+          <p role="alert" className="text-sm text-warning">This asset does not yet have a verified settlement adapter. Choose a supported native asset.</p>
+        )}
+        {stage.kind === "compose" && amountMinor !== null && amountMinor > BigInt(Number.MAX_SAFE_INTEGER) && (
+          <p role="alert" className="text-sm text-warning">This amount exceeds the exact range supported by the current settlement API. No amount will be rounded or submitted.</p>
+        )}
 
         {stage.kind === "awaiting_send" && (
           <AwaitingSendCard
@@ -424,7 +443,7 @@ function SellPage() {
         )}
 
         {stage.kind === "confirming" && (
-          <CenteredStatus icon="loader" title="Recording your transfer…" />
+          <CenteredStatus icon="loader" title="Verifying your deposit on-chain…" />
         )}
 
         {stage.kind === "payout" && (
@@ -650,7 +669,7 @@ function AwaitingSendCard({
   onConfirm: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const sendUrl = `/app/wallet/${encodeURIComponent(walletName)}/send?to=${encodeURIComponent(prep.treasury_address)}`;
+  const reference = prep.deposit_reference;
   return (
     <div className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <div className="flex items-center gap-3">
@@ -694,13 +713,16 @@ function AwaitingSendCard({
         </div>
       </div>
 
-      <Link
-        href={sendUrl}
-        className="inline-flex items-center justify-center gap-2 rounded-soft border border-accent/30 bg-accent/5 px-4 py-3 text-sm font-medium text-accent transition hover:bg-accent/10"
-      >
-        Open Send (pre-filled with this address)
-        <ExternalLink className="h-4 w-4" />
-      </Link>
+      <div role="alert" className="rounded-soft border border-warning/30 bg-warning/5 p-3 text-sm text-text-strong">
+        <p className="font-semibold">The deposit must contain this exact on-chain reference</p>
+        <code className="mt-2 block break-all text-xs">{reference}</code>
+        <p className="mt-2 text-xs text-text-soft">
+          {prep.chain_family === "solana" ? "Use a native SOL transfer and a Memo instruction in the same transaction. Multisig CPI deposits are not supported yet."
+            : prep.chain_family === "evm" ? "Include the UTF-8 reference as hexadecimal transaction data in the native-asset transfer."
+            : "Include the UTF-8 reference in an OP_RETURN output of the same native-asset transaction."}
+          {" "}The regular ClearSig Send screen does not attach this reference. Do not send from {toDisplayName(walletName)} until your sending tool supports it. A hash alone is insufficient for verification.
+        </p>
+      </div>
 
       <div className="flex flex-col gap-2 border-t border-border-soft pt-4">
         <label
@@ -718,8 +740,8 @@ function AwaitingSendCard({
           onChange={(e) => onTxHashChange(e.target.value)}
           className="w-full rounded-soft border border-border-soft bg-canvas/50 py-3 px-3 font-mono text-xs text-text-strong placeholder:text-text-soft focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
-        <Button size="lg" fullWidth disabled={!txHashInput.trim()} onClick={onConfirm}>
-          I&rsquo;ve sent it - record my transfer
+        <Button size="lg" fullWidth disabled={!reference || !txHashInput.trim()} onClick={onConfirm}>
+          Verify my referenced deposit
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>

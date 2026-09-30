@@ -8,7 +8,7 @@ import { type AgentVenueReadiness, submitAgentVenueExecution } from "@/features/
 import { agentRiskSnapshot, approveAgentProposal, closeMockAgentExecution, closeOpenMockAgentExecutions, newAgentProposalId, openAgentPaperTrade, recheckAgentProposal, rejectAgentProposal, renewAgentSession, saveAgentProposal, saveAgentProposalAndExecuteIfAllowed, saveAgentSession, setAgentVaultEmergencyPause, updateAgentSessionStatus, updateAgentStatus } from "@/features/agents/infrastructure/agentStore";
 import { useAgentTypedClearSignApproval } from "@/features/agents/infrastructure/typedApprovalClient";
 import { useAgentTypedSessionGrant } from "@/features/agents/infrastructure/sessionGrantClient";
-import type { Dispatch, SetStateAction, TransitionStartFunction } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction, type TransitionStartFunction } from "react";
 
 interface DashboardActionContext {
   agents: AgentProfile[];
@@ -52,8 +52,28 @@ export function useAgentDashboardActions({
   toast,
 }: DashboardActionContext) {
   const updateTypedSession = useAgentTypedSessionGrant(name);
-  const prepareScoutIdea = (report: AgentScoutReport) => {
+  const actionInFlight = useRef(false);
+  const killSwitchInFlight = useRef(false);
+  const [pendingKillSwitch, setPendingKillSwitch] = useState(false);
+  const runAction = (action: () => Promise<void>) => {
+    // React's pending state disables the UI on its next render. Lock immediately
+    // as well so repeated or conflicting callbacks cannot start before that render.
+    if (actionInFlight.current || killSwitchInFlight.current) return;
+    actionInFlight.current = true;
     startAction(async () => {
+      try {
+        await action();
+      } catch (error) {
+        toast.error("Could not complete this action", {
+          details: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        actionInFlight.current = false;
+      }
+    });
+  };
+  const prepareScoutIdea = (report: AgentScoutReport) => {
+    runAction(async () => {
       if (!policy) {
         toast.error("Finish safety rules before preparing scout ideas");
         return;
@@ -89,7 +109,7 @@ export function useAgentDashboardActions({
         const syncedExecution = await syncAgentExecution(result.execution);
         if (syncedProposal.ok && syncedExecution.ok) {
           toast.success("Scout idea opened as a practice trade");
-          void refreshBackendState();
+          await refreshBackendState();
         } else {
           toast.info("Scout idea opened on this device for now");
         }
@@ -109,13 +129,13 @@ export function useAgentDashboardActions({
         });
       }
       if (syncedProposal.ok) {
-        void refreshBackendState();
+        await refreshBackendState();
       }
     });
   };
   const runAutonomyScan = () => {
-    startAction(() => {
-      void import("@/features/agents/infrastructure/autonomyClient")
+    runAction(async () => {
+      await import("@/features/agents/infrastructure/autonomyClient")
         .then(({ runAgentAutonomyTickClient }) =>
           runAgentAutonomyTickClient({
             walletName: name,
@@ -124,7 +144,7 @@ export function useAgentDashboardActions({
             maxIdeas: 3,
           }),
         )
-        .then((result) => {
+        .then(async (result) => {
           if (!result.ok) {
             toast.error("Autonomy scan failed", {
               details: result.message,
@@ -166,37 +186,50 @@ export function useAgentDashboardActions({
               },
             );
           }
-          void refreshBackendState();
+          await refreshBackendState();
         })
         .catch(() => {
           toast.error("Could not run the autonomy scan");
         });
     });
   };
-  const setKillSwitch = (enabled: boolean) => {
-    startAction(() => {
+  const setKillSwitch = async (enabled: boolean) => {
+    // Emergency stop must stay available during scans/signature prompts. Resume
+    // waits for other work, and all pause/resume requests share a separate lock.
+    if (killSwitchInFlight.current || (!enabled && actionInFlight.current)) return;
+    killSwitchInFlight.current = true;
+    // A separate transition could share pending state with unrelated transitions.
+    // Use immediate state so only the kill-switch request disables the stop button.
+    setPendingKillSwitch(true);
+    try {
       const updated = setAgentVaultEmergencyPause(name, enabled);
       setPolicy(updated);
-      void syncAgentEmergencyPause(name, enabled).then((synced) => {
-        if (synced.ok) {
-          setKillSwitchHandoff(synced.killSwitch ?? null);
-          toast.success(
-            enabled ? "All automatic actions stopped" : "Automatic actions allowed again",
-            synced.killSwitch
-              ? { details: synced.killSwitch.message }
-              : undefined,
-          );
-          void refreshBackendState();
-        } else {
-          toast.info("This change is saved on this device for now", {
-            details: synced.message,
-          });
-        }
+      const synced = await syncAgentEmergencyPause(name, enabled);
+      if (synced.ok) {
+        setKillSwitchHandoff(synced.killSwitch ?? null);
+        toast.success(
+          enabled ? "All automatic actions stopped" : "Automatic actions allowed again",
+          synced.killSwitch
+            ? { details: synced.killSwitch.message }
+            : undefined,
+        );
+        await refreshBackendState();
+      } else {
+        toast.info("This change is saved on this device for now", {
+          details: synced.message,
+        });
+      }
+    } catch (error) {
+      toast.error("Could not complete this action", {
+        details: error instanceof Error ? error.message : String(error),
       });
-    });
+    } finally {
+      killSwitchInFlight.current = false;
+      setPendingKillSwitch(false);
+    }
   };
   const startBetaDemo = () => {
-    startAction(async () => {
+    runAction(async () => {
       try {
         const { setupAgentBetaDemo } = await import(
           "@/features/agents/infrastructure/demoClient"
@@ -216,14 +249,14 @@ export function useAgentDashboardActions({
     });
   };
   const submitVenueProposal = (id: string) => {
-    startAction(() => {
+    runAction(async () => {
       const proposal = proposals.find((item) => item.id === id);
       if (!proposal) {
         toast.error("Trade idea not found");
         return;
       }
-      void submitAgentVenueExecution(proposal)
-        .then((result) => {
+      await submitAgentVenueExecution(proposal)
+        .then(async (result) => {
           if (result.ok) {
             toast.success("Trade request sent to the connected practice account");
             return;
@@ -243,69 +276,67 @@ export function useAgentDashboardActions({
     });
   };
   const approveProposal = (id: string) => {
-    startAction(() => {
-      void (async () => {
-        const proposal = proposals.find((item) => item.id === id);
-        if (!proposal) {
-          toast.error("Trade idea not found");
-          return;
-        }
-        let typedResult: Awaited<ReturnType<typeof approveTypedAgentClearSign>>;
-        try {
-          typedResult = await approveTypedAgentClearSign({
-            ...proposal,
-            status: "approved",
-            updatedAt: Date.now(),
-          });
-        } catch (err) {
-          toast.error("ClearSign approval did not reach chain", {
-            details: err instanceof Error ? err.message : String(err),
-          });
-          return;
-        }
-        const updated = approveAgentProposal(name, id);
-        if (!updated) {
-          toast.error("Trade idea not found");
-          return;
-        }
-        saveAgentProposal({
-          ...updated,
-          clearSignV2: typedResult.proposal.clearSignV2,
+    runAction(async () => {
+      const proposal = proposals.find((item) => item.id === id);
+      if (!proposal) {
+        toast.error("Trade idea not found");
+        return;
+      }
+      let typedResult: Awaited<ReturnType<typeof approveTypedAgentClearSign>>;
+      try {
+        typedResult = await approveTypedAgentClearSign({
+          ...proposal,
+          status: "approved",
+          updatedAt: Date.now(),
         });
-        void syncAgentProposalApproval(name, id).then((synced) => {
-          if (!synced.ok) {
-            toast.info("Trade idea approved on this device for now", {
-              details: synced.message,
-            });
-            return;
-          }
-          if (synced.value?.status === "blocked") {
-            toast.info("Your safety rules stopped this idea", {
-              details: synced.value.policyViolations?.[0]?.message,
-            });
-          } else {
-            toast.success(
-              typedResult.status === "executed"
-                ? "Agent approval verified on chain"
-                : "Agent approval is waiting on chain",
-            );
-          }
-          void refreshBackendState();
+      } catch (err) {
+        toast.error("ClearSign approval did not reach chain", {
+          details: err instanceof Error ? err.message : String(err),
         });
-      })();
+        return;
+      }
+      const updated = approveAgentProposal(name, id);
+      if (!updated) {
+        toast.error("Trade idea not found");
+        return;
+      }
+      saveAgentProposal({
+        ...updated,
+        clearSignV2: typedResult.proposal.clearSignV2,
+      });
+      await syncAgentProposalApproval(name, id).then(async (synced) => {
+        if (!synced.ok) {
+          toast.info("Trade idea approved on this device for now", {
+            details: synced.message,
+          });
+          return;
+        }
+        if (synced.value?.status === "blocked") {
+          toast.info("Your safety rules stopped this idea", {
+            details: synced.value.policyViolations?.[0]?.message,
+          });
+        } else {
+          toast.success(
+            typedResult.status === "executed"
+              ? "Agent approval verified on chain"
+              : "Agent approval is waiting on chain",
+          );
+        }
+        await refreshBackendState();
+      });
     });
   };
   const rejectProposal = (id: string) => {
-    startAction(() => {
+    runAction(async () => {
       const updated = rejectAgentProposal(name, id);
       if (!updated) {
         toast.error("Trade idea not found");
         return;
       }
-      void syncAgentProposalRejection(name, id).then((synced) => {
+      await syncAgentProposalRejection(name, id).then(async (synced) => {
         if (synced.ok) {
           toast.success("Trade idea declined");
-          void refreshBackendState();
+          await refreshBackendState();
         } else {
           toast.info("Trade idea declined on this device for now", {
             details: synced.message,
@@ -315,14 +346,14 @@ export function useAgentDashboardActions({
     });
   };
   const executeProposal = (id: string) => {
-    startAction(() => {
+    runAction(async () => {
       const result = openAgentPaperTrade(name, id);
       if (result.reason === "opened") {
         toast.success("Practice trade opened");
         if (result.execution) {
-          void syncAgentExecution(result.execution).then((synced) => {
+          await syncAgentExecution(result.execution).then(async (synced) => {
             if (synced.ok) {
-              void refreshBackendState();
+              await refreshBackendState();
             } else {
               toast.info("Practice trade saved on this device for now", {
                 details: synced.message,
@@ -347,7 +378,7 @@ export function useAgentDashboardActions({
     });
   };
   const recheckProposal = (id: string) => {
-    startAction(() => {
+    runAction(async () => {
       const result = recheckAgentProposal(name, id);
       if (!result) {
         toast.error("Trade idea not found");
@@ -355,9 +386,9 @@ export function useAgentDashboardActions({
       }
       if (result.execution) {
         toast.success("Trade idea passed your rules and a practice trade opened");
-        void syncAgentExecution(result.execution).then((synced) => {
+        await syncAgentExecution(result.execution).then(async (synced) => {
           if (synced.ok) {
-            void refreshBackendState();
+            await refreshBackendState();
           } else {
             toast.info("Practice trade saved on this device for now", {
               details: synced.message,
@@ -374,7 +405,7 @@ export function useAgentDashboardActions({
     });
   };
   const closeExecution = (id: string, pnlUsd: string) => {
-    startAction(() => {
+    runAction(async () => {
       const local = closeMockAgentExecution(name, id, pnlUsd);
       const execution = executions.find((item) => item.id === id);
       const proposal = proposals.find((item) => item.id === execution?.proposalId);
@@ -391,9 +422,9 @@ export function useAgentDashboardActions({
         );
       }
       toast.success("Practice trade closed");
-      void syncAgentExecution(updated).then((synced) => {
+      await syncAgentExecution(updated).then(async (synced) => {
         if (synced.ok) {
-          void refreshBackendState();
+          await refreshBackendState();
         } else {
           toast.info("Practice trade saved on this device for now", {
             details: synced.message,
@@ -403,7 +434,7 @@ export function useAgentDashboardActions({
     });
   };
   const closeAllOpenPaperTrades = () => {
-    startAction(() => {
+    runAction(async () => {
       const localClosed = closeOpenMockAgentExecutions({ walletName: name });
       const localClosedIds = new Set(localClosed.map((execution) => execution.id));
       const fallbackClosed = openExecutionRecords
@@ -432,10 +463,10 @@ export function useAgentDashboardActions({
       toast.success(
         `${closed.length} open practice trade${closed.length === 1 ? "" : "s"} closed`,
       );
-      void Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(
-        (results) => {
+      await Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(
+        async (results) => {
           if (results.every((result) => result.ok)) {
-            void refreshBackendState();
+            await refreshBackendState();
           } else {
             toast.info("Practice trades saved on this device for now");
           }
@@ -444,7 +475,7 @@ export function useAgentDashboardActions({
     });
   };
   const closeAutomaticExitTrades = () => {
-    startAction(() => {
+    runAction(async () => {
       if (automaticExitDecisions.length === 0) {
         toast.info("No automatic exits are ready");
         return;
@@ -474,10 +505,10 @@ export function useAgentDashboardActions({
       toast.success(
         `${closed.length} automatic exit${closed.length === 1 ? "" : "s"} closed`,
       );
-      void Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(
-        (results) => {
+      await Promise.all(closed.map((execution) => syncAgentExecution(execution))).then(
+        async (results) => {
           if (results.every((result) => result.ok)) {
-            void refreshBackendState();
+            await refreshBackendState();
           } else {
             toast.info("Automatic exits closed on this device for now");
           }
@@ -486,13 +517,13 @@ export function useAgentDashboardActions({
     });
   };
   const setAgentStatus = (id: string, status: AgentProfile["status"]) => {
-    startAction(() => {
+    runAction(async () => {
       const updated = updateAgentStatus(name, id, status);
       if (!updated) {
         toast.error("Trader not found");
         return;
       }
-      void syncAgentProfile(updated).then((synced) => {
+      await syncAgentProfile(updated).then(async (synced) => {
         if (synced.ok) {
           toast.success(
             status === "active"
@@ -501,7 +532,7 @@ export function useAgentDashboardActions({
                 ? "Trader paused"
                 : "Trader access removed",
           );
-          void refreshBackendState();
+          await refreshBackendState();
         } else {
           toast.info("Trader change saved on this device for now", {
             details: synced.message,
@@ -511,7 +542,7 @@ export function useAgentDashboardActions({
     });
   };
   const revokeSession = (id: string) => {
-    startAction(async () => {
+    runAction(async () => {
       const current = sessions.find((session) => session.id === id);
       if (!current) {
         toast.error("Budget not found");
@@ -531,10 +562,10 @@ export function useAgentDashboardActions({
       } else {
         updated = updateAgentSessionStatus(name, id, "revoked") ?? current;
       }
-      void syncAgentSessionStatus(name, id, updated.status).then((synced) => {
+      await syncAgentSessionStatus(name, id, updated.status).then(async (synced) => {
         if (synced.ok) {
           toast.success("Budget ended");
-          void refreshBackendState();
+          await refreshBackendState();
         } else {
           toast.info("Budget ended on this device for now", {
             details: synced.message,
@@ -544,7 +575,7 @@ export function useAgentDashboardActions({
     });
   };
   const renewSession = (id: string) => {
-    startAction(async () => {
+    runAction(async () => {
       const current = sessions.find((session) => session.id === id);
       const renewed =
         current?.onchain?.operation === "active" &&
@@ -561,14 +592,14 @@ export function useAgentDashboardActions({
         status: "active",
       });
       saveAgentSession(granted);
-      void syncAgentSession(granted).then((synced) => {
+      await syncAgentSession(granted).then(async (synced) => {
         if (synced.ok) {
           toast.success(
             granted.onchain?.status === "executed"
               ? "Budget renewed"
               : "Budget is waiting for approval",
           );
-          void refreshBackendState();
+          await refreshBackendState();
         } else {
           toast.info("Budget renewed on this device for now", {
             details: synced.message,
@@ -578,6 +609,7 @@ export function useAgentDashboardActions({
     });
   };
   return {
+    pendingKillSwitch,
     prepareScoutIdea,
     runAutonomyScan,
     setKillSwitch,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
   authenticateNotificationRequest,
@@ -86,13 +87,11 @@ export async function POST(request: NextRequest) {
 }
 
 async function readBody(request: NextRequest): Promise<Record<string, unknown>> {
-  const contentLength = Number(request.headers.get("content-length") ?? 0);
-  if (contentLength > MAX_BODY_BYTES) throw new RequestError("Request is too large.", 413);
-  const text = await request.text();
-  if (Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) {
-    throw new RequestError("Request is too large.", 413);
+  const body = await readBoundedBody(request, MAX_BODY_BYTES, "Request is too large.");
+  if (!body.ok) {
+    throw new RequestError(body.response.status === 413 ? "Request is too large." : "Could not read request body.", body.response.status);
   }
-  const parsed = JSON.parse(text) as unknown;
+  const parsed = JSON.parse(body.text) as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new RequestError("Body must be a JSON object.");
   }

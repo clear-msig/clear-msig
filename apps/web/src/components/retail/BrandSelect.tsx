@@ -14,7 +14,7 @@
 // filter-style usage with a label prefix, wrap this in a label
 // element or a small chip.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown } from "lucide-react";
@@ -52,11 +52,13 @@ export function BrandSelect({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
+  const menuId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const selected = options.find((o) => o.value === value);
+  const selectedIndex = options.findIndex((o) => o.value === value);
+  const selected = options[selectedIndex];
 
   // Close on outside click + Esc.
   useEffect(() => {
@@ -88,9 +90,8 @@ export function BrandSelect({
       setHighlight(-1);
       return;
     }
-    const i = options.findIndex((o) => o.value === value);
-    setHighlight(i >= 0 ? i : 0);
-  }, [open, options, value]);
+    setHighlight(selectedIndex >= 0 ? selectedIndex : 0);
+  }, [open, selectedIndex, options.length]);
 
   useEffect(() => {
     if (!open || highlight < 0) return;
@@ -118,6 +119,10 @@ export function BrandSelect({
       e.preventDefault();
       setHighlight(options.length - 1);
     } else if (e.key === "Tab") {
+      // The exiting menu remains mounted during its animation. Restore the
+      // trigger before the browser performs normal Tab navigation so focus
+      // cannot move into another option that is about to disappear.
+      triggerRef.current?.focus();
       setOpen(false);
     }
   }
@@ -131,9 +136,10 @@ export function BrandSelect({
         onKeyDown={onTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
         aria-label={ariaLabel}
         className={clsx(
-          "inline-flex items-center justify-between gap-2 rounded-soft border bg-canvas px-3 py-2 text-xs font-medium",
+          "inline-flex min-h-tap items-center justify-between gap-2 rounded-soft border bg-canvas px-3 py-2 text-xs font-medium",
           "transition-colors duration-base ease-out-soft",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
           open
@@ -156,6 +162,7 @@ export function BrandSelect({
         {open && (
           <motion.div
             ref={menuRef}
+            id={menuId}
             role="listbox"
             aria-label={ariaLabel}
             tabIndex={-1}
@@ -181,6 +188,7 @@ export function BrandSelect({
                     optionRefs.current[i] = el;
                   }}
                   type="button"
+                  tabIndex={-1}
                   role="option"
                   aria-selected={isSelected}
                   onClick={() => {
@@ -190,7 +198,7 @@ export function BrandSelect({
                   }}
                   onMouseEnter={() => setHighlight(i)}
                   className={clsx(
-                    "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs",
+                    "flex min-h-tap w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs",
                     "transition-colors duration-base ease-out-soft focus:outline-none",
                     isSelected ? "font-medium text-accent" : "text-text-strong",
                     isHighlighted &&

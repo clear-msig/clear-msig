@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "crypto";
+import { agentWalletStorageKey } from "@/features/agents/server/walletScope";
 import type { AgentSignalPayload } from "@/lib/agents/intake";
 import type { AgentSignalInboxItem } from "@/lib/agents/types";
 
@@ -24,6 +25,7 @@ export interface AgentSignalEnqueueResult {
 
 const REGISTRY = new Map<string, RegisteredAgentKey>();
 const INBOX = new Map<string, AgentSignalInboxItem[]>();
+const SIGNAL_NONCES = new Map<string, { item: AgentSignalInboxItem; expiresAt: number }>();
 const RATE_WINDOWS = new Map<string, number[]>();
 const MAX_ITEMS_PER_AGENT = 50;
 const DEFAULT_SIGNAL_LIMIT = 30;
@@ -174,6 +176,16 @@ export async function enqueueAgentSignal({
     await redisSet(redisKey, [item, ...(list ?? [])].slice(0, MAX_ITEMS_PER_AGENT), redis);
     return { item, duplicate: false, accepted: true, abuseFlags: [] };
   }
+  // Keep replay evidence independently of the removable/capped inbox. Import
+  // or deletion must not make a still-fresh signed signal executable again.
+  for (const [nonceKey, nonce] of SIGNAL_NONCES) {
+    if (nonce.expiresAt <= now) SIGNAL_NONCES.delete(nonceKey);
+  }
+  const nonceKey = payload.clientSignalId
+    ? agentWalletStorageKey(walletName, "signal-id", [agentId, payload.clientSignalId])
+    : null;
+  const remembered = nonceKey ? SIGNAL_NONCES.get(nonceKey) : null;
+  if (remembered) return { item: remembered.item, duplicate: true, accepted: true, abuseFlags: [] };
   const list = INBOX.get(key) ?? [];
   const existing = findDuplicateSignal(list, payload.clientSignalId);
   if (existing) return { item: existing, duplicate: true, accepted: true, abuseFlags: [] };
@@ -183,6 +195,7 @@ export async function enqueueAgentSignal({
   }
   rememberRateWindow(key, now);
   INBOX.set(key, [item, ...list].slice(0, MAX_ITEMS_PER_AGENT));
+  if (nonceKey) SIGNAL_NONCES.set(nonceKey, { item, expiresAt: now + 24 * 60 * 60_000 });
   return { item, duplicate: false, accepted: true, abuseFlags: [] };
 }
 
@@ -291,7 +304,7 @@ function normalizeOrigin(value: string | null | undefined): string | null {
 }
 
 function inboxKey(walletName: string, agentId: string): string {
-  return `${walletName}:${agentId}`;
+  return agentWalletStorageKey(walletName, "inbox", [agentId]);
 }
 
 function findDuplicateSignal(
@@ -305,11 +318,11 @@ function findDuplicateSignal(
 }
 
 function registryRedisKey(walletName: string, agentId: string): string {
-  return `agent:signal-key:${hashStorageKey(inboxKey(walletName, agentId))}`;
+  return `agent:signal-key:v2:${hashStorageKey(inboxKey(walletName, agentId))}`;
 }
 
 function inboxRedisKey(walletName: string, agentId: string): string {
-  return `agent:signals:${hashStorageKey(inboxKey(walletName, agentId))}`;
+  return `agent:signals:v2:${hashStorageKey(inboxKey(walletName, agentId))}`;
 }
 
 function idempotencyRedisKey(
@@ -317,7 +330,7 @@ function idempotencyRedisKey(
   agentId: string,
   clientSignalId: string,
 ): string {
-  return `agent:signal-id:${hashStorageKey(`${inboxKey(walletName, agentId)}:${clientSignalId}`)}`;
+  return agentWalletStorageKey(walletName, "signal-id", [agentId, clientSignalId]);
 }
 
 function hashSignalKey(signalKey: string): string {

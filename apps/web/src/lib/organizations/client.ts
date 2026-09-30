@@ -1,3 +1,4 @@
+import { emailSessionHeaders } from "@/lib/email/clientAuth";
 import type { OrganizationMember } from "@/lib/organizations/types";
 import type { WalletRole } from "@/lib/retail/memberAccess";
 
@@ -26,7 +27,7 @@ function errorMessage(payload: unknown, fallback: string) {
 export async function sendOrganizationInvite(input: InviteInput): Promise<void> {
   const response = await fetch("/api/invitations", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: emailSessionHeaders(),
     body: JSON.stringify(input)
   });
 
@@ -45,7 +46,7 @@ type RevokeInput = {
 export async function revokeOrganizationInvite(input: RevokeInput): Promise<void> {
   const response = await fetch("/api/invitations/revoke", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: emailSessionHeaders(),
     body: JSON.stringify(input)
   });
 

@@ -45,7 +45,10 @@ import {
   executionRequestMismatch,
   executionUpdateMismatch,
   findDuplicateClientSignal,
+  proposalUpdateMismatch,
+  sessionUpdateMismatch,
 } from "@/features/agents/server/stateConsistency";
+import { validateSessionTransition } from "@/features/agents/server/sessionAuthorization";
 import { verifyAgentOwnerApprovalSignature } from "@/features/agents/server/ownerApprovalVerification";
 import {
   activeSessionFor,
@@ -257,6 +260,12 @@ export async function saveAgentServerSession(
     state.policy,
   );
   const now = Date.now();
+  const previous = state.sessions.find((item) => item.id === updated.id);
+  if (previous) {
+    const mismatch = sessionUpdateMismatch(previous, updated);
+    if (mismatch) throw new AgentServerStateConflictError(mismatch);
+  }
+  validateSessionTransition(state, previous, updated, now);
   if (updated.status === "active") {
     state.sessions = state.sessions.map((item) =>
       item.id !== updated.id &&
@@ -288,6 +297,14 @@ export async function updateAgentServerSessionStatus({
   if (!session) return null;
   const now = Date.now();
   const updated: AgentSessionGrant = { ...session, status, updatedAt: now };
+  validateSessionTransition(state, session, updated, now);
+  if (status === "active") {
+    state.sessions = state.sessions.map((item) =>
+      item.id !== updated.id && item.agentId === updated.agentId && item.status === "active"
+        ? { ...item, status: "revoked", updatedAt: now }
+        : item,
+    );
+  }
   state.sessions[idx] = updated;
   appendEvent(state, {
     id: newServerEventId(),
@@ -306,6 +323,14 @@ export async function saveAgentServerProposal(
   proposal: AgentTradeProposal,
 ): Promise<AgentServerProposalSaveResult> {
   const state = await getAgentServerWalletState(proposal.walletName);
+  const existing = state.proposals.find((item) => item.id === proposal.id);
+  if (existing) {
+    const mismatch = proposalUpdateMismatch(existing, proposal);
+    if (mismatch) throw new AgentServerStateConflictError(mismatch);
+    if (existing.status === "executed" || existing.status === "rejected" || existing.status === "expired") {
+      return { proposal: existing, evaluation: null, duplicate: true };
+    }
+  }
   const existingByRetryId = findDuplicateClientSignal(state.proposals, proposal);
   if (existingByRetryId) {
     return { proposal: existingByRetryId, evaluation: null, duplicate: true };
@@ -373,14 +398,14 @@ export async function approveAgentServerProposal(
   const state = await getAgentServerWalletState(walletName);
   const idx = state.proposals.findIndex((item) => item.id === id);
   const proposal = state.proposals[idx];
-  if (!proposal || proposal.status === "executed" || proposal.status === "rejected") {
+  if (!proposal || proposal.status === "executed" || proposal.status === "rejected" || proposal.status === "expired") {
     return proposal ? { proposal, evaluation: null, duplicate: false } : null;
   }
 
   const now = Date.now();
   const evaluation = evaluateProposalFromState(state, proposal, now);
   const nextStatus =
-    evaluation?.decision === "blocked" ? "blocked" : ("approved" as AgentProposalStatus);
+    !evaluation || evaluation.decision === "blocked" ? "blocked" : ("approved" as AgentProposalStatus);
   const updated: AgentTradeProposal = {
     ...proposal,
     status: nextStatus,
@@ -436,6 +461,7 @@ export async function rejectAgentServerProposal(
 
 export async function saveAgentServerExecution(
   execution: AgentExecutionRecord,
+  { requireActiveAllowance = false }: { requireActiveAllowance?: boolean } = {},
 ): Promise<AgentExecutionRecord> {
   const state = await getAgentServerWalletState(execution.walletName);
   const now = Date.now();
@@ -448,7 +474,7 @@ export async function saveAgentServerExecution(
       return previous;
     }
   } else {
-    validateNewAgentServerExecution(state, execution, proposal, now);
+    validateNewAgentServerExecution(state, execution, proposal, now, requireActiveAllowance);
   }
   const updated = bindAgentExecutionPolicyHash(
     {
@@ -502,6 +528,7 @@ function validateNewAgentServerExecution(
   execution: AgentExecutionRecord,
   proposal: AgentTradeProposal | undefined,
   now: number,
+  requireActiveAllowance: boolean,
 ): void {
   if (!proposal) {
     throw new AgentServerStateConflictError(
@@ -542,10 +569,10 @@ function validateNewAgentServerExecution(
     );
   }
   const evaluation = evaluateProposalFromState(state, proposal, now);
-  if (!evaluation || evaluation.decision === "blocked") {
+  if (!evaluation || evaluation.decision === "blocked" || (requireActiveAllowance && evaluation.decision !== "allowed")) {
     throw new AgentServerStateConflictError(
       evaluation?.violations[0]?.message ??
-        "Paper execution failed the current backend policy gate.",
+        "Paper execution failed the current backend policy or active allowance gate.",
     );
   }
 }

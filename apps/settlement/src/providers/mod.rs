@@ -18,6 +18,46 @@ pub struct ProviderCheckout {
 #[derive(Debug, Clone)]
 pub struct ProviderVerifiedCheckout {
     pub status: String,
+    pub reference: Option<String>,
+    pub amount_minor: Option<i64>,
+    pub currency: Option<String>,
+    pub funded_at: Option<i64>,
+}
+
+impl ProviderVerifiedCheckout {
+    pub fn verify_funding_deadline(&self, deadline: i64, now: i64) -> anyhow::Result<()> {
+        let funded_at = self.funded_at.unwrap_or(now);
+        anyhow::ensure!(
+            funded_at > 0 && funded_at <= deadline && funded_at <= now,
+            "provider funding is outside executable quote validity"
+        );
+        Ok(())
+    }
+
+    pub fn verify_payment(
+        &self,
+        reference: &str,
+        amount_minor: i64,
+        currency: &str,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.status == "success",
+            "provider payment is not successful"
+        );
+        anyhow::ensure!(
+            self.reference.as_deref() == Some(reference),
+            "provider payment reference mismatch"
+        );
+        anyhow::ensure!(
+            amount_minor > 0 && self.amount_minor == Some(amount_minor),
+            "provider paid amount mismatch"
+        );
+        anyhow::ensure!(
+            self.currency.as_deref() == Some(currency),
+            "provider payment currency mismatch"
+        );
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +159,15 @@ impl PaymentProvider for PaystackProvider {
         let result = self.client.verify_transaction(reference).await?;
         Ok(ProviderVerifiedCheckout {
             status: result.status,
+            reference: Some(result.reference),
+            amount_minor: Some(result.amount),
+            currency: Some(result.currency),
+            funded_at: result
+                .paid_at
+                .as_deref()
+                .map(chrono::DateTime::parse_from_rfc3339)
+                .transpose()?
+                .map(|time| time.timestamp()),
         })
     }
 
@@ -232,8 +281,29 @@ impl PaymentProvider for KoraProvider {
 
     async fn verify_checkout(&self, reference: &str) -> anyhow::Result<ProviderVerifiedCheckout> {
         let result = self.client.verify_charge(reference).await?;
+        let amount_minor = result
+            .amount_paid
+            .as_ref()
+            .map(|value| {
+                let decimal = value
+                    .as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| value.to_string());
+                crate::services::deposit_proof::decimal_minor(&decimal, 2)
+                    .and_then(|value| i64::try_from(value).map_err(Into::into))
+            })
+            .transpose()?;
         Ok(ProviderVerifiedCheckout {
             status: result.status,
+            reference: result.reference,
+            amount_minor,
+            currency: result.currency,
+            funded_at: result
+                .paid_at
+                .as_deref()
+                .map(chrono::DateTime::parse_from_rfc3339)
+                .transpose()?
+                .map(|time| time.timestamp()),
         })
     }
 
@@ -359,4 +429,34 @@ pub fn build_payment_provider(config: &AppConfig) -> anyhow::Result<Arc<dyn Paym
         "Unsupported payment provider '{}'. Allowed values: paystack | kora",
         selected
     );
+}
+
+#[cfg(test)]
+mod verification_tests {
+    use super::ProviderVerifiedCheckout;
+    #[test]
+    fn payment_verification_rejects_wrong_reference_amount_currency_and_status() {
+        let valid = ProviderVerifiedCheckout {
+            status: "success".into(),
+            reference: Some("reference".into()),
+            amount_minor: Some(100),
+            currency: Some("NGN".into()),
+            funded_at: Some(100),
+        };
+        valid.verify_payment("reference", 100, "NGN").unwrap();
+        valid.verify_funding_deadline(150, 200).unwrap();
+        assert!(valid.verify_funding_deadline(99, 200).is_err());
+        let mut unknown_time = valid.clone();
+        unknown_time.funded_at = None;
+        assert!(unknown_time.verify_funding_deadline(150, 200).is_err());
+        assert!(valid.verify_payment("different", 100, "NGN").is_err());
+        assert!(valid.verify_payment("reference", 101, "NGN").is_err());
+        assert!(valid.verify_payment("reference", 100, "USD").is_err());
+        let mut missing = valid.clone();
+        missing.amount_minor = None;
+        assert!(missing.verify_payment("reference", 100, "NGN").is_err());
+        let mut pending = valid;
+        pending.status = "pending".into();
+        assert!(pending.verify_payment("reference", 100, "NGN").is_err());
+    }
 }

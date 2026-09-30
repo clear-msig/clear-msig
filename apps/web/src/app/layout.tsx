@@ -21,7 +21,7 @@ export const metadata: Metadata = siteMetadata;
 export const viewport: Viewport = {
   // Brand lime drives the iOS Safari address-bar tint and the
   // Android Chrome status bar.
-  themeColor: "#ccff00",
+  themeColor: "#0c0c0c",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,

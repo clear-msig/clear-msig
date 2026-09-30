@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const SAFE_ID = /^[A-Za-z0-9._:-]{1,80}$/;
-export const CLEARSIG_SIGNAL_SIGNATURE_SCHEME = "hmac_sha256_v1";
+export const CLEARSIG_SIGNAL_SIGNATURE_SCHEME = "hmac_sha256_v2";
 
 export function createClientSignalId({
   agentId = "agent",
@@ -91,14 +91,18 @@ export function validateTradeDecision(decision) {
   return errors;
 }
 
-export function signTradeDecision({ decision, signalKey }) {
+export function signTradeDecision({ decision, signalKey, target }) {
   if (!signalKey) throw new Error("signalKey is required.");
   const errors = validateTradeDecision(decision);
   if (errors.length > 0) {
     throw new Error(`Decision failed validation: ${errors.join(" ")}`);
   }
+  if (!target?.walletAddress || !target.agentId || !target.programId || !target.network ||
+      !decision.clientSignalId || !Number.isSafeInteger(decision.submittedAt) || decision.submittedAt <= 0) {
+    throw new Error("Signed signal requires a canonical target, nonce and timestamp. Copy the signal target from the connection screen.");
+  }
   return createHmac("sha256", signalKey)
-    .update(canonicalTradeDecision(decision))
+    .update(canonicalTradeDecision({ domain: "clearsig.agent.signal", scheme: "hmac_sha256_v2", target, signal: decision }))
     .digest("hex");
 }
 
@@ -106,6 +110,7 @@ export async function submitTradeDecision({
   endpoint,
   signalKey,
   decision,
+  target,
   signed = true,
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -116,7 +121,8 @@ export async function submitTradeDecision({
   if (errors.length > 0) {
     throw new Error(`Decision failed validation: ${errors.join(" ")}`);
   }
-  const signature = signed ? signTradeDecision({ decision, signalKey }) : null;
+  if (!signed) throw new Error("Unsigned signals are no longer accepted.");
+  const signature = signTradeDecision({ decision, signalKey, target });
 
   const response = await fetchImpl(endpoint, {
     method: "POST",

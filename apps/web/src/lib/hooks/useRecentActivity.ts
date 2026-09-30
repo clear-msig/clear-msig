@@ -92,6 +92,10 @@ export function useRecentActivity(
         return { membership: m, account };
       },
       staleTime: 30_000,
+      // A stale wallet high-water mark hides proposals created after mount,
+      // even while the proposal-list query itself keeps polling.
+      refetchInterval: 30_000,
+      refetchIntervalInBackground: true,
       }))
       : [],
   });
@@ -106,6 +110,8 @@ export function useRecentActivity(
         queryKey: [
           "wallet-proposals-recent",
           wq.data?.membership.wallet ?? "pending",
+          wq.data?.account?.intentIndex ?? null,
+          wq.data?.account?.proposalIndex.toString() ?? null,
         ],
         queryFn: async (): Promise<{
           membership: OnchainMembership;
@@ -142,7 +148,7 @@ export function useRecentActivity(
   // upstream don't recompute their derived rows on unrelated
   // re-renders.
   const proposalsFingerprint = proposalsQueries
-    .map((q) => `${q.dataUpdatedAt}.${q.status}`)
+    .map((q) => `${q.data?.membership.wallet ?? "pending"}.${q.dataUpdatedAt}.${q.status}`)
     .join("|");
   const allRows = useMemo<RecentActivityRow[]>(() => {
     const flat: RecentActivityRow[] = [];

@@ -23,6 +23,7 @@ export function solToLamports(value: string): number {
 export function recurringAmountToRaw(value: string, asset: "SOL" | "USDC"): number {
   const decimals = asset === "SOL" ? 9 : 6;
   const normalized = value.trim();
+  if (normalized.length > 64) throw new Error("The recurring amount is outside the supported range.");
   const pattern = new RegExp(`^\\d+(\\.\\d{1,${decimals}})?$`);
   if (!pattern.test(normalized)) {
     throw new Error(`Enter a ${asset} amount with up to ${decimals} decimals.`);

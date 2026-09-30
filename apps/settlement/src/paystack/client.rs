@@ -47,6 +47,8 @@ pub struct VerifyTransactionData {
     pub status: String, // "success", "abandoned", "failed", etc.
     pub reference: String,
     pub amount: i64,
+    pub currency: String,
+    pub paid_at: Option<String>,
     pub authorization_url: Option<String>,
 }
 

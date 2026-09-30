@@ -621,7 +621,7 @@ mod tests {
             })
         }
 
-        fn probe_response(&self, method: &str) -> Result<HttpResponse> {
+        fn probe_response(&self, method: &str, tx_id: &str) -> Result<HttpResponse> {
             let reply = *self.probe.lock().unwrap();
             if matches!(reply, ProbeReply::Error) {
                 return Err(anyhow!("status provider unavailable"));
@@ -634,21 +634,21 @@ mod tests {
             }
             let result = match (self.chain_kind, method, reply) {
                 (1 | 4 | 5, "eth_getTransactionReceipt", ProbeReply::Confirmed) => {
-                    serde_json::json!({"status":"0x1","blockNumber":"0x10"})
+                    serde_json::json!({"transactionHash":tx_id,"status":"0x1","blockNumber":"0x10"})
                 }
                 (1 | 4 | 5, "eth_getTransactionReceipt", ProbeReply::Failed) => {
-                    serde_json::json!({"status":"0x0","blockNumber":"0x10"})
+                    serde_json::json!({"transactionHash":tx_id,"status":"0x0","blockNumber":"0x10"})
                 }
                 (1 | 4 | 5, "eth_getTransactionReceipt", _) => serde_json::Value::Null,
                 (1 | 4 | 5, "eth_getTransactionByHash", ProbeReply::Submitted) => {
-                    serde_json::json!({"hash":"0x01"})
+                    serde_json::json!({"hash":tx_id})
                 }
                 (1 | 4 | 5, "eth_getTransactionByHash", _) => serde_json::Value::Null,
                 (2 | 3, "getrawtransaction", ProbeReply::Confirmed) => {
-                    serde_json::json!({"confirmations":2})
+                    serde_json::json!({"txid":tx_id,"confirmations":2})
                 }
                 (2 | 3, "getrawtransaction", ProbeReply::Submitted) => {
-                    serde_json::json!({"confirmations":0})
+                    serde_json::json!({"txid":tx_id,"confirmations":0})
                 }
                 (2 | 3, "getrawtransaction", ProbeReply::NotFound) => {
                     return Ok(HttpResponse {
@@ -676,7 +676,7 @@ mod tests {
                 let raw = body["params"][0].as_str().unwrap();
                 self.broadcast_response(raw)
             } else {
-                self.probe_response(method)
+                self.probe_response(method, body["params"][0].as_str().unwrap())
             }
         }
 

@@ -1,4 +1,5 @@
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
+import { assertExternalAgentExecutionEnabled } from "./serverVenueExecutionGate";
 import type { AgentServerExecutionRequest } from "@/lib/agents/serverExecutionAdapters";
 import type { HyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
 import {
@@ -315,7 +316,9 @@ export function buildHyperliquidTestnetKillSwitchRequest({
     schemaVersion: 1,
     network: "testnet",
     idempotencyKey: createHash("sha256")
-      .update(`${walletName}:hyperliquid_testnet:kill-switch`)
+      // A later pause must cancel orders created after an earlier pause. A
+      // permanent per-wallet key would replay the first cancellation forever.
+      .update(JSON.stringify(["clearsig.kill-switch.v2", walletName, config.accountAddress, randomUUID()]))
       .digest("hex"),
     accountAddress: config.accountAddress,
     agentWalletAddress: config.agentWalletAddress,
@@ -362,6 +365,7 @@ export async function submitHyperliquidTestnetOrder({
   config: HyperliquidTestnetExecutorConfig;
   fetchImpl?: typeof fetch;
 }): Promise<HyperliquidTestnetOrderArtifact> {
+  assertExternalAgentExecutionEnabled();
   const response = await fetchImpl(
     `${config.executorUrl}/v1/hyperliquid/testnet/orders`,
     {
@@ -400,6 +404,7 @@ export async function submitHyperliquidTestnetKillSwitch({
   config: HyperliquidTestnetExecutorConfig;
   fetchImpl?: typeof fetch;
 }): Promise<HyperliquidTestnetKillSwitchArtifact> {
+  assertExternalAgentExecutionEnabled();
   const response = await fetchImpl(
     `${config.executorUrl}/v1/hyperliquid/testnet/kill-switch`,
     {
@@ -450,6 +455,7 @@ export async function submitHyperliquidTestnetSettlement({
   venueFetchImpl?: typeof fetch;
   sleep?: (milliseconds: number) => Promise<void>;
 }): Promise<HyperliquidTestnetSettlementArtifact> {
+  assertExternalAgentExecutionEnabled();
   const response = await fetchImpl(
     `${config.executorUrl}/v1/hyperliquid/testnet/settlements`,
     {

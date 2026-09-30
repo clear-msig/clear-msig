@@ -24,10 +24,10 @@ export function LedgerConnectRow() {
 
   if (ledger.session) {
     return (
-      <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-[#ccff00]/40 bg-[#ccff00]/[0.06] p-3 text-xs text-white backdrop-blur-md">
+      <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-[#a3be8c]/40 bg-[#a3be8c]/[0.06] p-3 text-xs text-white backdrop-blur-md">
         <span className="inline-flex items-center gap-2">
           <Check
-            className="h-4 w-4 text-[#ccff00]"
+            className="h-4 w-4 text-[#a3be8c]"
             strokeWidth={2.25}
             aria-hidden="true"
           />
@@ -39,7 +39,7 @@ export function LedgerConnectRow() {
         <button
           type="button"
           onClick={() => ledger.disconnect()}
-          className="rounded-full px-2.5 py-1 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/50"
+          className="rounded-full px-2.5 py-1 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c]/50"
         >
           Disconnect
         </button>
@@ -55,11 +55,11 @@ export function LedgerConnectRow() {
         type="button"
         onClick={handleClick}
         disabled={ledger.connecting}
-        className="mt-5 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#ccff00]/40 bg-[#ccff00]/[0.06] p-3 text-left text-xs backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:border-[#ccff00] hover:bg-[#ccff00]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-5 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#a3be8c]/40 bg-[#a3be8c]/[0.06] p-3 text-left text-xs backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:border-[#a3be8c] hover:bg-[#a3be8c]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c]/50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span className="inline-flex items-center gap-2">
           <Usb
-            className="h-4 w-4 text-[#ccff00]"
+            className="h-4 w-4 text-[#a3be8c]"
             strokeWidth={2.25}
             aria-hidden="true"
           />
@@ -72,7 +72,7 @@ export function LedgerConnectRow() {
             </span>
           </span>
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#ccff00] px-3 py-1 text-[11px] font-bold text-black shadow-[0_0_18px_rgba(204,255,0,0.35)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#a3be8c] px-3 py-1 text-[11px] font-bold text-black shadow-[0_0_18px_rgba(163,190,140,0.35)]">
           {ledger.connecting ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
@@ -92,7 +92,7 @@ export function LedgerConnectRow() {
         type="button"
         onClick={handleClick}
         disabled={ledger.connecting}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border-strong bg-glass-soft px-4 py-2.5 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60 backdrop-blur-md transition-[color,background-color,border-color] duration-200 hover:border-[#ccff00]/50 hover:bg-[#ccff00]/[0.08] hover:text-[#ccff00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border-strong bg-glass-soft px-4 py-2.5 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60 backdrop-blur-md transition-[color,background-color,border-color] duration-200 hover:border-[#a3be8c]/50 hover:bg-[#a3be8c]/[0.08] hover:text-[#a3be8c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c]/50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {ledger.connecting ? (
           <>

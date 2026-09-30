@@ -56,14 +56,22 @@ struct ChainsQuery {
     dwallet_program: Option<String>,
 }
 
-pub(crate) fn router() -> Router<AppState> {
+pub(crate) fn router(
+    gateway: std::sync::Arc<crate::gateway_auth::GatewayAuth>,
+) -> Router<AppState> {
+    let privileged = Router::new()
+        .route("/wallets", post(create_wallet))
+        .route("/wallets/{name}/chains/add", post(add_wallet_chain))
+        .route_layer(axum::middleware::from_fn_with_state(
+            gateway,
+            crate::gateway_auth::require_gateway,
+        ));
     Router::new()
+        .merge(privileged)
         .route("/health", get(health))
         .route("/memberships", get(membership_lookup))
-        .route("/wallets", post(create_wallet))
         .route("/wallets/{name}", get(show_wallet))
         .route("/wallets/{name}/chains", get(list_wallet_chains))
-        .route("/wallets/{name}/chains/add", post(add_wallet_chain))
 }
 
 async fn health(State(state): State<AppState>) -> Result<Json<HealthResponse>, ApiError> {

@@ -58,6 +58,7 @@ import {
 import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
 import { decodeProposal } from "@/lib/ikavery/codec/proposal";
 import { secureActionErrorCopy } from "@/lib/ikavery/errors";
+import { ApprovalCollectionClosedError, createApprovalCollection } from "@/features/secure/domain/approvalCollection";
 import {
   ComposeStage,
   DoneStage,
@@ -273,14 +274,20 @@ function SweepPage() {
   // gather more approvals, we render a side-state below the spinner
   // with a Wallet / Passkey picker. Each click hits the chain via
   // `addSweepApproval` and bumps `collectCount`. Once it equals the
-  // threshold, `collectResolveRef.current()` lets `runInAppSweep`
+  // threshold, `approvalCollection.complete(...)` lets `runInAppSweep`
   // continue into execute.
   const [collectInfo, setCollectInfo] =
     useState<AdditionalApprovalsRequest | null>(null);
   const [collectCount, setCollectCount] = useState(0);
   const [collectBusy, setCollectBusy] = useState(false);
   const [collectError, setCollectError] = useState<string | null>(null);
-  const collectResolveRef = useRef<(() => void) | null>(null);
+  const runBusyRef = useRef(false);
+  const collectBusyRef = useRef(false);
+  const approvalCollection = useMemo(() => createApprovalCollection(recoveryStr), [recoveryStr]);
+  useEffect(() => {
+    approvalCollection.open();
+    return () => approvalCollection.close();
+  }, [approvalCollection]);
 
   // Default authMode based on whether the connected wallet is on the
   // roster. If yes → wallet (one-click). If not (lost-wallet recovery
@@ -308,13 +315,12 @@ function SweepPage() {
   // Pin authMode once vault loads. Passkey if wallet isn't a member
   // and a passkey exists; otherwise wallet.
   useEffect(() => {
-    if (!vaultQuery.data) return;
     if (!walletIsMember && vaultHasPasskey) {
       setAuthMode("passkey");
     } else if (walletIsMember) {
       setAuthMode("wallet");
     }
-  }, [vaultQuery.data, walletIsMember, vaultHasPasskey]);
+  }, [walletIsMember, vaultHasPasskey]);
 
   const baseUnits = useMemo<bigint | null>(() => {
     return parseTokenAmount(amountInput, decimals);
@@ -410,6 +416,7 @@ function SweepPage() {
   };
 
   const handleRun = async () => {
+    if (runBusyRef.current) return;
     if (!destinationPk || !baseUnits || !recoveryPk) return;
     if (!vaultQuery.data) {
       toast.error("Vault not loaded yet");
@@ -420,6 +427,7 @@ function SweepPage() {
       return;
     }
     if (!dwalletPubkey) return;
+    runBusyRef.current = true;
     setRunStage("build");
     setStage("running");
     try {
@@ -457,13 +465,10 @@ function SweepPage() {
           setCollectError(null);
           // Suspend the action-layer until the page-side picker has
           // gathered enough approvals on chain. The handlers below
-          // resolve `collectResolveRef.current` when count >= threshold.
-          await new Promise<void>((resolve) => {
-            collectResolveRef.current = resolve;
-          });
+          // resolve `approvalCollection` when count >= threshold.
+          await approvalCollection.wait(req.proposal.toBase58());
           // Clear the picker state once the action layer continues.
           setCollectInfo(null);
-          collectResolveRef.current = null;
         },
       });
       setProposeSig(result.proposeSig);
@@ -484,13 +489,15 @@ function SweepPage() {
         queryKey: ["ikavery-dwallet-balance"],
       });
     } catch (e) {
+      if (e instanceof ApprovalCollectionClosedError) return;
       console.error("[secure/sweep]", e);
       const copy = secureActionErrorCopy(e, "Sweep failed");
       toast.error(copy.title, { details: copy.details });
       setRunStage(null);
       setCollectInfo(null);
-      collectResolveRef.current = null;
       setStage("review");
+    } finally {
+      runBusyRef.current = false;
     }
   };
 
@@ -498,12 +505,13 @@ function SweepPage() {
   /// credential to add the next vote. Single-flight: ignored if a
   /// previous click is still in flight.
   const handleAddApproval = async (mode: SweepAuthMode) => {
-    if (collectBusy) return;
+    if (collectBusyRef.current) return;
     if (!collectInfo || !recoveryPk) return;
     if (!wallet.publicKey || !wallet.signTransaction) {
       setCollectError("Connect a wallet first.");
       return;
     }
+    collectBusyRef.current = true;
     setCollectBusy(true);
     setCollectError(null);
     try {
@@ -528,8 +536,7 @@ function SweepPage() {
       );
       setCollectCount(liveCount);
       if (liveCount >= collectInfo.threshold) {
-        const resolve = collectResolveRef.current;
-        if (resolve) resolve();
+        approvalCollection.complete(collectInfo.proposal.toBase58());
       }
     } catch (e) {
       console.error("[secure/sweep] addApproval", e);
@@ -537,6 +544,7 @@ function SweepPage() {
         secureActionErrorCopy(e, "Couldn't add approval").details,
       );
     } finally {
+      collectBusyRef.current = false;
       setCollectBusy(false);
     }
   };

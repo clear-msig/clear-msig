@@ -1,5 +1,7 @@
 "use client";
 
+import { emailSessionHeaders } from "@/lib/email/clientAuth";
+
 // Email-on-pending preference + sender. Piggybacks on the same
 // SMTP infra wired for invitations (/api/invitations) - adds a
 // /api/notify-pending route that the browser POSTs to from the
@@ -111,7 +113,7 @@ export async function fireNotificationEmail(
   try {
     const res = await fetch("/api/notify-pending", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: emailSessionHeaders(),
       body: JSON.stringify(payload),
     });
     if (!res.ok) return null;
@@ -121,12 +123,5 @@ export async function fireNotificationEmail(
   }
 }
 
-// TODO: verification step. Today an opt-in saves the email
-// directly. A real flow would send a confirmation message with a
-// click-through link, store a "verified=true" flag, and refuse to
-// send to unverified addresses. The /api/invitations endpoint
-// already has the SMTP plumbing; verifying is one new endpoint +
-// a flag on the prefs. Unblocked when we have somewhere stable to
-// stash the verification token (today: localStorage works for the
-// optimistic case, breaks when the user opens the link in a
-// different browser).
+// The server binds self-notification delivery to a verified email credential
+// in the signed-in Dynamic session. Local preferences never establish identity.

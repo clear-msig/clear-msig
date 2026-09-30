@@ -26,6 +26,7 @@
 // The 32-byte dwallet handle is opaque to the program; the create
 // flow fetches the real network-derived value client-side.
 
+import { confirmSuccessfulTransaction } from "./confirmTransaction";
 import {
   Connection,
   Keypair,
@@ -283,9 +284,8 @@ export async function createSoloVault(
     preflightCommitment: "confirmed",
   });
   progress("confirm");
-  await connection.confirmTransaction(
+  await confirmSuccessfulTransaction(connection,
     { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed",
   );
 
   // Persist the attestation against this recovery PDA so later
@@ -475,9 +475,8 @@ export async function createMultiMemberVault(
     preflightCommitment: "confirmed",
   });
   progress("confirm");
-  await connection.confirmTransaction(
+  await confirmSuccessfulTransaction(connection,
     { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed",
   );
 
   saveAttestation(recovery.toBase58(), {

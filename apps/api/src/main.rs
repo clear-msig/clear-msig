@@ -9,6 +9,7 @@ use tracing::{error, info};
 mod clearsign;
 mod cors;
 mod error;
+mod gateway_auth;
 mod intents;
 mod pro;
 mod proposals;
@@ -76,11 +77,12 @@ async fn main() -> anyhow::Result<()> {
         pro_store: Arc::new(ProStore::new(pro_store_path)),
     };
 
+    let gateway_auth = Arc::new(gateway_auth::GatewayAuth::from_environment()?);
     let app = Router::new()
-        .merge(wallet::router())
+        .merge(wallet::router(gateway_auth.clone()))
         .merge(version::router())
         .nest("/v1/clearsign", clearsign::router())
-        .nest("/v1/pro", pro::router())
+        .nest("/v1/pro", pro::router(gateway_auth))
         .merge(intents::router())
         .merge(proposals::router())
         .with_state(state)

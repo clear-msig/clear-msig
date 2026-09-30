@@ -70,43 +70,30 @@ export function rampTargetForChainKind(
         smallest_per_whole: 100_000_000n,
         display_decimals: 8,
       };
-    case 4: // evm_1559_erc20 - folded into ETH, caller passes token
-      // address in the metadata path.
-      return {
-        chain_family: "evm",
-        chain_id: chainEnv === "mainnet" ? "1" : "11155111",
-        asset_symbol: "ERC20",
-        smallest_per_whole: 1_000_000n, // USDC-shaped default; override per token
-        display_decimals: 2,
-      };
-    case 5: // hyperliquid_evm
-      return {
-        chain_family: "evm",
-        chain_id: chainEnv === "mainnet" ? "999" : "999",
-        asset_symbol: "HYPE",
-        smallest_per_whole: 1_000_000_000_000_000_000n,
-        display_decimals: 6,
-      };
+    case 4: // Token settlement needs allowlisted contract + decimals + proof.
+    case 5: // No configured HYPE treasury/pricing/proof adapter exists yet.
+      return null;
     default:
       return null;
   }
 }
 
 /// Convert a whole-asset string ("0.05") to its smallest-unit BigInt.
-/// Returns null on invalid input. Truncates beyond the chain's
-/// precision rather than rounding (defensive - operator hot wallets
-/// shouldn't pay extra fractions due to rounding).
+/// Returns null on invalid input or excess precision. Never reinterpret an
+/// amount by truncating digits; review and execution must use the same units.
 export function wholeToMinor(
   whole: string,
   smallest_per_whole: bigint,
   display_decimals: number,
 ): bigint | null {
   const trimmed = whole.trim();
-  if (!/^\d*(\.\d*)?$/.test(trimmed) || trimmed === "" || trimmed === ".") {
+  if (trimmed.length > 80 || smallest_per_whole <= 0n || !/^10*$/.test(smallest_per_whole.toString()) ||
+      !/^\d*(\.\d*)?$/.test(trimmed) || trimmed === "" || trimmed === ".") {
     return null;
   }
   const [intPart, fracPart = ""] = trimmed.split(".");
   const decimals = String(smallest_per_whole).length - 1;
+  if (fracPart.length > decimals) return null;
   const padded = (fracPart + "0".repeat(decimals)).slice(0, decimals);
   // Suppress the unused-binding warning - display_decimals is part of
   // the public API for callers who want to round-trip-check.

@@ -17,6 +17,7 @@ import {
 } from "@/lib/agents/serverExecutionRequests";
 import {
   getAgentServerWalletState,
+  evaluateAgentServerProposal,
   saveAgentServerExecution,
   validateAgentServerExecutionHandoff,
 } from "@/features/agents/server/serverState";
@@ -51,8 +52,21 @@ export async function executeAllowedAgentProposal(
         execution: existing,
       };
     }
+    // Automatic callers may have prepared this proposal before a session was
+    // paused, revoked, expired, or made stale. A fresh human-approval requirement
+    // must never be treated as automatic permission merely because status was
+    // previously approved.
+    const evaluation = await evaluateAgentServerProposal(proposal);
+    if (evaluation?.decision !== "allowed") {
+      return {
+        placed: false,
+        message: evaluation?.violations[0]?.message ??
+          "Automatic execution requires a current signed active allowance.",
+      };
+    }
     const execution = await saveAgentServerExecution(
       executionFromProposal(proposal),
+      { requireActiveAllowance: true },
     );
     return {
       placed: true,
@@ -64,8 +78,10 @@ export async function executeAllowedAgentProposal(
   const request = serverExecutionRequestFromProposal(proposal, proposal.updatedAt);
   const readiness = serverAgentExecutionReadiness(proposal.venue);
   const gate = await validateAgentServerExecutionHandoff(request);
-  if (!gate.allowed) {
-    return { placed: false, message: gate.message };
+  if (!gate.allowed || gate.evaluation?.decision !== "allowed") {
+    return { placed: false, message: gate.allowed
+      ? "Automatic execution requires a current signed active allowance."
+      : gate.message };
   }
   if (!readiness.canSubmit || proposal.venue !== "hyperliquid_testnet") {
     return { placed: false, message: readiness.message };

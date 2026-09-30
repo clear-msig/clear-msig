@@ -18,27 +18,23 @@ pub fn verify_paystack_signature(
     raw_body: &[u8],
     x_paystack_signature: Option<&str>,
 ) -> Result<(), SignatureError> {
+    // An unconfigured webhook secret is not a shared secret. Never accept
+    // attacker-computable HMACs made with an empty key.
+    if secret_key.trim().is_empty() {
+        return Err(SignatureError::SignatureMismatch);
+    }
     let provided = x_paystack_signature
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or(SignatureError::MissingSignature)?;
 
-    let provided_lower = provided.to_ascii_lowercase();
-
-    if provided_lower.len() % 2 != 0 || hex::decode(&provided_lower).is_err() {
-        return Err(SignatureError::InvalidHex);
-    }
-
+    let provided = hex::decode(provided).map_err(|_| SignatureError::InvalidHex)?;
     let mut mac = HmacSha512::new_from_slice(secret_key.as_bytes())
         .map_err(|_| SignatureError::SignatureMismatch)?;
     mac.update(raw_body);
-    let expected = hex::encode(mac.finalize().into_bytes());
-
-    if expected == provided_lower {
-        Ok(())
-    } else {
-        Err(SignatureError::SignatureMismatch)
-    }
+    // The MAC library checks length and compares in constant time.
+    mac.verify_slice(&provided)
+        .map_err(|_| SignatureError::SignatureMismatch)
 }
 
 #[cfg(test)]
@@ -56,6 +52,32 @@ mod tests {
 
         let result = verify_paystack_signature(secret, body, Some(&signature));
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_unconfigured_secret_even_with_a_matching_hmac() {
+        for secret in ["", "   "] {
+            let mut mac = HmacSha512::new_from_slice(secret.as_bytes()).unwrap();
+            mac.update(b"{}");
+            let signature = hex::encode(mac.finalize().into_bytes());
+            assert_eq!(
+                verify_paystack_signature(secret, b"{}", Some(&signature)),
+                Err(SignatureError::SignatureMismatch)
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_body_mutation_and_accepts_uppercase_hex() {
+        let mut mac = HmacSha512::new_from_slice(b"configured-secret").unwrap();
+        mac.update(b"original");
+        let signature = hex::encode(mac.finalize().into_bytes()).to_ascii_uppercase();
+        assert!(
+            verify_paystack_signature("configured-secret", b"original", Some(&signature)).is_ok()
+        );
+        assert!(
+            verify_paystack_signature("configured-secret", b"changed", Some(&signature)).is_err()
+        );
     }
 
     #[test]

@@ -191,7 +191,7 @@ impl<'a> Writer<'a> {
         if bytes.len() != count as usize * 32 {
             return Err(Error::InvalidLength);
         }
-        for (index, pubkey) in bytes.chunks_exact(32).enumerate() {
+        for (index, pubkey) in bytes.as_chunks::<32>().0.iter().enumerate() {
             if index > 0 {
                 self.push(b", ")?;
             }

@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { buildMultisigInviteRevokedEmail } from "@/lib/email/templates/multisigInviteRevoked";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { authenticateEmailRequest, EmailAuthError, requireInvitationAuthority } from "@/lib/email/authorization";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 
-class BadRequestError extends Error {}
-class ConfigError extends Error {}
+import { BadRequestError, ConfigError, requireField, requireEnv } from "@/lib/email/input";
 
 const LIMITS = {
   walletName: 80,
@@ -18,41 +19,36 @@ const LIMITS = {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-function sanitizeHeader(value: string, max: number): string {
-  return value.replace(/[\r\n\t\v\f\x00-\x1f\x7f]/g, " ").trim().slice(0, max);
-}
-
-function requireField(name: string, value: string | undefined, max: number) {
-  if (!value || !value.trim()) {
-    throw new BadRequestError(`Missing ${name}`);
-  }
-  const cleaned = sanitizeHeader(value, max);
-  if (!cleaned) throw new BadRequestError(`Missing ${name}`);
-  return cleaned;
-}
-
-function requireEnv(name: string, value: string | undefined) {
-  if (!value || !value.trim()) {
-    throw new ConfigError(name);
-  }
-  return value;
-}
-
 export async function POST(request: NextRequest) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
+  let identity;
+  try { identity = await authenticateEmailRequest(request); } catch (error) {
+    if (error instanceof EmailAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json({ error: "Email authentication unavailable." }, { status: 503 });
+  }
+
   // Same shape as invitations: revocation has the same abuse cost
   // as a fresh invite (it's just a different template). Match the
   // tightened bucket on the invite route - 3 burst, 1/60s refill.
-  const limited = await checkRateLimit("invitations-revoke", clientIp(request), {
+  const limited = await checkRateLimit("invitations-revoke", `${identity.userId}:${clientIp(request)}`, {
     capacity: 3,
     refillPerSec: 1 / 60,
   });
   if (limited) return limited;
 
+  const raw = await readBoundedBody(request, 16_000);
+  if (!raw.ok) return raw.response;
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw.text); } catch {
+    return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Body must be a JSON object." }, { status: 400 });
+  }
   try {
-    const body = (await request.json()) as {
+    const body = parsed as {
       walletName?: string;
       inviterAddress?: string;
       invitee?: { address?: string; email?: string };
@@ -81,6 +77,8 @@ export async function POST(request: NextRequest) {
     if (!BASE58_RE.test(inviterAddress) || !BASE58_RE.test(inviteeAddress)) {
       throw new BadRequestError("Invalid wallet address");
     }
+
+    await requireInvitationAuthority(identity, walletName, inviterAddress);
 
     const host = requireEnv("SMTP_HOST", process.env.SMTP_HOST);
     const port = Number(process.env.SMTP_PORT ?? "587");
@@ -111,6 +109,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof EmailAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

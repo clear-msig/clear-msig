@@ -35,10 +35,10 @@ export function LandingScrollProgress() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-[3px] bg-white/[0.04]"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-px bg-white/[0.04]"
     >
       <div
-        className="h-full origin-left bg-[#ccff00] shadow-[0_0_10px_rgba(204,255,0,0.55)] transition-[width] duration-100 ease-out"
+        className="h-full origin-left bg-accent/60 transition-[width] duration-100 ease-out"
         style={{ width: `${progress}%` }}
       />
     </div>
@@ -81,12 +81,12 @@ export function LandingBackToTop() {
           type="button"
           onClick={handleClick}
           aria-label="Back to top"
-          initial={{ opacity: 0, y: 12 }}
+          initial={reduce ? false : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 12 }}
           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           whileTap={reduce ? undefined : { scale: 0.97 }}
-          className="group fixed bottom-6 right-5 z-50 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-[#111114] text-white/70 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_10px_28px_-12px_rgba(0,0,0,0.6)] transition-[color,border-color,background-color] duration-200 hover:border-white/20 hover:bg-[#15151a] hover:text-white sm:bottom-8 sm:right-8"
+          className="group fixed bottom-6 right-5 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft shadow-card-rest transition-colors duration-200 hover:border-border-strong hover:text-text-strong sm:bottom-8 sm:right-8"
         >
           <ChevronUp
             className="h-[18px] w-[18px] transition-transform duration-200 group-hover:-translate-y-0.5"

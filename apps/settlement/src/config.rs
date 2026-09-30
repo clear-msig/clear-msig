@@ -2,6 +2,7 @@
 pub struct AppConfig {
     pub bind_addr: String,
     pub database_url: String,
+    pub auth: crate::auth::DynamicAuthConfig,
 
     // ── Fiat providers ────────────────────────────────────────────
     pub paystack_secret_key: String,
@@ -91,6 +92,7 @@ impl AppConfig {
             bind_addr: std::env::var("RAMP_BIND_ADDR")
                 .unwrap_or_else(|_| "0.0.0.0:8088".to_string()),
             database_url,
+            auth: crate::auth::DynamicAuthConfig::from_env()?,
 
             paystack_secret_key: std::env::var("PAYSTACK_SECRET_KEY").unwrap_or_default(),
             paystack_base_url: std::env::var("PAYSTACK_BASE_URL")

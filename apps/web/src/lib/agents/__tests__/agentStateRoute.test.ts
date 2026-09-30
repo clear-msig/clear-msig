@@ -1,3 +1,14 @@
+
+vi.mock("@/lib/auth/walletAuthorization", async () => {
+  const { withAgentTestWallet, agentTestWalletAddress } = await import("@/test/agents/walletScope");
+  return {
+    withWalletMember: (_request: unknown, walletName: string, handler: (auth: object) => Promise<unknown>) =>
+      withAgentTestWallet(walletName, () => handler({ walletName, walletAddress: agentTestWalletAddress(walletName) })),
+    withCanonicalAgentWallet: (walletName: string, handler: (address: string) => Promise<unknown>) =>
+      withAgentTestWallet(walletName, () => handler(agentTestWalletAddress(walletName))),
+  };
+});
+import { saveApprovedSession } from "@/test/agents/signedOwnerApproval";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { PublicKey } from "@solana/web3.js";
@@ -13,9 +24,8 @@ import {
   saveAgentServerOwnerApproval,
   saveAgentServerProfile,
   saveAgentServerProposal,
-  saveAgentServerSession,
   saveAgentServerVaultPolicy,
-} from "@/features/agents/server/serverState";
+} from "@/test/agents/serverState";
 import type {
   AgentExecutionRecord,
   AgentOwnerApproval,
@@ -101,7 +111,7 @@ describe("agent state route owner authority", () => {
     expect(body.execution?.realizedPnlUsd).toBe("12.5");
   });
 
-  it("requests the protected executor kill switch when emergency pause is enabled", async () => {
+  it("persists emergency pause but reports blocked venue cancellation honestly", async () => {
     const walletName = "route-state-kill-switch";
     vi.stubEnv(
       "CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS",
@@ -147,9 +157,9 @@ describe("agent state route owner authority", () => {
 
     expect(response.status).toBe(200);
     expect(body.policy?.emergencyPaused).toBe(true);
-    expect(body.killSwitch?.state).toBe("sent");
-    expect(body.killSwitch?.artifact?.status).toBe("cancelled");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(body.killSwitch?.state).toBe("failed");
+    expect(body.killSwitch?.artifact).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -159,7 +169,7 @@ async function seedOpenExecution(walletName: string): Promise<AgentExecutionReco
     ...defaultAgentVaultPolicy(walletName, now),
     cooldownSeconds: 0,
   });
-  await saveAgentServerSession(session(walletName));
+  await saveApprovedSession(session(walletName));
   const saved = await saveAgentServerProposal(proposal(walletName));
   return saveAgentServerExecution({
     id: "execution-1",
@@ -289,6 +299,7 @@ function signedApproval({
     id: `approval-${targetId}`,
     ...input,
     approvalMethod: "wallet_signature",
+    signatureVersion: 2,
     approvedBy,
     signature: bytesToHex(
       nacl.sign.detached(new TextEncoder().encode(message), keypair.secretKey),

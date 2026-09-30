@@ -58,6 +58,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
     openExecutionRecords,
     openExecutions,
     pendingAction,
+    pendingKillSwitch,
     policy,
     prepareScoutIdea,
     proposals,
@@ -283,7 +284,8 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
             <section id="kill-switch" className="scroll-mt-24">
               <KillSwitchPanel
                 paused={policy.emergencyPaused}
-                pending={pendingAction}
+                pending={pendingKillSwitch}
+                resumeBlocked={pendingAction}
                 executorState={liveVenueReadiness?.executorProbe?.state ?? null}
                 handoff={killSwitchHandoff}
                 onToggle={setKillSwitch}
@@ -307,7 +309,8 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
               <div className="mt-3">
                 <KillSwitchPanel
                   paused={policy.emergencyPaused}
-                  pending={pendingAction}
+                  pending={pendingKillSwitch}
+                  resumeBlocked={pendingAction}
                   executorState={liveVenueReadiness?.executorProbe?.state ?? null}
                   handoff={killSwitchHandoff}
                   onToggle={setKillSwitch}

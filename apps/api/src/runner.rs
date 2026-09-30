@@ -42,10 +42,22 @@ pub(crate) struct ExecutionRunner {
     pub(crate) default_dwallet_program: Option<String>,
     pub(crate) default_grpc_url: Option<String>,
     pub(crate) default_destination_rpc_url: Option<String>,
+    allowed_destination_rpc_urls: Vec<String>,
     pub(crate) ika_signing_assurance: IkaSigningAssurance,
 }
 
 impl ExecutionRunner {
+    pub(crate) fn resolve_destination_rpc_url(
+        &self,
+        requested: Option<String>,
+    ) -> Result<Option<String>, ApiError> {
+        crate::validation::resolve_trusted_destination_rpc_url(
+            requested,
+            self.default_destination_rpc_url.clone(),
+            &self.allowed_destination_rpc_urls,
+        )
+    }
+
     pub(crate) fn execution_mode(&self) -> &'static str {
         "in_process_cancellable"
     }
@@ -266,6 +278,27 @@ pub(crate) fn build_runner() -> anyhow::Result<ExecutionRunner> {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let allowed_destination_rpc_urls = non_empty_env("CLEAR_MSIG_ALLOWED_DEST_RPC_URLS")
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if allowed_destination_rpc_urls.len() > 32 {
+        anyhow::bail!("CLEAR_MSIG_ALLOWED_DEST_RPC_URLS exceeds 32 endpoints");
+    }
+    for endpoint in &allowed_destination_rpc_urls {
+        let valid = reqwest::Url::parse(endpoint)
+            .map(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
+            .unwrap_or(false);
+        if !valid {
+            anyhow::bail!("CLEAR_MSIG_ALLOWED_DEST_RPC_URLS contains an invalid HTTP endpoint");
+        }
+    }
     let ika_signing_assurance = match default_grpc_url.as_deref() {
         None => IkaSigningAssurance::NotConfigured,
         Some(url) if url == clear_msig_execution::IKA_PREALPHA_GRPC_URL => {
@@ -278,7 +311,7 @@ pub(crate) fn build_runner() -> anyhow::Result<ExecutionRunner> {
         &'static str,
     ) = match clear_msig_execution::UpstashDestinationReceiptStore::from_environment()? {
         Some(store) => (Arc::new(store), "redis"),
-        None if env::var("CLEAR_MSIG_ENV").as_deref() == Ok("production") => {
+        None if crate::runtime::is_production_runtime() => {
             anyhow::bail!(
                 "production destination delivery requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN"
             );
@@ -301,6 +334,7 @@ pub(crate) fn build_runner() -> anyhow::Result<ExecutionRunner> {
         default_dwallet_program,
         default_grpc_url,
         default_destination_rpc_url,
+        allowed_destination_rpc_urls,
         ika_signing_assurance,
     })
 }

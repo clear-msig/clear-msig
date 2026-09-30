@@ -7,7 +7,7 @@ import {
   removeAgentInboxSignals,
   verifyAgentManagementKey,
   verifyAgentSignalKey,
-} from "@/lib/agents/serverInbox";
+} from "@/test/agents/serverInbox";
 import { sampleAgentSignalPayload } from "@/lib/agents";
 
 afterEach(() => {
@@ -15,6 +15,17 @@ afterEach(() => {
 });
 
 describe("agent server signal inbox", () => {
+  it("retains a signal nonce after its inbox item is imported or removed", async () => {
+    const walletName = "vault-persistent-nonce";
+    const payload = { ...sampleAgentSignalPayload(), clientSignalId: "nonce-after-delete" };
+    const first = await enqueueAgentSignal({ walletName, agentId: "agent-alpha", payload });
+    await removeAgentInboxSignals(walletName, "agent-alpha", [first.item.id]);
+    const replay = await enqueueAgentSignal({ walletName, agentId: "agent-alpha", payload });
+    expect(replay.duplicate).toBe(true);
+    expect(replay.item.id).toBe(first.item.id);
+    expect(await listAgentInboxSignals(walletName, "agent-alpha")).toHaveLength(0);
+  });
+
   it("registers signal keys, queues signals, and removes imported items", async () => {
     await registerAgentSignalKey({
       walletName: "vault-inbox",

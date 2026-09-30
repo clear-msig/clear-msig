@@ -5,7 +5,7 @@ fresh signed decisions to a ClearSig agent inbox, prove webhook retry
 idempotency, and produce a deliberately unsafe signal for a risk-policy demo.
 
 It receives only the submit-only signal key and uses it to create an
-`hmac_sha256_v1` decision signature. Never give an external agent the ClearSig
+`hmac_sha256_v2` decision signature. Never give an external agent the ClearSig
 management key, wallet credentials, or venue credentials.
 
 ## Setup
@@ -76,15 +76,32 @@ Preview a fresh payload without sending it:
 node examples/agent-signal-runner/run.mjs --scenario valid --dry-run
 ```
 
-Signed decision delivery is the default. To test the old signal-key-only
-compatibility path explicitly:
-
-```bash
-node examples/agent-signal-runner/run.mjs --scenario valid --unsigned
-```
+Target-bound signed delivery is mandatory. Set `CLEARSIG_SIGNAL_TARGET` to
+the exact JSON copied from the authenticated connection screen. The old
+`--unsigned` compatibility option now fails without sending a request.
 
 Run the runner's tests:
 
 ```bash
 node --test examples/agent-signal-runner/run.test.mjs
 ```
+
+## Signed signal v2 migration
+
+Private registration and inbox management now require a current signed Dynamic
+session with a verified Solana wallet in the treasury's current approved
+governance membership. A connected hardware wallet alone is not a server session.
+Copy the nonsecret **Signal signing target (JSON)** from the connection page.
+Pass it as `target` to SDK calls, or set `CLEARSIG_SIGNAL_TARGET` to that JSON
+for the runner. It binds the canonical wallet PDA, agent ID, program ID, and
+server deployment/network namespace. Never construct it from a display name.
+
+Every submitted envelope must use `signatureScheme: "hmac_sha256_v2"`; it signs
+`{domain: "clearsig.agent.signal", scheme: "hmac_sha256_v2", target, signal}`
+with recursively sorted keys and omitted undefined properties. `signal` is the
+exact submitted object, including `clientSignalId` (stable nonce for retries)
+and `submittedAt` (Unix milliseconds). Signals older than ten minutes or over
+two minutes in the future are rejected. Legacy v1 and unsigned key-only
+requests are no longer accepted. Re-register the connection after deployment;
+legacy name-indexed keys are not silently adopted. Possession of the submit-only
+key was authentication in v1; v2 adds explicit target and payload binding.

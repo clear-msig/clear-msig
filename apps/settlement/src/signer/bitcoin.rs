@@ -191,7 +191,7 @@ impl ChainSigner for BitcoinSigner {
         // any over-estimation.
         let mut utxos = self.fetch_utxos(&from_addr).await?;
         utxos.retain(|u| u.status.confirmed);
-        utxos.sort_by(|a, b| b.value.cmp(&a.value));
+        utxos.sort_by_key(|utxo| std::cmp::Reverse(utxo.value));
 
         let mut chosen: Vec<EsploraUtxo> = Vec::new();
         let mut total: u64 = 0;

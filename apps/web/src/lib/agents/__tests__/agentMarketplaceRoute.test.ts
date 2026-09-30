@@ -1,8 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { PublicKey } from "@solana/web3.js";
+import { AGENT_TEST_GENESIS_HASH, agentTestWalletAddress } from "@/test/agents/walletScope";
 import { GET as readMarketplace } from "@/app/api/agent-marketplace/route";
-import { saveAgentServerProfile } from "@/features/agents/server/serverState";
+import { saveAgentServerProfile } from "@/test/agents/serverState";
 import type { AgentProfile } from "@/lib/agents/types";
+
+vi.mock("@/lib/chain/wallets", () => ({
+  fetchWalletByName: vi.fn(async (_connection: unknown, walletName: string) => ({
+    pda: new PublicKey(agentTestWalletAddress(walletName)),
+  })),
+}));
+vi.mock("@/lib/auth/walletAuthorization", () => ({
+  getAgentChainGenesisHash: vi.fn(async () => AGENT_TEST_GENESIS_HASH),
+}));
 
 const now = Date.UTC(2026, 5, 1, 12, 0, 0);
 
@@ -106,4 +117,3 @@ function agent(walletName: string): AgentProfile {
     version: 1,
   };
 }
-

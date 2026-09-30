@@ -1,12 +1,12 @@
 "use client";
 
-// Batch send - payroll-style "one input, N requests."
+// Batch send - payroll-style "one input, one atomic batch request."
 //
 // The proposer enters {recipient, amount} rows, reviews one ClearSign
-// v2 batch action, then signs one typed proposal. The program verifies
+// v4 batch action, then signs one typed proposal. The program verifies
 // the exact recipient list + lamports before moving funds.
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -47,24 +47,24 @@ import {
   emptyRow,
   parseBatchCsv,
   resolveRow,
-  sanitizeAmount,
+  MAX_BATCH_RECIPIENTS,
+  totalBatchLamports,
   validRows,
   type DraftRow,
   type ResolvedRow,
   type ResolvedValid,
 } from "@/features/send/domain/batch";
 import { downloadBatchCsvTemplate } from "@/features/send/infrastructure/batchCsv";
-import { formatSol } from "@/features/send/ui/batch/batchPresentation";
+import { formatBatchLamports } from "@/features/send/ui/batch/batchPresentation";
 import {
   buildBatchRiskSummary,
   type BatchRiskSummary,
 } from "@/features/send/domain/batchRisk";
 
-// Hard cap on rows per batch - high enough for real payroll, low
-// enough to prevent runaway sign-prompt loops.
+// Keep composition aligned with the atomic executor recipient limit.
 import { DoneStage } from "@/features/send/ui/batch/BatchDoneStage";
 
-const MAX_ROWS = 50;
+const MAX_ROWS = MAX_BATCH_RECIPIENTS;
 const STAGE_TRANSITION = {
   duration: 0.35,
   ease: [0.22, 1, 0.36, 1] as const,
@@ -126,7 +126,9 @@ function BatchSendPage() {
     // See send/page.tsx - skip bootstrap intents (slots 0/1/2).
     return (
       intentsQuery.data.find(
-        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+        (it) => it.account !== null
+          && it.account.intentType === IntentType.Custom
+          && it.account.chainKind === 0,
       ) ?? null
     );
   }, [intentsQuery.data]);
@@ -144,13 +146,14 @@ function BatchSendPage() {
   const [stage, setStage] = useState<Stage>("compose");
   const [drafts, setDrafts] = useState<DraftRow[]>(() => [emptyRow()]);
   const [csvText, setCsvText] = useState("");
+  const sendInFlight = useRef(false);
 
   useEffect(() => {
     if (!walletName || !prefillId) return;
     const rows = consumeProBatchPrefill(walletName, prefillId);
     if (rows.length === 0) return;
     setDrafts(
-      rows.slice(0, MAX_ROWS).map((row) => ({
+      rows.map((row) => ({
         id: emptyRow().id,
         recipient: row.recipient,
         amount: row.amount,
@@ -168,18 +171,19 @@ function BatchSendPage() {
   );
   const totalLamports = useMemo(
     () =>
-      validRows.reduce((sum, r) => sum + Number(r.lamports), 0),
+      totalBatchLamports(validRows),
     [validRows],
   );
-  const totalSol = totalLamports / 1_000_000_000;
+  // Only the approximate fiat risk hint uses a number. Reviewed and submitted
+  // amounts remain exact integer lamports.
+  const totalSol = Number(totalLamports) / 1_000_000_000;
   const batchRisk = useMemo(
     () => buildBatchRiskSummary(totalSol, validRows.length, budgetUsage),
     [totalSol, validRows.length, budgetUsage],
   );
 
   const addRow = () => {
-    if (drafts.length >= MAX_ROWS) return;
-    setDrafts((rows) => [...rows, emptyRow()]);
+    setDrafts((rows) => rows.length >= MAX_ROWS ? rows : [...rows, emptyRow()]);
   };
   const removeRow = (id: string) => {
     setDrafts((rows) =>
@@ -199,7 +203,13 @@ function BatchSendPage() {
       });
       return;
     }
-    setDrafts(parsed.rows.slice(0, MAX_ROWS));
+    if (parsed.rows.length > MAX_ROWS) {
+      toast.error(`A batch supports up to ${MAX_ROWS} recipients`, {
+        details: `This CSV has ${parsed.rows.length} rows. Split it into smaller batches; no rows were imported.`,
+      });
+      return;
+    }
+    setDrafts(parsed.rows);
     setCsvText("");
     toast.success(
       parsed.skipped > 0
@@ -211,9 +221,17 @@ function BatchSendPage() {
     downloadBatchCsvTemplate(runtime.batchCsvColumns, batchTemplate);
   };
 
-  const canReview = validRows.length === drafts.length && validRows.length > 0;
+  const canReview = validRows.length === drafts.length
+    && validRows.length > 0
+    && validRows.length <= MAX_ROWS;
 
   const handleSendBatch = async () => {
+    if (sendInFlight.current) return;
+    if (!canReview) {
+      toast.error("Review every recipient and amount before sending");
+      setStage("compose");
+      return;
+    }
     if (!firstIntent || !firstIntent.account) {
       toast.error("Couldn't send the batch", {
         details: "This wallet hasn't turned on sending yet.",
@@ -227,6 +245,7 @@ function BatchSendPage() {
     }));
     // Clear any leftover state from a previous batch before flipping
     // stages so the "sending" view never shows stale numbers.
+    sendInFlight.current = true;
     batch.reset();
     setStage("sending");
     try {
@@ -236,10 +255,13 @@ function BatchSendPage() {
         rows,
       });
       setStage("done");
-      if (result.failed > 0 && result.succeeded === 0) {
+      if (result.outcome === "submission_unknown") {
+        toast.info("Check Activity before retrying this batch", {
+          details: result.message,
+        });
+      } else if (result.outcome === "failed") {
         toast.error("Couldn't send the batch", {
-          details:
-            "Every row failed. Check the per-row notes and retry just those.",
+          details: result.message ?? "Review the error before trying again.",
         });
       }
     } catch (err) {
@@ -249,6 +271,8 @@ function BatchSendPage() {
       const fe = friendlyError(err, "send");
       toast.error(fe.title, { details: fe.body });
       setStage("compose");
+    } finally {
+      sendInFlight.current = false;
     }
   };
 
@@ -300,7 +324,7 @@ function BatchSendPage() {
               drafts={drafts}
               resolved={resolvedRows}
               contacts={contacts.contacts}
-              totalSol={totalSol}
+              totalLamports={totalLamports}
               canReview={canReview}
               onCsvTextChange={setCsvText}
               onImportCsv={importCsv}
@@ -315,7 +339,7 @@ function BatchSendPage() {
             <ReviewStage
               walletName={walletName}
               rows={validRows}
-              totalSol={totalSol}
+              totalLamports={totalLamports}
               risk={batchRisk}
               approvalThreshold={firstIntent?.account?.approvalThreshold ?? 1}
               timelockSeconds={firstIntent?.account?.timelockSeconds ?? 0}
@@ -335,8 +359,9 @@ function BatchSendPage() {
               walletName={walletName}
               progress={batch.progress}
               onSendAnother={() => {
+                const keepDraft = batch.progress?.outcome === "cancelled" || batch.progress?.outcome === "failed";
                 batch.reset();
-                setDrafts([emptyRow()]);
+                if (!keepDraft) setDrafts([emptyRow()]);
                 setStage("compose");
               }}
             />
@@ -356,7 +381,7 @@ interface ComposeProps {
   drafts: DraftRow[];
   resolved: ResolvedRow[];
   contacts: Contact[];
-  totalSol: number;
+  totalLamports: bigint;
   canReview: boolean;
   onAddRow: () => void;
   onCsvTextChange: (next: string) => void;
@@ -375,7 +400,7 @@ function ComposeStage({
   drafts,
   resolved,
   contacts,
-  totalSol,
+  totalLamports,
   canReview,
   onCsvTextChange,
   onImportCsv,
@@ -391,8 +416,8 @@ function ComposeStage({
   const eyebrow = template === "payroll" ? "Payroll" : "Batch send";
   const helper =
     template === "payroll"
-      ? "Each team member gets their own request and receipt."
-      : "Each recipient gets their own request and receipt.";
+      ? `Review up to ${MAX_ROWS} team members in one batch payment request.`
+      : `Review up to ${MAX_ROWS} recipients in one batch payment request.`;
   return (
     <div className="flex flex-col gap-5">
       {/* Compact left-aligned header - matches the rest of the
@@ -523,7 +548,7 @@ function ComposeStage({
         </div>
         <p className="flex items-baseline gap-2">
           <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
-            {formatSol(totalSol)}
+            {formatBatchLamports(totalLamports)}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
             SOL
@@ -531,6 +556,11 @@ function ComposeStage({
         </p>
       </section>
 
+      {drafts.length > MAX_ROWS && (
+        <p role="alert" className="text-sm text-warning">
+          This batch has {drafts.length} recipients. Remove rows until at most {MAX_ROWS} remain, then send the others in a separate batch.
+        </p>
+      )}
       <Button size="lg" fullWidth onClick={onReview} disabled={!canReview}>
         Review batch
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -587,11 +617,11 @@ function RecipientRow({
             <TextInput
               value={draft.amount}
               onChange={(e) =>
-                onChange({ amount: sanitizeAmount(e.target.value) })
+                onChange({ amount: e.target.value })
               }
               inputMode="decimal"
               placeholder="0.00"
-              maxLength={20}
+              maxLength={32}
               className="text-right font-numerals tabular-nums sm:w-32"
             />
           </FormField>
@@ -630,7 +660,7 @@ function RecipientRow({
           {status.kind === "invalid-amount" &&
             draft.amount.trim().length > 0 && (
               <p className="text-xs text-warning">
-                Amount must be greater than zero.
+                Enter a positive SOL amount with up to 9 decimals, within the supported range.
               </p>
             )}
           {isValid && (
@@ -641,7 +671,7 @@ function RecipientRow({
               </span>
               {" · "}
               <span className="font-numerals tabular-nums text-text-strong">
-                {formatSol(Number(status.lamports) / 1_000_000_000)}
+                {formatBatchLamports(status.lamports)}
               </span>{" "}
               SOL
             </p>
@@ -657,7 +687,7 @@ function RecipientRow({
 function ReviewStage({
   walletName,
   rows,
-  totalSol,
+  totalLamports,
   risk,
   approvalThreshold,
   timelockSeconds,
@@ -666,7 +696,7 @@ function ReviewStage({
 }: {
   walletName: string;
   rows: ResolvedValid[];
-  totalSol: number;
+  totalLamports: bigint;
   risk: BatchRiskSummary | null;
   approvalThreshold: number;
   timelockSeconds: number;
@@ -678,7 +708,7 @@ function ReviewStage({
     { label: "From wallet", value: walletDisplay },
     { label: "Chain", value: "Solana" },
     { label: "Recipients", value: String(rows.length) },
-    { label: "Amount", value: `${formatSol(totalSol)} SOL`, emphasis: "amount" },
+    { label: "Amount", value: `${formatBatchLamports(totalLamports)} SOL`, emphasis: "amount" },
     { label: "Network fee", value: "Reserved for each request" },
     {
       label: "Approval threshold",
@@ -699,16 +729,16 @@ function ReviewStage({
           Review batch
         </p>
         <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
-          {rows.length} request{rows.length === 1 ? "" : "s"} from{" "}
+          {rows.length} recipient{rows.length === 1 ? "" : "s"} from{" "}
           {walletDisplay}
         </h1>
         <p className="text-xs text-text-soft sm:text-sm">
-          Each row becomes its own request. Review the recipients before sending.
+          All recipients share one batch request. Review each amount before signing.
         </p>
       </header>
 
       <SignPayloadPreview
-        action={`Create ${rows.length} payment ${rows.length === 1 ? "request" : "requests"}`}
+        action={`Create one batch request for ${rows.length} ${rows.length === 1 ? "recipient" : "recipients"}`}
         details={details}
         warning={risk?.body}
       />
@@ -737,7 +767,7 @@ function ReviewStage({
             </div>
             <span className="shrink-0 inline-flex items-baseline gap-1">
               <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
-                {formatSol(Number(r.lamports) / 1_000_000_000)}
+                {formatBatchLamports(r.lamports)}
               </span>
               <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
                 SOL
@@ -753,7 +783,7 @@ function ReviewStage({
         </span>
         <span className="inline-flex items-baseline gap-2">
           <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
-            {formatSol(totalSol)}
+            {formatBatchLamports(totalLamports)}
           </span>
           <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
             SOL
@@ -846,8 +876,11 @@ function SendingStage({
         onClick={onCancel}
         className="mt-6 text-sm text-text-soft transition-colors duration-base ease-out-soft hover:text-danger"
       >
-        Cancel remaining
+        Stop before next step
       </button>
+      <p className="mt-2 text-xs text-text-soft">
+        A request already submitted to the network remains available in Activity.
+      </p>
     </div>
   );
 }

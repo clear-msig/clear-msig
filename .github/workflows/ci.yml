@@ -10,6 +10,9 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+permissions:
+  contents: read
+
 jobs:
   host-checks:
     name: architecture + fmt + backend clippy + test
@@ -53,10 +56,10 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Backend + contracts + thin CLI clippy (strict, dependencies excluded)
-        run: cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-signing -p clear-msig-cli --all-targets --no-deps -- -D warnings
+        run: cargo clippy -p clear-msig-backend-api -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-signing -p clear-msig-cli --locked --all-targets --no-deps -- -D warnings
 
       - name: cargo test (host crates)
-        run: cargo test -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-signing -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api
+        run: cargo test -p clear-msig-command-contract -p clear-msig-intent -p clear-msig-signing -p clear-msig-execution -p clear-msig-cli -p clear-wallet-client -p clear-msig-backend-api --locked
 
   frontend-tests:
     name: frontend unit tests
@@ -184,4 +187,4 @@ jobs:
           path: target/deploy
 
       - name: Run clear-wallet SVM tests
-        run: cargo test -p clear-wallet -- --nocapture
+        run: cargo test -p clear-wallet --locked -- --nocapture

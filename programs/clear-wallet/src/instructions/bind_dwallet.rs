@@ -140,6 +140,15 @@ pub struct BindDwalletArgs {
 
 impl<'info> BindDwallet<'info> {
     pub fn bind(&mut self, args: BindDwalletArgs) -> Result<(), ProgramError> {
+        // Binding is creator/operator bootstrap, not permissionless execution.
+        // Transferring an attacker's dWallet does not grant authority to choose
+        // a remote account for somebody else's treasury. A quorum-governed
+        // binding protocol can be introduced explicitly in a future version.
+        require_keys_eq!(
+            self.wallet.creator,
+            *self.payer.address(),
+            ProgramError::MissingRequiredSignature
+        );
         // Validate chain_kind and that it's not the local Solana variant
         // (Solana intents don't go through ika_sign and don't need a binding).
         let kind = ChainKind::from_u8(args.chain_kind)?;

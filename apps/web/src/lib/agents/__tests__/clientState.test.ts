@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { configureNotificationTokenGetter } from "@/lib/notifications/sessionToken";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { importAgentInboxSignalsOnServer } from "@/lib/agents/clientInbox";
 import {
   loadAgentBackendState,
@@ -212,3 +213,5 @@ describe("agent client backend state adapter", () => {
     );
   });
 });
+
+beforeEach(() => { configureNotificationTokenGetter(() => "signed-test-session"); });

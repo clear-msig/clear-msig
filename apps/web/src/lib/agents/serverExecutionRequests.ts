@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "crypto";
+import { agentWalletStorageKey } from "@/features/agents/server/walletScope";
 import type {
   AgentServerExecutionReadiness,
   AgentServerExecutionRequest,
@@ -144,8 +145,9 @@ export async function recordAgentServerExecutionRequest({
       item.request.venue === request.venue,
   );
   const existing = existingIndex >= 0 ? current[existingIndex] : undefined;
+  const nextStatus = status ?? statusForReadiness(readiness);
   if (existing) {
-    if (!isRetryable(existing.status) || status === existing.status) {
+    if (!isRetryable(existing.status) || nextStatus === existing.status) {
       return { record: existing, duplicate: true };
     }
   }
@@ -154,7 +156,7 @@ export async function recordAgentServerExecutionRequest({
   const record: AgentServerExecutionRecord = {
     id: newExecutionRequestId(),
     request,
-    status: status ?? statusForReadiness(readiness),
+    status: nextStatus,
     readinessState: readiness.state,
     message: message ?? readiness.message,
     artifact,
@@ -176,7 +178,7 @@ export async function recordAgentServerExecutionRequest({
 }
 
 function isRetryable(status: AgentServerExecutionRequestStatus): boolean {
-  return status === "rejected" || status === "adapter_error";
+  return status !== "submitted";
 }
 
 export async function listAgentServerExecutionRequests(
@@ -210,11 +212,11 @@ function statusForReadiness(
 }
 
 function executionKey(walletName: string, agentId: string): string {
-  return `${walletName}:${agentId}`;
+  return agentWalletStorageKey(walletName, "execution", [agentId]);
 }
 
 function executionRedisKey(key: string): string {
-  return `agent:execution-requests:${hashStorageKey(key)}`;
+  return `agent:execution-requests:v2:${hashStorageKey(key)}`;
 }
 
 function hashStorageKey(value: string): string {

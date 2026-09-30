@@ -161,7 +161,7 @@ function SignedInWaiting({
                 stiffness: 220,
                 delay: 0.05,
               }}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ccff00] text-black shadow-[0_0_40px_rgba(204,255,0,0.5)]"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-[#a3be8c] text-black shadow-[0_0_40px_rgba(163,190,140,0.5)]"
             >
               <MotionCheck
                 className="h-8 w-8"
@@ -186,7 +186,7 @@ function SignedInWaiting({
             </p>
             <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-border-soft bg-glass-soft px-4 py-2 backdrop-blur-md">
               <Loader2
-                className="h-3.5 w-3.5 animate-spin text-[#ccff00]"
+                className="h-3.5 w-3.5 animate-spin text-[#a3be8c]"
                 aria-hidden="true"
               />
               <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/70">

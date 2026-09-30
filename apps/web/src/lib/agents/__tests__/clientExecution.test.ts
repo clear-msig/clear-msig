@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { configureNotificationTokenGetter } from "@/lib/notifications/sessionToken";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_VENUE_REALTIME_POLL_MS,
   loadAgentVenueReadinessForAgents,
@@ -176,7 +177,7 @@ describe("client execution handoff", () => {
       "/api/agent-execution/hyperliquid_testnet",
       expect.objectContaining({
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: "Bearer signed-test-session" },
         body: JSON.stringify({
           walletName: "vault",
           agentId: "agent-alpha",
@@ -340,3 +341,5 @@ function response(body: unknown, init: { status?: number } = {}): Response {
     json: async () => body,
   } as Response;
 }
+
+beforeEach(() => { configureNotificationTokenGetter(() => "signed-test-session"); });

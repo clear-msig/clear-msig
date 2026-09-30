@@ -27,7 +27,7 @@ interface BrandLoaderProps {
   label?: string;
   /// "accent" (default) - green ring on tinted ghost. Use on canvas
   /// or surface-raised backgrounds.
-  /// "on-accent" - white ring on white-tinted ghost. Use inside
+  /// "on-accent" - contrasting ring matching primary-button text. Use inside
   /// accent-coloured buttons / chips so the loader stays legible.
   /// "neutral" - text-soft tone for skeleton-y row contexts.
   tone?: "accent" | "on-accent" | "neutral";
@@ -44,9 +44,9 @@ const TONE_CLASSES: Record<NonNullable<BrandLoaderProps["tone"]>, {
     dot: "bg-accent",
   },
   "on-accent": {
-    ghost: "bg-white/20",
-    ring: "border-white border-t-transparent",
-    dot: "bg-white",
+    ghost: "bg-text-on-accent/15",
+    ring: "border-text-on-accent border-t-transparent",
+    dot: "bg-text-on-accent",
   },
   neutral: {
     ghost: "bg-text-soft/15",

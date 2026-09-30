@@ -48,4 +48,13 @@ describe("BTC and Solana send module boundaries", () => {
       expect(uiSource).not.toContain("@solana/web3.js");
     }
   });
+
+  it("keeps batch composition aligned with the Solana executor", () => {
+    const batchRoute = source("src/features/send/routes/BatchSendPage.tsx");
+    expect(batchRoute).toContain("it.account.chainKind === 0");
+    expect(batchRoute).toContain("const MAX_ROWS = MAX_BATCH_RECIPIENTS");
+    expect(batchRoute).toContain("parsed.rows.length > MAX_ROWS");
+    expect(batchRoute).not.toContain(".slice(0, MAX_ROWS)");
+    expect(batchRoute).not.toContain("sanitizeAmount");
+  });
 });

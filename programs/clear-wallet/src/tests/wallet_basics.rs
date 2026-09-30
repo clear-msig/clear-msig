@@ -169,3 +169,59 @@ fn test_create_wallet_bad_threshold_fails() {
     );
     assert!(svm.process_instruction(&instruction, &accounts).is_err());
 }
+
+#[test]
+fn test_chain_binding_rejects_noncreator_before_external_cpi() {
+    let mut svm = setup_with_tokens();
+    let creator = Pubkey::new_unique();
+    let outsider = Pubkey::new_unique();
+    let (create, accounts) = create_wallet_ix(creator, "binding-owner", &[creator], &[creator], 1);
+    assert!(svm.process_instruction(&create, &accounts).is_ok());
+    let (wallet, _) = find_wallet_address("binding-owner", &creator, &crate::ID);
+    let before = svm.get_account(&wallet).unwrap().data;
+    let dwallet = Pubkey::new_unique();
+    let (ika_config, _) =
+        Pubkey::find_program_address(&[b"ika_config", wallet.as_ref(), &[1]], &crate::ID);
+    let (ownership, _) =
+        Pubkey::find_program_address(&[b"dwallet_owner", dwallet.as_ref()], &crate::ID);
+    let (authority, bump) = Pubkey::find_program_address(&[b"__ika_cpi_authority"], &crate::ID);
+    let ix: solana_instruction::Instruction =
+        clear_wallet_client::generated::BindDwalletInstruction {
+            payer: outsider,
+            wallet,
+            ika_config,
+            dwallet_ownership: ownership,
+            dwallet,
+            cpi_authority: authority,
+            caller_program: crate::ID,
+            dwallet_program: quasar_svm::SPL_TOKEN_PROGRAM_ID,
+            system_program: quasar_svm::system_program::ID,
+            instructions_sysvar: "Sysvar1nstructions1111111111111111111111111"
+                .parse()
+                .unwrap(),
+            chain_kind: 1,
+            user_pubkey: [0; 32],
+            signature_scheme: 1,
+            cpi_authority_bump: bump,
+        }
+        .into();
+    let result = svm.process_instruction(
+        &ix,
+        &[
+            funded_account(outsider),
+            empty_account(ika_config),
+            empty_account(ownership),
+            empty_account(dwallet),
+            empty_account(authority),
+        ],
+    );
+    assert!(
+        format!("{:?}", result.raw_result).contains("MissingRequiredSignature"),
+        "noncreator reached external binding validation: {:?}",
+        result.raw_result
+    );
+    assert_eq!(svm.get_account(&wallet).unwrap().data, before);
+    assert!(svm
+        .get_account(&ika_config)
+        .is_none_or(|account| account.data.is_empty()));
+}

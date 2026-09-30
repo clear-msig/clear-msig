@@ -193,14 +193,31 @@ pub fn resolve_wallet_by_name(
         scan_attempt += 1;
     };
 
+    select_wallet_by_name(accounts, name)
+}
+
+fn select_wallet_by_name(
+    accounts: Vec<(Pubkey, Vec<u8>)>,
+    name: &str,
+) -> Result<(Pubkey, crate::accounts::WalletAccount)> {
+    let mut matched: Option<(Pubkey, crate::accounts::WalletAccount)> = None;
     for (pubkey, data) in accounts {
-        match crate::accounts::parse_wallet(&data) {
-            Ok(parsed) if parsed.name == name => return Ok((pubkey, parsed)),
-            _ => continue,
+        if let Ok(parsed) = crate::accounts::parse_wallet(&data) {
+            if parsed.name != name {
+                continue;
+            }
+            if let Some((previous, _)) = &matched {
+                if *previous != pubkey {
+                    return Err(anyhow!(
+                        "wallet name `{name}` is ambiguous across creators; refusing to select by RPC ordering"
+                    ));
+                }
+            } else {
+                matched = Some((pubkey, parsed));
+            }
         }
     }
-
-    Err(anyhow!("wallet `{name}` not found on-chain"))
+    matched.ok_or_else(|| anyhow!("wallet `{name}` not found on-chain"))
 }
 
 fn rpc_retry_delay(attempt: usize) -> Duration {
@@ -324,6 +341,34 @@ mod tests {
         fn send_and_confirm(&self, _transaction: &Transaction) -> Result<Signature> {
             Ok(Signature::default())
         }
+    }
+
+    fn wallet_bytes(name: &str, creator: u8) -> Vec<u8> {
+        let mut data = vec![1, 0];
+        data.extend_from_slice(&0u64.to_le_bytes());
+        data.push(0);
+        data.extend_from_slice(&[creator; 32]);
+        data.extend_from_slice(&(name.len() as u32).to_le_bytes());
+        data.extend_from_slice(name.as_bytes());
+        data
+    }
+
+    #[test]
+    fn duplicate_wallet_names_fail_closed_regardless_of_rpc_order() {
+        let first = (Pubkey::new_unique(), wallet_bytes("Family", 1));
+        let second = (Pubkey::new_unique(), wallet_bytes("Family", 2));
+        for accounts in [
+            vec![first.clone(), second.clone()],
+            vec![second.clone(), first.clone()],
+        ] {
+            assert!(select_wallet_by_name(accounts, "Family")
+                .unwrap_err()
+                .to_string()
+                .contains("ambiguous"));
+        }
+        let (address, _) = select_wallet_by_name(vec![first.clone()], "Family").unwrap();
+        assert_eq!(address, first.0);
+        assert!(select_wallet_by_name(vec![first], "Missing").is_err());
     }
 
     #[test]

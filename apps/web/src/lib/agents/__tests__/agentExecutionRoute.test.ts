@@ -1,3 +1,13 @@
+
+vi.mock("@/lib/auth/walletAuthorization", async () => {
+  const { withAgentTestWallet, agentTestWalletAddress } = await import("@/test/agents/walletScope");
+  return {
+    withWalletMember: (_request: unknown, walletName: string, handler: (auth: object) => Promise<unknown>) =>
+      withAgentTestWallet(walletName, () => handler({ walletName, walletAddress: agentTestWalletAddress(walletName) })),
+    withCanonicalAgentWallet: (walletName: string, handler: (address: string) => Promise<unknown>) =>
+      withAgentTestWallet(walletName, () => handler(agentTestWalletAddress(walletName))),
+  };
+});
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { PublicKey } from "@solana/web3.js";
@@ -12,7 +22,7 @@ import {
   saveAgentServerProfile,
   saveAgentServerProposal,
   saveAgentServerVaultPolicy,
-} from "@/features/agents/server/serverState";
+} from "@/test/agents/serverState";
 import type {
   AgentOwnerApproval,
   AgentProfile,
@@ -194,6 +204,7 @@ function signedApproval({
     id: `approval-${targetId}`,
     ...input,
     approvalMethod: "wallet_signature",
+    signatureVersion: 2,
     approvedBy,
     signature: bytesToHex(
       nacl.sign.detached(new TextEncoder().encode(message), keypair.secretKey),

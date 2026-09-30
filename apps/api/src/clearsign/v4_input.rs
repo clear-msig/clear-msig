@@ -191,7 +191,9 @@ pub(super) fn decode_bounded_hex(value: &str, field: &str) -> Result<Vec<u8>, Ap
     }
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|chunk| {
             let pair = core::str::from_utf8(chunk)
                 .map_err(|_| ApiError::BadRequest(format!("{field} must be hex encoded")))?;

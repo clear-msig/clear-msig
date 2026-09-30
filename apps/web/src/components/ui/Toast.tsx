@@ -40,8 +40,8 @@ interface ToastOptions {
   /// Secondary info shown in a collapsed "details" pane (mainly for
   /// errors . the backend's `stderr` / `kind` fields).
   details?: string;
-  /// Auto-dismiss timeout (ms). Defaults: 4000 for success/info, 8000
-  /// for errors. Pass 0 to pin.
+  /// Auto-dismiss timeout (ms). Defaults: 4000 for success/info, 10000
+  /// for errors. Non-positive values use the default.
   durationMs?: number;
 }
 
@@ -171,6 +171,7 @@ function ToastItem({
   const [showDetails, setShowDetails] = useState(false);
   const reduce = useReducedMotion();
   const Icon = iconFor(entry.kind);
+  const secondaryText = entry.kind === "error" ? "text-rose-100/80" : "text-text-soft";
   const detailsId = `toast-${entry.id}-details`;
   return (
     <motion.div
@@ -191,10 +192,10 @@ function ToastItem({
         "pointer-events-auto w-[calc(100vw-2rem)] max-w-sm rounded-card border px-4 py-3 shadow-card-raised sm:w-full",
         "flex flex-col gap-2",
         entry.kind === "success" &&
-          "border-accent/30 bg-surface-card text-white",
+          "border-accent/30 bg-surface-raised text-text-strong",
         entry.kind === "error" &&
           "border-rose-500/40 bg-rose-950 text-rose-50",
-        entry.kind === "info" && "border-border-strong bg-surface-card text-white",
+        entry.kind === "info" && "border-border-strong bg-surface-raised text-text-strong",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -207,7 +208,7 @@ function ToastItem({
               ? "mt-0.5 shrink-0 text-accent"
               : entry.kind === "error"
               ? "mt-0.5 shrink-0 text-rose-300"
-              : "mt-0.5 shrink-0 text-white/70"
+              : "mt-0.5 shrink-0 text-text-soft"
           }
           aria-hidden="true"
         />
@@ -216,7 +217,7 @@ function ToastItem({
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss notification"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-glass-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${secondaryText}`}
         >
           <X size={14} aria-hidden="true" />
         </button>
@@ -229,7 +230,7 @@ function ToastItem({
               href={entry.link.href}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
+              className={`inline-flex items-center gap-1 text-xs font-semibold hover:underline ${entry.kind === "error" ? "text-rose-100" : "text-accent"}`}
             >
               {entry.link.label}
               <ExternalLink size={12} />
@@ -243,7 +244,7 @@ function ToastItem({
               onClick={() => setShowDetails((v) => !v)}
               aria-expanded={showDetails}
               aria-controls={detailsId}
-              className="inline-flex min-h-tap items-center text-xs font-medium text-white/70 underline-offset-2 hover:text-white hover:underline"
+              className={`inline-flex min-h-tap items-center text-xs font-medium underline-offset-2 hover:underline ${secondaryText}`}
             >
               {showDetails ? "hide details" : "details"}
             </button>
@@ -252,7 +253,7 @@ function ToastItem({
       )}
 
       {showDetails && entry.details && (
-        <pre id={detailsId} className="max-h-40 overflow-auto rounded-lg bg-surface-card/40 p-2 pl-7 text-[11px] font-mono leading-snug text-white/70">
+        <pre id={detailsId} className={`max-h-40 overflow-auto rounded-soft p-2 text-[11px] font-mono leading-snug ${secondaryText} ${entry.kind === "error" ? "bg-black/20" : "bg-canvas"}`}>
           {entry.details}
         </pre>
       )}

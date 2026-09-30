@@ -19,6 +19,7 @@
 // Two user popups, three async network legs. The presign+sign roundtrip
 // is the one place the user has to wait without a UX prompt.
 
+import { confirmSuccessfulTransaction } from "./confirmTransaction";
 import {
   Connection,
   PublicKey,
@@ -532,13 +533,12 @@ export async function runInAppSweep(params: SweepParams): Promise<SweepResult> {
     skipPreflight: true,
   });
   progress("broadcast-confirm");
-  await connection.confirmTransaction(
+  await confirmSuccessfulTransaction(connection,
     {
       signature: broadcastSig,
       blockhash: sweepBlockhash,
       lastValidBlockHeight: sweepLastValid,
     },
-    "confirmed",
   );
 
   progress("done");
@@ -781,9 +781,8 @@ async function sendBundle(
     preflightCommitment: "confirmed",
   });
   onConfirm();
-  await connection.confirmTransaction(
+  await confirmSuccessfulTransaction(connection,
     { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed",
   );
   return sig;
 }

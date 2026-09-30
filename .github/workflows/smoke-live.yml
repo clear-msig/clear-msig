@@ -29,9 +29,10 @@ jobs:
         env:
           BACKEND_URL: ${{ inputs.backend_url }}
           FRONTEND_URL: ${{ inputs.frontend_url }}
+          SOLANA_ADDRESS: ${{ inputs.address }}
         run: |
-          if [ -n "${{ inputs.address }}" ]; then
-            ./scripts/smoke-live.sh --address "${{ inputs.address }}"
+          if [ -n "$SOLANA_ADDRESS" ]; then
+            ./scripts/smoke-live.sh --address "$SOLANA_ADDRESS"
           else
             ./scripts/smoke-live.sh
           fi

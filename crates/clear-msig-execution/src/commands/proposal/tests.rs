@@ -95,3 +95,18 @@ fn typed_vote_message_uses_v4_wrapper_for_full_and_compact_documents() {
         assert!(!text.starts_with("ClearSign v2"));
     }
 }
+
+#[test]
+fn generic_typed_execute_rejects_v4_full_and_compact_documents() {
+    let full = b"ClearSig Approval\n\nACTION\nSend 1 SOL\nDisplay profile: clearsig-full-v2@1\nProtocol: clearsig-intent-v4@1";
+    let compact =
+        b"SEND 1 SOL\nPROFILE clearsig-ledger-solana-v2@1\nProtocol: clearsig-intent-v4@1";
+    for document in [full.as_slice(), compact.as_slice()] {
+        let mut proposal = typed_proposal(ClearSignActionKind::Send);
+        proposal.clear_text = document.to_vec();
+        assert!(ensure_generic_typed_execute_allowed(&proposal)
+            .unwrap_err()
+            .to_string()
+            .contains("action-specific executor"));
+    }
+}

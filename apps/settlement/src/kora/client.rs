@@ -18,6 +18,10 @@ pub struct KoraChargeInitializeResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct KoraChargeVerifyResponse {
     pub status: String,
+    pub reference: Option<String>,
+    pub amount_paid: Option<serde_json::Value>,
+    pub currency: Option<String>,
+    pub paid_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -95,7 +99,8 @@ impl KoraClient {
             data: Option<ApiData>,
         }
 
-        let amount = format!("{:.2}", amount_minor as f64 / 100.0);
+        anyhow::ensure!(amount_minor > 0, "amount_minor must be positive");
+        let amount = format!("{}.{:02}", amount_minor / 100, amount_minor % 100);
 
         let response = self
             .client
@@ -149,6 +154,10 @@ impl KoraClient {
         struct ApiData {
             status: Option<String>,
             charge_status: Option<String>,
+            reference: Option<String>,
+            amount_paid: Option<serde_json::Value>,
+            currency: Option<String>,
+            paid_at: Option<String>,
         }
 
         #[derive(Deserialize)]
@@ -175,6 +184,10 @@ impl KoraClient {
         if status == StatusCode::NOT_FOUND {
             return Ok(KoraChargeVerifyResponse {
                 status: "not_found".to_string(),
+                reference: None,
+                amount_paid: None,
+                currency: None,
+                paid_at: None,
             });
         }
 
@@ -188,16 +201,26 @@ impl KoraClient {
         if !parsed.status {
             return Ok(KoraChargeVerifyResponse {
                 status: "failed".to_string(),
+                reference: None,
+                amount_paid: None,
+                currency: None,
+                paid_at: None,
             });
         }
 
-        let status_text = parsed
+        let data = parsed
             .data
-            .and_then(|value| value.charge_status.or(value.status))
+            .ok_or_else(|| anyhow!("Kora verify omitted data"))?;
+        let status_text = data
+            .charge_status
+            .or(data.status)
             .unwrap_or_else(|| "pending".to_string());
-
         Ok(KoraChargeVerifyResponse {
             status: status_text,
+            reference: data.reference,
+            amount_paid: data.amount_paid,
+            currency: data.currency,
+            paid_at: data.paid_at,
         })
     }
 
@@ -385,7 +408,8 @@ impl KoraClient {
             destination: Destination<'a>,
         }
 
-        let amount = format!("{:.2}", amount_minor as f64 / 100.0);
+        anyhow::ensure!(amount_minor > 0, "amount_minor must be positive");
+        let amount = format!("{}.{:02}", amount_minor / 100, amount_minor % 100);
 
         let response = self
             .client

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
+fn test_legacy_remote_status_gate_preserves_policy_and_rejects_v4() {
     let mut svm = setup();
     let payer = Pubkey::new_unique();
     let proposer = new_keypair();
@@ -95,6 +95,48 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         tx_template_hash,
         &[],
     );
+
+    let proposal_before = svm.get_account(&typed_proposal).unwrap().data;
+    let intent_before = svm.get_account(&remote_intent).unwrap().data;
+    let no_op = build_execute_typed_chain_send_ix(
+        payer,
+        wallet,
+        remote_intent,
+        typed_proposal,
+        ika_config,
+        dwallet,
+        policy_commitment,
+        envelope_hash,
+        chain_kind,
+        amount_raw.to_le_bytes(),
+        recipient_hash,
+        asset_id_hash,
+        tx_template_hash,
+    );
+    assert!(
+        svm.process_instruction(
+            &no_op,
+            &[
+                funded_account(payer),
+                empty_wallet_policy_account(wallet),
+                empty_policy_spend_account(wallet, remote_intent, policy_commitment),
+                empty_member_allowance_account(wallet, remote_intent),
+                empty_account(dwallet),
+            ]
+        )
+        .is_err(),
+        "status-only remote instruction consumed v4 approval without Ika evidence"
+    );
+    assert_eq!(
+        svm.get_account(&typed_proposal).unwrap().data,
+        proposal_before
+    );
+    assert_eq!(svm.get_account(&remote_intent).unwrap().data, intent_before);
+
+    // Preserve the legacy executor's policy checks using a pre-existing v3
+    // fixture. These semantics cannot be used to consume new v4 approvals.
+    let envelope_hash =
+        install_legacy_remote_proposal_fixture(&mut svm, typed_proposal, wallet_name);
 
     let wrong_execute = build_execute_typed_chain_send_ix(
         payer,
@@ -255,23 +297,24 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
 
     let blocked_proposal_index = 2u64;
     let blocked_policy_bytes = typed_hash_policy_bytes(2, 0, 0, &[recipient_hash], &[]);
-    let (blocked_proposal, blocked_policy_commitment, blocked_envelope_hash) =
-        propose_typed_remote_send_on_wallet(
-            &mut svm,
-            payer,
-            wallet_name,
-            wallet,
-            remote_intent,
-            blocked_proposal_index,
-            &proposer,
-            chain_kind,
-            amount_raw,
-            recipient_text,
-            asset_text,
-            tx_template_hash,
-            &blocked_policy_bytes,
-        );
+    let (blocked_proposal, blocked_policy_commitment, _) = propose_typed_remote_send_on_wallet(
+        &mut svm,
+        payer,
+        wallet_name,
+        wallet,
+        remote_intent,
+        blocked_proposal_index,
+        &proposer,
+        chain_kind,
+        amount_raw,
+        recipient_text,
+        asset_text,
+        tx_template_hash,
+        &blocked_policy_bytes,
+    );
 
+    let blocked_envelope_hash =
+        install_legacy_remote_proposal_fixture(&mut svm, blocked_proposal, wallet_name);
     let blocked_execute = build_execute_typed_chain_send_ix(
         payer,
         wallet,
@@ -305,7 +348,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
     // BTC allowlist accept (mode=1, listed recipient).
     let allow_proposal_index = 3u64;
     let allow_policy = typed_hash_policy_bytes(1, 0, 0, &[recipient_hash], &[]);
-    let (allow_proposal, allow_commitment, allow_envelope) = propose_typed_remote_send_on_wallet(
+    let (allow_proposal, allow_commitment, _) = propose_typed_remote_send_on_wallet(
         &mut svm,
         payer,
         wallet_name,
@@ -320,6 +363,8 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         tx_template_hash,
         &allow_policy,
     );
+    let allow_envelope =
+        install_legacy_remote_proposal_fixture(&mut svm, allow_proposal, wallet_name);
     let allow_execute = build_execute_typed_chain_send_ix(
         payer,
         wallet,
@@ -354,7 +399,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
     // BTC amount cap reject.
     let cap_proposal_index = 4u64;
     let cap_policy = typed_hash_policy_bytes(0, 1_000, 0, &[], &[]);
-    let (cap_proposal, cap_commitment, cap_envelope) = propose_typed_remote_send_on_wallet(
+    let (cap_proposal, cap_commitment, _) = propose_typed_remote_send_on_wallet(
         &mut svm,
         payer,
         wallet_name,
@@ -369,6 +414,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
         tx_template_hash,
         &cap_policy,
     );
+    let cap_envelope = install_legacy_remote_proposal_fixture(&mut svm, cap_proposal, wallet_name);
     let cap_execute = build_execute_typed_chain_send_ix(
         payer,
         wallet,
@@ -401,7 +447,7 @@ fn test_execute_typed_chain_send_finalizes_verified_remote_send() {
 }
 
 #[test]
-fn test_all_remote_asset_policies_reject_unsafe_execution() {
+fn test_legacy_remote_asset_policies_reject_unsafe_execution() {
     for (chain_kind, wallet_name, recipient_text, asset_text, template) in [
         (
             1u8,

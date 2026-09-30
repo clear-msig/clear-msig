@@ -171,13 +171,13 @@ function ConnectPage() {
                   className="pointer-events-none absolute -right-24 -top-24 h-48 w-48 rounded-full opacity-50"
                   style={{
                     background:
-                      "radial-gradient(circle at center, rgba(204, 255, 0,0.18) 0%, rgba(204, 255, 0,0) 70%)",
+                      "radial-gradient(circle at center, rgba(163, 190, 140,0.18) 0%, rgba(163, 190, 140,0) 70%)",
                     filter: "blur(40px)",
                   }}
                 />
 
                 <div className="relative flex flex-col items-center text-center">
-                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#ccff00]/10 text-[#ccff00] ring-1 ring-[#ccff00]/30 shadow-[0_0_24px_rgba(204, 255, 0,0.15)]">
+                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#a3be8c]/10 text-[#a3be8c] ring-1 ring-[#a3be8c]/30 shadow-[0_0_24px_rgba(163, 190, 140,0.15)]">
                     <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
                   </div>
                   <h2 className="landing-section-heading mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-white">
@@ -242,7 +242,7 @@ function ConnectPage() {
         <footer className="relative z-10 flex items-center justify-center gap-4 border-t border-border-soft px-6 py-6 sm:px-10">
           <Link
             href="/privacy"
-            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-[#ccff00]"
+            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-[#a3be8c]"
           >
             How privacy works
           </Link>
@@ -251,7 +251,7 @@ function ConnectPage() {
           </span>
           <Link
             href="/"
-            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-[#ccff00]"
+            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-[#a3be8c]"
           >
             What is Clear?
           </Link>
@@ -339,7 +339,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
       return (
         <>
           <div className="flex items-center">
-            <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-[#ccff00]">
+            <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-[#a3be8c]">
               Approved
             </p>
           </div>
@@ -347,8 +347,8 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
             Send $120 to Sarah
           </p>
           <div className="mt-2 flex items-center gap-1">
-            <span className="h-1.5 w-6 rounded-full bg-[#ccff00]" />
-            <span className="h-1.5 w-6 rounded-full bg-[#ccff00]" />
+            <span className="h-1.5 w-6 rounded-full bg-[#a3be8c]" />
+            <span className="h-1.5 w-6 rounded-full bg-[#a3be8c]" />
             <span className="h-1.5 w-6 rounded-full bg-white/15" />
             <span className="ml-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/50">
               2/3
@@ -364,8 +364,8 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
         </p>
         <div className="mt-2 flex -space-x-2">
           {[
-            "bg-[#ccff00]",
-            "bg-[#ccff00]/70",
+            "bg-[#a3be8c]",
+            "bg-[#a3be8c]/70",
             "bg-white/30",
             "bg-[#10b981]",
           ].map((bg, i) => (
@@ -395,7 +395,7 @@ function TrustItem({ icon: Icon, text }: { icon: typeof Lock; text: string }) {
   return (
     <li className="flex items-start gap-2.5">
       <Icon
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#ccff00]"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#a3be8c]"
         strokeWidth={2}
         aria-hidden="true"
       />

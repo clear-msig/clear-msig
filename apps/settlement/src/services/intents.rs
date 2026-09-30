@@ -8,7 +8,7 @@ use crate::{
     providers::PaymentProvider,
     signer::engine::SignerEngine,
 };
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
@@ -85,8 +85,10 @@ fn parse_chain_family(value: &str) -> anyhow::Result<ChainFamily> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn create_intent(
     pool: &PgPool,
+    quote_provider: &dyn super::quotes::ExecutableQuoteProvider,
     payment_provider: &dyn PaymentProvider,
     onramp_max_usd_cents: i64,
     user_id: Uuid,
@@ -95,6 +97,9 @@ pub async fn create_intent(
     request_hash: &str,
 ) -> anyhow::Result<CreateRampIntentResponse> {
     let endpoint = "POST:/v1/ramp/intents";
+    if request.intent_type == IntentType::Offramp {
+        crate::domain::types::positive_amount_minor(request.asset_amount_minor)?;
+    }
 
     if matches!(request.intent_type, IntentType::Onramp) {
         let usd_cents = request
@@ -154,6 +159,17 @@ pub async fn create_intent(
         });
     }
 
+    let executable_quote = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        quote_provider.quote(request),
+    )
+    .await??;
+    executable_quote.validate(request, Utc::now().timestamp())?;
+    let quoted_amount = executable_quote.asset_amount_minor;
+    let estimated_ngn = executable_quote.fiat_amount_minor;
+    let expires_at = chrono::DateTime::from_timestamp(executable_quote.expires_at, 0)
+        .ok_or_else(|| anyhow::anyhow!("invalid executable quote expiry"))?;
+
     let active_policy_version: i32 = sqlx::query_scalar(
         "SELECT version FROM ramp_policy_config_versions WHERE is_active = TRUE LIMIT 1",
     )
@@ -190,14 +206,17 @@ pub async fn create_intent(
     .bind(chain_family_db(request.chain_family))
     .bind(&request.chain_id)
     .bind(&request.asset_symbol)
-    .bind(request.asset_amount_minor)
+    .bind(quoted_amount)
     .bind(request.source_wallet.as_deref())
     .bind(request.destination_wallet.as_deref())
     .bind(quote_id)
     .bind(bank_snapshot_id)
     .bind(active_policy_version)
     .bind({
-        let mut meta = serde_json::json!({"request_source": "api"});
+        let mut meta = serde_json::json!({
+            "request_source": "api", "executable_quote_version": 1,
+            "executable_quote": executable_quote,
+        });
         if let Some(usd_cents) = request.usd_amount_cents {
             meta["usd_amount_cents"] = serde_json::json!(usd_cents);
         }
@@ -206,44 +225,19 @@ pub async fn create_intent(
     .execute(&mut *tx)
     .await?;
 
-    let expires_at = Utc::now() + Duration::minutes(5);
-    let estimated_ngn = if matches!(request.intent_type, IntentType::Offramp) {
-        let usd_cents = request
-            .usd_amount_cents
-            .filter(|value| *value > 0)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "usd_amount_cents is required and must be greater than 0 for offramp"
-                )
-            })?;
-
-        let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(8))
-            .user_agent("deta-settlement/1.0")
-            .build()
-            .unwrap_or_default();
-
-        usd_cents_to_ngn_kobo(&http, usd_cents).await.map_err(|e| {
-            tracing::error!(error = %e, "USD→NGN rate fetch failed for offramp quote");
-            e
-        })?
-    } else {
-        request.asset_amount_minor
-    };
-
     sqlx::query(
         r#"
         INSERT INTO ramp_quotes (
             id, intent_id, quote_version, input_asset_symbol, input_asset_amount_minor,
             estimated_ngn_amount_minor, platform_fee_bps, network_fee_ngn_minor, expires_at, is_locked
         )
-        VALUES ($1,$2,1,$3,$4,$5,300,0,$6,FALSE)
+        VALUES ($1,$2,1,$3,$4,$5,0,0,$6,TRUE)
         "#,
     )
     .bind(quote_id)
     .bind(intent_id)
     .bind(&request.asset_symbol)
-    .bind(request.asset_amount_minor)
+    .bind(quoted_amount)
     .bind(estimated_ngn)
     .bind(expires_at)
     .execute(&mut *tx)
@@ -444,6 +438,8 @@ pub async fn prepare_signature(
         SELECT chain_family, chain_id, asset_symbol, status
         FROM ramp_intents
         WHERE id = $1 AND user_id = $2
+          AND metadata->>'executable_quote_version' = '1'
+          AND EXISTS (SELECT 1 FROM ramp_quotes q WHERE q.intent_id = ramp_intents.id AND q.is_locked = TRUE AND q.expires_at > NOW())
         FOR UPDATE
         "#,
     )
@@ -510,9 +506,11 @@ pub async fn prepare_signature(
     };
 
     sqlx::query(
-        "UPDATE ramp_intents SET status = 'awaiting_user_transfer_confirmation', updated_at = NOW() WHERE id = $1",
+        "UPDATE ramp_intents SET status = 'awaiting_user_transfer_confirmation', updated_at = NOW(), metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('deposit_treasury_address',$2::text,'deposit_reference',$3::text) WHERE id = $1",
     )
     .bind(intent_id)
+    .bind(&treasury_address)
+    .bind(format!("clearsig-ramp:{intent_id}"))
     .execute(&mut *tx)
     .await?;
 
@@ -521,6 +519,7 @@ pub async fn prepare_signature(
     Ok(PrepareSignatureResponse {
         intent_id,
         treasury_address,
+        deposit_reference: format!("clearsig-ramp:{intent_id}"),
         chain_family: parse_chain_family(&chain_family)?,
         chain_id,
         asset_symbol,
@@ -531,6 +530,7 @@ pub async fn prepare_signature(
 // ── Onramp: Provider payment initialisation ───────────────────────────────────
 
 // Returns the active provider hosted checkout URL and the reference.
+#[allow(clippy::too_many_arguments)]
 pub async fn initialize_payment(
     pool: &PgPool,
     payment_provider: &dyn PaymentProvider,
@@ -541,249 +541,222 @@ pub async fn initialize_payment(
     user_email: &str,
     callback_url: Option<&str>,
 ) -> anyhow::Result<InitializePaymentResponse> {
-    // Load the intent and verify ownership / state.
+    // Serialize the local decision, then commit the reference BEFORE making a
+    // payable checkout. A crashed or timed-out attempt is never a fresh retry.
+    let mut tx = pool.begin().await?;
     let row = sqlx::query(
         r#"
         SELECT status, asset_amount_minor, asset_symbol, chain_family, chain_id, metadata
         FROM ramp_intents
-        WHERE id = $1 AND user_id = $2
+        WHERE id = $1 AND user_id = $2 AND intent_type = 'onramp'
+        FOR UPDATE
         "#,
     )
     .bind(intent_id)
     .bind(user_id)
-    .fetch_optional(pool)
-    .await?;
-
-    let Some(row) = row else {
-        anyhow::bail!("Intent not found");
-    };
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("Intent not found"))?;
 
     let current_status: String = row.get("status");
-    if current_status != "awaiting_payment" {
-        anyhow::bail!("Intent is not in awaiting_payment state (current: {current_status})");
-    }
-
+    anyhow::ensure!(
+        current_status == "awaiting_payment",
+        "Intent is not awaiting payment; refresh its status before retrying"
+    );
     let amount_minor: i64 = row.get("asset_amount_minor");
     let asset_symbol: String = row.get("asset_symbol");
-    let chain_family_raw: String = row.get("chain_family");
+    let chain_family = parse_chain_family(&row.get::<String, _>("chain_family"))?;
     let chain_id: String = row.get("chain_id");
-    let metadata: Option<serde_json::Value> = row.get("metadata");
-
-    let chain_family = parse_chain_family(&chain_family_raw)?;
-    let token_address = metadata
-        .as_ref()
-        .and_then(|m| m.get("token_address"))
-        .and_then(|v| v.as_str());
+    let metadata: serde_json::Value = row
+        .get::<Option<serde_json::Value>, _>("metadata")
+        .unwrap_or_else(|| serde_json::json!({}));
+    anyhow::ensure!(
+        metadata
+            .get("executable_quote_version")
+            .and_then(serde_json::Value::as_u64)
+            == Some(1),
+        "intent has no executable quote; create a new intent"
+    );
+    let executable_quote: super::quotes::ExecutableQuote =
+        serde_json::from_value(metadata.get("executable_quote").cloned().ok_or_else(|| {
+            anyhow::anyhow!("intent has no executable quote; create a new intent")
+        })?)?;
+    // Check before cached returns as well. A stale checkout link must not be
+    // offered again merely because it was once initialized successfully.
+    anyhow::ensure!(
+        executable_quote.expires_at > Utc::now().timestamp(),
+        "executable quote has expired; do not pay the old checkout"
+    );
+    let ngn_amount_minor = executable_quote.fiat_amount_minor;
+    anyhow::ensure!(
+        ngn_amount_minor > 0
+            && executable_quote.fiat_currency == "NGN"
+            && executable_quote.asset_amount_minor == amount_minor
+            && executable_quote.asset_symbol == asset_symbol
+            && executable_quote.chain_family == chain_family
+            && executable_quote.chain_id == chain_id,
+        "executable quote does not match intent"
+    );
+    let provider_name = payment_provider.name();
+    if let Some(existing_provider) = metadata
+        .get("payment_provider")
+        .and_then(serde_json::Value::as_str)
+    {
+        anyhow::ensure!(
+            existing_provider == provider_name,
+            "Intent checkout provider mismatch; reconcile the existing checkout before retrying"
+        );
+    }
+    if let Some(reference) = metadata
+        .get("payment_reference")
+        .and_then(serde_json::Value::as_str)
+    {
+        anyhow::ensure!(
+            !reference.is_empty()
+                && metadata
+                    .get("payment_provider")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(provider_name)
+                && metadata
+                    .get("ngn_amount_minor")
+                    .and_then(serde_json::Value::as_i64)
+                    == Some(ngn_amount_minor),
+            "Existing checkout does not match this intent; manual reconciliation required"
+        );
+        let state = metadata
+            .get("checkout_initialization_state")
+            .and_then(serde_json::Value::as_str);
+        anyhow::ensure!(
+            matches!(state, None | Some("ready")),
+            "Checkout initialization is pending or its outcome is unknown; check status before retrying"
+        );
+        if let (Some(url), Some(code)) = (
+            metadata
+                .get("authorization_url")
+                .and_then(serde_json::Value::as_str)
+                .filter(|v| !v.is_empty()),
+            metadata
+                .get("access_code")
+                .and_then(serde_json::Value::as_str),
+        ) {
+            let response = InitializePaymentResponse {
+                intent_id,
+                authorization_url: url.to_string(),
+                access_code: code.to_string(),
+                payment_provider: provider_name.to_string(),
+                payment_reference: reference.to_string(),
+                provider_status: metadata
+                    .get("provider_status")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("pending")
+                    .to_string(),
+                ngn_amount_minor,
+            };
+            tx.commit().await?;
+            // Never create another checkout on a verify API timeout. Workers
+            // reconcile payment independently before any treasury disbursement.
+            return Ok(response);
+        }
+        anyhow::bail!(
+            "Checkout outcome is unknown; manual reconciliation required before retrying"
+        );
+    }
+    anyhow::ensure!(
+        metadata.get("payment_reference").is_none()
+            && metadata.get("checkout_initialization_state").is_none()
+            && metadata.get("authorization_url").is_none()
+            && metadata.get("access_code").is_none()
+            && metadata
+                .get("payment_attempt")
+                .is_none_or(|attempt| attempt.as_i64() == Some(0)),
+        "Previous checkout attempt is incomplete; manual reconciliation required"
+    );
 
     if enable_treasury_liquidity_check {
-        let has_liquidity = signer_engine
-            .has_sufficient_balance(
+        let token_address = metadata
+            .get("token_address")
+            .and_then(serde_json::Value::as_str);
+        let liquidity = tokio::time::timeout(
+            std::time::Duration::from_secs(15),
+            signer_engine.has_sufficient_balance(
                 chain_family,
                 &chain_id,
                 &asset_symbol,
                 amount_minor,
                 token_address,
-            )
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    intent_id = %intent_id,
-                    error = %e,
-                    "Treasury liquidity check failed"
-                );
-                anyhow::anyhow!("Unable to verify liquidity right now. Please try again shortly.")
-            })?;
-
-        if !has_liquidity {
-            anyhow::bail!(
-                "Insufficient treasury liquidity for this order. Please reduce the amount or try again shortly."
-            );
-        }
-    }
-
-    let provider_name = payment_provider.name();
-
-    // ── Check for an existing provider checkout in metadata ───────────────────
-    if let Some(ref meta) = metadata {
-        let cached_provider = meta
-            .get("payment_provider")
-            .and_then(|value| value.as_str())
-            .map(|value| value.trim().to_ascii_lowercase());
-
-        if let Some(ref existing_provider) = cached_provider {
-            if existing_provider != provider_name {
-                anyhow::bail!(
-                    "Intent checkout provider mismatch: intent uses '{}' but active provider is '{}'. Create a new intent under current provider.",
-                    existing_provider,
-                    provider_name
-                );
-            }
-        }
-
-        let has_ref = meta.get("payment_reference").and_then(|v| v.as_str());
-        let has_url = meta.get("authorization_url").and_then(|v| v.as_str());
-        let has_code = meta.get("access_code").and_then(|v| v.as_str());
-        let has_ngn = meta.get("ngn_amount_minor").and_then(|v| v.as_i64());
-
-        if let (Some(cached_ref), Some(cached_url), Some(cached_code), Some(cached_ngn)) =
-            (has_ref, has_url, has_code, has_ngn)
-        {
-            // We have a previous checkout — verify its status on active provider.
-            match payment_provider.verify_checkout(cached_ref).await {
-                Ok(verify) => {
-                    let provider_status = verify.status.to_ascii_lowercase();
-                    match provider_status.as_str() {
-                        // Still open — return the cached checkout to the user.
-                        "pending" | "ongoing" | "processing" => {
-                            tracing::info!(
-                                intent_id = %intent_id,
-                                payment_ref = cached_ref,
-                                provider = provider_name,
-                                "Returning cached pending provider checkout"
-                            );
-                            return Ok(InitializePaymentResponse {
-                                intent_id,
-                                authorization_url: cached_url.to_string(),
-                                access_code: cached_code.to_string(),
-                                payment_provider: provider_name.to_string(),
-                                payment_reference: cached_ref.to_string(),
-                                provider_status,
-                                ngn_amount_minor: cached_ngn,
-                            });
-                        }
-                        // Already paid — return cached so the frontend can
-                        // proceed to the polling step.
-                        "success" => {
-                            tracing::info!(
-                                intent_id = %intent_id,
-                                payment_ref = cached_ref,
-                                provider = provider_name,
-                                "Provider checkout already succeeded — returning cached"
-                            );
-                            return Ok(InitializePaymentResponse {
-                                intent_id,
-                                authorization_url: cached_url.to_string(),
-                                access_code: cached_code.to_string(),
-                                payment_provider: provider_name.to_string(),
-                                payment_reference: cached_ref.to_string(),
-                                provider_status,
-                                ngn_amount_minor: cached_ngn,
-                            });
-                        }
-                        // Abandoned / failed / reversed — fall through to
-                        // create a fresh checkout below.
-                        _ => {
-                            tracing::info!(
-                                intent_id = %intent_id,
-                                payment_ref = cached_ref,
-                                provider_status = provider_status,
-                                provider = provider_name,
-                                "Previous checkout is not payable — creating new one"
-                            );
-                        }
-                    }
-                }
-                Err(e) => {
-                    // Verify failed (network issue or provider 404 for brand-new
-                    // references).  If the reference was never actually created
-                    // on the provider side, we'll get an error — safe to retry.
-                    tracing::warn!(
-                        intent_id = %intent_id,
-                        payment_ref = cached_ref,
-                        provider = provider_name,
-                        error = %e,
-                        "Failed to verify cached provider ref — will create new checkout"
-                    );
-                }
-            }
-        }
-    }
-
-    let http = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(8))
-        .user_agent("deta-settlement/1.0")
-        .build()
-        .unwrap_or_default();
-
-    // Read usd_amount_cents from metadata (stored at intent creation time)
-    let usd_amount_cents = metadata
-        .as_ref()
-        .and_then(|m| m.get("usd_amount_cents"))
-        .and_then(|v| v.as_i64());
-
-    let usd_cents = usd_amount_cents.filter(|&c| c > 0).ok_or_else(|| {
-        anyhow::anyhow!(
-            "Missing or invalid usd_amount_cents in intent metadata — \
-             the frontend must send the USD value when creating the intent"
+            ),
         )
-    })?;
+        .await;
+        anyhow::ensure!(matches!(liquidity, Ok(Ok(true))), "Unable to verify sufficient treasury liquidity; check the transfer status before retrying");
+    }
 
-    let ngn_amount_minor = usd_cents_to_ngn_kobo(&http, usd_cents).await.map_err(|e| {
-        tracing::error!(error = %e, "USD→NGN rate fetch failed");
-        e
-    })?;
+    anyhow::ensure!(
+        executable_quote.expires_at > Utc::now().timestamp(),
+        "Executable quote expired before checkout initialization; create a new intent"
+    );
+    let payment_reference = format!("deta-{intent_id}");
+    sqlx::query(
+        r#"UPDATE ramp_intents SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+            'payment_provider',$2::text,'payment_reference',$3::text,'ngn_amount_minor',$4::bigint,
+            'provider_status','unknown','checkout_initialization_state','initializing','payment_attempt',1
+        ), updated_at = NOW() WHERE id=$1"#,
+    )
+    .bind(intent_id).bind(provider_name).bind(&payment_reference).bind(ngn_amount_minor)
+    .execute(&mut *tx).await?;
+    tx.commit().await?;
 
-    // ── Build unique provider reference ───────────────────────────────────────
-    // Base: deta-{intent_id}; append attempt suffix when retried.
-    let attempt: i32 = metadata
-        .as_ref()
-        .and_then(|m| m.get("payment_attempt"))
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0) as i32;
-    let next_attempt = attempt + 1;
-
-    let payment_reference = if next_attempt == 1 {
-        format!("deta-{intent_id}")
-    } else {
-        format!("deta-{intent_id}-{next_attempt}")
-    };
-
-    // ── Call provider to create a new checkout ────────────────────────────────
-    let checkout = payment_provider
-        .initialize_checkout(
+    let attempt = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        payment_provider.initialize_checkout(
             user_email,
             ngn_amount_minor,
             &payment_reference,
             callback_url,
-        )
-        .await?;
-
-    // ── Persist everything into metadata ──────────────────────────────────────
-    // We store authorization_url + access_code so future calls can be served
-    // from cache without hitting the provider again.
-    sqlx::query(
-        r#"
-        UPDATE ramp_intents
-        SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-                'payment_provider', $1::text,
-                'payment_reference', $2::text,
-                'provider_status', 'pending',
-                'authorization_url', $3::text,
-                'access_code', $4::text,
-                'ngn_amount_minor', $5::bigint,
-                'payment_attempt', $6::int
-            ),
-            updated_at = NOW()
-        WHERE id = $7
-        "#,
+        ),
     )
-    .bind(provider_name)
-    .bind(&checkout.reference)
+    .await;
+    let checkout = match attempt {
+        Ok(Ok(checkout))
+            if checkout.reference == payment_reference
+                && !checkout.authorization_url.is_empty() =>
+        {
+            checkout
+        }
+        // Even an explicit remote error can arrive after remote acceptance.
+        // Persist uncertainty and require reconciliation, never a new reference.
+        _ => {
+            sqlx::query("UPDATE ramp_intents SET metadata=metadata || jsonb_build_object('checkout_initialization_state','unknown'),updated_at=NOW() WHERE id=$1 AND user_id=$2 AND status='awaiting_payment' AND metadata->>'payment_reference'=$3 AND metadata->>'checkout_initialization_state'='initializing'")
+                .bind(intent_id).bind(user_id).bind(&payment_reference).execute(pool).await?;
+            anyhow::bail!("Checkout outcome is unknown; check status or reconcile this payment before retrying");
+        }
+    };
+
+    // A fast webhook may already have advanced the intent. In that case, do
+    // not replace its metadata with a stale pending result or offer payment again.
+    let saved = sqlx::query(
+        r#"UPDATE ramp_intents SET metadata=metadata || jsonb_build_object(
+            'authorization_url',$4::text,'access_code',$5::text,
+            'provider_status','pending','checkout_initialization_state','ready'
+        ),updated_at=NOW()
+        WHERE id=$1 AND user_id=$2 AND status='awaiting_payment'
+          AND metadata->>'payment_reference'=$3 AND metadata->>'payment_provider'=$6
+          AND metadata->>'checkout_initialization_state'='initializing'"#,
+    )
+    .bind(intent_id)
+    .bind(user_id)
+    .bind(&payment_reference)
     .bind(&checkout.authorization_url)
     .bind(&checkout.access_code)
-    .bind(ngn_amount_minor)
-    .bind(next_attempt)
-    .bind(intent_id)
+    .bind(provider_name)
     .execute(pool)
     .await?;
-
-    tracing::info!(
-        intent_id = %intent_id,
-        payment_ref = %checkout.reference,
-        provider = provider_name,
-        ngn_kobo = ngn_amount_minor,
-        attempt = next_attempt,
-        "Created new payment checkout"
+    anyhow::ensure!(
+        saved.rows_affected() == 1,
+        "Payment state changed during checkout initialization; refresh its status before retrying"
+    );
+    anyhow::ensure!(
+        executable_quote.expires_at > Utc::now().timestamp(),
+        "Executable quote expired during checkout initialization; do not pay the old checkout"
     );
 
     Ok(InitializePaymentResponse {
@@ -791,45 +764,10 @@ pub async fn initialize_payment(
         authorization_url: checkout.authorization_url,
         access_code: checkout.access_code,
         payment_provider: provider_name.to_string(),
-        payment_reference: checkout.reference.clone(),
+        payment_reference,
         provider_status: "pending".to_string(),
         ngn_amount_minor,
     })
-}
-
-// ── Live crypto → NGN conversion ─────────────────────────────────────────────
-
-/// Converts a USD amount (in cents) directly to NGN kobo.
-/// Only needs one API call (USD → NGN exchange rate).
-/// This is the fast path when the frontend already computed the USD value.
-async fn usd_cents_to_ngn_kobo(http: &reqwest::Client, usd_cents: i64) -> anyhow::Result<i64> {
-    let ngn_per_usd = fetch_ngn_rate(http).await?;
-
-    // usd_cents / 100 = USD, × ngn_per_usd = NGN, × 100 = kobo
-    // Simplifies to: usd_cents × ngn_per_usd (the 100s cancel out)
-    let ngn_kobo = (usd_cents as f64 * ngn_per_usd).round() as i64;
-
-    tracing::info!(
-        usd_cents,
-        ngn_per_usd,
-        ngn_kobo,
-        "usd_cents_to_ngn_kobo: conversion successful"
-    );
-
-    if ngn_kobo <= 0 {
-        anyhow::bail!("Computed NGN kobo is zero or negative (usd_cents={usd_cents}, ngn_per_usd={ngn_per_usd})");
-    }
-
-    Ok(ngn_kobo)
-}
-
-/// Fetches the live USD → NGN exchange rate from ExchangeRate-API (free, no key).
-async fn fetch_ngn_rate(http: &reqwest::Client) -> anyhow::Result<f64> {
-    let fx_url = "https://open.er-api.com/v6/latest/USD";
-    let fx_body: serde_json::Value = http.get(fx_url).send().await?.json().await?;
-    fx_body["rates"]["NGN"]
-        .as_f64()
-        .ok_or_else(|| anyhow::anyhow!("ExchangeRate-API: missing NGN rate"))
 }
 
 // ── Bank account name resolution ──────────────────────────────────────────────

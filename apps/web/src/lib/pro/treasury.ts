@@ -1,11 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api/client";
 import type { TxAttempt } from "@/lib/retail/txLog";
 
 export type ProScheduleCategory = "vendor" | "payroll";
 export type ProScheduleCadence = "Weekly" | "Monthly";
+
+export interface PendingRecurringExecution {
+  version: 1;
+  proposalAddress: string;
+  scheduleId: string;
+  status: 1 | 2;
+  asset: "SOL" | "USDC";
+  recipient: string;
+  amount: string;
+  intervalSeconds: number;
+  firstExecutionAt: number;
+  paymentCount: number;
+  policyVersion: "CSP1" | "CSP2";
+  mint?: string;
+  sourceToken?: string;
+  destinationToken?: string;
+  recipientOwner?: string;
+}
 
 export interface ProSchedule {
   id: string;
@@ -29,6 +47,7 @@ export interface ProSchedule {
   destinationToken?: string;
   recipientOwner?: string;
   policyVersion?: "CSP1" | "CSP2";
+  pendingExecution?: PendingRecurringExecution;
 }
 
 export interface ProTreasuryRuntime {
@@ -160,7 +179,7 @@ export function useProSchedules(walletName: string) {
           const remoteIds = new Set(remoteRows.map((row) => row.id));
           for (const row of current) {
             if (!remoteIds.has(row.id)) {
-              void upsertProSchedule(walletName, row);
+              void upsertProSchedule(walletName, row).catch(() => {});
             }
           }
           const merged = mergeSchedules(current, remoteRows);
@@ -178,12 +197,22 @@ export function useProSchedules(walletName: string) {
     };
   }, [walletName]);
 
-  const saveRows = (next: ProSchedule[]) => {
-    setRows(next);
-    persistSchedules(walletName, next);
-  };
+  const saveRows = useCallback((update: (current: ProSchedule[]) => ProSchedule[]) => {
+    setRows((current) => {
+      const next = update(current);
+      persistSchedules(walletName, next);
+      return next;
+    });
+  }, [walletName]);
 
-  return {
+  const upsert = useCallback((row: ProSchedule) => {
+    saveRows((current) => [row, ...current.filter((item) => item.id !== row.id)].slice(0, 50));
+    void upsertProSchedule(walletName, row).catch(() => {
+      // Preserve local retry metadata while backend synchronization is offline.
+    });
+  }, [saveRows, walletName]);
+
+  return useMemo(() => ({
     rows,
     add: (draft: Omit<ProSchedule, "id" | "createdAt">) => {
       const now = Date.now();
@@ -192,8 +221,8 @@ export function useProSchedules(walletName: string) {
           ? crypto.randomUUID()
           : Math.random().toString(36).slice(2);
       const row = { ...draft, id, createdAt: now, updatedAt: now };
-      saveRows([row, ...rows].slice(0, 50));
-      void upsertProSchedule(walletName, row);
+      saveRows((current) => [row, ...current].slice(0, 50));
+      void upsertProSchedule(walletName, row).catch(() => {});
       void appendProAuditEvent({
         walletName,
         eventType: "schedule_saved",
@@ -206,25 +235,21 @@ export function useProSchedules(walletName: string) {
           category: row.category,
           nextRun: row.nextRun,
         },
-      });
+      }).catch(() => {});
     },
-    upsert: (row: ProSchedule) => {
-      const next = [row, ...rows.filter((item) => item.id !== row.id)].slice(0, 50);
-      saveRows(next);
-      void upsertProSchedule(walletName, row);
-    },
+    upsert,
     remove: (id: string) => {
       const row = rows.find((item) => item.id === id);
-      saveRows(rows.filter((item) => item.id !== id));
-      void deleteProSchedule(walletName, id);
+      saveRows((current) => current.filter((item) => item.id !== id));
+      void deleteProSchedule(walletName, id).catch(() => {});
       void appendProAuditEvent({
         walletName,
         eventType: "schedule_removed",
         title: row ? `Removed ${row.name}` : "Removed schedule",
         reference: id,
-      });
+      }).catch(() => {});
     },
-  };
+  }), [rows, saveRows, upsert, walletName]);
 }
 
 function persistSchedules(walletName: string, next: ProSchedule[]): void {
@@ -239,7 +264,7 @@ function persistSchedules(walletName: string, next: ProSchedule[]): void {
   }
 }
 
-function mergeSchedules(
+export function mergeSchedules(
   localRows: ProSchedule[],
   remoteRows: ProSchedule[],
 ): ProSchedule[] {
@@ -252,7 +277,14 @@ function mergeSchedules(
     }
     const currentStamp = current.updatedAt ?? current.createdAt;
     const rowStamp = row.updatedAt ?? row.createdAt;
-    if (rowStamp >= currentStamp) byId.set(row.id, row);
+    if (rowStamp >= currentStamp) {
+      // Older backend versions omit new metadata on readback. A missing field
+      // is not evidence that a known pending proposal was executed or revoked.
+      byId.set(row.id, !row.pendingExecution && current.pendingExecution
+        && row.proposalAddress === current.proposalAddress
+        ? { ...row, pendingExecution: current.pendingExecution }
+        : row);
+    }
   }
   return [...byId.values()]
     .sort((a, b) => a.nextRun.localeCompare(b.nextRun) || a.name.localeCompare(b.name))

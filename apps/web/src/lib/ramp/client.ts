@@ -5,12 +5,10 @@
 // idempotency-key handling live in one place.
 //
 // Identity:
-//   - The service expects `x-user-id` as a UUID. clear-msig has no
-//     `users` table; we deterministically derive a UUID from the
-//     connected Solana pubkey via SHA-256(pubkey)[:16] with RFC 4122
-//     version-4 / variant-1 bits set.
-//   - The mapping is stable across sessions and devices for the same
-//     pubkey, so the user's intent history persists.
+//   - Every protected call carries the current signed Dynamic JWT.
+//   - Settlement verifies its signature, issuer, environment, audience, expiry,
+//     and authenticated subject; wallet addresses are never identity proof.
+//   - A selected Solana wallet is checked against the JWT's signed credentials.
 //
 // Idempotency:
 //   - Every mutating call generates a `crypto.randomUUID()`
@@ -18,6 +16,8 @@
 //     intent_id; replays with a different payload error out.
 //
 // All responses go through the standard `{ success, data }` envelope.
+
+import { getRampAuthToken } from "@/lib/ramp/sessionToken";
 
 import type {
   BankListItem,
@@ -44,46 +44,13 @@ export class RampApiError extends Error {
   }
 }
 
-// ── Identity ────────────────────────────────────────────────────────
-
-/// Cache the derivation per pubkey so repeated API calls don't
-/// re-hash. Hashing is fast but the cache also makes the result
-/// observably stable for `useEffect` dep arrays.
-const pubkeyToUuidCache = new Map<string, string>();
-
-/// Deterministic UUID for a Solana base58 pubkey. SHA-256(pubkey),
-/// take first 16 bytes, set RFC 4122 version-4 + variant-1 bits.
-/// Stable, unique per pubkey, parses as a valid UUID on the backend.
-export async function pubkeyToUserId(pubkey: string): Promise<string> {
-  const hit = pubkeyToUuidCache.get(pubkey);
-  if (hit) return hit;
-
-  const data = new TextEncoder().encode(`clear-msig-ramp:${pubkey}`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  const bytes = new Uint8Array(digest, 0, 16);
-  // RFC 4122 v4: high nibble of byte 6 = 0100
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  // RFC 4122 variant 1: top two bits of byte 8 = 10
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
-  const hex = Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  const uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(
-    12,
-    16,
-  )}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-
-  pubkeyToUuidCache.set(pubkey, uuid);
-  return uuid;
-}
-
 // ── Internal request plumbing ───────────────────────────────────────
 
 interface RequestOptions {
   pubkey?: string;
   idempotencyKey?: string;
   signal?: AbortSignal;
+  public?: boolean;
 }
 
 async function request<T>(
@@ -97,8 +64,18 @@ async function request<T>(
   if (body !== undefined) {
     headers["content-type"] = "application/json";
   }
+  if (!opts.public) {
+    const token = getRampAuthToken();
+    if (!token) {
+      throw new RampApiError(
+        "Sign in with Dynamic to use bank transfers. A connected wallet alone is not an authenticated session.",
+        401,
+      );
+    }
+    headers.authorization = `Bearer ${token}`;
+  }
   if (opts.pubkey) {
-    headers["x-user-id"] = await pubkeyToUserId(opts.pubkey);
+    headers["x-wallet-address"] = opts.pubkey;
   }
   if (opts.idempotencyKey) {
     headers["idempotency-key"] = opts.idempotencyKey;
@@ -213,7 +190,7 @@ export const rampApi = {
       "GET",
       `/v1/ramp/banks?country=${encodeURIComponent(country)}`,
       undefined,
-      { signal },
+      { signal, public: true },
     );
   },
 

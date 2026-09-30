@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
@@ -23,11 +23,12 @@ import {
   paymentCount,
   recurringAmountToRaw,
   recurringEnvelope,
-  solToLamports,
   type RecurringDraft,
 } from "@/features/treasury/domain/recurring";
 import { fetchRecurringSchedule } from "@/features/treasury/infrastructure/recurringState";
 import { resolveRecurringUsdcAccounts } from "@/features/treasury/infrastructure/recurringTokenAccounts";
+import { requireRecurringExecution, recurringExecutionApplied } from "@/features/treasury/domain/recurringExecution";
+import { executeRecurringOperation } from "@/features/treasury/infrastructure/executeRecurringOperation";
 
 export function useRecurringSchedulesController(walletName: string) {
   const { connection } = useConnection();
@@ -35,6 +36,7 @@ export function useRecurringSchedulesController(walletName: string) {
   const { signTypedDescriptor } = useSignWithWallet();
   const schedules = useProSchedules(walletName);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const inFlight = useRef(false);
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
     queryFn: () => fetchWalletByName(connection, walletName),
@@ -68,6 +70,43 @@ export function useRecurringSchedulesController(walletName: string) {
     enabled: !!walletQuery.data,
     refetchInterval: 15_000,
   });
+
+  // A later poll (or another browser's approval) can settle an operation that
+  // initially needed more signatures. Clear only after observing chain state.
+  useEffect(() => {
+    if (!statesQuery.data) return;
+    for (const row of schedules.rows) {
+      if (!row.pendingExecution) continue;
+      try {
+        const pending = requireRecurringExecution(row);
+        if (recurringExecutionApplied(pending, statesQuery.data[row.id])) {
+          schedules.upsert({ ...row, pendingExecution: undefined, updatedAt: Date.now() });
+        }
+      } catch {
+        // Keep corrupt/legacy records visible for manual proposal review.
+      }
+    }
+  }, [statesQuery.data, schedules]);
+
+  async function runExclusive<T>(id: string, action: () => Promise<T>): Promise<T> {
+    if (inFlight.current) throw new Error("Another schedule action is still running.");
+    inFlight.current = true;
+    setBusyId(id);
+    try {
+      return await action();
+    } finally {
+      inFlight.current = false;
+      setBusyId(null);
+    }
+  }
+
+  async function refreshOperation(row: ProSchedule) {
+    const result = await statesQuery.refetch();
+    const pending = requireRecurringExecution(row);
+    if (recurringExecutionApplied(pending, result.data?.[row.id])) {
+      schedules.upsert({ ...row, pendingExecution: undefined, updatedAt: Date.now() });
+    }
+  }
 
   async function configure(draft: RecurringDraft) {
     const walletData = walletQuery.data;
@@ -104,6 +143,12 @@ export function useRecurringSchedulesController(walletName: string) {
   }
 
   async function proposeAndExecute(row: ProSchedule, status: 1 | 2) {
+    if (row.pendingExecution && !recurringExecutionApplied(requireRecurringExecution(row), statesQuery.data?.[row.id])) {
+      throw new Error("This schedule already has a pending request. Retry or review that proposal first.");
+    }
+    if (status === 2 && statesQuery.data?.[row.id]?.status !== "active") {
+      throw new Error("Load the active onchain schedule before creating a revocation.");
+    }
     const selectedIntent = intent?.account;
     const walletData = walletQuery.data;
     if (!selectedIntent || !intent || !walletData) throw new Error("Solana protection is not ready for this treasury.");
@@ -117,11 +162,14 @@ export function useRecurringSchedulesController(walletName: string) {
     if (asset === "USDC" && (!row.mint || !row.sourceToken || !row.destinationToken || !row.recipientOwner)) {
       throw new Error("This USDC schedule is missing its bound token accounts.");
     }
-    setBusyId(row.id);
-    try {
+    {
       const onchain = statesQuery.data?.[row.id] ?? null;
       const firstExecutionAt = status === 2 && onchain ? onchain.nextExecutionAt : row.firstExecutionAt;
       const count = status === 2 && onchain ? onchain.remainingPayments : row.paymentCount;
+      if (!Number.isSafeInteger(firstExecutionAt) || firstExecutionAt <= 0
+        || !Number.isSafeInteger(count) || count <= 0 || count > 1_000) {
+        throw new Error("The schedule timing or remaining payment count is invalid.");
+      }
       const envelope = recurringEnvelope({
         walletName,
         scheduleId: row.id,
@@ -191,97 +239,57 @@ export function useRecurringSchedulesController(walletName: string) {
       });
       const proposalAddress = stringField(created, "proposal");
       if (!proposalAddress) throw new Error("The schedule proposal address was not returned.");
-      const persisted = {
+      const persisted: ProSchedule = {
         ...row,
         proposalAddress,
+        policyVersion: asset === "USDC" && !legacyTokenSchedule ? "CSP2" : "CSP1",
+        pendingExecution: {
+          version: 1,
+          proposalAddress,
+          scheduleId: row.id,
+          status,
+          asset,
+          recipient: row.address,
+          amount: row.amount,
+          intervalSeconds: row.intervalSeconds,
+          firstExecutionAt,
+          paymentCount: count,
+          policyVersion: asset === "USDC" && !legacyTokenSchedule ? "CSP2" : "CSP1",
+          mint: row.mint,
+          sourceToken: row.sourceToken,
+          destinationToken: row.destinationToken,
+          recipientOwner: row.recipientOwner,
+        },
         intentAddress: intent.pda.toBase58(),
         updatedAt: Date.now(),
       };
       schedules.upsert(persisted);
       try {
-        if (asset === "USDC") {
-          const executeSchedule = legacyTokenSchedule
-            ? backendApi.executeTypedRecurringTokenSchedule
-            : backendApi.executeTypedRecurringAssetSchedule;
-          await executeSchedule(walletName, proposalAddress, {
-            scheduleId: row.id,
-            mint: row.mint!,
-            sourceToken: row.sourceToken!,
-            destinationToken: row.destinationToken!,
-            recipientOwner: row.recipientOwner!,
-            amountTokens: recurringAmountToRaw(row.amount, asset),
-            intervalSeconds: row.intervalSeconds,
-            firstExecutionAt,
-            paymentCount: count,
-            status,
-          });
-        } else {
-          await backendApi.executeTypedRecurringSchedule(walletName, proposalAddress, {
-            scheduleId: row.id,
-            recipient: row.address,
-            amountLamports: solToLamports(row.amount),
-            intervalSeconds: row.intervalSeconds,
-            firstExecutionAt,
-            paymentCount: count,
-            status,
-          });
-        }
+        await executeRecurringOperation(walletName, requireRecurringExecution(persisted));
       } catch (error) {
         if (!needsApproval(error)) throw error;
       }
-      await statesQuery.refetch();
-    } finally {
-      setBusyId(null);
+      await refreshOperation(persisted);
     }
   }
 
   async function retry(row: ProSchedule) {
-    if (!row.proposalAddress || !row.address || !row.intervalSeconds || !row.firstExecutionAt || !row.paymentCount) {
-      throw new Error("This pending schedule is missing execution metadata.");
+    const pending = requireRecurringExecution(row);
+    if (recurringExecutionApplied(pending, statesQuery.data?.[row.id])) {
+      schedules.upsert({ ...row, pendingExecution: undefined, updatedAt: Date.now() });
+      return;
     }
-    setBusyId(row.id);
-    try {
-      if (row.asset === "USDC") {
-        if (!row.mint || !row.sourceToken || !row.destinationToken || !row.recipientOwner) {
-          throw new Error("This USDC schedule is missing its bound token accounts.");
-        }
-        const executeSchedule = row.policyVersion === "CSP2"
-          ? backendApi.executeTypedRecurringAssetSchedule
-          : backendApi.executeTypedRecurringTokenSchedule;
-        await executeSchedule(walletName, row.proposalAddress, {
-          scheduleId: row.id,
-          mint: row.mint,
-          sourceToken: row.sourceToken,
-          destinationToken: row.destinationToken,
-          recipientOwner: row.recipientOwner,
-          amountTokens: recurringAmountToRaw(row.amount, "USDC"),
-          intervalSeconds: row.intervalSeconds,
-          firstExecutionAt: row.firstExecutionAt,
-          paymentCount: row.paymentCount,
-          status: 1,
-        });
-      } else {
-        await backendApi.executeTypedRecurringSchedule(walletName, row.proposalAddress, {
-          scheduleId: row.id,
-          recipient: row.address,
-          amountLamports: solToLamports(row.amount),
-          intervalSeconds: row.intervalSeconds,
-          firstExecutionAt: row.firstExecutionAt,
-          paymentCount: row.paymentCount,
-          status: 1,
-        });
-      }
-      await statesQuery.refetch();
-    } finally {
-      setBusyId(null);
-    }
+    await executeRecurringOperation(walletName, pending);
+    await refreshOperation(row);
   }
 
   async function pay(row: ProSchedule) {
     const state = statesQuery.data?.[row.id];
-    if (!state) throw new Error("This schedule is not active onchain.");
-    setBusyId(row.id);
-    try {
+    if (!state || state.status !== "active") throw new Error("This schedule is not active onchain.");
+    if (row.pendingExecution && !recurringExecutionApplied(requireRecurringExecution(row), state)) {
+      throw new Error("Finish the pending schedule request before making another payment.");
+    }
+    {
       if (state.asset === "USDC") {
         if (!state.mint || !state.sourceToken || !state.destinationToken) {
           throw new Error("The onchain USDC schedule is incomplete.");
@@ -305,20 +313,19 @@ export function useRecurringSchedulesController(walletName: string) {
         });
       }
       await statesQuery.refetch();
-    } finally {
-      setBusyId(null);
     }
   }
 
   return {
     rows: schedules.rows,
     states: statesQuery.data ?? {},
-    loading: walletQuery.isLoading || intentsQuery.isLoading,
+    loading: walletQuery.isLoading || intentsQuery.isLoading || statesQuery.isLoading,
+    error: walletQuery.error || intentsQuery.error || statesQuery.error,
     busyId,
-    configure,
-    retry,
-    pay,
-    revoke: (row: ProSchedule) => proposeAndExecute(row, 2),
+    configure: (draft: RecurringDraft) => runExclusive("new", () => configure(draft)),
+    retry: (row: ProSchedule) => runExclusive(row.id, () => retry(row)),
+    pay: (row: ProSchedule) => runExclusive(row.id, () => pay(row)),
+    revoke: (row: ProSchedule) => runExclusive(row.id, () => proposeAndExecute(row, 2)),
     remove: schedules.remove,
   };
 }

@@ -1,8 +1,11 @@
+import { agentStorageDeploymentIdentity } from "@/features/agents/server/walletScope";
+import { withWalletMember, withCanonicalAgentWallet } from "@/lib/auth/walletAuthorization";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
-import { normalizeAgentSignalPayload } from "@/lib/agents/intake";
-import { verifyAgentSignalSignature } from "@/lib/agents/signalSignature";
+import { normalizeAgentSignalPayload, type AgentSignalPayload } from "@/lib/agents/intake";
+import { AGENT_SIGNAL_SIGNATURE_SCHEME, verifyAgentSignalSignature } from "@/lib/agents/signalSignature";
 import {
   enqueueAgentSignal,
   agentAutomaticTradingEnabled,
@@ -35,6 +38,10 @@ interface RouteContext {
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
+  return withWalletMember(request, decodeRouteParam((await context.params).name), () => getAuthorized(request, context));
+}
+
+async function getAuthorized(request: NextRequest, context: RouteContext) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
@@ -56,7 +63,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const walletName = decodeRouteParam(name);
   const agentId = decodeRouteParam(agent);
 
-  const raw = await readBoundedBody(request);
+  const raw = await readBoundedBody(request, MAX_BODY_BYTES, "Signal body is too large.");
   if (!raw.ok) return raw.response;
 
   let body: unknown;
@@ -66,6 +73,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
+  const action = readStringField(body, "action");
+  if (action === "register" || action === "import") {
+    return withWalletMember(request, walletName, ({ walletAddress }) => manageSignalInbox(request, walletName, walletAddress, agentId, body));
+  }
+  const limited = await checkRateLimit(
+    "agent-signals",
+    `${clientIp(request)}:${walletName}:${agentId}`,
+    {
+      capacity: 20,
+      refillPerSec: 1 / 5,
+    },
+  );
+  if (limited) return limited;
+
+  return withCanonicalAgentWallet(walletName, (walletAddress) => ingestSignal(request, walletName, walletAddress, agentId, body));
+}
+
+async function manageSignalInbox(request: NextRequest, walletName: string, walletAddress: string, agentId: string, body: unknown) {
   const action = readStringField(body, "action");
   if (action === "register") {
     const blocked = assertSameOrigin(request);
@@ -133,7 +158,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { status: 503 },
       );
     }
-    return NextResponse.json({ ok: true, storage: agentInboxStorageMode() });
+    return NextResponse.json({ ok: true, storage: agentInboxStorageMode(), signatureScheme: AGENT_SIGNAL_SIGNATURE_SCHEME, signalTarget: { ...agentStorageDeploymentIdentity(), walletAddress, agentId } });
   }
   if (action === "import") {
     const blocked = assertSameOrigin(request);
@@ -168,15 +193,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
   }
 
-  const limited = await checkRateLimit(
-    "agent-signals",
-    `${clientIp(request)}:${walletName}:${agentId}`,
-    {
-      capacity: 20,
-      refillPerSec: 1 / 5,
-    },
-  );
-  if (limited) return limited;
+  return NextResponse.json({ error: "Unknown management action." }, { status: 400 });
+}
+
+async function ingestSignal(request: NextRequest, walletName: string, walletAddress: string, agentId: string, body: unknown) {
 
   const signalKey =
     request.headers.get("x-clearsig-signal-key")?.trim() ??
@@ -198,7 +218,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Invalid signal key." }, { status: 401 });
   }
 
-  const signalInput = readObjectField(body, "signal") ?? body;
+  const signalInput = readObjectField(body, "signal");
   const parsed = normalizeAgentSignalPayload(signalInput, {
     requireClientMetadata: true,
   });
@@ -218,14 +238,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const submittedSignature =
     request.headers.get("x-clearsig-signal-signature")?.trim() ??
     readStringField(body, "signature");
-  const verification = submittedSignature
-    ? verifyAgentSignalSignature({
-        signal: parsed.payload,
-        signalKey,
-        signature: submittedSignature,
-      })
-    : null;
-  if (verification && !verification.ok) {
+  if (!submittedSignature || readStringField(body, "signatureScheme") !== AGENT_SIGNAL_SIGNATURE_SCHEME) {
+    return NextResponse.json({ error: "A target-bound hmac_sha256_v2 signal signature is required." }, { status: 401 });
+  }
+  const verification = verifyAgentSignalSignature({
+    // Verify exact submitted fields before normalization can add defaults.
+    signal: signalInput as unknown as AgentSignalPayload,
+    signalKey,
+    signature: submittedSignature,
+    target: { ...agentStorageDeploymentIdentity(), walletAddress, agentId },
+  });
+  if (!verification.ok) {
     return NextResponse.json(
       {
         error: "Signal signature failed verification.",
@@ -310,21 +333,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
           ? "accepted_but_not_placed"
           : "queued_for_clearsig_risk_check",
     automatic,
-    verification: verification
-      ? {
-          scheme: verification.scheme,
-          status: "signed_decision",
-          message: verification.message,
-        }
-      : {
-          scheme: "signal_key_only",
-          status: "accepted_without_signature",
-          message: "Signal key verified. Signed decision envelope was not supplied.",
-        },
+    verification: {
+      scheme: verification.scheme,
+      status: "signed_decision",
+      message: verification.message,
+    },
   });
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
+  return withWalletMember(request, decodeRouteParam((await context.params).name), () => deleteAuthorized(request, context));
+}
+
+async function deleteAuthorized(request: NextRequest, context: RouteContext) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
@@ -333,7 +354,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   const agentId = decodeRouteParam(agent);
   const managementError = await requireManagementKey(request, walletName, agentId);
   if (managementError) return managementError;
-  const raw = await readBoundedBody(request);
+  const raw = await readBoundedBody(request, MAX_BODY_BYTES, "Signal body is too large.");
   if (!raw.ok) return raw.response;
 
   let body: { ids?: unknown };
@@ -350,22 +371,6 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   }
   const removed = await removeAgentInboxSignals(walletName, agentId, ids);
   return NextResponse.json({ ok: true, removed });
-}
-
-async function readBoundedBody(
-  request: NextRequest,
-): Promise<{ ok: true; text: string } | { ok: false; response: NextResponse }> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: "Signal body is too large." },
-        { status: 413 },
-      ),
-    };
-  }
-  return { ok: true, text };
 }
 
 function decodeRouteParam(value: string): string {

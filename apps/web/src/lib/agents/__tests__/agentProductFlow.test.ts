@@ -1,3 +1,4 @@
+import { configureNotificationTokenGetter } from "@/lib/notifications/sessionToken";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupAgentBetaDemo } from "@/lib/agents/betaDemoSetup";
 import { setAgentAutomaticTrading } from "@/lib/agents/clientInbox";
@@ -14,6 +15,7 @@ import {
 const now = Date.UTC(2026, 5, 1, 12, 0, 0);
 
 beforeEach(() => {
+  configureNotificationTokenGetter(() => "signed-test-session");
   vi.useFakeTimers();
   vi.setSystemTime(now);
   stubBrowserStorage();

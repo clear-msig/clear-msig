@@ -4,6 +4,27 @@ import {
   type Contact,
 } from "@/lib/retail/contacts";
 
+export { MAX_BATCH_RECIPIENTS } from "@/lib/sendLimits";
+const LAMPORTS_PER_SOL = 1_000_000_000n;
+
+export function parseBatchAmountToLamports(value: string): bigint | null {
+  const amount = value.trim();
+  // CSV input bypasses the text field's maxLength. Bound work before regex and
+  // BigInt conversion, while leaving ample room for supported decimal amounts.
+  if (amount.length > 64) return null;
+  if (!/^(?:\d+(?:\.\d{0,9})?|\.\d{1,9})$/.test(amount)) return null;
+  const [whole, fraction = ""] = amount.split(".");
+  const lamports = BigInt(whole || "0") * LAMPORTS_PER_SOL
+    + BigInt(fraction.padEnd(9, "0"));
+  // The execution adapter currently accepts safe integer JSON amounts.
+  if (lamports <= 0n || lamports > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  return lamports;
+}
+
+export function totalBatchLamports(rows: ResolvedValid[]): bigint {
+  return rows.reduce((total, row) => total + BigInt(row.lamports), 0n);
+}
+
 export interface DraftRow {
   id: string;
   recipient: string;
@@ -40,13 +61,13 @@ export function resolveRow(draft: DraftRow, contacts: Contact[]): ResolvedRow {
       : null;
   if (!destination) return { kind: "invalid-address" };
 
-  const sol = Number(amountRaw);
-  if (!Number.isFinite(sol) || sol <= 0) return { kind: "invalid-amount" };
+  const lamports = parseBatchAmountToLamports(amountRaw);
+  if (lamports === null) return { kind: "invalid-amount" };
   return {
     kind: "valid",
     label: contact ? contact.name : shortAddress(destination),
     destination,
-    lamports: Math.round(sol * 1_000_000_000).toString(),
+    lamports: lamports.toString(),
   };
 }
 
@@ -110,19 +131,12 @@ export function parseBatchCsv(raw: string): {
     rows.push({
       ...emptyRow(),
       recipient,
-      amount: sanitizeAmount(amount),
+      // Never rewrite imported financial intent. Invalid syntax remains visible
+      // in the draft and blocks review until the user corrects it.
+      amount,
     });
   }
   return { rows, skipped };
-}
-
-export function sanitizeAmount(raw: string): string {
-  const stripped = raw.replace(/[^\d.]/g, "");
-  const [whole = "", fraction] = stripped.split(".");
-  const normalizedWhole = whole.slice(0, 12);
-  return fraction === undefined
-    ? normalizedWhole
-    : `${normalizedWhole}.${fraction.slice(0, 4)}`;
 }
 
 function parseCsvLine(line: string): string[] {

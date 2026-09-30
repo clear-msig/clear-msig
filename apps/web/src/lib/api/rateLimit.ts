@@ -29,6 +29,8 @@ interface Bucket {
 }
 
 const BUCKETS = new Map<string, Bucket>();
+const MAX_BUCKETS = 10_000;
+const MAX_KEY_CHARS = 512;
 const PRUNE_INTERVAL_MS = 5 * 60 * 1000;
 let lastPruneMs = 0;
 
@@ -41,6 +43,13 @@ export async function checkRateLimit(
   ip: string,
   limit: Limit,
 ): Promise<NextResponse | null> {
+  if (!Number.isFinite(limit.capacity) || limit.capacity < 1 ||
+      !Number.isFinite(limit.refillPerSec) || limit.refillPerSec <= 0) {
+    throw new Error("Invalid rate-limit configuration.");
+  }
+  // Callers sometimes combine an IP with untrusted wallet/agent identifiers.
+  // Bound both memory and Redis key size before consulting either backend.
+  if (scope.length + ip.length > MAX_KEY_CHARS) return tooMany(60);
   const upstash = readUpstashEnv();
   if (upstash) {
     const blocked = await checkUpstash(scope, ip, limit, upstash);
@@ -63,6 +72,11 @@ function checkInProcess(
 
   const key = `${scope}:${ip}`;
   const now = Date.now();
+  if (!BUCKETS.has(key) && BUCKETS.size >= MAX_BUCKETS) {
+    // Do not evict active limits (which would let key rotation reset budgets).
+    // Scheduled pruning above keeps overflow requests O(1) between sweeps.
+    return tooMany(60);
+  }
   const bucket = BUCKETS.get(key) ?? {
     tokens: limit.capacity,
     lastRefillMs: now,

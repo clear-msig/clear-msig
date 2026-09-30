@@ -17,13 +17,16 @@ describe("notification Dynamic authentication", () => {
   it("accepts a valid environment JWT and returns its subject", async () => {
     const fixture = installJwtFixture();
     const identity = await authenticateNotificationRequest(request(fixture.token));
-    expect(identity).toEqual({ userId: "dynamic-user-1" });
+    expect(identity).toEqual({ userId: "dynamic-user-1", verifiedSolanaWallets: [], verifiedEmails: [] });
   });
 
   it.each([
     ["wrong audience", { aud: "https://attacker.example" }],
     ["expired", { exp: Math.floor(Date.now() / 1_000) - 1 }],
     ["unfinished MFA", { scope: "openid requiresAdditionalAuth" }],
+    ["non-numeric expiry", { exp: "not-a-time" }],
+    ["future not-before", { nbf: Math.floor(Date.now() / 1_000) + 1000 }],
+    ["malformed scopes", { scopes: "openid" }],
   ])("rejects %s tokens", async (_label, overrides) => {
     const fixture = installJwtFixture(overrides);
     await expect(authenticateNotificationRequest(request(fixture.token))).rejects.toBeInstanceOf(
@@ -39,10 +42,25 @@ describe("notification Dynamic authentication", () => {
       NotificationAuthError,
     );
   });
+
+  it("does not let request headers authorize a foreign token audience", async () => {
+    const fixture = installJwtFixture({ aud: "https://attacker.example" });
+    const forged = new NextRequest("https://attacker.example/api/notifications", {
+      headers: { Authorization: `Bearer ${fixture.token}`, Origin: "https://attacker.example", Referer: "https://attacker.example", Host: "attacker.example" },
+    });
+    await expect(authenticateNotificationRequest(forged)).rejects.toBeInstanceOf(NotificationAuthError);
+  });
+
+  it("fails closed for malformed deployment audience configuration", async () => {
+    const fixture = installJwtFixture();
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "invalid-url");
+    await expect(authenticateNotificationRequest(request(fixture.token))).rejects.toBeInstanceOf(NotificationAuthError);
+  });
 });
 
 function installJwtFixture(overrides: Record<string, unknown> = {}) {
   vi.stubEnv("NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID", environmentId);
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://clearsig.test");
   const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const kid = `test-${Math.random()}`;
   const header = encode({ alg: "RS256", typ: "JWT", kid });

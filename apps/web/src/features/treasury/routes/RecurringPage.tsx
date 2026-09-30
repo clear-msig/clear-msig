@@ -3,13 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Check, Clock3, Play, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowLeft, Clock3 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import { friendlyError } from "@/lib/api/errors";
-import type { ProSchedule } from "@/lib/pro/treasury";
 import { useRecurringSchedulesController } from "@/features/treasury/controllers/useRecurringSchedulesController";
 import type { RecurringDraft } from "@/features/treasury/domain/recurring";
+import { RecurringScheduleRow } from "@/features/treasury/ui/RecurringScheduleRow";
 
 export default function RecurringPage() {
   const params = useParams<{ name: string }>();
@@ -53,7 +53,7 @@ export default function RecurringPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex items-center gap-3 border-b border-border-soft pb-4">
         <Link
           href={`/app/wallet/${encoded}`}
@@ -103,7 +103,7 @@ export default function RecurringPage() {
             <Field label="Payments" value={draft.paymentCount} inputMode="numeric" onChange={(paymentCount) => setDraft({ ...draft, paymentCount })} />
           </div>
           <Field label="Reason" value={draft.note} onChange={(note) => setDraft({ ...draft, note })} />
-          <Button type="submit" fullWidth disabled={submitting || recurring.loading}>
+          <Button type="submit" fullWidth disabled={submitting || recurring.loading || !!recurring.busyId || !!recurring.error}>
             <Clock3 className="h-4 w-4" aria-hidden="true" />
             {submitting ? "Preparing..." : "Review schedule"}
           </Button>
@@ -114,14 +114,18 @@ export default function RecurringPage() {
             <h2 className="text-sm font-semibold text-text-strong">Schedules</h2>
             <span className="text-xs text-text-soft">{recurring.rows.length}</span>
           </div>
+          {recurring.error && (
+            <p role="alert" className="py-3 text-sm text-warning">Could not verify the latest chain status. Actions are paused until it reloads.</p>
+          )}
           <div className="divide-y divide-border-soft">
             {recurring.rows.map((row) => (
-              <ScheduleRow
+              <RecurringScheduleRow
                 key={row.id}
                 row={row}
                 state={recurring.states[row.id] ?? null}
-                busy={recurring.busyId === row.id}
-                onRetry={() => run(() => recurring.retry(row), "Schedule activated")}
+                busy={submitting || !!recurring.busyId}
+                unavailable={recurring.loading || !!recurring.error}
+                onRetry={() => run(() => recurring.retry(row), "Schedule execution submitted")}
                 onPay={() => run(() => recurring.pay(row), "Payment executed")}
                 onRevoke={() => run(() => recurring.revoke(row), "Revocation approval created")}
                 onRemove={() => recurring.remove(row.id)}
@@ -133,54 +137,7 @@ export default function RecurringPage() {
           </div>
         </section>
       </section>
-    </main>
-  );
-}
-
-function ScheduleRow({ row, state, busy, onRetry, onPay, onRevoke, onRemove }: {
-  row: ProSchedule;
-  state: { status: "active" | "revoked" | "complete"; nextExecutionAt: number; remainingPayments: number; executedPayments: number } | null;
-  busy: boolean;
-  onRetry: () => void;
-  onPay: () => void;
-  onRevoke: () => void;
-  onRemove: () => void;
-}) {
-  const due = state?.status === "active" && state.nextExecutionAt <= Math.floor(Date.now() / 1000);
-  return (
-    <article className="grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <h3 className="truncate text-sm font-semibold text-text-strong">{row.name}</h3>
-          <span className="text-xs capitalize text-accent">{state?.status ?? "awaiting approval"}</span>
-        </div>
-        <p className="mt-1 truncate text-xs text-text-soft">{row.amount} {row.asset} · {row.cadence} · {row.address}</p>
-        {state ? (
-          <p className="mt-1 text-xs text-text-soft">{state.executedPayments} paid · {state.remainingPayments} remaining</p>
-        ) : null}
-      </div>
-      <div className="flex items-center gap-2">
-        {!state && row.proposalAddress ? (
-          <Button variant="secondary" onClick={onRetry} disabled={busy}>
-            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Retry
-          </Button>
-        ) : null}
-        {due ? (
-          <Button onClick={onPay} disabled={busy}>
-            <Play className="h-4 w-4" aria-hidden="true" /> Pay now
-          </Button>
-        ) : null}
-        {state?.status === "active" ? (
-          <button type="button" onClick={onRevoke} disabled={busy} aria-label={`Revoke ${row.name}`} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-soft text-text-soft hover:text-danger">
-            <Check className="h-4 w-4" aria-hidden="true" />
-          </button>
-        ) : (
-          <button type="button" onClick={onRemove} aria-label={`Remove ${row.name}`} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-soft text-text-soft hover:text-danger">
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
-      </div>
-    </article>
+    </div>
   );
 }
 

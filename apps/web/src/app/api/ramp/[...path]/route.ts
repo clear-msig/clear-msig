@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin } from "@/lib/api/guard";
+import { readBoundedBody } from "@/lib/api/body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,43 +44,67 @@ async function proxyRampRequest(request: NextRequest, context: RouteContext) {
   }
 
   const path = (await context.params).path ?? [];
-  const target = new URL(
-    `/${path.map((part) => encodeURIComponent(part)).join("/")}`,
-    DEFAULT_RAMP_API_URL,
-  );
-  target.search = request.nextUrl.search;
-
   const headers = new Headers();
   const contentType = request.headers.get("content-type");
   const accept = request.headers.get("accept");
-  const userId = request.headers.get("x-user-id");
+  const authorization = request.headers.get("authorization");
+  const walletAddress = request.headers.get("x-wallet-address");
   const idempotencyKey = request.headers.get("idempotency-key");
   if (contentType) headers.set("Content-Type", contentType);
   if (accept) headers.set("Accept", accept);
-  if (userId) headers.set("x-user-id", userId);
+  // Forward the actual credential. The settlement service verifies it even for
+  // direct callers; the proxy must never manufacture or trust a user ID.
+  if (authorization) headers.set("Authorization", authorization);
+  if (walletAddress) headers.set("x-wallet-address", walletAddress);
   if (idempotencyKey) headers.set("idempotency-key", idempotencyKey);
 
   try {
-    const body = request.method === "GET" ? undefined : await request.text();
+    const target = new URL(
+      `/${path.map((part) => encodeURIComponent(part)).join("/")}`,
+      DEFAULT_RAMP_API_URL,
+    );
+    target.search = request.nextUrl.search;
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(55_000)]);
+    signal.throwIfAborted();
+    let body: string | undefined;
+    if (request.method !== "GET") {
+      const bounded = await readBoundedBody(request, 64 * 1024);
+      if (!bounded.ok) return bounded.response;
+      body = bounded.text;
+    }
     const response = await fetch(target, {
       method: request.method,
       headers,
       body,
       cache: "no-store",
+      redirect: "manual",
+      signal,
     });
 
-    const responseHeaders = new Headers();
+    const responseHeaders = new Headers({ "Cache-Control": "no-store" });
     const responseType = response.headers.get("content-type");
     const requestId = response.headers.get("x-request-id");
     if (responseType) responseHeaders.set("Content-Type", responseType);
     if (requestId) responseHeaders.set("x-request-id", requestId);
 
-    return new NextResponse(await response.arrayBuffer(), {
+    const responseBody = response.status === 204 || response.status === 205 || response.status === 304
+      ? null
+      : await response.arrayBuffer();
+    return new NextResponse(responseBody, {
       status: response.status,
       headers: responseHeaders,
     });
   } catch (error) {
+    if (request.signal.aborted) {
+      return NextResponse.json({ error: "Request cancelled." }, { status: 499 });
+    }
     console.error("[api/ramp] proxy failed", error);
+    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+      return NextResponse.json(
+        { error: "Bank transfer service timed out. Check the transfer status before retrying." },
+        { status: 504 },
+      );
+    }
     return NextResponse.json(
       { error: "Bank transfer service is unavailable." },
       { status: 502 },

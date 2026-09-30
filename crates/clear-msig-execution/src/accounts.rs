@@ -150,27 +150,130 @@ fn read_fixed_32(data: &[u8], offset: &mut usize) -> Result<[u8; 32]> {
 }
 
 fn read_vec_addresses(data: &[u8], offset: &mut usize) -> Result<Vec<String>> {
-    let count = read_u32_le(data, offset)? as usize;
-    let mut addresses = Vec::with_capacity(count);
-    for _ in 0..count {
-        addresses.push(read_address(data, offset)?);
-    }
-    Ok(addresses)
+    read_vec_entries(data, offset, 32, read_address)
 }
 
-fn read_vec_raw<T: Copy>(data: &[u8], offset: &mut usize) -> Result<Vec<T>> {
+/// Validate the complete encoded size before allocating from an untrusted
+/// length prefix. Decode fields explicitly: casting RPC bytes to Rust enums
+/// or bools would be undefined behavior for invalid discriminants.
+fn read_vec_entries<T>(
+    data: &[u8],
+    offset: &mut usize,
+    element_size: usize,
+    read_entry: fn(&[u8], &mut usize) -> Result<T>,
+) -> Result<Vec<T>> {
     let count = read_u32_le(data, offset)? as usize;
-    let elem_size = core::mem::size_of::<T>();
-    let total = count * elem_size;
-    let bytes = data.get(*offset..*offset + total).ok_or(anyhow!(
-        "unexpected end of data reading vec of {} elements",
-        count
-    ))?;
-    let items: Vec<T> = (0..count)
-        .map(|i| unsafe { core::ptr::read(bytes[i * elem_size..].as_ptr() as *const T) })
-        .collect();
-    *offset += total;
-    Ok(items)
+    let total = count
+        .checked_mul(element_size)
+        .ok_or_else(|| anyhow!("vector length overflow"))?;
+    let end = offset
+        .checked_add(total)
+        .ok_or_else(|| anyhow!("vector offset overflow"))?;
+    if end > data.len() {
+        return Err(anyhow!("unexpected end of data reading {count} entries"));
+    }
+    let mut entries = Vec::with_capacity(count);
+    for _ in 0..count {
+        entries.push(read_entry(data, offset)?);
+    }
+    Ok(entries)
+}
+
+fn read_bool(data: &[u8], offset: &mut usize) -> Result<bool> {
+    match read_u8(data, offset)? {
+        0 => Ok(false),
+        1 => Ok(true),
+        value => Err(anyhow!("invalid boolean discriminant {value}")),
+    }
+}
+
+fn read_param_entry(data: &[u8], offset: &mut usize) -> Result<ParamEntry> {
+    let param_type = match read_u8(data, offset)? {
+        0 => ParamType::Address,
+        1 => ParamType::U64,
+        2 => ParamType::I64,
+        3 => ParamType::String,
+        4 => ParamType::Bool,
+        5 => ParamType::U8,
+        6 => ParamType::U16,
+        7 => ParamType::U32,
+        8 => ParamType::U128,
+        9 => ParamType::Bytes20,
+        10 => ParamType::Bytes32,
+        value => return Err(anyhow!("invalid parameter type {value}")),
+    };
+    let name_offset = read_u16_le(data, offset)?.into();
+    let name_len = read_u16_le(data, offset)?.into();
+    let constraint_type = match read_u8(data, offset)? {
+        0 => ConstraintType::None,
+        1 => ConstraintType::LessThanU64,
+        2 => ConstraintType::GreaterThanU64,
+        value => return Err(anyhow!("invalid constraint type {value}")),
+    };
+    Ok(ParamEntry {
+        param_type,
+        name_offset,
+        name_len,
+        constraint_type,
+        constraint_value: read_u64_le(data, offset)?.into(),
+    })
+}
+
+fn read_account_entry(data: &[u8], offset: &mut usize) -> Result<AccountEntry> {
+    let is_signer = read_bool(data, offset)?;
+    let is_writable = read_bool(data, offset)?;
+    let source_type = match read_u8(data, offset)? {
+        0 => AccountSourceType::Static,
+        1 => AccountSourceType::Param,
+        2 => AccountSourceType::PdaDerived,
+        3 => AccountSourceType::HasOne,
+        4 => AccountSourceType::Vault,
+        value => return Err(anyhow!("invalid account source type {value}")),
+    };
+    Ok(AccountEntry {
+        is_signer,
+        is_writable,
+        source_type,
+        pool_offset: read_u16_le(data, offset)?.into(),
+        pool_len: read_u16_le(data, offset)?.into(),
+    })
+}
+
+fn read_instruction_entry(data: &[u8], offset: &mut usize) -> Result<InstructionEntry> {
+    Ok(InstructionEntry {
+        program_account_index: read_u8(data, offset)?,
+        account_indexes_offset: read_u16_le(data, offset)?.into(),
+        account_indexes_len: read_u16_le(data, offset)?.into(),
+        segments_start: read_u16_le(data, offset)?.into(),
+        segments_count: read_u16_le(data, offset)?.into(),
+    })
+}
+
+fn read_segment_entry(data: &[u8], offset: &mut usize) -> Result<DataSegmentEntry> {
+    let segment_type = match read_u8(data, offset)? {
+        0 => SegmentType::Literal,
+        1 => SegmentType::Param,
+        value => return Err(anyhow!("invalid segment type {value}")),
+    };
+    Ok(DataSegmentEntry {
+        segment_type,
+        pool_offset: read_u16_le(data, offset)?.into(),
+        pool_len: read_u16_le(data, offset)?.into(),
+    })
+}
+
+fn read_seed_entry(data: &[u8], offset: &mut usize) -> Result<SeedEntry> {
+    let seed_type = match read_u8(data, offset)? {
+        0 => SeedType::Literal,
+        1 => SeedType::ParamRef,
+        2 => SeedType::AccountRef,
+        value => return Err(anyhow!("invalid seed type {value}")),
+    };
+    Ok(SeedEntry {
+        seed_type,
+        pool_offset: read_u16_le(data, offset)?.into(),
+        pool_len: read_u16_le(data, offset)?.into(),
+    })
 }
 
 fn read_vec_u8(data: &[u8], offset: &mut usize) -> Result<Vec<u8>> {
@@ -250,7 +353,7 @@ pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {
     let intent_index = read_u8(data, &mut offset)?;
     let intent_type = read_u8(data, &mut offset)?;
     let chain_kind = read_u8(data, &mut offset)?;
-    let approved = read_u8(data, &mut offset)? != 0;
+    let approved = read_bool(data, &mut offset)?;
     let approval_threshold = read_u8(data, &mut offset)?;
     let cancellation_threshold = read_u8(data, &mut offset)?;
     let timelock_seconds = read_u32_le(data, &mut offset)?;
@@ -262,11 +365,11 @@ pub fn parse_intent(data: &[u8]) -> Result<IntentAccount> {
 
     let proposers = read_vec_addresses(data, &mut offset)?;
     let approvers = read_vec_addresses(data, &mut offset)?;
-    let params = read_vec_raw::<ParamEntry>(data, &mut offset)?;
-    let accounts = read_vec_raw::<AccountEntry>(data, &mut offset)?;
-    let instructions = read_vec_raw::<InstructionEntry>(data, &mut offset)?;
-    let data_segments = read_vec_raw::<DataSegmentEntry>(data, &mut offset)?;
-    let seeds = read_vec_raw::<SeedEntry>(data, &mut offset)?;
+    let params = read_vec_entries(data, &mut offset, 14, read_param_entry)?;
+    let accounts = read_vec_entries(data, &mut offset, 7, read_account_entry)?;
+    let instructions = read_vec_entries(data, &mut offset, 9, read_instruction_entry)?;
+    let data_segments = read_vec_entries(data, &mut offset, 5, read_segment_entry)?;
+    let seeds = read_vec_entries(data, &mut offset, 5, read_seed_entry)?;
     let tail_offset = offset;
     let (policy_ciphertexts, byte_pool) = match (|| -> Result<(Vec<u8>, Vec<u8>)> {
         let policy_ciphertexts = read_vec_u8(data, &mut offset)?;
@@ -838,4 +941,88 @@ pub fn decode_policy_ciphertexts(data: &[u8]) -> Result<Vec<String>> {
         ids.push(String::from_utf8_lossy(bytes).to_string());
     }
     Ok(ids)
+}
+
+#[cfg(test)]
+mod parser_tests {
+    use super::*;
+
+    #[test]
+    fn rejects_unbacked_vector_lengths_before_allocation() {
+        let data = u32::MAX.to_le_bytes();
+        assert!(read_vec_addresses(&data, &mut 0).is_err());
+        assert!(read_vec_entries(&data, &mut 0, 14, read_param_entry).is_err());
+        let mut one_address = 1u32.to_le_bytes().to_vec();
+        one_address.extend_from_slice(&[7; 32]);
+        let mut offset = 0;
+        assert_eq!(
+            read_vec_addresses(&one_address, &mut offset).unwrap().len(),
+            1
+        );
+        assert_eq!(offset, one_address.len());
+    }
+
+    #[test]
+    fn rejects_invalid_enum_and_boolean_representations() {
+        for value in 11..=u8::MAX {
+            let mut entry = [0; 14];
+            entry[0] = value;
+            assert!(read_param_entry(&entry, &mut 0).is_err());
+        }
+        for value in 3..=u8::MAX {
+            let mut entry = [0; 14];
+            entry[5] = value;
+            assert!(read_param_entry(&entry, &mut 0).is_err());
+        }
+        for value in 2..=u8::MAX {
+            for index in [0, 1] {
+                let mut entry = [0; 7];
+                entry[index] = value;
+                assert!(read_account_entry(&entry, &mut 0).is_err());
+            }
+            assert!(read_segment_entry(&[value, 0, 0, 0, 0], &mut 0).is_err());
+        }
+        for value in 5..=u8::MAX {
+            assert!(read_account_entry(&[0, 0, value, 0, 0, 0, 0], &mut 0).is_err());
+        }
+        for value in 3..=u8::MAX {
+            assert!(read_seed_entry(&[value, 0, 0, 0, 0], &mut 0).is_err());
+        }
+    }
+
+    #[test]
+    fn explicit_decoding_preserves_existing_packed_layout() {
+        let mut offset = 0;
+        let entry =
+            read_param_entry(&[10, 2, 1, 4, 3, 2, 8, 7, 6, 5, 4, 3, 2, 1], &mut offset).unwrap();
+        assert_eq!(offset, 14);
+        assert_eq!(entry.param_type, ParamType::Bytes32);
+        assert_eq!(entry.name_offset.get(), 0x0102);
+        assert_eq!(entry.name_len.get(), 0x0304);
+        assert_eq!(entry.constraint_type, ConstraintType::GreaterThanU64);
+        assert_eq!(entry.constraint_value.get(), 0x0102030405060708);
+        let account = read_account_entry(&[1, 0, 4, 2, 1, 4, 3], &mut 0).unwrap();
+        assert!(account.is_signer);
+        assert!(!account.is_writable);
+        assert_eq!(account.source_type, AccountSourceType::Vault);
+        assert_eq!(account.pool_offset.get(), 0x0102);
+        assert_eq!(account.pool_len.get(), 0x0304);
+    }
+
+    #[test]
+    fn truncated_entries_fail_without_panicking() {
+        for len in 0..14 {
+            assert!(read_param_entry(&vec![0; len], &mut 0).is_err());
+        }
+        for len in 0..7 {
+            assert!(read_account_entry(&vec![0; len], &mut 0).is_err());
+        }
+        for len in 0..9 {
+            assert!(read_instruction_entry(&vec![0; len], &mut 0).is_err());
+        }
+        for len in 0..5 {
+            assert!(read_segment_entry(&vec![0; len], &mut 0).is_err());
+            assert!(read_seed_entry(&vec![0; len], &mut 0).is_err());
+        }
+    }
 }

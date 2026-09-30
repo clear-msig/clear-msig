@@ -55,11 +55,11 @@ export function ProductWalletSelectionScreen({
             className="w-full max-w-xl rounded-[2rem] border border-border-soft bg-[#101111]/90 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-7"
           >
             <div className="flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#ccff00] text-black shadow-[0_0_28px_rgba(204,255,0,0.28)]">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#a3be8c] text-black shadow-[0_0_28px_rgba(163,190,140,0.28)]">
                 <Icon className="h-6 w-6" strokeWidth={2.25} aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+                <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#a3be8c]">
                   {surface.shortName} wallets
                 </p>
                 <h1 className="landing-section-heading mt-2 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">
@@ -81,10 +81,10 @@ export function ProductWalletSelectionScreen({
                     type="button"
                     onClick={() => handleSelect(wallet.walletName, wallet.href)}
                     disabled={selectedWallet !== null}
-                    className="group flex min-h-[4.5rem] w-full items-center justify-between gap-4 rounded-2xl bg-white/[0.055] px-4 py-3 text-left transition-[background-color,transform,opacity] duration-200 hover:-translate-y-0.5 hover:bg-white/[0.085] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ccff00]/70 disabled:cursor-wait disabled:opacity-70"
+                    className="group flex min-h-[4.5rem] w-full items-center justify-between gap-4 rounded-2xl bg-white/[0.055] px-4 py-3 text-left transition-[background-color,transform,opacity] duration-200 hover:-translate-y-0.5 hover:bg-white/[0.085] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a3be8c]/70 disabled:cursor-wait disabled:opacity-70"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/40 text-[#ccff00]">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/40 text-[#a3be8c]">
                         <Icon className="h-5 w-5" strokeWidth={2.1} aria-hidden="true" />
                       </span>
                       <span className="min-w-0">
@@ -98,12 +98,12 @@ export function ProductWalletSelectionScreen({
                     </span>
                     {loading ? (
                       <Loader2
-                        className="h-4 w-4 shrink-0 animate-spin text-[#ccff00]"
+                        className="h-4 w-4 shrink-0 animate-spin text-[#a3be8c]"
                         aria-hidden="true"
                       />
                     ) : (
                       <ArrowRight
-                        className="h-4 w-4 shrink-0 text-white/55 transition-transform group-hover:translate-x-0.5 group-hover:text-[#ccff00]"
+                        className="h-4 w-4 shrink-0 text-white/55 transition-transform group-hover:translate-x-0.5 group-hover:text-[#a3be8c]"
                         strokeWidth={2.4}
                         aria-hidden="true"
                       />

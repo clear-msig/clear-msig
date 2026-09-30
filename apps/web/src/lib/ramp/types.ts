@@ -86,6 +86,8 @@ export interface PrepareSignatureResponse {
   chain_id: string;
   asset_symbol: string;
   status: IntentStatus;
+  /// Must be embedded in the actual deposit transaction, not just this API call.
+  deposit_reference: string;
 }
 
 export interface BankResolveResponse {

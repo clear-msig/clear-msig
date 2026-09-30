@@ -6,11 +6,13 @@ import type {
 } from "@/lib/agents/types";
 import { executionAdapterLabel } from "@/lib/agents/executionAdapters";
 import { readHyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
+import { AGENT_VENUE_BRIDGE_BLOCKERS, AGENT_VENUE_EXECUTION_BLOCKED_MESSAGE } from "./serverVenueExecutionGate";
 
 export type AgentServerExecutionState =
   | "local_only"
   | "not_configured"
   | "ready"
+  | "authorization_required"
   | "unsupported";
 
 export interface AgentServerExecutionReadiness {
@@ -108,10 +110,11 @@ export function serverAgentExecutionReadiness(
   return {
     venue,
     label: executionAdapterLabel(venue),
-    state: "ready",
-    canSubmit: true,
+    state: "authorization_required",
+    canSubmit: false,
     missingEnvVars: [],
-    message: "Backend-only Hyperliquid testnet executor is configured.",
+    configurationErrors: [...AGENT_VENUE_BRIDGE_BLOCKERS],
+    message: AGENT_VENUE_EXECUTION_BLOCKED_MESSAGE,
   };
 }
 

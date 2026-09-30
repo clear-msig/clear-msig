@@ -64,13 +64,17 @@ export function useFocusTrap(
       const first = items[0];
       const last = items[items.length - 1];
       const activeEl = document.activeElement as HTMLElement | null;
+      // Initial focus can deliberately land on a heading with tabIndex=-1.
+      // It is inside the dialog but outside its tab order, just like focus
+      // moved outside by another surface. Bring either case into the cycle.
+      const outsideTabOrder = !activeEl || !items.includes(activeEl);
       if (e.shiftKey) {
-        if (activeEl === first || !container.contains(activeEl)) {
+        if (activeEl === first || outsideTabOrder) {
           e.preventDefault();
           last.focus();
         }
       } else {
-        if (activeEl === last) {
+        if (activeEl === last || outsideTabOrder) {
           e.preventDefault();
           first.focus();
         }

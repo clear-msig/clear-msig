@@ -1,83 +1,185 @@
 # Dependency risk register
 
-Status: local audit on 2026-07-17 after direct dependency remediation.
+Status: local remediation on 2026-09-30, based on a fresh npm registry audit,
+official advisories, and the September 28 Security workflow for commit
+`f74521ec88dca7db697053f42c23313d724ad9d0`. These are local changes, not evidence
+that a deployed service has been updated.
 
-## Remediation completed
+## Frontend remediation
 
-- Dynamic wallet packages moved from 4.79.0 to 4.92.3.
-- Next.js moved from 15.5.15 to 15.5.20.
-- Nodemailer moved from 8.0.7 to 9.0.3.
-- PostCSS moved to 8.5.19.
-- Vitest moved from vulnerable 2.1.9 to 4.1.10.
-- All compatible `ws` 8.x consumers are locked to patched 8.21.1.
+The fresh production scan before these changes reported one critical, 17 high,
+and 12 moderate package findings. After the changes it reports zero critical,
+zero high, and 20 moderate package findings. Package counts include ancestors
+of vulnerable transitive dependencies; they are not counts of independent
+exploits.
 
-The production audit moved from 28 high findings to four high package nodes and
-zero critical findings. The complete dependency audit has zero critical
-findings.
+The complete npm graph (including build/test tooling) has zero critical, zero
+high, and 35 moderate findings. Targeted updates also replaced vulnerable
+brace-expansion, browserslist, js-yaml, and postcss-selector-parser versions.
+Security CI now checks the complete graph at the high threshold, as well as
+the dedicated production gate. The remaining development advisories affect
+`@humanfs/node` and Vitest's browser-mocking path; this project runs `vitest run`
+without a browser server. They remain visible for later tooling upgrades.
 
-## Accepted pre-alpha debt
+- Next.js and its ESLint configuration: 15.5.20 to 15.5.27
+- Dynamic wallet packages: 4.92.3 to 4.100.3, the upstream v4-LTS line
+- Nodemailer: 9.0.3 to 10.0.13; v9 has no fix for the current address-parser high
+  advisory
+- PostCSS: 8.5.19 to 8.5.28; nanoid resolves to patched 3.3.19
+- Axios: override to 1.20.0 because the Dynamic wallet core pins vulnerable
+  1.16.0
+- sharp: override to 0.35.5 because Dynamic's v4-LTS iconic package still pins
+  vulnerable 0.35.0
+- `@grpc/grpc-js`: 1.14.4 to 1.14.5 after the final fresh scan surfaced
+  advisories published on the review date
 
-The remaining production high findings are one dependency chain:
+The Axios and sharp overrides are compatibility-tested remediation, not advisory
+exceptions. Remove them when all upstream consumers select patched versions.
+Offline tests exercise Axios JSON handling, Nodemailer's message-generation
+API, and sharp's native image-conversion API. Application verification and production builds must also
+pass before release.
 
-`@dynamic-labs/solana-core -> @solana/spl-token ->
-@solana/buffer-layout-utils -> bigint-buffer@1.1.5`
+`npm run audit:prod` rejects every high or critical production finding. It also
+rejects incomplete, inconsistent, or error-bearing npm reports. There are no
+accepted high/critical npm exceptions. The earlier `bigint-buffer` exception is
+obsolete: the repository already uses `vendor/bigint-buffer-safe`, the local
+pure-JavaScript compatibility implementation, through an npm override.
 
-The npm registry currently reports 1.1.5 as the latest `bigint-buffer` release,
-and that release is still covered by the advisory. There is no patched package
-version to select. Removing the chain would remove the Dynamic Solana wallet
-runtime used for embedded and external wallet signing.
+### Exposure is conditional on use
 
-This is not considered resolved. `npm run audit:prod` fails on any critical or
-any high package outside the four named nodes in the chain. Security CI runs
-that ratchet on pushes, pull requests, and the weekly schedule. The exception
-must be removed as soon as Dynamic/Solana publish a compatible patched graph.
+- [Next.js AVIF image optimization RCE](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)
+  affects the old version through sharp/libheif; the patched Next line initially
+  disabled AVIF optimization. The image optimizer is configured with two
+  CoinGecko remote hosts. This audit does not demonstrate attacker-controlled
+  image delivery or a successful exploit.
+- [Next.js Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36)
+  requires a Windows filesystem. The repository's Linux containers do not
+  demonstrate that precondition, but the dependency still needed updating.
+- [Nodemailer address-parser DoS](https://github.com/advisories/GHSA-v53p-9fqp-m79j)
+  depends on sufficiently large hostile address text. Existing invitation
+  routes bound recipient strings, which reduces that specific exposure; it is
+  not a reason to retain the vulnerable package.
+- Several Axios advisories require the Node HTTP/HTTP2 adapter or an existing
+  prototype-pollution primitive. Wallet browser use alone does not establish
+  those preconditions. The lockfile version was patched regardless.
 
-No production release for real funds should proceed while this high dependency
-risk, pre-alpha Ika signer, and unaudited v4 program remain open.
+- [gRPC-JS certificate authorization](https://github.com/advisories/GHSA-m9gg-hp2v-232j)
+  requires a TLS server configured with `requireClientCertificate=false` and
+  reliance on `getAuthContext()` for authorization. The inspected dependency
+  enters through the Ika client; this review does not demonstrate that server
+  configuration. Version 1.14.5 also addresses the associated
+  [certificate-info validity issue](https://github.com/advisories/GHSA-f596-whhp-79r4).
 
-## Rust dependency policy
+### Remaining moderate findings
 
-`cargo-audit 0.22.2` and `cargo-deny 0.20.2` were installed and exercised on
-2026-07-16. Security CI now runs both tools. `cargo-deny` is the authoritative
-reachable-graph check; `cargo-audit` also scans optional lockfile entries and
-therefore carries explicit lock-only exceptions where the graph-aware check
-would still fail if they became reachable.
+Two underlying advisories account for the 20 remaining production package
+findings. The final scan expanded ancestor attribution compared with the earlier
+9-production/12-full-graph result; these are the same underlying moderate
+advisories, not 20 independent production vulnerabilities:
 
-The execution/backend graph no longer depends on the broad `solana-client`
-crate. It uses `solana-rpc-client` and `solana-rpc-client-api` directly, which
-removed the unused TPU, QUIC, PubSub, and legacy WebPKI runtime paths. All Git
-dependencies are pinned to immutable revisions, including the deleted Quasar
-branch previously referenced by name. First-party Rust crates now declare the
-`BSD-3-Clause-Clear` license, and cargo-deny rejects unknown registries, unknown
-Git organizations, unapproved licenses, and new advisories.
+1. [decode-uri-component denial of service](https://github.com/advisories/GHSA-vcc3-ghjq-m6fr),
+   through WalletConnect's `query-string` dependency. Patched upstream version:
+   0.5.0. Crafted percent-encoded input can consume excessive CPU. This requires
+   a WalletConnect/query-string dependency update or a separately validated
+   cross-minor override; limiting untrusted URI length is a mitigation, not a
+   dependency fix. End-to-end exploitability has not been demonstrated here.
+2. [stream-json path-filter denial of service](https://github.com/advisories/GHSA-528h-pc64-c93x),
+   through `jayson@4.3.0`. The vulnerable functions are its path filters. The
+   installed Jayson code uses `StreamValues` and `Verifier`, and its browser
+   client uses `JSON.parse`; the inspected path does not call those vulnerable
+   filters. Do not force stream-json 3.x into the 1.x consumer without migration
+   testing. The available Jayson 5 release removes that dependency but is a
+   major-version migration.
 
-The first-party off-chain clients and standalone settlement service now use the
-Solana 3 split crates. The root audit reports no known vulnerability; it still
-warns about unmaintained wire/test dependencies (`bincode`, `derivative`,
-`libsecp256k1`, and `paste`) and the Agave SVM test graph's `rand 0.7` warning.
-Those packages remain coupled to Quasar/Agave compatibility and are explicit in
-`deny.toml`; unrelated or newly introduced advisories still fail CI.
+## Rust remediation and policy
 
-The standalone settlement service also moved its EVM signer from Ethers 2 to
-Alloy 2. That removed the vulnerable Ring 0.16 and legacy WebPKI provider graph.
-Its only cargo-audit vulnerability is `rsa 0.9.10`, an unreachable optional
-`sqlx-mysql` lockfile entry while the service builds PostgreSQL only. The
-workflow carries that one lock-only exception; the reachable graph remains
-checked by Cargo feature resolution, compilation, and cargo-deny in the root
-workspace. The exception must be removed when SQLx publishes a lock graph that
-does not include it or when RustSec publishes a fixed RSA release.
+The [September 28 Security run](https://github.com/clear-msig/clear-msig/actions/runs/36412152657)
+failed the root lockfile audit with two vulnerabilities. Cargo, using the
+official registry, generated these updates:
 
-## Bundle impact
+- Root `h2`: 0.4.14 to 0.4.16, addressing
+  [unbounded empty HTTP/2 DATA frames](https://rustsec.org/advisories/RUSTSEC-2026-0258.html)
+- Root `rustls`: 0.23.40 to 0.23.45, and standalone settlement `rustls`: 0.23.42
+  to 0.23.45, addressing
+  [TLS handshake encryption-level validation](https://rustsec.org/advisories/RUSTSEC-2026-0285.html)
+- Required TLS dependencies were resolved by Cargo, including rustls-webpki
+  0.103.15 and the settlement AWS-LC provider update
+- Settlement `ruint`: 1.19.0 to 1.20.0, addressing
+  [incorrect shift overflow flags and truncated amounts](https://rustsec.org/advisories/RUSTSEC-2026-0220.html)
+- Settlement `event-listener`: 5.4.1 to 5.4.2, addressing
+  [thread-safety unsoundness for non-Send tags](https://rustsec.org/advisories/RUSTSEC-2026-0221.html)
 
-The patched Next and Dynamic graph increased the measured maximum authenticated
-route from 939.8 kB to 967.6 kB gzip and the legacy Turnkey profile from 912.0
-kB to 951.0 kB. Dynamic's shared core is 504.2 kB gzip. Attempts to force that
-core into smaller Webpack chunks increased total route transfer by about 80 kB
-because cross-module compression was lost, so that change was rejected.
+The h2 advisory is a resource-exhaustion issue. The rustls advisory does not
+allow a network-position attacker to alter or complete an authenticated
+handshake; it concerns accepting messages at an incorrect encryption level.
+Neither advisory alone establishes transaction-signature compromise.
 
-The route-aware regression ratchets are therefore 971 kB for the current
-authenticated runtime, 954 kB for legacy Turnkey, and 506 kB for an individual
-chunk. These include a narrow allowance for platform-dependent gzip output and
-are measured security-upgrade baselines, not performance targets.
-The existing 250 kB route and 150 kB chunk product targets remain unchanged,
-and the budget still counts each route's shared and owned chunks exactly once.
+`cargo-audit` scans lockfile entries, including optional entries. `cargo-deny`
+checks the resolved graph and enforces license/source policy. The reviewed
+unmaintained wire/test exceptions in `deny.toml` remain: bincode, derivative,
+libsecp256k1, and paste. No new exception was added for h2 or rustls.
+
+The standalone settlement service is outside the root workspace. Its explicit
+lockfile scan retains only the existing `RUSTSEC-2023-0071` RSA exception, for
+the optional SQLx MySQL dependency while settlement uses PostgreSQL. A root
+workspace cargo-deny run does not validate that standalone graph; it must be
+checked with the settlement manifest explicitly.
+
+Fresh verification with cargo-audit 0.22.2 and cargo-deny 0.20.2:
+
+- Root lock audit: zero vulnerabilities, with the existing unmaintained warnings
+- Root graph: advisories, bans, licenses, and sources pass
+- Settlement lock audit with only the existing RSA exception: zero vulnerability
+  findings; unmaintained warnings and the lru unsoundness warning below remain
+- Explicit settlement graph advisory check: passes the current policy
+
+The passing graph check is not a claim that every informational advisory is
+gated. cargo-deny 0.20.2 defaults `unsound` to workspace crates. Settlement's
+reachable `lru@0.16.4`, through Alloy provider 2.1.1, remains covered by
+[RUSTSEC-2026-0253](https://rustsec.org/advisories/RUSTSEC-2026-0253.html).
+That issue requires a cache key whose `Drop` panics, unwinding/catching that
+panic, and subsequent cache use. The inspected Alloy caches use `u64` and
+`B256` keys, which do not provide that precondition; no exploit was demonstrated.
+This is still version debt. Alloy provider 2.4 selects patched lru >=0.18.2 but
+raises its minimum Rust version from 1.91 to 1.94.1, so it needs an explicit
+toolchain/Alloy compatibility migration. Do not add an advisory ignore or claim
+the dependency is patched. Consider gating transitive unsoundness after that
+migration.
+
+## CI findings addressed
+
+- Independent Rust policy steps continue after an earlier audit failure, so a
+  root finding no longer hides settlement or graph-policy results
+- Security-events write permission is limited to CodeQL; ordinary CI has
+  read-only repository permissions
+- Manual Railway service and smoke-test address inputs enter shell scripts
+  through quoted environment variables, avoiding expression interpolation into
+  shell source
+- Release runners use macOS 15 Intel/ARM instead of the retired macOS 13 and
+  retiring macOS 14 images; release builds use the checked lockfile. See the
+  [official runner retirement notice](https://github.com/actions/runner-images/issues/13046)
+
+Manual deployment and tag-release workflows still do not independently require
+the complete test/security suite to pass for the selected commit. Repository
+branch/environment protection settings were not changed or verified by this
+local remediation. Keep the documented release-validation requirement, and do
+not treat successful compilation alone as approval to deploy.
+
+## Bundle policy
+
+Do not increase bundle limits merely to make a dependency upgrade pass. The
+existing regression limits remain 971 kB for the authenticated runtime, 954 kB
+for legacy Turnkey, 1,100 kB for the external-wallet runtime, and 506 kB for an
+individual chunk (gzip). The product targets remain 250 kB per route and 150 kB
+per chunk. Rebuild and measure the updated graph; the July measurements are
+historical and are not evidence for the September dependency set.
+
+The final production build completed compilation and all 50 static pages, but
+its unchanged bundle gate fails: authenticated runtime 1,016.2 kB (limit 971),
+external 1,145.6 kB (1,100), legacy Turnkey 1,005.2 kB (954), largest chunk
+541.0 kB (506). The supported Webpack build-worker setting resolved the earlier
+memory failure without suppressing checks. Bundle optimization remains a release
+gate; no budget was increased.
+
+A passing dependency gate is not a production security approval. The pre-alpha
+Ika signer and unaudited program remain independent release risks.

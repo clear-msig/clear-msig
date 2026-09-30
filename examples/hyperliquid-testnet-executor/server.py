@@ -203,41 +203,52 @@ class ExecutorService:
         self.settings = settings
         self.client = client
         self._cache: dict[str, dict[str, Any]] = {}
+        self._requests: dict[str, str] = {}
+        self._uncertain: set[str] = set()
         self._lock = threading.Lock()
 
     def submit(self, body: Any) -> tuple[dict[str, Any], bool]:
         request = validate_executor_request(body, self.settings)
         validate_agent_wallet(request, self.client.agent_wallet_address)
-        key = request["idempotencyKey"]
-        with self._lock:
-            cached = self._cache.get(key)
-        if cached:
-            return cached, True
-
-        artifact = self.client.submit_market_order(request)
-        with self._lock:
-            self._cache[key] = artifact
-        return artifact, False
+        return self._execute_once("order", request, lambda: self.client.submit_market_order(request))
 
     def settle(self, body: Any) -> tuple[dict[str, Any], bool]:
         request = validate_settlement_request(body, self.settings)
         validate_agent_wallet(request, self.client.agent_wallet_address)
-        return self._execute_once(request["idempotencyKey"], lambda: self.client.settle_market_order(request))
+        return self._execute_once("settlement", request, lambda: self.client.settle_market_order(request))
 
     def kill_switch(self, body: Any) -> tuple[dict[str, Any], bool]:
         request = validate_kill_switch_request(body, self.settings.account_address)
         validate_agent_wallet(request, self.client.agent_wallet_address)
-        return self._execute_once(request["idempotencyKey"], lambda: self.client.cancel_open_orders(request))
+        return self._execute_once("kill-switch", request, lambda: self.client.cancel_open_orders(request))
 
-    def _execute_once(self, key: str, operation) -> tuple[dict[str, Any], bool]:
+    def _execute_once(self, kind: str, request: dict[str, Any], operation) -> tuple[dict[str, Any], bool]:
+        key = request["idempotencyKey"]
+        fingerprint = hashlib.sha256(json.dumps(
+            {"operation": kind, "request": request}, sort_keys=True,
+            separators=(",", ":"), allow_nan=False,
+        ).encode()).hexdigest()
+        # Serialize the configured account's mutations, including the external
+        # operation. A lookup-only lock permits two in-flight copies to trade.
+        # This protects one process only; durable venue reconciliation is still
+        # required before restarting after an uncertain submission.
         with self._lock:
+            previous = self._requests.get(key)
+            if previous is not None and previous != fingerprint:
+                raise ValidationError("Idempotency key was already used for a different request.")
+            if key in self._uncertain:
+                raise ExchangeError("Previous execution outcome requires venue reconciliation before retry.")
             cached = self._cache.get(key)
-        if cached:
-            return cached, True
-        artifact = operation()
-        with self._lock:
+            if cached is not None:
+                return cached, True
+            self._requests[key] = fingerprint
+            # An exception may follow a venue mutation. Keep the tombstone and
+            # fail closed instead of automatically replaying an ambiguous order.
+            self._uncertain.add(key)
+            artifact = operation()
             self._cache[key] = artifact
-        return artifact, False
+            self._uncertain.remove(key)
+            return artifact, False
 
 
 def validate_executor_request(body: Any, settings: ExecutorSettings) -> dict[str, Any]:

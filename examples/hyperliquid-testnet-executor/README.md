@@ -1,5 +1,11 @@
 # Connect a Hyperliquid Practice Account
 
+> External execution through ClearSig is currently blocked, including testnet.
+> This legacy helper does not yet provide dedicated-wallet threshold authorization
+> or atomic stop-loss protection. Credentials and a passing health check do not
+> enable trading. See [the bridge contract](../../docs/architecture/agent-venue-bridge.md).
+
+
 This helper lets ClearSig place trades in a Hyperliquid practice account.
 
 Your automated trader never receives the wallet secret and can never send
@@ -133,7 +139,12 @@ setting whose name starts with `NEXT_PUBLIC_`. Never use your main wallet here.
 - Small trades only, with a default maximum of `$500`.
 - Low borrowing only, with a default maximum of `2x`.
 - Old approvals are refused.
-- Repeated requests cannot place the same trade twice.
+- Concurrent identical retries are serialized and execute once within the
+  running process. Reusing an idempotency key for another payload or operation
+  is rejected.
+- An executor exception is treated as an uncertain venue outcome. Retrying that
+  request fails closed and requires independent venue reconciliation. Do not
+  change the request key or restart the helper to bypass this protection.
 - Closing uses the exact recorded fill size and refuses old opening artifacts
   that do not contain one.
 - Venue-reported closing fills, P/L, order ids, and transaction hashes are

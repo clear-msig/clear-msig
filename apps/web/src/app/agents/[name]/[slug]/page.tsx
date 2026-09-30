@@ -24,8 +24,8 @@ import {
 } from "@/lib/agents/publicProfile";
 import {
   AgentServerStatePersistenceError,
-  getAgentServerWalletState,
 } from "@/features/agents/server/serverState";
+import { loadAgentPublicWalletState } from "@/lib/agents/serverMarketplaceRegistry";
 import {
   creatorRegistryStatusLabel,
   type AgentCreatorRegistryReadiness,
@@ -258,7 +258,8 @@ async function loadProfile(params: PageProps["params"]): Promise<
 > {
   const { name, slug } = await params;
   try {
-    const state = await getAgentServerWalletState(decodeRouteParam(name));
+    const state = await loadAgentPublicWalletState(decodeRouteParam(name));
+    if (!state) return { ok: false, status: "not_found" };
     const profile = buildAgentPublicProfile({
       state,
       slug: decodeRouteParam(slug),

@@ -77,6 +77,7 @@ pub struct SubmitSignedTransferRequest {
 pub struct PrepareSignatureResponse {
     pub intent_id: Uuid,
     pub treasury_address: String,
+    pub deposit_reference: String,
     pub chain_family: ChainFamily,
     pub chain_id: String,
     pub asset_symbol: String,

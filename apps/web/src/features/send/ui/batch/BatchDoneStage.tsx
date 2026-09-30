@@ -1,7 +1,9 @@
-import { ArrowRight, Check } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/retail/Button";
 import type { useBatchSend } from "@/lib/hooks/useBatchSend";
 import { toDisplayName } from "@/lib/retail/walletNames";
+import { batchResultCopy } from "./batchPresentation";
 
 export function DoneStage({
   walletName,
@@ -14,10 +16,8 @@ export function DoneStage({
 }) {
   const walletDisplay = toDisplayName(walletName);
   if (!progress) return null;
-  const allSucceeded = progress.failed === 0;
-  const heading = allSucceeded
-    ? "Requests created"
-    : "Batch finished with issues";
+  const copy = batchResultCopy(progress);
+  const ResultIcon = copy.successful ? Check : AlertTriangle;
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest">
@@ -26,38 +26,31 @@ export function DoneStage({
             aria-hidden="true"
             className={
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-full " +
-              (allSucceeded
+              (copy.successful
                 ? "bg-accent text-text-on-accent shadow-accent-rest"
                 : "bg-warning/10 text-warning ring-1 ring-warning/30")
             }
           >
-            <Check className="h-5 w-5" strokeWidth={2.5} />
+            <ResultIcon className="h-5 w-5" strokeWidth={2.5} />
           </span>
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              {heading}
+              {copy.heading}
             </p>
             <p className="mt-0.5 truncate text-xs text-text-soft">
-              From {walletDisplay} · awaiting treasury approvals
+              From {walletDisplay}
             </p>
           </div>
         </div>
 
-        <p className="mt-5 inline-flex items-baseline gap-2">
-          <span className="font-numerals text-3xl font-semibold leading-none text-text-strong tabular-nums sm:text-4xl">
-            {progress.succeeded}
-          </span>
-          <span className="font-display text-base font-semibold uppercase tracking-[0.18em] text-text-soft">
-            of {progress.total} created
-          </span>
+        <p className="mt-5 text-base font-semibold text-text-strong">
+          {copy.summary}
         </p>
         <p className="mt-1.5 text-sm text-text-soft">
-          {allSucceeded
-            ? "Every request is ready for approver review."
-            : `${progress.failed} row${progress.failed === 1 ? "" : "s"} didn't go through. Review the list below and retry just those.`}
+          {copy.description}
         </p>
 
-        {!allSucceeded && progress.failures.length > 0 && (
+        {progress.outcome !== "cancelled" && !copy.successful && progress.failures.length > 0 && (
           <ul className="mt-5 divide-y divide-border-soft rounded-soft border border-border-soft bg-canvas text-left">
             {progress.failures.map((f, i) => (
               <li
@@ -81,10 +74,16 @@ export function DoneStage({
         )}
       </div>
 
-      <Button size="lg" fullWidth variant="ghost" onClick={onSendAnother}>
-        Send another batch
+      <Link href="/app/activity" className="inline-flex min-h-tap items-center justify-center gap-2 rounded-soft border border-border-soft px-4 text-sm font-semibold text-text-strong">
+        Check Activity
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
-      </Button>
+      </Link>
+      {copy.canRestart && (
+        <Button size="lg" fullWidth variant="ghost" onClick={onSendAnother}>
+          {copy.restartLabel}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      )}
     </div>
   );
 }

@@ -61,7 +61,7 @@ export function surfaceHeroTone(surface: WalletProductSurface): string {
     case "pro":
       return "border-sky-300/20 bg-[linear-gradient(135deg,var(--clear-surface-raised),rgba(14,116,144,0.16))]";
     case "agent":
-      return "border-accent/25 bg-[linear-gradient(135deg,var(--clear-surface-raised),rgba(204,255,0,0.10))]";
+      return "border-accent/25 bg-[linear-gradient(135deg,var(--clear-surface-raised),rgba(163,190,140,0.06))]";
     case "secure":
       return "border-fuchsia-200/20 bg-[linear-gradient(135deg,var(--clear-surface-raised),rgba(126,34,206,0.15))]";
   }

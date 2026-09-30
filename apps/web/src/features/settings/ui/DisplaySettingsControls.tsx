@@ -235,7 +235,7 @@ function ThemeSettingRow() {
               </div>
               <div className="bg-[#0a0a0a] p-1.5">
                 <div className="h-1 w-3/4 rounded-full bg-white/15" />
-                <div className="mt-1 h-1 w-1/2 rounded-full bg-[#ccff00]" />
+                <div className="mt-1 h-1 w-1/2 rounded-full bg-[#a3be8c]" />
               </div>
             </div>
           }
@@ -250,7 +250,7 @@ function ThemeSettingRow() {
             <div className="h-full w-full rounded-[6px] bg-[#0a0a0a] p-1.5">
               <div className="h-1 w-3/4 rounded-full bg-white/15" />
               <div className="mt-1 flex items-center gap-1 rounded-[4px] bg-[#131316] p-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#ccff00]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#a3be8c]" />
                 <div className="h-0.5 flex-1 rounded-full bg-white/25" />
               </div>
               <div className="mt-1 h-0.5 w-1/2 rounded-full bg-white/15" />

@@ -61,9 +61,12 @@ describe("transaction review contract", () => {
     const batch = sources([
       "src/features/send/routes/BatchSendPage.tsx",
       "src/features/send/ui/batch/BatchDoneStage.tsx",
+      "src/features/send/ui/batch/batchPresentation.ts",
     ]);
-    expect(batch).toContain("Requests created");
-    expect(batch).toContain("of {progress.total} created");
+    expect(batch).toContain("Batch request created");
+    expect(batch).toContain("recipients in one batch request");
+    expect(batch).toContain("Batch execution submitted");
+    expect(batch).toContain("Check Activity before retrying");
     expect(batch).not.toContain("of {progress.total} sent");
   });
 

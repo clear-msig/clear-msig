@@ -290,8 +290,13 @@ Typed proposal instruction discriminators are:
 | 37 | `execute_typed_recurring_asset_schedule` |
 | 38 | `execute_recurring_asset_payment` |
 
-`execute_typed` remains the generic status gate. The SOL escrow-specific
-executors additionally move SOL from the wallet vault after recomputing the
+`execute_typed` remains a legacy v2/v3 status gate. It rejects v4 proposals:
+public commitments do not prove that the approved action occurred, so a v4
+proposal must use its action-specific executor. This restriction requires a
+reviewed program deployment to protect an existing deployment; changing only
+the backend does not protect the permissionless onchain instruction.
+
+The SOL escrow-specific executors move SOL from the wallet vault after recomputing the
 approved typed payload hash from the recipient account(s), amount(s), escrow id,
 and milestone id. The SPL escrow release executor transfers SPL tokens from a
 vault-owned token account after binding the approval to the mint, token

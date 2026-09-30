@@ -1,13 +1,14 @@
+import { withWalletMember } from "@/lib/auth/walletAuthorization";
 import { NextRequest, NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import { readHyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
 import {
   listAgentServerExecutionRequests,
   hashAgentServerExecutionArtifact,
   recordAgentServerExecutionSettlement,
-  recordAgentServerExecutionSettlementProof,
 } from "@/lib/agents/serverExecutionRequests";
 import {
   submitHyperliquidTestnetSettlement,
@@ -47,45 +48,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const requestId = textField(body.value, "requestId");
   const proposalAddress = textField(body.value, "proposalAddress");
   const status = textField(body.value, "status");
-  const txid = textField(body.value, "txid") || undefined;
   if (!walletName || !agentId || !requestId || !proposalAddress || !isProposalStatus(status)) {
     return NextResponse.json({ error: "Settlement proposal metadata is invalid." }, { status: 400 });
   }
-  if (!(await hasAgentServerWalletSignedOwnerApproval({
-    walletName,
-    agentId,
-    action: "close_practice_trade",
-    targetType: "execution",
-    targetId: requestId,
-  }))) {
-    return NextResponse.json({ error: "Wallet settlement approval was not found." }, { status: 409 });
-  }
-  try {
-    if (!(await chainConfirmsProposalStatus(proposalAddress, status))) {
-      return NextResponse.json({ error: `On-chain proposal is not ${status}.` }, { status: 409 });
-    }
-  } catch {
-    return NextResponse.json(
-      { error: "Could not verify settlement proposal state on chain." },
-      { status: 503 },
-    );
-  }
-  try {
-    const record = await recordAgentServerExecutionSettlementProof({
-      walletName,
-      agentId,
-      requestId,
-      proposalAddress,
-      status,
-      txid,
-    });
-    return NextResponse.json({ ok: true, serverRequest: record });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Settlement metadata could not be stored." },
-      { status: 409 },
-    );
-  }
+  return withWalletMember(request, walletName, async () => NextResponse.json(
+    { error: "Settlement proof promotion is unavailable until the exact canonical typed settlement commitment is verified. Generic proposal status is not settlement proof." },
+    { status: 409 },
+  ));
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -108,41 +77,106 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!walletName || !agentId || !requestId) {
     return NextResponse.json({ error: "Wallet, agent, and execution request are required." }, { status: 400 });
   }
-  if (!(await hasAgentServerWalletSignedOwnerApproval({
-    walletName,
-    agentId,
-    action: "close_practice_trade",
-    targetType: "execution",
-    targetId: requestId,
-  }))) {
-    return NextResponse.json(
-      { error: "Closing a connected practice trade needs wallet approval." },
-      { status: 409 },
-    );
-  }
-
-  const records = await listAgentServerExecutionRequests(walletName, agentId);
-  const record = records.find((item) => item.id === requestId);
-  if (!record || record.status !== "submitted" || !record.artifact) {
-    return NextResponse.json({ error: "A submitted server-owned venue artifact was not found." }, { status: 404 });
-  }
-  if (!record.artifactHash || hashAgentServerExecutionArtifact(record.artifact) !== record.artifactHash) {
-    return NextResponse.json({ error: "Stored opening artifact failed its integrity check." }, { status: 409 });
-  }
-  const configured = readHyperliquidTestnetExecutorConfig();
-  if (!configured.config) {
-    return NextResponse.json(
-      { error: "Hyperliquid testnet executor configuration is invalid.", details: configured.errors },
-      { status: 503 },
-    );
-  }
-  if (record.settlementArtifact && record.settlementArtifactHash) {
-    if (hashAgentServerExecutionArtifact(record.settlementArtifact) !== record.settlementArtifactHash) {
-      return NextResponse.json({ error: "Stored settlement artifact failed its integrity check." }, { status: 409 });
+  return withWalletMember(request, walletName, async () => {
+    if (!(await hasAgentServerWalletSignedOwnerApproval({
+      walletName,
+      agentId,
+      action: "close_practice_trade",
+      targetType: "execution",
+      targetId: requestId,
+    }))) {
+      return NextResponse.json(
+        { error: "Closing a connected practice trade needs wallet approval." },
+        { status: 409 },
+      );
     }
+
+    const records = await listAgentServerExecutionRequests(walletName, agentId);
+    const record = records.find((item) => item.id === requestId);
+    if (!record || record.status !== "submitted" || !record.artifact) {
+      return NextResponse.json({ error: "A submitted server-owned venue artifact was not found." }, { status: 404 });
+    }
+    if (!record.artifactHash || hashAgentServerExecutionArtifact(record.artifact) !== record.artifactHash) {
+      return NextResponse.json({ error: "Stored opening artifact failed its integrity check." }, { status: 409 });
+    }
+    const configured = readHyperliquidTestnetExecutorConfig();
+    if (!configured.config) {
+      return NextResponse.json(
+        { error: "Hyperliquid testnet executor configuration is invalid.", details: configured.errors },
+        { status: 503 },
+      );
+    }
+    if (record.settlementArtifact && record.settlementArtifactHash) {
+      if (hashAgentServerExecutionArtifact(record.settlementArtifact) !== record.settlementArtifactHash) {
+        return NextResponse.json({ error: "Stored settlement artifact failed its integrity check." }, { status: 409 });
+      }
+      try {
+        const artifact = await verifyHyperliquidTestnetSettlementArtifact({
+          claim: record.settlementArtifact,
+          serverRequestId: record.id,
+          request: record.request,
+          openingArtifact: record.artifact,
+          config: configured.config,
+        });
+        const saved = await recordAgentServerExecutionSettlement({
+          walletName,
+          agentId,
+          requestId,
+          artifact,
+        });
+        return NextResponse.json({
+          ok: true,
+          duplicate: true,
+          serverRequest: saved.record,
+          settlement: settlementInput(saved.record, saved.record.settlementArtifactHash!),
+        });
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "Stored settlement lacks verified venue evidence." },
+          { status: 409 },
+        );
+      }
+    }
+
+    const state = await getAgentServerWalletState(walletName);
+    const proposal = state.proposals.find((item) => item.id === record.request.proposalId);
+    const session = state.sessions.find((item) => item.id === proposal?.sessionId);
+    if (
+      !proposal?.sessionId ||
+      !proposal.clearSignV2?.onchainProposal?.proposalAddress ||
+      !session
+    ) {
+      return NextResponse.json(
+        { error: "The opening trade and agent session records are incomplete." },
+        { status: 409 },
+      );
+    }
+    const openingProposalAddress = proposal.clearSignV2.onchainProposal.proposalAddress;
     try {
-      const artifact = await verifyHyperliquidTestnetSettlementArtifact({
-        claim: record.settlementArtifact,
+      if (!(await chainConfirmsProposalStatus(openingProposalAddress, "executed"))) {
+        return NextResponse.json({ error: "Opening trade is not executed on chain." }, { status: 409 });
+      }
+      const connection = getConnection();
+      const wallet = await fetchWalletByName(connection, walletName);
+      const ledger = wallet
+        ? await fetchAgentRiskLedger(connection, wallet.pda, proposal.sessionId)
+        : null;
+      const reserved = BigInt(decimalToAgentUsdRaw(record.request.notionalUsd));
+      if (!ledger || reserved === 0n || reserved > ledger.openNotionalRaw) {
+        return NextResponse.json(
+          { error: "On-chain risk ledger does not contain this reserved exposure." },
+          { status: 409 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "Could not verify opening trade and risk ledger on chain." },
+        { status: 503 },
+      );
+    }
+
+    try {
+      const artifact = await submitHyperliquidTestnetSettlement({
         serverRequestId: record.id,
         request: record.request,
         openingArtifact: record.artifact,
@@ -156,80 +190,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       });
       return NextResponse.json({
         ok: true,
-        duplicate: true,
+        duplicate: saved.duplicate,
         serverRequest: saved.record,
         settlement: settlementInput(saved.record, saved.record.settlementArtifactHash!),
       });
     } catch (error) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Stored settlement lacks verified venue evidence." },
-        { status: 409 },
+        { error: error instanceof Error ? error.message : "Trusted venue settlement failed." },
+        { status: 502 },
       );
     }
-  }
-
-  const state = await getAgentServerWalletState(walletName);
-  const proposal = state.proposals.find((item) => item.id === record.request.proposalId);
-  const session = state.sessions.find((item) => item.id === proposal?.sessionId);
-  if (
-    !proposal?.sessionId ||
-    !proposal.clearSignV2?.onchainProposal?.proposalAddress ||
-    !session
-  ) {
-    return NextResponse.json(
-      { error: "The opening trade and agent session records are incomplete." },
-      { status: 409 },
-    );
-  }
-  const openingProposalAddress = proposal.clearSignV2.onchainProposal.proposalAddress;
-  try {
-    if (!(await chainConfirmsProposalStatus(openingProposalAddress, "executed"))) {
-      return NextResponse.json({ error: "Opening trade is not executed on chain." }, { status: 409 });
-    }
-    const connection = getConnection();
-    const wallet = await fetchWalletByName(connection, walletName);
-    const ledger = wallet
-      ? await fetchAgentRiskLedger(connection, wallet.pda, proposal.sessionId)
-      : null;
-    const reserved = BigInt(decimalToAgentUsdRaw(record.request.notionalUsd));
-    if (!ledger || reserved === 0n || reserved > ledger.openNotionalRaw) {
-      return NextResponse.json(
-        { error: "On-chain risk ledger does not contain this reserved exposure." },
-        { status: 409 },
-      );
-    }
-  } catch {
-    return NextResponse.json(
-      { error: "Could not verify opening trade and risk ledger on chain." },
-      { status: 503 },
-    );
-  }
-
-  try {
-    const artifact = await submitHyperliquidTestnetSettlement({
-      serverRequestId: record.id,
-      request: record.request,
-      openingArtifact: record.artifact,
-      config: configured.config,
-    });
-    const saved = await recordAgentServerExecutionSettlement({
-      walletName,
-      agentId,
-      requestId,
-      artifact,
-    });
-    return NextResponse.json({
-      ok: true,
-      duplicate: saved.duplicate,
-      serverRequest: saved.record,
-      settlement: settlementInput(saved.record, saved.record.settlementArtifactHash!),
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Trusted venue settlement failed." },
-      { status: 502 },
-    );
-  }
+  });
 }
 
 function settlementInput(
@@ -251,12 +222,10 @@ async function readBody(request: NextRequest): Promise<
   | { ok: true; value: Record<string, unknown> }
   | { ok: false; response: NextResponse }
 > {
-  const length = Number(request.headers.get("content-length") ?? 0);
-  if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
-    return { ok: false, response: NextResponse.json({ error: "Body is too large." }, { status: 413 }) };
-  }
+  const body = await readBoundedBody(request, MAX_BODY_BYTES, "Body is too large.");
+  if (!body.ok) return body;
   try {
-    const value = await request.json();
+    const value = JSON.parse(body.text);
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
     return { ok: true, value: value as Record<string, unknown> };
   } catch {

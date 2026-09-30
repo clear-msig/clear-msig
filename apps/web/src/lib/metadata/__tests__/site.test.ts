@@ -63,7 +63,7 @@ describe("site metadata", () => {
       short_name: SITE_NAME,
       description: SITE_DESCRIPTION,
       background_color: "#070807",
-      theme_color: "#ccff00",
+      theme_color: "#0c0c0c",
     });
   });
 });

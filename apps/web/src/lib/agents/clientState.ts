@@ -1,3 +1,4 @@
+import { agentSessionHeaders } from "@/lib/agents/clientAuth";
 import type {
   HyperliquidTestnetKillSwitchArtifact,
 } from "@/lib/agents/serverHyperliquidTestnet";
@@ -51,6 +52,7 @@ export async function loadAgentBackendState(
   try {
     const response = await fetch(agentStateUrl(walletName), {
       method: "GET",
+      headers: agentSessionHeaders(),
       cache: "no-store",
     });
     const body = await safeJson(response);
@@ -216,7 +218,7 @@ async function postAgentStateAction<T>(
   try {
     const response = await fetch(agentStateUrl(walletName), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: agentSessionHeaders(),
       body: JSON.stringify({ action, payload }),
     });
     const body = await safeJson(response);

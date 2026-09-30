@@ -76,8 +76,7 @@ impl RedisCommandPort for UpstashRestPort {
             async move {
                 let response = request.await.context("send Upstash delivery command")?;
                 let status = response.status();
-                let body = response
-                    .text()
+                let body = super::transport::read_bounded_response(response)
                     .await
                     .context("read Upstash delivery response")?;
                 if !status.is_success() {

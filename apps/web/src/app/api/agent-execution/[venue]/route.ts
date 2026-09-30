@@ -1,5 +1,7 @@
+import { withWalletMember } from "@/lib/auth/walletAuthorization";
 import { NextRequest, NextResponse } from "next/server";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import {
   normalizeServerExecutionRequest,
@@ -9,7 +11,6 @@ import {
   fetchHyperliquidTestnetAccountSnapshot,
   hyperliquidProbeFromSnapshot,
   probeHyperliquidTestnetAccount,
-  probeHyperliquidTestnetExecutor,
   submitHyperliquidTestnetOrder,
 } from "@/lib/agents/serverHyperliquidTestnet";
 import { readHyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
@@ -34,6 +35,15 @@ interface RouteContext {
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
+  const walletName = request.nextUrl.searchParams.get("walletName")?.trim();
+  if (walletName) return withWalletMember(request, walletName, () => getAuthorized(request, context));
+  if (request.nextUrl.searchParams.has("agentId")) {
+    return NextResponse.json({ error: "Wallet is required for private execution history." }, { status: 400 });
+  }
+  return getAuthorized(request, context);
+}
+
+async function getAuthorized(request: NextRequest, context: RouteContext) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
@@ -43,15 +53,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const readiness = serverAgentExecutionReadiness(venue);
-  const configured =
-    venue === "hyperliquid_testnet"
-      ? readHyperliquidTestnetExecutorConfig()
-      : { config: null };
   const accountAddress =
-    request.nextUrl.searchParams.get("accountAddress")?.trim() ||
-    process.env.CLEARSIG_HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS;
+    request.nextUrl.searchParams.get("accountAddress")?.trim() || "";
   const accountSnapshot =
-    venue === "hyperliquid_testnet"
+    venue === "hyperliquid_testnet" && accountAddress
       ? await fetchHyperliquidTestnetAccountSnapshot({
           accountAddress,
         })
@@ -63,16 +68,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     accountProbe:
       accountSnapshot != null
         ? hyperliquidProbeFromSnapshot(accountSnapshot)
-        : venue === "hyperliquid_testnet"
+        : venue === "hyperliquid_testnet" && accountAddress
           ? await probeHyperliquidTestnetAccount({
               accountAddress,
             })
           : null,
     accountSnapshot,
-    executorProbe:
-      venue === "hyperliquid_testnet"
-        ? await probeHyperliquidTestnetExecutor({ config: configured.config })
-        : null,
+    executorProbe: null,
     storage: agentServerExecutionStorageMode(),
     requests,
     reconciliation: buildAgentVenueReconciliationSummary({
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unknown trading venue." }, { status: 400 });
   }
 
-  const raw = await readBoundedBody(request);
+  const raw = await readBoundedBody(request, MAX_BODY_BYTES, "Trade request body is too large.");
   if (!raw.ok) return raw.response;
 
   let body: unknown;
@@ -121,189 +123,176 @@ export async function POST(request: NextRequest, context: RouteContext) {
       { status: 400 },
     );
   }
-  if (
-    !(await hasAgentServerWalletSignedOwnerApproval({
-      walletName: parsed.request.walletName,
-      agentId: parsed.request.agentId,
-      action: "submit_venue_trade",
-      targetType: "proposal",
-      targetId: parsed.request.proposalId,
-    }))
-  ) {
-    const readiness = serverAgentExecutionReadiness(venue);
-    const recorded = await recordAgentServerExecutionRequest({
-      request: parsed.request,
-      readiness,
-      status: "rejected",
-      message:
-        "Sending a venue trade needs wallet approval before ClearSig can submit it.",
-    });
-    return NextResponse.json(
-      {
-        error:
+  const executionRequest = parsed.request;
+  return withWalletMember(request, executionRequest.walletName, async () => {
+    if (
+      !(await hasAgentServerWalletSignedOwnerApproval({
+        walletName: executionRequest.walletName,
+        agentId: executionRequest.agentId,
+        action: "submit_venue_trade",
+        targetType: "proposal",
+        targetId: executionRequest.proposalId,
+      }))
+    ) {
+      const readiness = serverAgentExecutionReadiness(venue);
+      const recorded = await recordAgentServerExecutionRequest({
+        request: executionRequest,
+        readiness,
+        status: "rejected",
+        message:
           "Sending a venue trade needs wallet approval before ClearSig can submit it.",
-        readiness,
-        serverRequest: recorded.record,
-        duplicate: recorded.duplicate,
-      },
-      { status: 409 },
-    );
-  }
-
-  const readiness = serverAgentExecutionReadiness(venue);
-  const gate = await validateAgentServerExecutionHandoff(parsed.request);
-  if (!gate.allowed) {
-    const recorded = await recordAgentServerExecutionRequest({
-      request: parsed.request,
-      readiness,
-      status: "rejected",
-      message: gate.message,
-    });
-    return NextResponse.json(
-      {
-        error: gate.message,
-        readiness,
-        policyGate: gate,
-        serverRequest: recorded.record,
-        duplicate: recorded.duplicate,
-      },
-      { status: 409 },
-    );
-  }
-
-  if (readiness.state === "local_only") {
-    const recorded = await recordAgentServerExecutionRequest({
-      request: parsed.request,
-      readiness,
-    });
-    return NextResponse.json(
-      {
-        error: readiness.message,
-        readiness,
-        serverRequest: recorded.record,
-        duplicate: recorded.duplicate,
-      },
-      { status: 400 },
-    );
-  }
-  if (!readiness.canSubmit) {
-    const recorded = await recordAgentServerExecutionRequest({
-      request: parsed.request,
-      readiness,
-    });
-    return NextResponse.json(
-      {
-        error: readiness.message,
-        readiness,
-        serverRequest: recorded.record,
-        duplicate: recorded.duplicate,
-      },
-      { status: 503 },
-    );
-  }
-  if (venue === "hyperliquid_testnet") {
-    const existing = (
-      await listAgentServerExecutionRequests(
-        parsed.request.walletName,
-        parsed.request.agentId,
-      )
-    ).find(
-      (item) =>
-        item.request.proposalId === parsed.request!.proposalId &&
-        item.request.venue === parsed.request!.venue &&
-        item.status === "submitted",
-    );
-    if (existing) {
-      return NextResponse.json({
-        ok: true,
-        readiness,
-        artifact: existing.artifact,
-        serverRequest: existing,
-        duplicate: true,
-      });
-    }
-    const configured = readHyperliquidTestnetExecutorConfig();
-    if (!configured.config) {
-      return NextResponse.json(
-        {
-          error: "Hyperliquid testnet executor configuration is invalid.",
-          details: configured.errors,
-          readiness,
-        },
-        { status: 503 },
-      );
-    }
-    try {
-      const artifact = await submitHyperliquidTestnetOrder({
-        request: parsed.request,
-        config: configured.config,
-      });
-      const recorded = await recordAgentServerExecutionRequest({
-        request: parsed.request,
-        readiness,
-        status: "submitted",
-        message: `Hyperliquid testnet order ${artifact.orderId} was ${artifact.status}.`,
-        artifact,
-      });
-      return NextResponse.json({
-        ok: true,
-        readiness,
-        artifact,
-        serverRequest: recorded.record,
-        duplicate: recorded.duplicate,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Hyperliquid testnet executor failed.";
-      const recorded = await recordAgentServerExecutionRequest({
-        request: parsed.request,
-        readiness,
-        status: "adapter_error",
-        message,
       });
       return NextResponse.json(
         {
-          error: message,
+          error:
+            "Sending a venue trade needs wallet approval before ClearSig can submit it.",
           readiness,
           serverRequest: recorded.record,
           duplicate: recorded.duplicate,
         },
-        { status: 502 },
+        { status: 409 },
       );
     }
-  }
 
-  const recorded = await recordAgentServerExecutionRequest({
-    request: parsed.request,
-    readiness,
-  });
-  return NextResponse.json(
-    {
-      error: "Server trading adapter is not connected to the exchange yet.",
+    const readiness = serverAgentExecutionReadiness(venue);
+    const gate = await validateAgentServerExecutionHandoff(executionRequest);
+    if (!gate.allowed) {
+      const recorded = await recordAgentServerExecutionRequest({
+        request: executionRequest,
+        readiness,
+        status: "rejected",
+        message: gate.message,
+      });
+      return NextResponse.json(
+        {
+          error: gate.message,
+          readiness,
+          policyGate: gate,
+          serverRequest: recorded.record,
+          duplicate: recorded.duplicate,
+        },
+        { status: 409 },
+      );
+    }
+
+    if (readiness.state === "local_only") {
+      const recorded = await recordAgentServerExecutionRequest({
+        request: executionRequest,
+        readiness,
+      });
+      return NextResponse.json(
+        {
+          error: readiness.message,
+          readiness,
+          serverRequest: recorded.record,
+          duplicate: recorded.duplicate,
+        },
+        { status: 400 },
+      );
+    }
+    if (!readiness.canSubmit) {
+      const recorded = await recordAgentServerExecutionRequest({
+        request: executionRequest,
+        readiness,
+      });
+      return NextResponse.json(
+        {
+          error: readiness.message,
+          readiness,
+          serverRequest: recorded.record,
+          duplicate: recorded.duplicate,
+        },
+        { status: 503 },
+      );
+    }
+    if (venue === "hyperliquid_testnet") {
+      const existing = (
+        await listAgentServerExecutionRequests(
+          executionRequest.walletName,
+          executionRequest.agentId,
+        )
+      ).find(
+        (item) =>
+          item.request.proposalId === executionRequest.proposalId &&
+          item.request.venue === executionRequest.venue &&
+          item.status === "submitted",
+      );
+      if (existing) {
+        return NextResponse.json({
+          ok: true,
+          readiness,
+          artifact: existing.artifact,
+          serverRequest: existing,
+          duplicate: true,
+        });
+      }
+      const configured = readHyperliquidTestnetExecutorConfig();
+      if (!configured.config) {
+        return NextResponse.json(
+          {
+            error: "Hyperliquid testnet executor configuration is invalid.",
+            details: configured.errors,
+            readiness,
+          },
+          { status: 503 },
+        );
+      }
+      try {
+        const artifact = await submitHyperliquidTestnetOrder({
+          request: executionRequest,
+          config: configured.config,
+        });
+        const recorded = await recordAgentServerExecutionRequest({
+          request: executionRequest,
+          readiness,
+          status: "submitted",
+          message: `Hyperliquid testnet order ${artifact.orderId} was ${artifact.status}.`,
+          artifact,
+        });
+        return NextResponse.json({
+          ok: true,
+          readiness,
+          artifact,
+          serverRequest: recorded.record,
+          duplicate: recorded.duplicate,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Hyperliquid testnet executor failed.";
+        const recorded = await recordAgentServerExecutionRequest({
+          request: executionRequest,
+          readiness,
+          status: "adapter_error",
+          message,
+        });
+        return NextResponse.json(
+          {
+            error: message,
+            readiness,
+            serverRequest: recorded.record,
+            duplicate: recorded.duplicate,
+          },
+          { status: 502 },
+        );
+      }
+    }
+
+    const recorded = await recordAgentServerExecutionRequest({
+      request: executionRequest,
       readiness,
-      serverRequest: recorded.record,
-      duplicate: recorded.duplicate,
-    },
-    { status: 501 },
-  );
-}
-
-async function readBoundedBody(
-  request: NextRequest,
-): Promise<{ ok: true; text: string } | { ok: false; response: NextResponse }> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: "Trade request body is too large." },
-        { status: 413 },
-      ),
-    };
-  }
-  return { ok: true, text };
+    });
+    return NextResponse.json(
+      {
+        error: "Server trading adapter is not connected to the exchange yet.",
+        readiness,
+        serverRequest: recorded.record,
+        duplicate: recorded.duplicate,
+      },
+      { status: 501 },
+    );
+  });
 }
 
 function decodeVenue(value: string): TradingVenue | null {

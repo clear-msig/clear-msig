@@ -1,13 +1,13 @@
+import { saveApprovedSession } from "@/test/agents/signedOwnerApproval";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
-import { enqueueAgentSignal, listAgentInboxSignals } from "@/lib/agents/serverInbox";
-import { importAgentInboxSignals } from "@/lib/agents/serverInboxImport";
+import { enqueueAgentSignal, listAgentInboxSignals } from "@/test/agents/serverInbox";
+import { importAgentInboxSignals } from "@/test/agents/serverOperations";
 import {
   getAgentServerWalletState,
   saveAgentServerProfile,
-  saveAgentServerSession,
   saveAgentServerVaultPolicy,
-} from "@/features/agents/server/serverState";
+} from "@/test/agents/serverState";
 import type { AgentProfile, AgentSessionGrant } from "@/lib/agents/types";
 
 const now = Date.UTC(2026, 5, 1, 12, 0, 0);
@@ -71,7 +71,7 @@ describe("server inbox import", () => {
       ...defaultAgentVaultPolicy(walletName, now),
       cooldownSeconds: 0,
     });
-    await saveAgentServerSession(session(walletName));
+    await saveApprovedSession(session(walletName));
     const queued = await enqueueAgentSignal({
       walletName,
       agentId: "agent-alpha",

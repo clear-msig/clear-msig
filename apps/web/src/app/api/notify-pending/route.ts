@@ -28,11 +28,13 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { SITE_ORIGIN } from "@/lib/metadata/site";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { authenticateEmailRequest, EmailAuthError, requireVerifiedNotificationEmail } from "@/lib/email/authorization";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 
-class BadRequestError extends Error {}
-class ConfigError extends Error {}
+import { BadRequestError, ConfigError, requireField, requireEnv, sanitizeHeader as sanitize } from "@/lib/email/input";
 
 const LIMITS = {
   walletName: 80,
@@ -47,41 +49,36 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // arbitrary characters into the URL we build.
 const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-function sanitize(value: string, max: number): string {
-  return value.replace(/[\r\n\t\v\f\x00-\x1f\x7f]/g, " ").trim().slice(0, max);
-}
-
-function requireField(name: string, value: string | undefined, max: number) {
-  if (!value || !value.trim()) {
-    throw new BadRequestError(`Missing ${name}`);
-  }
-  const cleaned = sanitize(value, max);
-  if (!cleaned) throw new BadRequestError(`Missing ${name}`);
-  return cleaned;
-}
-
-function requireEnv(name: string, value: string | undefined) {
-  if (!value || !value.trim()) {
-    throw new ConfigError(name);
-  }
-  return value;
-}
-
 export async function POST(request: NextRequest) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
 
+  let identity;
+  try { identity = await authenticateEmailRequest(request); } catch (error) {
+    if (error instanceof EmailAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json({ error: "Email authentication unavailable." }, { status: 503 });
+  }
+
   // Tighter than invitations - there's no person-to-person reason
   // to fire two of these in the same minute. 3 burst, refill 1 per
   // 30s.
-  const limited = await checkRateLimit("notify-pending", clientIp(request), {
+  const limited = await checkRateLimit("notify-pending", `${identity.userId}:${clientIp(request)}`, {
     capacity: 3,
     refillPerSec: 1 / 30,
   });
   if (limited) return limited;
 
+  const raw = await readBoundedBody(request, 16_000);
+  if (!raw.ok) return raw.response;
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw.text); } catch {
+    return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Body must be a JSON object." }, { status: 400 });
+  }
   try {
-    const body = (await request.json()) as {
+    const body = parsed as {
       email?: string;
       walletName?: string;
       intentLabel?: string;
@@ -112,14 +109,18 @@ export async function POST(request: NextRequest) {
     if (!BASE58_RE.test(proposalPda)) {
       throw new BadRequestError("Invalid proposal id");
     }
+    requireVerifiedNotificationEmail(identity, email);
     // Build the URL server-side from the request's own origin so the
     // CTA in every email always points at this deployment. Drops the
     // body-supplied URL entirely.
-    const requestHost = request.headers.get("host") ?? "clearsig.xyz";
-    const protocol =
-      request.headers.get("x-forwarded-proto") ??
-      (requestHost.startsWith("localhost") ? "http" : "https");
-    const proposalUrl = `${protocol}://${requestHost}/app/proposals/${encodeURIComponent(proposalPda)}`;
+    // Request headers are forgeable by direct callers. Pin branded email links
+    // to deployment-owned configuration instead of Host/x-forwarded-proto.
+    let origin: URL;
+    try {
+      origin = new URL(process.env.NEXT_PUBLIC_APP_URL?.trim() || SITE_ORIGIN);
+      if (!/^https?:$/.test(origin.protocol) || origin.username || origin.password) throw new Error();
+    } catch { throw new ConfigError("NEXT_PUBLIC_APP_URL"); }
+    const proposalUrl = new URL(`/app/proposals/${encodeURIComponent(proposalPda)}`, origin.origin).toString();
     const collected = clampNumber(body.approvalsCollected ?? 0);
     const total = clampNumber(body.approverCount ?? 0);
 
@@ -164,13 +165,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof EmailAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
     if (error instanceof ConfigError) {
       return NextResponse.json(
-        { error: `SMTP not configured (${error.message})` },
-        { status: 500 },
+        { error: "Email service unavailable" },
+        { status: 503 },
       );
     }
     console.error("[notify-pending]", error);

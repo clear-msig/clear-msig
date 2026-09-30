@@ -1,3 +1,4 @@
+import { saveApprovedSession } from "@/test/agents/signedOwnerApproval";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
@@ -14,11 +15,10 @@ import {
   saveAgentServerOwnerApproval,
   saveAgentServerProfile,
   saveAgentServerProposal,
-  saveAgentServerSession,
   saveAgentServerVaultPolicy,
   setAgentServerEmergencyPause,
   validateAgentServerExecutionHandoff,
-} from "@/features/agents/server/serverState";
+} from "@/test/agents/serverState";
 import type {
   AgentProfile,
   AgentExecutionRecord,
@@ -161,6 +161,7 @@ function signedOwnerApproval(walletName = "server-vault"): AgentOwnerApproval {
   return {
     ...unsigned,
     approvalMethod: "wallet_signature",
+    signatureVersion: 2,
     approvedBy,
     signature: bytesToHex(
       nacl.sign.detached(new TextEncoder().encode(message), keypair.secretKey),
@@ -256,7 +257,7 @@ describe("agent backend state persistence", () => {
       ...defaultAgentVaultPolicy("server-vault", now),
       cooldownSeconds: 0,
     });
-    await saveAgentServerSession(session());
+    await saveApprovedSession(session());
 
     const saved = await saveAgentServerProposal(proposal());
     const state = await getAgentServerWalletState("server-vault");
@@ -325,7 +326,7 @@ describe("agent backend state persistence", () => {
       ...defaultAgentVaultPolicy(walletName, now),
       cooldownSeconds: 0,
     });
-    await saveAgentServerSession(session(walletName));
+    await saveApprovedSession(session(walletName));
 
     const first = await saveAgentServerProposal({
       ...proposal("proposal-a", walletName),
@@ -351,7 +352,7 @@ describe("agent backend state persistence", () => {
       cooldownSeconds: 0,
       maxOpenPositionsPerAgent: 1,
     });
-    await saveAgentServerSession(session(walletName));
+    await saveApprovedSession(session(walletName));
     const savedProposal = await saveAgentServerProposal(
       proposal("proposal-1", walletName),
     );
@@ -400,8 +401,8 @@ describe("agent backend state persistence", () => {
     const walletName = "server-vault-session-replacement";
     await saveAgentServerProfile(agent(walletName));
     await saveAgentServerVaultPolicy(defaultAgentVaultPolicy(walletName, now));
-    await saveAgentServerSession(session(walletName));
-    await saveAgentServerSession({
+    await saveApprovedSession(session(walletName));
+    await saveApprovedSession({
       ...session(walletName),
       id: "session-2",
       startsAt: now + 1_000,
@@ -426,7 +427,7 @@ describe("agent backend state persistence", () => {
       ...defaultAgentVaultPolicy(walletName, now),
       cooldownSeconds: 0,
     });
-    await saveAgentServerSession(session(walletName));
+    await saveApprovedSession(session(walletName));
     const saved = await saveAgentServerProposal(proposal("proposal-1", walletName));
     const valid = {
       ...execution("execution-1", walletName),

@@ -50,23 +50,45 @@ describe("application accessibility contract", () => {
     const walletHub = source(
       "src/features/wallet/ui/home/MobileWalletSwitchModal.tsx",
     );
+    const scanner = source("src/components/retail/QrScanButton.tsx");
+    const infoTip = source("src/components/retail/InfoTip.tsx");
 
-    for (const modal of [approval, tour, walletHub]) {
+    for (const modal of [approval, tour, walletHub, scanner, infoTip]) {
       expect(modal).toContain("useFocusTrap(");
       expect(modal).toContain('aria-modal="true"');
       expect(modal).toContain("data-dialog-initial-focus");
     }
   });
 
+  it("keeps animated select options outside the page tab order", () => {
+    const select = source("src/components/retail/BrandSelect.tsx");
+    expect(select).toMatch(/type="button"\s+tabIndex=\{-1\}\s+role="option"/);
+    expect(select).toContain('aria-controls={open ? menuId : undefined}');
+    expect(select).toMatch(/e\.key === "Tab"[\s\S]*?triggerRef\.current\?\.focus\(\)/);
+  });
+
+  it("uses theme-aware tokens across search, notifications and button loaders", () => {
+    const palette = source("src/components/layout/CommandPalette.tsx");
+    const toast = source("src/components/ui/Toast.tsx");
+    const loader = source("src/components/retail/BrandLoader.tsx");
+    expect(palette).toContain("bg-surface-raised");
+    expect(palette).toContain("text-text-strong");
+    expect(palette).not.toContain("text-white");
+    expect(palette).not.toContain("bg-surface-card");
+    expect(toast).toContain("bg-surface-raised text-text-strong");
+    expect(toast).not.toContain("bg-surface-card");
+    expect(loader).toContain("border-text-on-accent");
+  });
+
   it("keeps theme text and primary actions at AA contrast", () => {
-    expect(globals).toContain("--clear-text-soft: rgba(235, 235, 235, 0.6)");
-    expect(globals).toContain("--clear-text-soft: rgba(10, 14, 22, 0.62)");
-    expect(globals).toContain("--clear-accent: #ccff00");
-    expect(globals).toContain("--clear-accent: #4d7c0f");
+    expect(globals).toContain("--clear-text-soft-opacity: 0.6");
+    expect(globals).toContain("--clear-text-soft-opacity: 0.62");
+    expect(globals).toContain("--clear-accent-rgb: 163 190 140");
+    expect(globals).toContain("--clear-accent-rgb: 71 102 60");
     expect(contrast("#929292", "#0c0c0c")).toBeGreaterThanOrEqual(4.5);
     expect(contrast("#64676c", "#f6f7f9")).toBeGreaterThanOrEqual(4.5);
-    expect(contrast("#000000", "#ccff00")).toBeGreaterThanOrEqual(4.5);
-    expect(contrast("#ffffff", "#4d7c0f")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast("#000000", "#a3be8c")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast("#ffffff", "#47663c")).toBeGreaterThanOrEqual(4.5);
   });
 });
 

@@ -11,7 +11,7 @@ use crate::{
         policy_spend::PolicySpendState, proposal::ProposalStatus, typed_proposal::TypedProposal,
         wallet::ClearWallet,
     },
-    utils::clearsign::ClearSignActionKind,
+    utils::clearsign::{is_v4_document, ClearSignActionKind},
     utils::policy::{enforce_typed_remote_send_policy, enforce_wallet_policy_account},
 };
 
@@ -75,6 +75,13 @@ impl<'info> ExecuteTypedChainSend<'info> {
         args: ExecuteTypedChainSendArgs,
         bumps: &ExecuteTypedChainSendBumps,
     ) -> Result<(), ProgramError> {
+        // This legacy path records policy spending and status only; it never
+        // requests an Ika signature. Consuming a v4 approval here would block
+        // the real Ika executor while falsely reporting a completed send.
+        require!(
+            !is_v4_document(self.proposal.clear_text()),
+            WalletError::InvalidClearSignAction
+        );
         let amount_raw = u128::from_le_bytes(args.amount_raw_le);
         require!(amount_raw > 0, ProgramError::InvalidInstructionData);
         let kind = ChainKind::from_u8(args.chain_kind)?;

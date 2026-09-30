@@ -15,7 +15,7 @@
 //                      from treasury → user's dWallet address
 //   completed        → settlement_completed (or terminal failure)
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -30,7 +30,7 @@ import {
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useRampIntent } from "@/lib/hooks/useRampIntent";
 import { rampApi, RampApiError } from "@/lib/ramp/client";
-import { rampTargetForChainKind } from "@/lib/ramp/chains";
+import { rampTargetForChainKind, wholeToMinor } from "@/lib/ramp/chains";
 import { CHAIN_CATALOG, chainByKind } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { toDisplayName } from "@/lib/retail/walletNames";
@@ -58,9 +58,11 @@ type Stage =
   | { kind: "failed"; intentId: string; reason: string };
 
 export default function BuyPageWrapper() {
+  const wallet = useWallet();
+  const route = useParams<{ name: string }>();
   return (
     <Suspense fallback={<PageLoading />}>
-      <BuyPage />
+      <BuyPage key={`${route?.name ?? ""}:${wallet.publicKey?.toBase58() ?? ""}`} />
     </Suspense>
   );
 }
@@ -113,6 +115,7 @@ function BuyPage() {
   const [selectedKind, setSelectedKind] = useState<number | null>(null);
   const [usdAmount, setUsdAmount] = useState("");
   const [stage, setStage] = useState<Stage>({ kind: "compose" });
+  const submitInFlight = useRef(false);
   const [recordedOutcomes, setRecordedOutcomes] = useState<Set<string>>(
     () => new Set(),
   );
@@ -198,13 +201,8 @@ function BuyPage() {
     selectedBinding ? chainAddress(selectedBinding) : null;
 
   const usdCents = useMemo(() => {
-    const trimmed = usdAmount.trim();
-    if (!/^\d*(\.\d{0,2})?$/.test(trimmed) || trimmed === "" || trimmed === ".") {
-      return null;
-    }
-    const [intPart, fracPart = ""] = trimmed.split(".");
-    const cents = BigInt(intPart || "0") * 100n + BigInt((fracPart + "00").slice(0, 2));
-    return Number(cents);
+    const cents = wholeToMinor(usdAmount, 100n, 2);
+    return cents !== null && cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
   }, [usdAmount]);
 
   const canSubmit =
@@ -216,7 +214,7 @@ function BuyPage() {
     Boolean(wallet.publicKey);
 
   async function handleSubmit() {
-    if (!canSubmit || !wallet.publicKey || selectedKind === null || !destinationWallet || usdCents === null) {
+    if (submitInFlight.current || !canSubmit || !wallet.publicKey || selectedKind === null || !destinationWallet || usdCents === null) {
       return;
     }
     const target = rampTargetForChainKind(selectedKind, "testnet");
@@ -224,6 +222,7 @@ function BuyPage() {
       toast.error("Unsupported chain for ramping");
       return;
     }
+    submitInFlight.current = true;
     setStage({ kind: "submitting" });
     const pubkey = wallet.publicKey.toBase58();
     const idempotencyKey = rampApi.newIdempotencyKey();
@@ -232,11 +231,8 @@ function BuyPage() {
       chain_family: target.chain_family,
       chain_id: target.chain_id,
       asset_symbol: target.asset_symbol,
-      // Onramp: the buy is sized in USD; asset_amount_minor is what
-      // the operator expects to ship in the smallest unit. The
-      // backend computes the actual delivered amount from the
-      // funded NGN; we pass 0 here as a stand-in until the quote
-      // engine returns the real value.
+      // A zero quantity requests server-side pricing for this USD budget.
+      // The server must reject the request without a trusted executable quote.
       asset_amount_minor: 0,
       usd_amount_cents: usdCents,
       destination_wallet: destinationWallet,
@@ -255,6 +251,8 @@ function BuyPage() {
         err instanceof RampApiError ? err.message : friendlyError(err).body;
       toast.error("Could not start checkout", { details: message });
       setStage({ kind: "compose" });
+    } finally {
+      submitInFlight.current = false;
     }
   }
 

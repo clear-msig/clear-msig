@@ -8,6 +8,7 @@
 // before moving funds, so the UI and program now share one truth.
 
 import { useCallback, useRef, useState } from "react";
+import { MAX_BATCH_RECIPIENTS } from "@/lib/sendLimits";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -43,25 +44,34 @@ export interface BatchSendRow {
 
 export interface BatchSendProgress {
   total: number;
-  /// Count of rows that landed on chain.
+  /// Count of rows included in an accepted proposal, not confirmed payments.
   succeeded: number;
   /// Count of rows that errored or were cancelled. The full record
   /// for each lives in `failures`.
   failed: number;
-  /// Label of the row currently in flight ("Sending Sarah…").
+  /// Current preparation, signing, submission, or execution step.
   currentLabel?: string;
   /// Per-row failures so the UI can list "Sarah ($120) - declined"
   /// rather than a single anonymous error toast.
   failures: BatchFailure[];
-  /// Once the loop fully exits the hook flips this so the caller can
-  /// render the summary card.
+  /// Once this attempt exits the hook flips this to render the summary.
   done: boolean;
+  outcome?: BatchSendOutcome;
+  message?: string;
 }
 
 export interface BatchFailure {
   row: BatchSendRow;
   message: string;
 }
+
+export type BatchSendOutcome =
+  | "empty"
+  | "cancelled"
+  | "created"
+  | "executed"
+  | "submission_unknown"
+  | "failed";
 
 interface BatchSendArgs {
   walletName: string;
@@ -78,255 +88,272 @@ export function useBatchSend() {
   const { connection } = useConnection();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<BatchSendProgress | null>(null);
-  /// Cancellation goes through a ref because React state updates are
-  /// async - by the time the next iteration reads the flag, a
-  /// state-based one would be stale.
-  const cancelRef = useRef(false);
+  // Admission and cancellation are synchronous and belong to one attempt.
+  // React updates (or reset while a wallet popup is open) cannot release it.
+  const activeRunRef = useRef<{ cancelled: boolean } | null>(null);
 
   const sendBatch = useCallback(
-    async ({ walletName, intentIndex, rows }: BatchSendArgs) => {
-      if (rows.length === 0) {
-        return { batchId: null, succeeded: 0, failed: 0, proposalPdas: [] };
+    async ({ walletName, intentIndex, rows: inputRows }: BatchSendArgs) => {
+      if (activeRunRef.current) {
+        throw new Error("A batch send is already in progress.");
       }
-      if (rows.length > 16) {
-        throw new Error("Batch sends support up to 16 recipients at once.");
+      if (inputRows.length === 0) {
+        return {
+          batchId: null, succeeded: 0, failed: 0, proposalPdas: [],
+          outcome: "empty" as BatchSendOutcome, message: undefined,
+        };
+      }
+      if (inputRows.length > MAX_BATCH_RECIPIENTS) {
+        throw new Error(`Batch sends support up to ${MAX_BATCH_RECIPIENTS} recipients at once.`);
       }
 
-      const walletData = await fetchWalletByName(connection, walletName);
-      if (!walletData) throw new Error("Couldn't load wallet");
-      const intentRow = await fetchIntent(connection, walletData.pda, intentIndex);
-      if (!intentRow.account) {
-        throw new Error("Couldn't load this wallet's send rule from chain.");
-      }
-      const proposerPk = pickSigner(intentRow.account.proposers);
-      if (!proposerPk) {
-        throw new Error("None of your connected wallets can propose this send.");
-      }
-      const approverPk = pickSigner(intentRow.account.approvers);
-
-      const batchId = generateBatchId();
-      const proposalPdas: string[] = [];
-      const failures: BatchFailure[] = [];
-      let succeeded = 0;
-      let failed = 0;
-      cancelRef.current = false;
-
-      setProgress({
-        total: rows.length,
-        succeeded: 0,
-        failed: 0,
-        failures: [],
-        done: false,
-        currentLabel: rows[0]?.label,
-      });
+      // Keep the signed input stable even if the caller edits its draft while
+      // chain reads or wallet signing are pending.
+      const rows = inputRows.map((row) => ({ ...row }));
+      const run = { cancelled: false };
+      const assertNotCancelled = () => {
+        if (run.cancelled) throw new BatchCancelledError();
+      };
+      activeRunRef.current = run;
 
       try {
-        if (cancelRef.current) {
-          throw new Error("Cancelled");
-        }
-        setProgress({
-          total: rows.length,
-          succeeded,
-          failed,
-          failures: [...failures],
-          currentLabel: "Preparing batch",
-          done: false,
+        const batchId = generateBatchId();
+        const proposalPdas: string[] = [];
+        const failures: BatchFailure[] = [];
+        let succeeded = 0;
+        let failed = 0;
+        let submissionStarted = false;
+        let proposalAccepted = false;
+        let outcome: BatchSendOutcome = "failed";
+        let message: string | undefined;
+        const showStep = (currentLabel: string) => setProgress({
+          total: rows.length, succeeded, failed, failures: [...failures],
+          done: false, currentLabel,
         });
+        showStep("Preparing batch");
 
-        const actionId = randomActionLabel("sol-batch");
-        const nonce = randomActionLabel("nonce");
-        const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-        const onchainPolicy = await resolveBatchOnchainPolicy(
-          connection,
-          walletData.pda,
-          walletName,
-          rows,
-        );
-        const policyCommitment =
-          onchainPolicy?.commitmentHex ??
-          policyCommitmentHex([
-            `wallet:${walletData.pda.toBase58()}`,
-            `intent:${intentIndex}`,
-            `threshold:${intentRow.account.approvalThreshold}`,
-            `proposers:${intentRow.account.proposers.join(",")}`,
-            `approvers:${intentRow.account.approvers.join(",")}`,
-            `rows:${rows.length}`,
-          ]);
-        const envelope: ClearSignIntentInput<BatchSendPayload> = {
-          kind: "batch_send",
-          network: "Solana devnet",
-          walletName,
-          walletId: walletData.pda.toBase58(),
-          actionId,
-          nonce,
-          expiresAt,
-          policyCommitment,
-          payload: {
-            recipients: rows.map((row) => ({
-              recipient: row.destination,
-              recipientEncoding: "solana_pubkey",
-              amount: lamportsToSol(row.lamports),
-              asset: "SOL",
-            })),
-          },
-        };
-        const summary = await prepareClearSignV4Action(envelope, {
-          intentIndex,
-          actorPubkey: proposerPk.toBase58(),
-          policyBytesHex: onchainPolicy?.hex,
-          deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
-        });
-        const dry = await backendApi.prepare.createTypedProposal(walletName, {
-          intent_index: intentIndex,
-          action_kind: summary.actionKindCode,
-          policy_commitment: summary.policyCommitment,
-          payload_hash: summary.payloadHash,
-          envelope_hash: summary.envelopeHash,
-          action_id: envelope.actionId,
-          nonce: envelope.nonce,
-          policyBytesHex: onchainPolicy?.hex,
-          signable_text: summary.signableText,
-          canonical_intent_hex: summary.canonicalIntentHex,
-          expiry: formatUnixSigningExpiry(envelope.expiresAt),
-          actor_pubkey: proposerPk.toBase58(),
-        });
+        try {
+          const walletData = await fetchWalletByName(connection, walletName);
+          assertNotCancelled();
+          if (!walletData) throw new Error("Couldn't load wallet");
+          const intentRow = await fetchIntent(connection, walletData.pda, intentIndex);
+          assertNotCancelled();
+          if (!intentRow.account) {
+            throw new Error("Couldn't load this wallet's send rule from chain.");
+          }
+          const proposerPk = pickSigner(intentRow.account.proposers);
+          if (!proposerPk) {
+            throw new Error("None of your connected wallets can propose this send.");
+          }
+          const approverPk = pickSigner(intentRow.account.approvers);
+          const actionId = randomActionLabel("sol-batch");
+          const nonce = randomActionLabel("nonce");
+          const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+          const onchainPolicy = await resolveBatchOnchainPolicy(
+            connection,
+            walletData.pda,
+            walletName,
+            rows,
+            assertNotCancelled,
+          );
+          assertNotCancelled();
+          const policyCommitment =
+            onchainPolicy?.commitmentHex ??
+            policyCommitmentHex([
+              `wallet:${walletData.pda.toBase58()}`,
+              `intent:${intentIndex}`,
+              `threshold:${intentRow.account.approvalThreshold}`,
+              `proposers:${intentRow.account.proposers.join(",")}`,
+              `approvers:${intentRow.account.approvers.join(",")}`,
+              `rows:${rows.length}`,
+            ]);
+          const envelope: ClearSignIntentInput<BatchSendPayload> = {
+            kind: "batch_send",
+            network: "Solana devnet",
+            walletName,
+            walletId: walletData.pda.toBase58(),
+            actionId,
+            nonce,
+            expiresAt,
+            policyCommitment,
+            payload: {
+              recipients: rows.map((row) => ({
+                recipient: row.destination,
+                recipientEncoding: "solana_pubkey",
+                amount: lamportsToSol(row.lamports),
+                asset: "SOL",
+              })),
+            },
+          };
+          const summary = await prepareClearSignV4Action(envelope, {
+            intentIndex,
+            actorPubkey: proposerPk.toBase58(),
+            policyBytesHex: onchainPolicy?.hex,
+            deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
+          });
+          assertNotCancelled();
+          const dry = await backendApi.prepare.createTypedProposal(walletName, {
+            intent_index: intentIndex,
+            action_kind: summary.actionKindCode,
+            policy_commitment: summary.policyCommitment,
+            payload_hash: summary.payloadHash,
+            envelope_hash: summary.envelopeHash,
+            action_id: envelope.actionId,
+            nonce: envelope.nonce,
+            policyBytesHex: onchainPolicy?.hex,
+            signable_text: summary.signableText,
+            canonical_intent_hex: summary.canonicalIntentHex,
+            expiry: formatUnixSigningExpiry(envelope.expiresAt),
+            actor_pubkey: proposerPk.toBase58(),
+          });
+          assertNotCancelled();
+          showStep("Signing batch");
+          const signed = await signTypedDescriptor(dry, {
+            preferSigner: proposerPk,
+            expectedTyped: {
+              envelopeHash: summary.envelopeHash,
+              payloadHash: summary.payloadHash,
+              signableText: summary.signableText,
+            },
+          });
+          // A wallet popup cannot be revoked, but its late signature must not
+          // authorize a submission after this attempt has been stopped.
+          assertNotCancelled();
+          showStep("Submitting batch request");
+          submissionStarted = true;
+          const submitted = await backendApi.submit.createTypedProposal(walletName, {
+            ...signed,
+            expiry: dry.expiry,
+            intent_index: dry.intent_index,
+            action_kind: dry.action_kind,
+            policy_commitment: dry.policy_commitment_hex,
+            payload_hash: dry.payload_hash_hex,
+            envelope_hash: dry.envelope_hash_hex,
+            action_id: dry.action_id,
+            nonce: dry.nonce,
+            policyBytesHex: onchainPolicy?.hex,
+            canonical_intent_hex: dry.canonical_intent_hex,
+          });
+          // Record accepted chain work before checking cancellation: stopping
+          // locally cannot undo a proposal or any already-submitted approval.
+          proposalAccepted = true;
+          succeeded = rows.length;
+          outcome = "created";
+          message = "Batch request created. Check Activity for approval and execution status.";
+          const proposalPda =
+            typeof submitted?.proposal === "string" ? submitted.proposal : undefined;
+          if (proposalPda) proposalPdas.push(proposalPda);
+          assertNotCancelled();
 
-        if (cancelRef.current) {
-          throw new Error("Cancelled");
-        }
-        setProgress({
-          total: rows.length,
-          succeeded,
-          failed,
-          failures: [...failures],
-          currentLabel: "Signing batch",
-          done: false,
-        });
-        const signed = await signTypedDescriptor(dry, {
-          preferSigner: proposerPk,
-          expectedTyped: {
-            envelopeHash: summary.envelopeHash,
-            payloadHash: summary.payloadHash,
-            signableText: summary.signableText,
-          },
-        });
-        const submitted = await backendApi.submit.createTypedProposal(walletName, {
-          ...signed,
-          expiry: dry.expiry,
-          intent_index: dry.intent_index,
-          action_kind: dry.action_kind,
-          policy_commitment: dry.policy_commitment_hex,
-          payload_hash: dry.payload_hash_hex,
-          envelope_hash: dry.envelope_hash_hex,
-          action_id: dry.action_id,
-          nonce: dry.nonce,
-          policyBytesHex: onchainPolicy?.hex,
-          canonical_intent_hex: dry.canonical_intent_hex,
-        });
-        const proposalPda =
-          typeof submitted?.proposal === "string" ? submitted.proposal : undefined;
-        if (proposalPda) proposalPdas.push(proposalPda);
-
-        if (proposalPda) {
-          try {
+          if (proposalPda) {
             const decision = await approveIfNeeded(connection, proposalPda, {
               approvers: intentRow.account.approvers,
               approverPubkey: proposerPk.toBase58(),
               approvalThreshold: intentRow.account.approvalThreshold,
             });
+            assertNotCancelled();
             if (decision.needsApproveSignature) {
               if (!approverPk) {
-                throw new Error(
-                  "The batch is waiting for another approver.",
-                );
+                throw new Error("The batch is waiting for another approver.");
               }
               const approveDry = await backendApi.prepare.approveTypedProposal(
                 walletName,
                 proposalPda,
                 { actor_pubkey: approverPk.toBase58() },
               );
+              assertNotCancelled();
+              showStep("Signing batch approval");
               const approveSigned = await signTypedDescriptor(approveDry, {
                 preferSigner: approverPk,
               });
+              assertNotCancelled();
               await backendApi.submit.approveTypedProposal(walletName, proposalPda, {
                 ...approveSigned,
                 expiry: approveDry.expiry,
               });
+              assertNotCancelled();
             }
 
             const status =
               decision.status === ProposalStatus.Approved
                 ? ProposalStatus.Approved
                 : (await refetchProposalStatus(connection, proposalPda));
+            assertNotCancelled();
             if (status === ProposalStatus.Approved) {
-              setProgress({
-                total: rows.length,
-                succeeded,
-                failed,
-                failures: [...failures],
-                currentLabel: "Sending batch",
-                done: false,
-              });
+              showStep("Sending batch");
               await backendApi.executeTypedSolBatchSend(walletName, proposalPda, {
                 payments: rows.map((row) => ({
                   recipient: row.destination,
                   amountLamports: lamportsToSafeNumber(row.lamports),
                 })),
               });
+              // Once execution was sent, cancellation cannot reverse it. Keep
+              // the accepted execution result instead of claiming it stopped.
+              outcome = "executed";
+              message = "Batch execution submitted. Check Activity for confirmation.";
             }
-          } catch (innerErr) {
-            console.warn(
-              "[batch-send] typed batch proposal created but execution is waiting",
-              innerErr,
-            );
+          }
+        } catch (err) {
+          if (proposalAccepted) {
+            outcome = "created";
+            message = err instanceof BatchCancelledError
+              ? "Stopped before the next step. The batch request was already submitted; check Activity for its status."
+              : "Batch request created. Check Activity for approval and execution status before retrying.";
+          } else if (submissionStarted) {
+            // A lost response is not evidence that chain submission failed.
+            // Do not count these rows as safely retryable failures.
+            outcome = "submission_unknown";
+            message = "The batch request may have been submitted. Check Activity before retrying.";
+          } else {
+            outcome = run.cancelled ? "cancelled" : "failed";
+            const failureMessage = run.cancelled
+              ? "Stopped before submission. No batch request was submitted."
+              : friendlyError(err, "send").title;
+            message = failureMessage;
+            failures.push(...rows.map((row) => ({ row, message: failureMessage })));
+            failed = rows.length;
           }
         }
-        succeeded = rows.length;
-      } catch (err) {
-        const fe = friendlyError(err, "send");
-        failures.push(...rows.map((row) => ({ row, message: fe.title })));
-        failed = rows.length;
-      }
 
-      // Stamp the batch locally so /app/wallet can group these
-      // proposals under one row instead of N near-identical lines.
-      if (proposalPdas.length > 0) {
-        appendBatchRecord({
-          batchId,
-          walletName,
-          createdAt: Date.now(),
-          totalRows: rows.length,
-          proposalPdas,
+        if (proposalPdas.length > 0) {
+          appendBatchRecord({
+            batchId,
+            walletName,
+            createdAt: Date.now(),
+            totalRows: rows.length,
+            proposalPdas,
+          });
+        }
+        // Refresh even after an uncertain submission so reconciliation can
+        // reveal a proposal whose response was lost.
+        void queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
+        void queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
+        setProgress({
+          total: rows.length, succeeded, failed, failures, done: true, outcome, message,
         });
+        return { batchId, succeeded, failed, proposalPdas, outcome, message };
+      } finally {
+        activeRunRef.current = null;
       }
-
-      // Refresh the inbox + per-wallet proposal list so the new
-      // proposals show up immediately on the dashboard.
-      queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
-      queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
-
-      setProgress({
-        total: rows.length,
-        succeeded,
-        failed,
-        failures,
-        done: true,
-      });
-
-      return { batchId, succeeded, failed, proposalPdas };
     },
     [signTypedDescriptor, queryClient, connection, pickSigner, wallet],
   );
 
   const cancel = useCallback(() => {
-    cancelRef.current = true;
+    if (activeRunRef.current) activeRunRef.current.cancelled = true;
   }, []);
   const reset = useCallback(() => {
-    setProgress(null);
-    cancelRef.current = false;
+    if (!activeRunRef.current) setProgress(null);
   }, []);
 
   return { sendBatch, progress, cancel, reset };
+}
+
+class BatchCancelledError extends Error {
+  constructor() {
+    super("Batch stopped before the next step.");
+    this.name = "BatchCancelledError";
+  }
 }
 
 async function resolveBatchOnchainPolicy(
@@ -334,6 +361,7 @@ async function resolveBatchOnchainPolicy(
   wallet: PublicKey,
   walletName: string,
   rows: BatchSendRow[],
+  assertNotCancelled: () => void,
 ) {
   await Promise.all(
     rows.map(async (row) => {
@@ -348,6 +376,7 @@ async function resolveBatchOnchainPolicy(
       return plan;
     }),
   );
+  assertNotCancelled();
   return resolvePersistentSendPolicy(connection, wallet, walletName, 0);
 }
 

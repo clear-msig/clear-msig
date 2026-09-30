@@ -27,25 +27,36 @@
   --font-grotesk: var(--font-sans);
 
   /* Surfaces - three steps so modals/popovers can lift above cards. */
-  --clear-canvas: #0c0c0c;
-  --clear-surface-raised: #131316;
-  --clear-surface-elevated: #18181d;
-  --clear-surface-sunken: #0a0a0a;
+  --clear-canvas-rgb: 12 12 12;
+  --clear-canvas: rgb(var(--clear-canvas-rgb));
+  --clear-surface-raised-rgb: 19 19 22;
+  --clear-surface-raised: rgb(var(--clear-surface-raised-rgb));
+  --clear-surface-elevated-rgb: 24 24 29;
+  --clear-surface-elevated: rgb(var(--clear-surface-elevated-rgb));
+  --clear-surface-sunken-rgb: 10 10 10;
+  --clear-surface-sunken: rgb(var(--clear-surface-sunken-rgb));
 
   /* Text */
-  --clear-text-strong: #ebebeb;
-  --clear-text-soft: rgba(235, 235, 235, 0.6);
-  --clear-text-softer: rgba(235, 235, 235, 0.4);
+  --clear-text-rgb: 235 235 235;
+  --clear-text-strong: rgb(var(--clear-text-rgb));
+  --clear-text-soft-opacity: 0.6;
+  --clear-text-soft: rgb(var(--clear-text-rgb) / var(--clear-text-soft-opacity));
+  --clear-text-softer-opacity: 0.4;
+  --clear-text-softer: rgb(var(--clear-text-rgb) / var(--clear-text-softer-opacity));
 
   /* Borders */
-  --clear-border-soft: rgba(255, 255, 255, 0.08);
-  --clear-border-strong: rgba(255, 255, 255, 0.16);
+  --clear-border-rgb: 255 255 255;
+  --clear-border-soft: rgb(var(--clear-border-rgb) / 0.08);
+  --clear-border-strong: rgb(var(--clear-border-rgb) / 0.16);
 
   /* Glass overlays - replace hard-coded `bg-white/[0.04|0.06|0.08]`.
      Dark = white-on-dark tint; light = black-on-white tint. */
-  --clear-glass-soft: rgba(255, 255, 255, 0.04);
-  --clear-glass-mid: rgba(255, 255, 255, 0.06);
-  --clear-glass-strong: rgba(255, 255, 255, 0.08);
+  --clear-glass-rgb: 255 255 255;
+  --clear-glass-soft-opacity: 0.04;
+  --clear-glass-mid-opacity: 0.06;
+  --clear-glass-soft: rgb(var(--clear-glass-rgb) / var(--clear-glass-soft-opacity));
+  --clear-glass-mid: rgb(var(--clear-glass-rgb) / var(--clear-glass-mid-opacity));
+  --clear-glass-strong: rgb(var(--clear-glass-rgb) / 0.08);
 
   /* Card 3D shadow components (composed in tailwind.config). Dark
      uses heavy blacks; light uses soft cool-grey drops. */
@@ -60,29 +71,28 @@
   --clear-card-shadow-mid-raised: rgba(0, 0, 0, 0.45);
   --clear-card-shadow-far-raised: rgba(0, 0, 0, 0.6);
 
-  /* Accent - lime in dark mode (Obsidian & Lime brand). The same
-     identity in light mode would render as invisible yellow on
-     white surfaces, so light mode swaps in a deeper emerald-green
-     (the legacy brand-green) that still reads as the same family
-     but actually shows. text-on-accent flips from black to white
-     to keep button contrast. */
-  --clear-accent: #ccff00;
-  --clear-accent-hover: #d8ff33;
-  --clear-accent-bright: #e0ff66;
-  --clear-text-on-accent: #000000;
+  /* Muted sage: brand emphasis without luminous full-surface color. */
+  --clear-accent-rgb: 163 190 140;
+  --clear-accent: rgb(var(--clear-accent-rgb));
+  --clear-accent-hover-rgb: 178 205 160;
+  --clear-accent-hover: rgb(var(--clear-accent-hover-rgb));
+  --clear-accent-bright-rgb: 193 215 179;
+  --clear-accent-bright: rgb(var(--clear-accent-bright-rgb));
+  --clear-text-on-accent-rgb: 0 0 0;
+  --clear-text-on-accent: rgb(var(--clear-text-on-accent-rgb));
 
   /* Accent glows */
-  --clear-accent-glow-rest: rgba(204, 255, 0, 0.14);
-  --clear-accent-glow-hover: rgba(204, 255, 0, 0.22);
+  --clear-accent-glow-rest: rgba(163, 190, 140, 0.05);
+  --clear-accent-glow-hover: rgba(163, 190, 140, 0.09);
 
   /* Body backdrop - radial blooms over obsidian linear */
   --clear-body-bg-image:
-    radial-gradient(60% 40% at 50% -10%, rgba(204, 255, 0, 0.06) 0%, rgba(0, 0, 0, 0) 60%),
+    radial-gradient(60% 40% at 50% -10%, rgba(163, 190, 140, 0.06) 0%, rgba(0, 0, 0, 0) 60%),
     radial-gradient(40% 30% at 90% 100%, rgba(16, 185, 129, 0.05) 0%, rgba(0, 0, 0, 0) 70%),
     linear-gradient(180deg, #0a0a0a 0%, #0c0c0c 55%, #0a0a0a 100%);
   --clear-body-text: #ebebeb;
   --wallet-dot-primary: rgba(235, 235, 235, 0.075);
-  --wallet-dot-accent: rgba(204, 255, 0, 0.13);
+  --wallet-dot-accent: rgba(163, 190, 140, 0.13);
   --wallet-dot-size: 34px;
 
   /* Theme switch transition. Apply via .theme-transitioning class on
@@ -101,25 +111,36 @@
 
   /* Surfaces - cool, near-white. Elevated = same white with stronger
      shadow; sunken = a soft cool grey for input fields. */
-  --clear-canvas: #f6f7f9;
-  --clear-surface-raised: #ffffff;
-  --clear-surface-elevated: #ffffff;
-  --clear-surface-sunken: #eef0f4;
+  --clear-canvas-rgb: 246 247 249;
+  --clear-canvas: rgb(var(--clear-canvas-rgb));
+  --clear-surface-raised-rgb: 255 255 255;
+  --clear-surface-raised: rgb(var(--clear-surface-raised-rgb));
+  --clear-surface-elevated-rgb: 255 255 255;
+  --clear-surface-elevated: rgb(var(--clear-surface-elevated-rgb));
+  --clear-surface-sunken-rgb: 238 240 244;
+  --clear-surface-sunken: rgb(var(--clear-surface-sunken-rgb));
 
   /* Text - slate-near-black with cool tint to match the brand vibe. */
-  --clear-text-strong: #0a0e16;
-  --clear-text-soft: rgba(10, 14, 22, 0.62);
-  --clear-text-softer: rgba(10, 14, 22, 0.42);
+  --clear-text-rgb: 10 14 22;
+  --clear-text-strong: rgb(var(--clear-text-rgb));
+  --clear-text-soft-opacity: 0.62;
+  --clear-text-soft: rgb(var(--clear-text-rgb) / var(--clear-text-soft-opacity));
+  --clear-text-softer-opacity: 0.42;
+  --clear-text-softer: rgb(var(--clear-text-rgb) / var(--clear-text-softer-opacity));
 
   /* Borders - black-on-white tints, mirroring dark's white-on-black. */
-  --clear-border-soft: rgba(10, 14, 22, 0.08);
-  --clear-border-strong: rgba(10, 14, 22, 0.16);
+  --clear-border-rgb: 10 14 22;
+  --clear-border-soft: rgb(var(--clear-border-rgb) / 0.08);
+  --clear-border-strong: rgb(var(--clear-border-rgb) / 0.16);
 
   /* Glass overlays - flip from white-on-dark to black-on-light so
      `bg-glass-soft/mid/strong` reads correctly on a light canvas. */
-  --clear-glass-soft: rgba(10, 14, 22, 0.03);
-  --clear-glass-mid: rgba(10, 14, 22, 0.05);
-  --clear-glass-strong: rgba(10, 14, 22, 0.08);
+  --clear-glass-rgb: 10 14 22;
+  --clear-glass-soft-opacity: 0.03;
+  --clear-glass-mid-opacity: 0.05;
+  --clear-glass-soft: rgb(var(--clear-glass-rgb) / var(--clear-glass-soft-opacity));
+  --clear-glass-mid: rgb(var(--clear-glass-rgb) / var(--clear-glass-mid-opacity));
+  --clear-glass-strong: rgb(var(--clear-glass-rgb) / 0.08);
 
   /* Card shadow - lighter, less aggressive on white. Cool slate
      drops instead of pure black. */
@@ -134,31 +155,30 @@
   --clear-card-shadow-mid-raised: rgba(15, 23, 42, 0.10);
   --clear-card-shadow-far-raised: rgba(15, 23, 42, 0.14);
 
-  /* Accent - the darkest lime in the #ccff00 family that still
-     hits AA contrast on white. Stays visibly the same brand colour
-     as the dark-mode lime (yellow-green tint, not emerald), just
-     dropped down the lightness axis so primary text / buttons /
-     borders read on light surfaces. text-on-accent flips to white
-     because the dark lime needs a white foreground. */
-  --clear-accent: #4d7c0f;
-  --clear-accent-hover: #3f6212;
-  --clear-accent-bright: #65a30d;
-  --clear-text-on-accent: #ffffff;
+  /* The light-theme sage is darker to retain AA text/button contrast. */
+  --clear-accent-rgb: 71 102 60;
+  --clear-accent: rgb(var(--clear-accent-rgb));
+  --clear-accent-hover-rgb: 60 86 50;
+  --clear-accent-hover: rgb(var(--clear-accent-hover-rgb));
+  --clear-accent-bright-rgb: 82 111 70;
+  --clear-accent-bright: rgb(var(--clear-accent-bright-rgb));
+  --clear-text-on-accent-rgb: 255 255 255;
+  --clear-text-on-accent: rgb(var(--clear-text-on-accent-rgb));
 
   /* Accent glows - lime tint at higher opacity so the bloom is
      visible against white. Matches the dark-mode glow shape but
      uses the darker lime base. */
-  --clear-accent-glow-rest: rgba(77, 124, 15, 0.20);
-  --clear-accent-glow-hover: rgba(77, 124, 15, 0.32);
+  --clear-accent-glow-rest: rgba(71, 102, 60, 0.04);
+  --clear-accent-glow-hover: rgba(71, 102, 60, 0.08);
 
   /* Body backdrop - soft warm white with quieter brand blooms. */
   --clear-body-bg-image:
-    radial-gradient(60% 40% at 50% -10%, rgba(204, 255, 0, 0.10) 0%, rgba(247, 248, 250, 0) 60%),
+    radial-gradient(60% 40% at 50% -10%, rgba(163, 190, 140, 0.10) 0%, rgba(247, 248, 250, 0) 60%),
     radial-gradient(40% 30% at 90% 100%, rgba(16, 185, 129, 0.08) 0%, rgba(247, 248, 250, 0) 70%),
     linear-gradient(180deg, #ffffff 0%, #f6f7f9 55%, #f1f3f6 100%);
   --clear-body-text: #0a0e16;
   --wallet-dot-primary: rgba(10, 14, 22, 0.13);
-  --wallet-dot-accent: rgba(77, 124, 15, 0.16);
+  --wallet-dot-accent: rgba(71, 102, 60, 0.16);
 }
 
 /* Theme-swap transition. Class is added to <html> by setStoredTheme
@@ -320,10 +340,9 @@ select:focus-visible {
   letter-spacing: 0;
 }
 
-/* ── landing-only: Obsidian & Lime ─────────────────────────────────
- * Scoped to `.landing-shell` so the dark/glass/lime aesthetic on the
- * marketing page doesn't bleed into /app/* (which keeps the existing
- * canvas/surface-raised semantic tokens).
+/* ── landing-only: calm story layout ───────────────────────────────
+ * Shared theme colors remain semantic. Storytelling motion and spacing
+ * stay scoped to landing content; application controls never scroll-hide.
  */
 @keyframes float-slow {
   0%, 100% { transform: translateY(0); }
@@ -343,19 +362,15 @@ select:focus-visible {
 }
 
 .landing-shell {
-  --lime: #ccff00;
+  --lime: var(--clear-accent);
   --emerald: #10b981;
   --obsidian: #0c0c0c;
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.1);
   --landing-display-font: var(--font-grotesk), var(--font-display), ui-sans-serif, system-ui, sans-serif;
-  --landing-small-font: "Montserrat", var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --landing-small-font: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-family: var(--landing-small-font);
   letter-spacing: 0;
-}
-.landing-shell *,
-.landing-shell .font-mono-tech {
-  font-family: var(--landing-small-font);
 }
 .landing-shell .landing-section-heading,
 .landing-shell .landing-section-heading * {
@@ -420,37 +435,55 @@ select:focus-visible {
  * via skew. Paired with the lime→white gradient text for the
  * gradient span in the hero headline. */
 .landing-shell .italic-skew {
-  display: inline-block;
   font-style: italic;
-  transform: skewX(-6deg);
-  background: linear-gradient(135deg, #ccff00 0%, #ebebeb 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--clear-accent);
 }
 
-/* Lime CTA: white slide-up reveal on hover */
+/* Kept as a compatibility class for existing public pages. */
 .landing-shell .neon-cta {
-  position: relative;
-  overflow: hidden;
-  background-color: #ccff00;
-  color: #000;
-  isolation: isolate;
-  box-shadow: 0 0 14px rgba(204, 255, 0, 0.16);
-  transition: transform 350ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--clear-accent);
+  color: var(--clear-text-on-accent);
+  box-shadow: none;
+  transition: background-color 180ms ease-out, transform 180ms ease-out;
 }
-.landing-shell .neon-cta::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: #ffffff;
-  transform: translateY(101%);
-  transition: transform 350ms cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: -1;
+.landing-shell .neon-cta:hover {
+  background: var(--clear-accent-hover);
+  transform: translateY(-1px);
 }
-.landing-shell .neon-cta:hover { transform: scale(1.03); box-shadow: 0 0 18px rgba(204, 255, 0, 0.22); }
-.landing-shell .neon-cta:hover::before { transform: translateY(0); }
+
+.landing-content-section {
+  padding: clamp(4.5rem, 9vw, 8rem) clamp(1.25rem, 3.2vw, 2.5rem);
+  scroll-margin-top: 7rem;
+}
+.landing-heading {
+  font-size: clamp(2.25rem, 4.8vw, 4rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  color: var(--clear-text-strong);
+}
+.landing-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--clear-text-soft);
+}
+.landing-reveal {
+  opacity: 1;
+  transform: none;
+  transition: opacity 500ms ease-out, transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.landing-reveal[data-reveal="pending"] { opacity: 0; transform: translateY(16px); }
+.landing-reveal:focus-within { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal, .landing-reveal[data-reveal="pending"] {
+    opacity: 1; transform: none; transition: none;
+  }
+}
+@media print {
+  .landing-reveal, .landing-reveal[data-reveal="pending"] { opacity: 1; transform: none; }
+}
 
 /* Hero mockup - flat glass approval card.
  * The previous 3D tilt distorted the card and clipped content
@@ -545,7 +578,7 @@ select:focus-visible {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(204, 255, 0, 0.08), transparent 30%),
+    linear-gradient(90deg, rgba(163, 190, 140, 0.08), transparent 30%),
     repeating-linear-gradient(180deg, transparent 0 31px, rgba(255, 255, 255, 0.035) 31px 32px);
   opacity: 0.42;
 }
@@ -556,7 +589,7 @@ select:focus-visible {
 }
 
 .clear-receipt-row {
-  background-image: linear-gradient(90deg, rgba(204, 255, 0, 0.035), transparent 44%);
+  background-image: linear-gradient(90deg, rgba(163, 190, 140, 0.035), transparent 44%);
 }
 
 .clear-primary-button {
@@ -574,13 +607,13 @@ select:focus-visible {
 .product-experience .product-choice-card,
 .product-experience .product-preview-card {
   box-shadow:
-    inset 3px 0 0 rgba(204, 255, 0, 0.14),
+    inset 3px 0 0 rgba(163, 190, 140, 0.14),
     0 24px 90px rgba(0, 0, 0, 0.22);
 }
 
 .landing-shell .intent-rail {
   background:
-    linear-gradient(90deg, rgba(204, 255, 0, 0.075), rgba(255, 255, 255, 0.025) 34%, rgba(255, 255, 255, 0.018)),
+    linear-gradient(90deg, rgba(163, 190, 140, 0.075), rgba(255, 255, 255, 0.025) 34%, rgba(255, 255, 255, 0.018)),
     rgba(255, 255, 255, 0.018);
 }
 
@@ -589,8 +622,8 @@ select:focus-visible {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: #ccff00;
-  box-shadow: 0 0 18px rgba(204, 255, 0, 0.34);
+  background: var(--clear-accent);
+  box-shadow: 0 0 18px rgba(163, 190, 140, 0.34);
 }
 
 .landing-shell .intent-rail-row {
@@ -642,8 +675,8 @@ select:focus-visible {
  * pulse keeps the focal number alive without distracting from
  * the rest of the receipt. */
 @keyframes amount-glow-pulse {
-  0%, 100% { text-shadow: 0 0 8px rgba(204, 255, 0, 0.18); }
-  50% { text-shadow: 0 0 14px rgba(204, 255, 0, 0.32); }
+  0%, 100% { text-shadow: 0 0 8px rgba(163, 190, 140, 0.18); }
+  50% { text-shadow: 0 0 14px rgba(163, 190, 140, 0.32); }
 }
 .landing-shell .amount-glow {
   animation: amount-glow-pulse 2.6s ease-in-out infinite;
@@ -668,9 +701,9 @@ select:focus-visible {
   pointer-events: none;
   background: linear-gradient(
     100deg,
-    rgba(204, 255, 0, 0) 30%,
-    rgba(204, 255, 0, 0.14) 50%,
-    rgba(204, 255, 0, 0) 70%
+    rgba(163, 190, 140, 0) 30%,
+    rgba(163, 190, 140, 0.14) 50%,
+    rgba(163, 190, 140, 0) 70%
   );
   width: 40%;
   animation: receipt-scan-sweep 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.7s 1 forwards;

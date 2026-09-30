@@ -47,6 +47,7 @@ export async function fetchWalletByName(
     const [pda, bump] = findWalletAddress(name, knownCreator, CLEAR_WALLET_PROGRAM_ID);
     const info = await connection.getAccountInfo(pda, DEFAULT_COMMITMENT);
     if (!info) return null;
+    if (!info.owner.equals(CLEAR_WALLET_PROGRAM_ID)) throw new Error("Invalid wallet account owner.");
     const account = parseWallet(new Uint8Array(info.data));
     return { name, pda, bump, account };
   }
@@ -59,11 +60,15 @@ export async function fetchWalletByName(
       filters: [{ memcmp: { offset: 0, bytes: bs58FromByte(DISC_CLEAR_WALLET) } }],
     },
   );
+  const matches: WalletWithPda[] = [];
   for (const { pubkey, account: info } of accounts) {
     try {
+      if (!info.owner.equals(CLEAR_WALLET_PROGRAM_ID)) continue;
       const parsed = parseWallet(new Uint8Array(info.data));
       if (parsed.name === name) {
-        return { name, pda: pubkey, bump: parsed.bump, account: parsed };
+        const [expected] = findWalletAddress(name, new PublicKey(parsed.creator), CLEAR_WALLET_PROGRAM_ID);
+        if (!expected.equals(pubkey)) continue;
+        matches.push({ name, pda: pubkey, bump: parsed.bump, account: parsed });
       }
     } catch {
       // Account didn't parse as ClearWallet (discriminator mismatch
@@ -72,7 +77,8 @@ export async function fetchWalletByName(
       continue;
     }
   }
-  return null;
+  if (matches.length > 1) throw new Error("This wallet name is ambiguous. Select its creator or wallet address.");
+  return matches[0] ?? null;
 }
 
 /// Fetch a wallet by its PDA when the caller already has the address
@@ -85,6 +91,7 @@ export async function fetchWalletByPda(
 ): Promise<WalletAccount | null> {
   const info = await connection.getAccountInfo(pda, DEFAULT_COMMITMENT);
   if (!info) return null;
+  if (!info.owner.equals(CLEAR_WALLET_PROGRAM_ID)) throw new Error("Invalid wallet account owner.");
   return parseWallet(new Uint8Array(info.data));
 }
 

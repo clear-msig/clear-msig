@@ -91,6 +91,7 @@ await submitTradeDecision({
   endpoint: process.env.CLEARSIG_SIGNAL_ENDPOINT,
   signalKey: process.env.CLEARSIG_SIGNAL_KEY,
   decision,
+  target: JSON.parse(process.env.CLEARSIG_SIGNAL_TARGET),
 });
 ```
 
@@ -137,3 +138,23 @@ Recommended fields:
 ```bash
 node --test examples/creator-agent-sdk/sdk.test.mjs
 ```
+
+## Signed signal v2 migration
+
+Private registration and inbox management now require a current signed Dynamic
+session with a verified Solana wallet in the treasury's current approved
+governance membership. A connected hardware wallet alone is not a server session.
+Copy the nonsecret **Signal signing target (JSON)** from the connection page.
+Pass it as `target` to SDK calls, or set `CLEARSIG_SIGNAL_TARGET` to that JSON
+for the runner. It binds the canonical wallet PDA, agent ID, program ID, and
+server deployment/network namespace. Never construct it from a display name.
+
+Every submitted envelope must use `signatureScheme: "hmac_sha256_v2"`; it signs
+`{domain: "clearsig.agent.signal", scheme: "hmac_sha256_v2", target, signal}`
+with recursively sorted keys and omitted undefined properties. `signal` is the
+exact submitted object, including `clientSignalId` (stable nonce for retries)
+and `submittedAt` (Unix milliseconds). Signals older than ten minutes or over
+two minutes in the future are rejected. Legacy v1 and unsigned key-only
+requests are no longer accepted. Re-register the connection after deployment;
+legacy name-indexed keys are not silently adopted. Possession of the submit-only
+key was authentication in v1; v2 adds explicit target and payload binding.

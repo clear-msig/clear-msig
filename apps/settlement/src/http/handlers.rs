@@ -34,13 +34,28 @@ struct ApiErrorEnvelope {
     error: String,
 }
 
-fn user_id_from_headers(headers: &HeaderMap) -> Result<Uuid, String> {
-    let raw = headers
-        .get("x-user-id")
-        .and_then(|value| value.to_str().ok())
-        .ok_or_else(|| "x-user-id header is required".to_string())?;
+impl IntoResponse for crate::auth::AuthError {
+    fn into_response(self) -> Response {
+        (
+            self.status(),
+            Json(ApiErrorEnvelope {
+                success: false,
+                error: self.message().to_string(),
+            }),
+        )
+            .into_response()
+    }
+}
 
-    Uuid::parse_str(raw).map_err(|_| "x-user-id must be a valid UUID".to_string())
+async fn authenticate_user(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<Uuid, crate::auth::AuthError> {
+    state
+        .auth
+        .authenticate(headers)
+        .await
+        .map(|user| user.user_id)
 }
 
 fn active_provider(state: &AppState) -> String {
@@ -88,18 +103,9 @@ pub async fn create_intent(
     headers: HeaderMap,
     Json(payload): Json<CreateRampIntentRequest>,
 ) -> Response {
-    let user_id = match user_id_from_headers(&headers) {
+    let user_id = match authenticate_user(&state, &headers).await {
         Ok(user_id) => user_id,
-        Err(message) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiErrorEnvelope {
-                    success: false,
-                    error: message,
-                }),
-            )
-                .into_response()
-        }
+        Err(error) => return error.into_response(),
     };
 
     let idempotency_key = match idempotency::ensure_non_empty_idempotency(
@@ -136,6 +142,7 @@ pub async fn create_intent(
 
     match intents::create_intent(
         &state.pool,
+        state.quote_provider.as_ref(),
         state.payment_provider.as_ref(),
         state.config.onramp_max_usd_cents,
         user_id,
@@ -176,18 +183,9 @@ pub async fn get_intent(
     headers: HeaderMap,
     Path(intent_id): Path<Uuid>,
 ) -> Response {
-    let user_id = match user_id_from_headers(&headers) {
+    let user_id = match authenticate_user(&state, &headers).await {
         Ok(user_id) => user_id,
-        Err(message) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiErrorEnvelope {
-                    success: false,
-                    error: message,
-                }),
-            )
-                .into_response()
-        }
+        Err(error) => return error.into_response(),
     };
 
     match intents::get_intent(&state.pool, intent_id, user_id).await {
@@ -223,18 +221,9 @@ pub async fn prepare_signature(
     headers: HeaderMap,
     Path(intent_id): Path<Uuid>,
 ) -> Response {
-    let user_id = match user_id_from_headers(&headers) {
+    let user_id = match authenticate_user(&state, &headers).await {
         Ok(user_id) => user_id,
-        Err(message) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiErrorEnvelope {
-                    success: false,
-                    error: message,
-                }),
-            )
-                .into_response()
-        }
+        Err(error) => return error.into_response(),
     };
 
     match intents::prepare_signature(
@@ -276,18 +265,9 @@ pub async fn initialize_payment(
     headers: HeaderMap,
     Path(intent_id): Path<Uuid>,
 ) -> Response {
-    let user_id = match user_id_from_headers(&headers) {
-        Ok(id) => id,
-        Err(msg) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiErrorEnvelope {
-                    success: false,
-                    error: msg,
-                }),
-            )
-                .into_response()
-        }
+    let user_id = match authenticate_user(&state, &headers).await {
+        Ok(user_id) => user_id,
+        Err(error) => return error.into_response(),
     };
 
     // clear-msig has no `users` table — Paystack just needs *an* email
@@ -332,11 +312,15 @@ pub async fn initialize_payment(
 // ── GET /v1/ramp/bank/resolve?account_number=&bank_code= ─────────────────────
 
 /// Resolves a Nigerian bank account number to an account name via Paystack.
-/// No authentication required — the account number itself is not sensitive.
+/// Session authentication protects bank account lookup from anonymous enumeration.
 pub async fn resolve_bank(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Query(params): Query<BankResolveQuery>,
 ) -> Response {
+    if let Err(error) = authenticate_user(&state, &headers).await {
+        return error.into_response();
+    }
     match intents::resolve_bank_account(
         state.payment_provider.as_ref(),
         &params.account_number,
@@ -430,6 +414,17 @@ pub async fn kora_webhook(
 
     let verified = verify_kora_signature(&state.config.kora_webhook_secret, &body, signature);
 
+    if !verified {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ApiErrorEnvelope {
+                success: false,
+                error: "Invalid webhook signature".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
     let envelope: KoraWebhookEvent = match serde_json::from_str(&body) {
         Ok(parsed) => parsed,
         Err(error) => {
@@ -490,17 +485,6 @@ pub async fn kora_webhook(
             .into_response();
     }
 
-    if !verified {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiErrorEnvelope {
-                success: false,
-                error: "Invalid webhook signature".to_string(),
-            }),
-        )
-            .into_response();
-    }
-
     (
         StatusCode::OK,
         Json(ApiEnvelope {
@@ -513,43 +497,16 @@ pub async fn kora_webhook(
 
 pub async fn chain_confirm(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<ChainTransferConfirmationRequest>,
 ) -> Response {
-    let result = sqlx::query(
-        r#"
-        INSERT INTO ramp_chain_transfers (
-            id, intent_id, chain_family, chain_id, tx_hash, event_index,
-            sender_wallet, asset_symbol, amount_minor, confirmations, is_finalized,
-            detected_at, confirmed_at
-        )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),CASE WHEN $11 THEN NOW() ELSE NULL END)
-        ON CONFLICT (chain_family, chain_id, tx_hash, event_index)
-        DO UPDATE SET
-            confirmations = EXCLUDED.confirmations,
-            is_finalized = EXCLUDED.is_finalized,
-            confirmed_at = CASE WHEN EXCLUDED.is_finalized THEN NOW() ELSE ramp_chain_transfers.confirmed_at END
-        "#,
-    )
-    .bind(Uuid::new_v4())
-    .bind(payload.intent_id)
-    .bind(match payload.chain_family {
-        crate::domain::types::ChainFamily::Solana => "solana",
-        crate::domain::types::ChainFamily::Evm => "evm",
-        crate::domain::types::ChainFamily::Bitcoin => "bitcoin",
-        crate::domain::types::ChainFamily::Zcash => "zcash",
-    })
-    .bind(&payload.chain_id)
-    .bind(&payload.tx_hash)
-    .bind(payload.event_index)
-    .bind(&payload.sender_wallet)
-    .bind(&payload.asset_symbol)
-    .bind(payload.amount_minor)
-    .bind(payload.confirmations)
-    .bind(payload.finalized)
-    .execute(&state.pool)
-    .await;
-
-    match result {
+    let user_id = match authenticate_user(&state, &headers).await {
+        Ok(user_id) => user_id,
+        Err(error) => return error.into_response(),
+    };
+    match crate::services::deposits::confirm_deposit(&state.pool, &state.config, user_id, &payload)
+        .await
+    {
         Ok(_) => (
             StatusCode::ACCEPTED,
             Json(ApiEnvelope {
@@ -594,6 +551,17 @@ pub async fn paystack_webhook(
         body.as_bytes(),
         signature,
     );
+
+    if verified.is_err() {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ApiErrorEnvelope {
+                success: false,
+                error: "Invalid webhook signature".to_string(),
+            }),
+        )
+            .into_response();
+    }
 
     let envelope: PaystackWebhookEnvelope = match serde_json::from_str(&body) {
         Ok(parsed) => parsed,
@@ -643,17 +611,6 @@ pub async fn paystack_webhook(
             Json(ApiErrorEnvelope {
                 success: false,
                 error: error.to_string(),
-            }),
-        )
-            .into_response();
-    }
-
-    if verified.is_err() {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiErrorEnvelope {
-                success: false,
-                error: "Invalid webhook signature".to_string(),
             }),
         )
             .into_response();

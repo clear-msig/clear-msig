@@ -1,3 +1,4 @@
+import { readScopedAgentStorage, writeScopedAgentStorage } from "@/features/agents/local-state/scope";
 import type { AgentVenueReadiness } from "@/lib/agents/clientExecution";
 
 const STORAGE_KEY = "clear.agents.hyperliquidSetup.v1";
@@ -231,7 +232,7 @@ export function buildAgentHyperliquidSetupSummary(
 function readAll(): Record<string, AgentHyperliquidSetupSettings> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = readScopedAgentStorage(STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
@@ -249,7 +250,7 @@ function readAll(): Record<string, AgentHyperliquidSetupSettings> {
 
 function writeAll(settings: Record<string, AgentHyperliquidSetupSettings>): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  writeScopedAgentStorage(STORAGE_KEY, JSON.stringify(settings));
 }
 
 function normalizeSettings(input: unknown): AgentHyperliquidSetupSettings | null {

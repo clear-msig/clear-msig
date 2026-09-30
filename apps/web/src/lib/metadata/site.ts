@@ -149,7 +149,7 @@ export function createSiteManifest(): MetadataRoute.Manifest {
     start_url: "/",
     display: "standalone",
     background_color: "#070807",
-    theme_color: "#ccff00",
+    theme_color: "#0c0c0c",
     orientation: "portrait",
     categories: ["finance", "productivity", "utilities"],
     icons: [

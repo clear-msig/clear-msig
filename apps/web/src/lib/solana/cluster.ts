@@ -1,29 +1,6 @@
-// Solana cluster endpoint selection + fallback-aware Connection factory.
-//
-// Why this isn't just `new Connection(url)`:
-//
-// We've seen production breakage where the configured RPC (e.g. a
-// Helius project key that's been rate-limited or revoked) drops the
-// TCP connection mid-request. The browser surfaces that as
-// `ERR_CONNECTION_CLOSED` and every read in the dashboard fails with
-// no graceful path. The fix is a fallback Connection that retries on
-// the always-up public devnet RPC when the primary errors at the
-// network layer.
-//
-// Implementation: Proxy-wrap the primary Connection so any method
-// that throws a network-level error retries the same call on a
-// fallback Connection. After the first failure we latch - every
-// subsequent call goes straight to the fallback so we don't pay the
-// primary's timeout on every read.
-//
-// What this does NOT cover:
-//   - WebSocket account subscriptions (web3.js opens a separate WS
-//     connection; failures there will just leave the subscription
-//     dead until the user reloads). Acceptable for now - reads are
-//     the load-bearing path.
-//   - Logical RPC errors (account not found, etc.) - those come back
-//     as null/empty responses, not exceptions, so the wrapper
-//     ignores them.
+// HTTP read failover preserves cluster identity. Never retry submissions or
+// wrap synchronous subscription methods, and never silently send a custom
+// network request to devnet. WebSocket subscriptions stay on their provider.
 
 import { Commitment, Connection, type ConnectionConfig } from "@solana/web3.js";
 
@@ -89,101 +66,98 @@ export const solanaClusterDefaultRpcOrigin = (() => {
 /// connection singleton built later sees this. Saving a new
 /// override after first load requires a page reload to take
 /// effect; the Settings UI handles that.
-export const solanaClusterRpc =
-  readOverrideFromStorage() ?? solanaClusterDefaultRpc;
+const storedOverride = readOverrideFromStorage();
+export const solanaClusterRpc = storedOverride ?? solanaClusterDefaultRpc;
 
-/// Fallback RPC. Keep this on the same Alchemy devnet endpoint as the
-/// default deploy/runtime path so reads and deploy smoke checks do not
-/// silently drift back to public Solana RPC.
-export const solanaClusterFallbackRpc = DEFAULT_DEVNET_RPC;
+// A custom per-device RPC must not inherit the deployment's fallback. An
+// explicit deployment fallback is permitted only after genesis verification.
+export const solanaClusterFallbackRpc = storedOverride ? null
+  : process.env.NEXT_PUBLIC_SOLANA_FALLBACK_RPC_URL?.trim() ||
+    (!process.env.NEXT_PUBLIC_SOLANA_RPC_URL && ALCHEMY_DEVNET_RPC ? DEFAULT_DEVNET_RPC : null);
 
-/// Build a Connection that transparently fails over to
-/// `solanaClusterFallbackRpc` on network errors. Use this everywhere
-/// instead of `new Connection(...)` so we keep the resilience
-/// contract in one place.
-export function createSolanaConnection(
-  commitment: Commitment = "confirmed",
-): Connection {
-  const config: ConnectionConfig = {
-    commitment,
-    // web3.js logs every 429 retry with console.error. We handle RPC
-    // failover ourselves, so disable the internal retry loop and let
-    // the proxy below switch providers without noisy console output.
-    disableRetryOnRateLimit: true,
-  };
+const SAFE_READ_METHODS = new Set([
+  "getAccountInfo", "getAccountInfoAndContext", "getBalance", "getBalanceAndContext",
+  "getMultipleAccountsInfo", "getMultipleAccountsInfoAndContext", "getProgramAccounts",
+  "getParsedAccountInfo", "getParsedProgramAccounts", "getParsedTokenAccountsByOwner",
+  "getTokenAccountsByOwner", "getTokenAccountBalance", "getTokenSupply", "getSupply",
+  "getTransaction", "getParsedTransaction", "getSignaturesForAddress", "getSignatureStatus",
+  "getSignatureStatuses", "getLatestBlockhash", "getLatestBlockhashAndContext",
+  "isBlockhashValid", "getRecentBlockhash", "getSlot", "getBlockTime", "getBlockHeight",
+  "getMinimumBalanceForRentExemption", "getFeeForMessage", "getEpochInfo", "getVersion",
+  "getClusterNodes", "getGenesisHash",
+]);
 
-  // Same URL? No fallback needed - return a plain Connection.
-  if (solanaClusterRpc === solanaClusterFallbackRpc) {
-    return new Connection(solanaClusterRpc, config);
-  }
-
+export function createSolanaConnection(commitment: Commitment = "confirmed"): Connection {
+  const config: ConnectionConfig = { commitment, disableRetryOnRateLimit: true };
   const primary = new Connection(solanaClusterRpc, config);
-  let fallback: Connection | null = null;
+  const fallback = solanaClusterFallbackRpc && solanaClusterFallbackRpc !== solanaClusterRpc
+    ? new Connection(solanaClusterFallbackRpc, config) : null;
+  return createReadFallbackConnection(primary, fallback,
+    process.env.NEXT_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH?.trim() || undefined);
+}
+
+/** Exported for deterministic transport tests; no network or signing at setup. */
+export function createReadFallbackConnection(
+  primary: Connection,
+  fallback: Connection | null,
+  expectedGenesis?: string,
+): Connection {
+  if (!fallback && !expectedGenesis) return primary;
+  let primaryGenesis: Promise<string> | null = null;
+  let observedGenesis: string | null = null;
+  let fallbackVerified: Promise<void> | null = null;
   let primaryFailed = false;
-
-  const getFallback = (): Connection => {
-    if (!fallback) {
-      fallback = new Connection(solanaClusterFallbackRpc, config);
+  const identity = () => {
+    if (!primaryGenesis) {
+      primaryGenesis = primary.getGenesisHash().then((genesis) => {
+        if (expectedGenesis && genesis !== expectedGenesis) throw new Error("Configured Solana network identity does not match the RPC.");
+        observedGenesis = genesis;
+        return genesis;
+      }).catch((error) => { primaryGenesis = null; throw error; });
     }
-    return fallback;
+    return primaryGenesis;
   };
-
+  const verifyFallback = () => {
+    const required = expectedGenesis ?? observedGenesis;
+    if (!fallback || !required) throw new Error("Cannot verify Solana fallback network. Configure its expected genesis identity or restore the primary RPC.");
+    if (!fallbackVerified) {
+      fallbackVerified = fallback.getGenesisHash().then((genesis) => {
+        if (genesis !== required) throw new Error("Solana fallback network does not match the configured primary network.");
+      }).catch((error) => { fallbackVerified = null; throw error; });
+    }
+    return fallbackVerified;
+  };
   return new Proxy(primary, {
-    get(target, prop, receiver) {
-      const original = Reflect.get(target, prop, receiver);
-      // Non-function fields go straight through. Connection's RPC
-      // methods are all functions; this also keeps Promise-unwrapping,
-      // EventEmitter internals, and private `_` fields un-proxied.
+    get(target, prop) {
+      const original = Reflect.get(target, prop, target);
       if (typeof original !== "function") return original;
-
-      // If we've already seen the primary fail, dispatch directly to
-      // the fallback so we don't pay the primary's timeout every call.
-      if (primaryFailed) {
-        const fb = getFallback();
-        const fbMethod = (fb as unknown as Record<string, unknown>)[
-          prop as string
-        ];
-        if (typeof fbMethod === "function") {
-          return (fbMethod as (...a: unknown[]) => unknown).bind(fb);
-        }
-        return original;
-      }
-
+      // onAccountChange/onSignature return subscription IDs synchronously.
+      // Transaction submission is deliberately not retried after ambiguity.
+      if (!SAFE_READ_METHODS.has(String(prop))) return original.bind(target);
       return async (...args: unknown[]) => {
-        try {
-          return await (original as (...a: unknown[]) => unknown).apply(
-            target,
-            args,
-          );
-        } catch (err) {
-          if (!isRecoverableRpcError(err)) throw err;
-          // First network failure on the primary. Latch and retry once
-          // on the fallback. If the fallback also fails, that error
-          // propagates - caller's responsibility.
-          if (typeof console !== "undefined") {
-            console.warn(
-              `[solana-rpc] primary ${solanaClusterRpc} failed, falling back to ${solanaClusterFallbackRpc}`,
-              err,
-            );
+        if (!primaryFailed) {
+          try {
+            const genesis = await identity();
+            return prop === "getGenesisHash" ? genesis : await original.apply(target, args);
+          } catch (error) {
+            if (!fallback || !isRecoverableRpcError(error)) throw error;
+            await verifyFallback();
+            primaryFailed = true;
+            // Endpoints may contain API credentials. Never log their URLs.
+            console.warn("[solana-rpc] using a verified same-network read fallback");
           }
-          primaryFailed = true;
-          const fb = getFallback();
-          const fbMethod = (fb as unknown as Record<string, unknown>)[
-            prop as string
-          ];
-          if (typeof fbMethod !== "function") throw err;
-          return await (fbMethod as (...a: unknown[]) => unknown).apply(
-            fb,
-            args,
-          );
         }
+        await verifyFallback();
+        const method = Reflect.get(fallback!, prop, fallback!);
+        return method.apply(fallback, args);
       };
     },
-  }) as Connection;
+  });
 }
 
 function isRecoverableRpcError(err: unknown): boolean {
   if (!err) return false;
+  if (err instanceof Error && err.name === "AbortError") return false;
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
   return (
     msg.includes("429") ||
@@ -195,7 +169,6 @@ function isRecoverableRpcError(err: unknown): boolean {
     msg.includes("err_network") ||
     msg.includes("networkerror") ||
     msg.includes("fetch failed") ||
-    msg.includes("typeerror: load failed") || // Safari
-    msg.includes("aborted")
+    msg.includes("typeerror: load failed") // Safari
   );
 }

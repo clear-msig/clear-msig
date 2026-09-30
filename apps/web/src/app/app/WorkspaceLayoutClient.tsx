@@ -15,7 +15,10 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { useConnection, useWallet } from "@/lib/wallet";
+import { fetchWalletByName } from "@/lib/chain/wallets";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
 import { AppLockOverlay } from "@/components/security/AppLockOverlay";
 import { PhishingWarningBanner } from "@/components/security/PhishingWarningBanner";
@@ -56,6 +59,11 @@ const ActionNotificationsRuntime = dynamic(
       (mod) => mod.ActionNotificationsRuntime,
     ),
   { ssr: false, loading: () => null },
+);
+
+const AgentLocalStateBoundary = dynamic(
+  () => import("@/features/agents/infrastructure/AgentLocalStateBoundary").then((mod) => mod.AgentLocalStateBoundary),
+  { ssr: false, loading: () => <p role="status" className="text-sm text-text-soft">Loading your agent workspace…</p> },
 );
 
 export default function WorkspaceLayout({
@@ -141,7 +149,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
           <div className="mx-auto flex w-full max-w-[76rem] flex-col gap-4 pb-32 pt-16 sm:pb-16 md:pb-12 md:pt-8">
             <PhishingWarningBanner />
             <PreAlphaBanner />
-            <section className="relative z-20 min-w-0">{children}</section>
+            <section className="relative z-20 min-w-0"><AgentWorkspaceScope>{children}</AgentWorkspaceScope></section>
           </div>
         </main>
       </div>
@@ -149,6 +157,43 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
       <BottomNav />
     </div>
   );
+}
+
+function AgentWorkspaceScope({ children }: Readonly<{ children: React.ReactNode }>) {
+  const pathname = usePathname() ?? "";
+  const params = useParams<{ name?: string }>();
+  const wallet = useWallet();
+  const { connection } = useConnection();
+  const active = /^\/app\/wallet\/[^/]+\/agents(?:\/|$)/.test(pathname);
+  let walletName = params?.name ?? "";
+  try { walletName = decodeURIComponent(walletName); } catch { /* Keep invalid names unresolvable. */ }
+  const subject = wallet.connected ? wallet.sessionSubject : null;
+  const canonical = useQuery({
+    queryKey: ["agent-local-scope-wallet", subject, connection.rpcEndpoint, walletName],
+    queryFn: async () => {
+      const [resolvedWallet, genesisHash] = await Promise.all([
+        fetchWalletByName(connection, walletName), connection.getGenesisHash(),
+      ]);
+      return resolvedWallet ? { wallet: resolvedWallet, genesisHash } : null;
+    },
+    enabled: active && !!subject && !!walletName,
+    staleTime: 30_000,
+  });
+  if (!active) return children;
+  if (wallet.connecting || (!!subject && canonical.isLoading)) {
+    return <p role="status" className="text-sm text-text-soft">Verifying your agent workspace…</p>;
+  }
+  if (!subject) {
+    return <p role="status" className="text-sm text-text-soft">Sign in with Dynamic to open your private agent workspace.</p>;
+  }
+  if (canonical.isError || !canonical.data) {
+    return <div role="alert" className="flex flex-col gap-3 text-sm text-text-soft">
+      <p>We couldn’t verify a unique wallet for this workspace. Check the selected wallet before continuing.</p>
+      <button type="button" className="self-start rounded-soft border border-border-soft px-4 py-3 text-text-strong" onClick={() => void canonical.refetch()}>Try again</button>
+    </div>;
+  }
+  return <AgentLocalStateBoundary key={`${subject}:${canonical.data.genesisHash}:${canonical.data.wallet.pda.toBase58()}`} sessionSubject={subject}
+    walletPda={canonical.data.wallet.pda.toBase58()} chainNamespace={canonical.data.genesisHash} walletName={walletName}>{children}</AgentLocalStateBoundary>;
 }
 
 function useDeferredRuntime(): boolean {

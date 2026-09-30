@@ -107,6 +107,8 @@ impl ProStore {
             source_token: trim_optional(input.source_token),
             destination_token: trim_optional(input.destination_token),
             recipient_owner: trim_optional(input.recipient_owner),
+            policy_version: input.policy_version,
+            pending_execution: input.pending_execution,
         };
 
         doc.schedules
@@ -289,7 +291,7 @@ impl ProStore {
     }
 }
 
-pub(crate) fn router() -> Router<AppState> {
+pub(crate) fn router(gateway: Arc<crate::gateway_auth::GatewayAuth>) -> Router<AppState> {
     Router::new()
         .route(
             "/wallets/{name}/schedules",
@@ -311,6 +313,10 @@ pub(crate) fn router() -> Router<AppState> {
         )
         .route("/wallets/{name}/audit-events", get(list_audit_events))
         .route("/audit-events", post(append_audit_event))
+        .route_layer(axum::middleware::from_fn_with_state(
+            gateway,
+            crate::gateway_auth::require_gateway,
+        ))
 }
 
 async fn list_schedules(

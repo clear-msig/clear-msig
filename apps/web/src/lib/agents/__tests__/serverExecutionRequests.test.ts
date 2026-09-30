@@ -4,7 +4,7 @@ import {
   listAgentServerExecutionRequests,
   recordAgentServerExecutionRequest,
   recordAgentServerExecutionSettlement,
-} from "@/lib/agents/serverExecutionRequests";
+} from "@/test/agents/serverExecutionRequests";
 import type {
   AgentServerExecutionReadiness,
   AgentServerExecutionRequest,
@@ -101,6 +101,25 @@ describe("server execution request ledger", () => {
     expect(accepted.record.status).toBe("waiting_for_setup");
     expect(duplicate.duplicate).toBe(true);
     expect(duplicate.record.id).toBe(accepted.record.id);
+  });
+
+  it("advances a pre-configuration request to a submitted receipt", async () => {
+    const pendingRequest = { ...request, walletName: "vault-execution-setup-recovery" };
+    const pending = await recordAgentServerExecutionRequest({ request: pendingRequest, readiness });
+    expect(pending.record.status).toBe("waiting_for_setup");
+    const submitted = await recordAgentServerExecutionRequest({
+      request: pendingRequest, readiness: { ...readiness, state: "ready", canSubmit: true },
+      status: "submitted", artifact: {
+        exchange: "hyperliquid_testnet", orderId: "setup-order", status: "filled",
+        market: "BTC-PERP", side: "long", submittedAt: 1_780_000_000_000,
+      },
+    });
+    expect(submitted.duplicate).toBe(false);
+    expect(submitted.record.status).toBe("submitted");
+    expect((await listAgentServerExecutionRequests(pendingRequest.walletName, pendingRequest.agentId))[0]?.artifact?.orderId).toBe("setup-order");
+    const stale = await recordAgentServerExecutionRequest({ request: pendingRequest, readiness, status: "rejected" });
+    expect(stale.record.status).toBe("submitted");
+    expect(stale.duplicate).toBe(true);
   });
 
   it("records a verified submitted artifact and deduplicates it", async () => {

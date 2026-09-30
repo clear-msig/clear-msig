@@ -40,6 +40,35 @@ fn test_execute_typed_sol_send_is_permissionless_and_idempotent() {
 
     let vault = fund_vault(&mut svm, payer, wallet, amount_lamports + 1_000_000);
     let vault_pre = svm.get_account(&vault).map(|a| a.lamports).unwrap_or(0);
+
+    // All four commitments are public. An outsider must not be able to
+    // consume this approval using the old status-only instruction before
+    // the dedicated executor performs the approved transfer.
+    let proposal_before = svm.get_account(&proposal).unwrap().data;
+    let intent_before = svm.get_account(&intent).unwrap().data;
+    let mut no_op_data = vec![11u8, ClearSignActionKind::Send.code()];
+    no_op_data.extend_from_slice(&policy_commitment);
+    no_op_data.extend_from_slice(&proposal_before[200..232]);
+    no_op_data.extend_from_slice(&envelope_hash);
+    let no_op = Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(wallet, false),
+            AccountMeta::new(intent, false),
+            AccountMeta::new(proposal, false),
+        ],
+        data: no_op_data,
+    };
+    assert!(
+        svm.process_instruction(&no_op, &[]).is_err(),
+        "generic status-only execution consumed a v4 transfer approval"
+    );
+    assert_eq!(svm.get_account(&proposal).unwrap().data, proposal_before);
+    assert_eq!(svm.get_account(&intent).unwrap().data, intent_before);
+    assert_eq!(svm.get_account(&vault).unwrap().lamports, vault_pre);
+
+    // The legitimate permissionless executor must still move the exact
+    // authorized amount and consume the proposal exactly once.
     let relayer = Pubkey::new_unique();
     assert_ne!(relayer, payer);
     assert_ne!(relayer, pubkey_of(&proposer));

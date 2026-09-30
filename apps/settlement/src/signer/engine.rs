@@ -49,6 +49,7 @@ impl SignerEngine {
         &self,
         request: &AssetTransferRequest,
     ) -> anyhow::Result<AssetTransferResult> {
+        crate::domain::types::positive_amount_minor(request.amount_minor)?;
         match request.chain_family {
             ChainFamily::Solana => self.solana.transfer(request).await,
             ChainFamily::Evm => self.evm.transfer(request).await,

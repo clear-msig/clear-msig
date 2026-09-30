@@ -1,3 +1,4 @@
+const target = { walletAddress: "canonical-wallet", agentId: "agent", programId: "program", network: "test-deployment" };
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -70,14 +71,14 @@ test("signs trade decisions with the submit-only signal key", () => {
   });
 
   assert.match(
-    signTradeDecision({ decision, signalKey: "submit-only-key" }),
+    signTradeDecision({ target, decision, signalKey: "submit-only-key" }),
     /^[a-f0-9]{64}$/,
   );
 });
 
 test("submits with the submit-only signal key and signed decision", async () => {
   const requests = [];
-  const response = await submitTradeDecision({
+  const response = await submitTradeDecision({ target,
     endpoint: "http://localhost:3000/api/agent-signals/vault/agent-alpha",
     signalKey: "submit-only-key",
     decision: createTradeDecision({
@@ -112,5 +113,5 @@ test("submits with the submit-only signal key and signed decision", async () => 
   assert.equal(requests[0].request.headers["x-clearsig-signal-key"], "submit-only-key");
   assert.match(requests[0].request.headers["x-clearsig-signal-signature"], /^[a-f0-9]{64}$/);
   assert.equal(JSON.parse(requests[0].request.body).signal.clientSignalId, "decision-1");
-  assert.equal(JSON.parse(requests[0].request.body).signatureScheme, "hmac_sha256_v1");
+  assert.equal(JSON.parse(requests[0].request.body).signatureScheme, "hmac_sha256_v2");
 });

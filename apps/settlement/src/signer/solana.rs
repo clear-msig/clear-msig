@@ -43,7 +43,7 @@ impl SolanaSigner {
         }
         Ok(RpcClient::new_with_commitment(
             self.config.solana_rpc_url.clone(),
-            CommitmentConfig::confirmed(),
+            CommitmentConfig::finalized(),
         ))
     }
 

@@ -1,3 +1,4 @@
+import { readScopedAgentStorage, writeScopedAgentStorage } from "@/features/agents/local-state/scope";
 import type { TradingLaunchVenue } from "@/lib/agents/launchReadiness";
 
 export type AgentComplianceDisclosureId =
@@ -145,7 +146,7 @@ type StoredShape = Partial<
 function readAll(): StoredShape {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = readScopedAgentStorage(STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? (parsed as StoredShape) : {};
@@ -157,7 +158,7 @@ function readAll(): StoredShape {
 function writeAll(shape: StoredShape): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(shape));
+    writeScopedAgentStorage(STORAGE_KEY, JSON.stringify(shape));
   } catch {
     /* localStorage failures should not break the page */
   }

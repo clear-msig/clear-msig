@@ -66,6 +66,7 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
         queryKey: [
           "wallet-intents-all",
           wq.data?.membership.wallet ?? "pending",
+          wq.data?.account?.intentIndex ?? null,
         ],
         queryFn: async (): Promise<{
           membership: OnchainMembership;
@@ -97,7 +98,7 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
   // actual fetch updates. This matters because useActionNeeded ->
   // BottomNav reads downstream state on every page render.
   const intentsFingerprint = intentsQueries
-    .map((q) => `${q.dataUpdatedAt}.${q.status}`)
+    .map((q) => `${q.data?.membership.wallet ?? "pending"}.${q.dataUpdatedAt}.${q.status}`)
     .join("|");
   const rows = useMemo<UserIntentRow[]>(() => {
     const flat: UserIntentRow[] = [];

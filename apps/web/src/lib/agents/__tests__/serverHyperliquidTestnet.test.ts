@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildHyperliquidTestnetKillSwitchRequest,
   buildHyperliquidTestnetExecutorRequest,
@@ -12,6 +12,7 @@ import {
   submitHyperliquidTestnetKillSwitch,
   submitHyperliquidTestnetOrder,
   submitHyperliquidTestnetSettlement,
+  verifyHyperliquidTestnetSettlementArtifact,
 } from "@/lib/agents/serverHyperliquidTestnet";
 import { readHyperliquidTestnetExecutorConfig } from "@/lib/agents/hyperliquidTestnetConfig";
 import type { AgentServerExecutionRequest } from "@/lib/agents";
@@ -60,7 +61,7 @@ describe("Hyperliquid testnet server boundary", () => {
     expect(first.controls.maxSlippageBps).toBe(50);
   });
 
-  it("builds a stable kill-switch request for the protected executor", () => {
+  it("gives each kill-switch invocation a fresh cancellation identity", () => {
     const first = buildHyperliquidTestnetKillSwitchRequest({
       walletName: "vault",
       reason: "Owner paused agent trading.",
@@ -72,7 +73,7 @@ describe("Hyperliquid testnet server boundary", () => {
       config,
     });
 
-    expect(first).toEqual(second);
+    expect(first.idempotencyKey).not.toBe(second.idempotencyKey);
     expect(first.idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
     expect(first.accountAddress).toBe(config.accountAddress);
     expect(first.agentWalletAddress).toBe(config.agentWalletAddress);
@@ -170,71 +171,16 @@ describe("Hyperliquid testnet server boundary", () => {
     expect(probe.agentWalletAddress).toBe(config.agentWalletAddress);
   });
 
-  it("submits only to the isolated executor and validates its artifact", async () => {
-    const artifact = await submitHyperliquidTestnetOrder({
-      request,
-      config,
-      fetchImpl: async (url, init) => {
-        expect(url).toBe(
-          "http://127.0.0.1:4010/v1/hyperliquid/testnet/orders",
-        );
-        expect(init?.headers).toMatchObject({
-          authorization: "Bearer executor-secret",
-        });
-        const body = JSON.parse(String(init?.body));
-        expect(body.intent.proposalId).toBe("proposal-1");
-        expect(body.accountAddress).toBe(config.accountAddress);
-        expect(body.agentWalletAddress).toBe(config.agentWalletAddress);
-        return new Response(
-          JSON.stringify({
-            artifact: {
-              exchange: "hyperliquid_testnet",
-              orderId: "123456",
-              status: "accepted",
-              market: "BTC-PERP",
-              side: "long",
-              submittedAt: 1_780_000_001_000,
-            },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        );
-      },
-    });
-
-    expect(artifact.orderId).toBe("123456");
-  });
-
-  it("submits kill switch only to the isolated executor", async () => {
-    const artifact = await submitHyperliquidTestnetKillSwitch({
-      walletName: "vault",
-      reason: "Owner paused agent trading.",
-      config,
-      fetchImpl: async (url, init) => {
-        expect(url).toBe(
-          "http://127.0.0.1:4010/v1/hyperliquid/testnet/kill-switch",
-        );
-        expect(init?.headers).toMatchObject({
-          authorization: "Bearer executor-secret",
-        });
-        const body = JSON.parse(String(init?.body));
-        expect(body.walletName).toBe("vault");
-        expect(body.accountAddress).toBe(config.accountAddress);
-        expect(body.agentWalletAddress).toBe(config.agentWalletAddress);
-        return new Response(
-          JSON.stringify({
-            artifact: {
-              exchange: "hyperliquid_testnet",
-              status: "cancelled",
-              cancelledAt: 1_780_000_001_000,
-              message: "Open orders cancelled.",
-            },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        );
-      },
-    });
-
-    expect(artifact.status).toBe("cancelled");
+  it("blocks legacy order, close and kill-switch side effects even with configured credentials", async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    await expect(submitHyperliquidTestnetOrder({ request, config, fetchImpl })).rejects.toThrow("External agent execution is blocked");
+    await expect(submitHyperliquidTestnetKillSwitch({ walletName: "vault", reason: "pause", config, fetchImpl })).rejects.toThrow("External agent execution is blocked");
+    await expect(submitHyperliquidTestnetSettlement({
+      serverRequestId: "request-1", request, config, fetchImpl,
+      openingArtifact: { exchange: "hyperliquid_testnet", orderId: "1", status: "filled",
+        market: "BTC-PERP", side: "long", filledSize: "1", submittedAt: 1 },
+    })).rejects.toThrow("External agent execution is blocked");
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("binds and validates a venue settlement artifact", async () => {
@@ -257,30 +203,18 @@ describe("Hyperliquid testnet server boundary", () => {
     expect(built.idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
     expect(built.openingArtifact.orderId).toBe("123456");
 
-    const artifact = await submitHyperliquidTestnetSettlement({
+    const artifact = await verifyHyperliquidTestnetSettlementArtifact({
       serverRequestId: "request-1",
       request,
       openingArtifact,
       config,
-      fetchImpl: async (url, init) => {
-        expect(url).toBe("http://127.0.0.1:4010/v1/hyperliquid/testnet/settlements");
-        expect(JSON.parse(String(init?.body)).serverRequestId).toBe("request-1");
-        return new Response(JSON.stringify({ artifact: {
-          exchange: "hyperliquid_testnet",
-          network: "testnet",
-          serverRequestId: "request-1",
-          openingOrderId: "123456",
-          closingOrderId: "654321",
-          market: "BTC-PERP",
-          side: "long",
-          closedSize: "0.0037",
-          reservedNotionalUsd: "250",
-          realizedPnlUsd: "-1.25",
-          fillHashes: [`0x${"ab".repeat(32)}`],
-          settledAt: 1_780_000_002_000,
-        } }), { status: 200, headers: { "content-type": "application/json" } });
+      claim: {
+        exchange: "hyperliquid_testnet", network: "testnet", serverRequestId: "request-1",
+        openingOrderId: "123456", closingOrderId: "654321", market: "BTC-PERP", side: "long",
+        closedSize: "0.0037", reservedNotionalUsd: "250", realizedPnlUsd: "-1.25",
+        fillHashes: [`0x${"ab".repeat(32)}`], settledAt: 1_780_000_002_000,
       },
-      venueFetchImpl: async (url, init) => {
+      fetchImpl: async (url, init) => {
         expect(url).toBe("https://api.hyperliquid-testnet.xyz/info");
         const body = JSON.parse(String(init?.body));
         if (body.type === "orderStatus") {

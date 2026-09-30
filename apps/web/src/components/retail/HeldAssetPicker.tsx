@@ -41,8 +41,10 @@ export function HeldAssetPicker({
     retry: 1,
   });
 
-  const solanaRows = solanaQuery.data ?? [];
-  const evmRows = evmQuery.data ?? [];
+  // Disabling a query does not clear cached data. Keep holdings from a previous
+  // network out of the current chain's picker when the user switches chains.
+  const solanaRows = showSolana ? solanaQuery.data ?? [] : [];
+  const evmRows = showEvm ? evmQuery.data ?? [] : [];
   if (solanaRows.length === 0 && evmRows.length === 0) return null;
 
   return (

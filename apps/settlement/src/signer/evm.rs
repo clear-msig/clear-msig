@@ -103,6 +103,7 @@ impl ChainSigner for EvmSigner {
         &self,
         request: &AssetTransferRequest,
     ) -> anyhow::Result<AssetTransferResult> {
+        let amount_minor = crate::domain::types::positive_amount_minor(request.amount_minor)?;
         let chain_id = Self::parse_chain_id(&request.chain_id)?;
         let provider = self.build_provider(chain_id)?;
         let recipient = Address::from_str(request.recipient_wallet.trim())?;
@@ -110,23 +111,43 @@ impl ChainSigner for EvmSigner {
         let tx_hash = if let Some(token_address) = request.token_address.as_deref() {
             let token_address = Address::from_str(token_address.trim())?;
             let contract = Erc20Token::new(token_address, &provider);
-            let call = contract.transfer(recipient, U256::from(request.amount_minor as u128));
+            let call = contract.transfer(recipient, U256::from(amount_minor));
             let pending = call.send().await?;
             let receipt = pending.get_receipt().await?;
+            ensure_successful_receipt(receipt.status())?;
             format!("{:x}", receipt.transaction_hash)
         } else {
             let tx = TransactionRequest {
                 to: Some(recipient.into()),
-                value: Some(U256::from(request.amount_minor as u128)),
+                value: Some(U256::from(amount_minor)),
                 ..Default::default()
             };
             let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
+            ensure_successful_receipt(receipt.status())?;
             format!("{:x}", receipt.transaction_hash)
         };
 
         Ok(AssetTransferResult {
             tx_hash,
-            finalized: true,
+            // A mined receipt is not finalized. Reconciliation or operator
+            // review must establish finality before reporting completion.
+            finalized: false,
         })
+    }
+}
+
+fn ensure_successful_receipt(status: bool) -> anyhow::Result<()> {
+    anyhow::ensure!(status, "EVM treasury transaction reverted");
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_successful_receipt;
+
+    #[test]
+    fn reverted_evm_receipt_is_not_a_successful_disbursement() {
+        assert!(ensure_successful_receipt(false).is_err());
+        assert!(ensure_successful_receipt(true).is_ok());
     }
 }

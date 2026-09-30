@@ -15,6 +15,13 @@ import type { Config } from "tailwindcss";
 //      consumer has migrated to the semantic names.
 // ─────────────────────────────────────────────────────────────────────
 
+// Tailwind 3 cannot apply /opacity modifiers to a bare CSS var(). Keep RGB
+// channels explicit, including the base opacity of semantic text/border tokens.
+function themeColor(variable: string, fallback: string, baseOpacity?: string): string {
+  const alpha = baseOpacity ? `calc(${baseOpacity} * <alpha-value>)` : "<alpha-value>";
+  return `rgb(var(${variable}, ${fallback}) / ${alpha})`;
+}
+
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   // Class-based dark mode via the `data-theme="dark"` attribute on
@@ -28,24 +35,22 @@ const config: Config = {
     extend: {
       colors: {
         // ── Semantic ──────────────────────────────────────────────
-        // The 5 highest-traffic tokens are CSS vars so dark mode
-        // can flip them without per-class diffs. Everything else
-        // stays a fixed value - accent green / feedback / etc.
-        // should look the same in both themes.
-        canvas: "var(--clear-canvas, #f4f4f5)",
-        "surface-raised": "var(--clear-surface-raised, #ffffff)",
-        "surface-elevated": "var(--clear-surface-elevated, #ffffff)",
-        "surface-sunken": "var(--clear-surface-sunken, #eef0f4)",
-        "text-strong": "var(--clear-text-strong, #0f172a)",
-        "text-soft": "var(--clear-text-soft, #71717a)",
-        "text-softer": "var(--clear-text-softer, rgba(10, 14, 22, 0.42))",
-        "border-soft": "var(--clear-border-soft, #e4e4e7)",
-        "border-strong": "var(--clear-border-strong, #d4d4d8)",
+        // Shared surfaces, text, borders and accent adapt to the theme.
+        // RGB channels also let every /opacity utility compile correctly.
+        canvas: themeColor("--clear-canvas-rgb", "12 12 12"),
+        "surface-raised": themeColor("--clear-surface-raised-rgb", "19 19 22"),
+        "surface-elevated": themeColor("--clear-surface-elevated-rgb", "24 24 29"),
+        "surface-sunken": themeColor("--clear-surface-sunken-rgb", "10 10 10"),
+        "text-strong": themeColor("--clear-text-rgb", "235 235 235"),
+        "text-soft": themeColor("--clear-text-rgb", "235 235 235", "var(--clear-text-soft-opacity, 0.6)"),
+        "text-softer": themeColor("--clear-text-rgb", "235 235 235", "var(--clear-text-softer-opacity, 0.4)"),
+        "border-soft": themeColor("--clear-border-rgb", "255 255 255", "0.08"),
+        "border-strong": themeColor("--clear-border-rgb", "255 255 255", "0.16"),
         // Theme-aware glass overlays - replace ad-hoc bg-white/[0.0X]
         // surfaces. Dark = white-on-dark tint; light = black-on-light.
-        "glass-soft": "var(--clear-glass-soft, rgba(10, 14, 22, 0.03))",
-        "glass-mid": "var(--clear-glass-mid, rgba(10, 14, 22, 0.05))",
-        "glass-strong": "var(--clear-glass-strong, rgba(10, 14, 22, 0.08))",
+        "glass-soft": themeColor("--clear-glass-rgb", "255 255 255", "var(--clear-glass-soft-opacity, 0.04)"),
+        "glass-mid": themeColor("--clear-glass-rgb", "255 255 255", "var(--clear-glass-mid-opacity, 0.06)"),
+        "glass-strong": themeColor("--clear-glass-rgb", "255 255 255", "0.08"),
 
         // Dark surfaces sit in the mid-gray family - never pure black.
         // Lifted further on 2026-04-30 to match the rendered gray of the
@@ -56,19 +61,13 @@ const config: Config = {
         "surface-card-strong": "#27272a",
         "surface-soft": "#52525b",
 
-        // Brand pivot 2026-05-08: accent is now lime (Obsidian & Lime
-        // identity) in dark mode. Light mode swaps in a deeper
-        // emerald-green via the --clear-accent CSS variable so the
-        // brand colour actually reads on white surfaces - lime on
-        // white is invisible. Defaults are the dark-mode values so
-        // standalone class previews (Storybook, etc) still render
-        // correctly without a theme attribute. text-on-accent flips
-        // black↔white in lockstep so button contrast stays correct.
-        accent: "var(--clear-accent, #ccff00)",
-        "accent-hover": "var(--clear-accent-hover, #d8ff33)",
-        "accent-bright": "var(--clear-accent-bright, #e0ff66)",
+        // Restrained sage accents. Text-on-accent flips with the theme so
+        // primary actions keep sufficient contrast in both appearances.
+        accent: themeColor("--clear-accent-rgb", "163 190 140"),
+        "accent-hover": themeColor("--clear-accent-hover-rgb", "178 205 160"),
+        "accent-bright": themeColor("--clear-accent-bright-rgb", "193 215 179"),
         "accent-emerald": "#10b981",
-        "text-on-accent": "var(--clear-text-on-accent, #000000)",
+        "text-on-accent": themeColor("--clear-text-on-accent-rgb", "0 0 0"),
 
         "text-primary": "#18181b",
         "text-on-dark": "#ffffff",
@@ -91,7 +90,7 @@ const config: Config = {
         "brand-green-bright": "#22c55e",
         "brand-emerald": "#10b981",
         "brand-white": "#ffffff",
-        "text-muted": "var(--clear-text-soft, #71717a)",
+        "text-muted": themeColor("--clear-text-rgb", "235 235 235", "var(--clear-text-soft-opacity, 0.6)"),
         "text-card": "#ffffff",
         "text-card-muted": "#a1a1aa",
       },
@@ -210,12 +209,12 @@ const config: Config = {
         "accent-hover": "0 6px 14px -6px var(--clear-accent-glow-hover)",
 
         // ── Legacy ────────────────────────────────────────────────
-        glow: "0 10px 30px -10px rgba(204, 255, 0, 0.30)",
-        "glow-hover": "0 20px 40px -10px rgba(204, 255, 0, 0.45)",
-        "glow-strong": "0 0 60px -10px rgba(204, 255, 0, 0.35)",
+        glow: "0 10px 30px -10px rgba(163, 190, 140, 0.30)",
+        "glow-hover": "0 20px 40px -10px rgba(163, 190, 140, 0.45)",
+        "glow-strong": "0 0 60px -10px rgba(163, 190, 140, 0.35)",
         "card-shadow": "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
         "card-dark": "0 20px 45px -15px rgba(0, 0, 0, 0.65)",
-        "inner-glow": "inset 0 0 0 1px rgba(204, 255, 0, 0.18)",
+        "inner-glow": "inset 0 0 0 1px rgba(163, 190, 140, 0.18)",
       },
 
       animation: {
@@ -251,9 +250,9 @@ const config: Config = {
 
       backgroundImage: {
         "hero-grid":
-          "radial-gradient(circle at 50% 0%, rgba(204, 255, 0,0.10), transparent 60%)",
+          "radial-gradient(circle at 50% 0%, rgba(163, 190, 140,0.10), transparent 60%)",
         "hero-noise":
-          "linear-gradient(135deg, rgba(204, 255, 0,0.06) 0%, rgba(16,185,129,0.04) 100%)",
+          "linear-gradient(135deg, rgba(163, 190, 140,0.06) 0%, rgba(16,185,129,0.04) 100%)",
         "skeleton-shimmer":
           "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0) 100%)",
       },

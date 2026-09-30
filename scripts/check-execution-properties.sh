@@ -40,7 +40,7 @@ grep -q 'redis_outage_fails_closed_for_lease_and_receipts' \
   crates/clear-msig-execution/src/chains/delivery_redis.rs
 grep -q 'signed_preimage_binds_chain_nonce_and_calldata' \
   programs/clear-wallet/client/src/chains.rs
-grep -q 'test_execute_typed_chain_send_finalizes_verified_remote_send' \
+grep -q 'test_legacy_remote_status_gate_preserves_policy_and_rejects_v4' \
   programs/clear-wallet/src/tests/remote_assets.rs
 grep -q 'interrupted_ika_execution_reuses_only_a_signed_message_approval' \
   crates/clear-msig-execution/src/commands/proposal/tests.rs

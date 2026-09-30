@@ -6,32 +6,39 @@ import type { AgentOwnerApproval } from "@/lib/agents/types";
 export function verifyAgentOwnerApprovalSignature(
   approval: AgentOwnerApproval,
 ): boolean {
-  if (!approval.signature || !approval.approvedBy) return false;
+  if (
+    approval.signatureVersion !== 2 ||
+    typeof approval.signature !== "string" ||
+    !approval.signature ||
+    typeof approval.approvedBy !== "string" ||
+    !approval.approvedBy ||
+    !Number.isSafeInteger(approval.createdAt) ||
+    approval.createdAt <= 0
+  ) return false;
   const signature = hexToBytes(approval.signature);
   if (!signature || signature.length !== 64) return false;
-  let publicKey: PublicKey;
   try {
-    publicKey = new PublicKey(approval.approvedBy);
+    const publicKey = new PublicKey(approval.approvedBy);
+    const message = ownerApprovalSignableText(
+      {
+        walletName: approval.walletName,
+        agentId: approval.agentId,
+        action: approval.action,
+        summary: approval.summary,
+        details: approval.details,
+        targetType: approval.targetType,
+        targetId: approval.targetId,
+      },
+      approval.createdAt,
+    );
+    return nacl.sign.detached.verify(
+      new TextEncoder().encode(message),
+      signature,
+      publicKey.toBytes(),
+    );
   } catch {
     return false;
   }
-  const message = ownerApprovalSignableText(
-    {
-      walletName: approval.walletName,
-      agentId: approval.agentId,
-      action: approval.action,
-      summary: approval.summary,
-      details: approval.details,
-      targetType: approval.targetType,
-      targetId: approval.targetId,
-    },
-    approval.createdAt,
-  );
-  return nacl.sign.detached.verify(
-    new TextEncoder().encode(message),
-    signature,
-    publicKey.toBytes(),
-  );
 }
 
 function hexToBytes(value: string): Uint8Array | null {

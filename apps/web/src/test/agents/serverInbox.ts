@@ -1,0 +1,10 @@
+import * as inbox from "@/lib/agents/serverInbox";
+import { withAgentTestWallet } from "./walletScope";
+export { agentInboxStorageMode } from "@/lib/agents/serverInbox";
+export const registerAgentSignalKey = (input: Parameters<typeof inbox.registerAgentSignalKey>[0]) => withAgentTestWallet(input.walletName, () => inbox.registerAgentSignalKey(input));
+export const verifyAgentManagementKey = (input: Parameters<typeof inbox.verifyAgentManagementKey>[0]) => withAgentTestWallet(input.walletName, () => inbox.verifyAgentManagementKey(input));
+export const verifyAgentSignalKey = (input: Parameters<typeof inbox.verifyAgentSignalKey>[0]) => withAgentTestWallet(input.walletName, () => inbox.verifyAgentSignalKey(input));
+export const enqueueAgentSignal = (input: Parameters<typeof inbox.enqueueAgentSignal>[0]) => withAgentTestWallet(input.walletName, () => inbox.enqueueAgentSignal(input));
+export const agentAutomaticTradingEnabled = (...args: Parameters<typeof inbox.agentAutomaticTradingEnabled>) => withAgentTestWallet(args[0], () => inbox.agentAutomaticTradingEnabled(...args));
+export const listAgentInboxSignals = (...args: Parameters<typeof inbox.listAgentInboxSignals>) => withAgentTestWallet(args[0], () => inbox.listAgentInboxSignals(...args));
+export const removeAgentInboxSignals = (...args: Parameters<typeof inbox.removeAgentInboxSignals>) => withAgentTestWallet(args[0], () => inbox.removeAgentInboxSignals(...args));

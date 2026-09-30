@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { sessionHasVerifiedGrant } from "./sessionAuthorization";
 import { defaultAgentVaultPolicy, evaluateAgentTradeProposal } from "@/lib/agents/policy";
 import { bindAgentVaultPolicyHash } from "@/lib/agents/policyHash";
 import { blankAgentScorecard, scorecardForClosedExecution, scorecardForNewProposal, scorecardForStatusChange } from "@/features/agents/domain/scorecardState";
@@ -34,7 +35,9 @@ export function activeSessionFor(
       (item) =>
         item.agentId === agentId &&
         item.status === "active" &&
-        item.expiresAt > now,
+        item.startsAt <= now &&
+        item.expiresAt > now &&
+        sessionHasVerifiedGrant(state, item),
     ) ?? null
   );
 }

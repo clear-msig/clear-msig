@@ -9,12 +9,14 @@ import { formatAgentNoticeTime, readinessActionLabel, readinessHref, readinessSt
 export function KillSwitchPanel({
   paused,
   pending,
+  resumeBlocked,
   executorState,
   handoff,
   onToggle,
 }: {
   paused: boolean;
   pending: boolean;
+  resumeBlocked: boolean;
   executorState: "not_configured" | "unavailable" | "ready" | null;
   handoff: AgentKillSwitchHandoff | null;
   onToggle: (enabled: boolean) => void;
@@ -70,7 +72,8 @@ export function KillSwitchPanel({
         </div>
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || (paused && resumeBlocked)}
+          aria-busy={pending}
           onClick={() => onToggle(!paused)}
           className={clsx(
             "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-soft border px-3 py-2 text-xs font-medium",

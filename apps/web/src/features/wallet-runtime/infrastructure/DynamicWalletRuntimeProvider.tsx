@@ -37,11 +37,13 @@ import {
 import { isSolanaWallet } from "@dynamic-labs/solana-core";
 import { useLedger } from "@/lib/wallet/LedgerProvider";
 import { configureNotificationTokenGetter } from "@/lib/notifications/sessionToken";
+import { configureRampTokenGetter } from "@/lib/ramp/sessionToken";
 
 // Dynamic is already isolated in the wallet runtime chunk. Register its token
 // accessor here so notification callers do not import the SDK root barrel into
 // every route that records or renders a feed event.
 configureNotificationTokenGetter(getAuthToken);
+configureRampTokenGetter(getAuthToken);
 import { WalletRuntimeProvider, type WalletValue } from "@/lib/wallet/context";
 import {
   isCompatibleEmbeddedWallet,
@@ -341,6 +343,8 @@ function useDynamicWalletValue(
   );
 
   return {
+    sessionSubject: connected && sdkHasLoaded && dynamicContext.user?.userId
+      ? dynamicContext.user.userId : null,
     publicKey,
     connected,
     signMessage: connected ? signMessage : undefined,

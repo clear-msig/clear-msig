@@ -4,11 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { buildMultisigInviteEmail } from "@/lib/email/templates/multisigInvite";
 import { assertSameOrigin, clientIp } from "@/lib/api/guard";
+import { authenticateEmailRequest, EmailAuthError, requireInvitationAuthority } from "@/lib/email/authorization";
+import { readBoundedBody } from "@/lib/api/body";
 import { checkRateLimit } from "@/lib/api/rateLimit";
 import { isWalletRole, type WalletRole } from "@/lib/retail/memberAccess";
 
-class BadRequestError extends Error {}
-class ConfigError extends Error {}
+import { BadRequestError, ConfigError, requireField, requireEnv, sanitizeHeader } from "@/lib/email/input";
 
 const LIMITS = {
   walletName: 80,
@@ -23,31 +24,15 @@ const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 /// Strip CR/LF and other control characters that nodemailer / SMTP
 /// servers treat as header separators. Defence-in-depth on top of
 /// nodemailer's own sanitization.
-function sanitizeHeader(value: string, max: number): string {
-  return value.replace(/[\r\n\t\v\f\x00-\x1f\x7f]/g, " ").trim().slice(0, max);
-}
-
-function requireField(name: string, value: string | undefined, max: number) {
-  if (!value || !value.trim()) {
-    throw new BadRequestError(`Missing ${name}`);
-  }
-  const cleaned = sanitizeHeader(value, max);
-  if (!cleaned) {
-    throw new BadRequestError(`Missing ${name}`);
-  }
-  return cleaned;
-}
-
-function requireEnv(name: string, value: string | undefined) {
-  if (!value || !value.trim()) {
-    throw new ConfigError(name);
-  }
-  return value;
-}
-
 export async function POST(request: NextRequest) {
   const blocked = assertSameOrigin(request);
   if (blocked) return blocked;
+
+  let identity;
+  try { identity = await authenticateEmailRequest(request); } catch (error) {
+    if (error instanceof EmailAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json({ error: "Email authentication unavailable." }, { status: 503 });
+  }
 
   // Email is paid + reputational. The body's `invitee.email` is
   // user-supplied - we cannot pin it without a server-side
@@ -59,14 +44,23 @@ export async function POST(request: NextRequest) {
   // The limiter is in-process by default; ensure the prod env has
   // UPSTASH_REDIS_REST_URL + _TOKEN set so the budget is shared
   // across cold-start instances.
-  const limited = await checkRateLimit("invitations", clientIp(request), {
+  const limited = await checkRateLimit("invitations", `${identity.userId}:${clientIp(request)}`, {
     capacity: 3,
     refillPerSec: 1 / 60,
   });
   if (limited) return limited;
 
+  const raw = await readBoundedBody(request, 16_000);
+  if (!raw.ok) return raw.response;
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw.text); } catch {
+    return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Body must be a JSON object." }, { status: 400 });
+  }
   try {
-    const body = (await request.json()) as {
+    const body = parsed as {
       walletName?: string;
       reason?: string;
       inviterAddress?: string;
@@ -80,6 +74,9 @@ export async function POST(request: NextRequest) {
     const inviterAddress = requireField("inviterAddress", body.inviterAddress, LIMITS.address);
     const inviteeAddress = requireField("invitee.address", body.invitee?.address, LIMITS.address);
     const inviteeEmail = requireField("invitee.email", body.invitee?.email, LIMITS.email);
+    if (body.reason !== undefined && typeof body.reason !== "string") {
+      throw new BadRequestError("Invalid reason");
+    }
     const reason = sanitizeHeader(body.reason ?? "", LIMITS.reason);
 
     if (!EMAIL_RE.test(inviteeEmail)) {
@@ -88,6 +85,8 @@ export async function POST(request: NextRequest) {
     if (!BASE58_RE.test(inviterAddress) || !BASE58_RE.test(inviteeAddress)) {
       throw new BadRequestError("Invalid wallet address");
     }
+
+    await requireInvitationAuthority(identity, walletName, inviterAddress);
 
     const host = requireEnv("SMTP_HOST", process.env.SMTP_HOST);
     const port = Number(process.env.SMTP_PORT ?? "587");
@@ -120,6 +119,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof EmailAuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

@@ -175,6 +175,8 @@ export interface AgentOwnerApproval {
   approvalMethod: AgentOwnerApprovalMethod;
   approvedBy?: string | null;
   signature?: string | null;
+  /** Absent on legacy approvals, which are display-only and cannot authorize actions. */
+  signatureVersion?: 2;
   approvalHash: string;
   createdAt: number;
   version: AgentVersion;

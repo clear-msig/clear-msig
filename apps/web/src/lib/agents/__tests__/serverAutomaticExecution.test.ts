@@ -1,11 +1,24 @@
+import { agentTestWalletAddress } from "@/test/agents/walletScope";
+import { agentTestDeploymentIdentity } from "@/test/agents/walletScope";
+
+vi.mock("@/lib/auth/walletAuthorization", async () => {
+  const { withAgentTestWallet, agentTestWalletAddress } = await import("@/test/agents/walletScope");
+  return {
+    withWalletMember: (_request: unknown, walletName: string, handler: (auth: object) => Promise<unknown>) =>
+      withAgentTestWallet(walletName, () => handler({ walletName, walletAddress: agentTestWalletAddress(walletName) })),
+    withCanonicalAgentWallet: (walletName: string, handler: (address: string) => Promise<unknown>) =>
+      withAgentTestWallet(walletName, () => handler(agentTestWalletAddress(walletName))),
+  };
+});
+import { saveApprovedSession } from "@/test/agents/signedOwnerApproval";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { POST as submitAgentSignal } from "@/app/api/agent-signals/[name]/[agent]/route";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
-import { executeAllowedAgentProposal } from "@/lib/agents/serverAutomaticExecution";
-import { registerAgentSignalKey } from "@/lib/agents/serverInbox";
+import { executeAllowedAgentProposal } from "@/test/agents/serverOperations";
+import { registerAgentSignalKey } from "@/test/agents/serverInbox";
 import { ownerApprovalSignableText } from "@/lib/agents/ownerApproval";
 import { signAgentSignalPayload } from "@/lib/agents/signalSignature";
 import {
@@ -13,9 +26,9 @@ import {
   saveAgentServerOwnerApproval,
   saveAgentServerProfile,
   saveAgentServerProposal,
-  saveAgentServerSession,
   saveAgentServerVaultPolicy,
-} from "@/features/agents/server/serverState";
+  updateAgentServerSessionStatus,
+} from "@/test/agents/serverState";
 import type { AgentProfile, AgentSessionGrant, AgentTradeProposal } from "@/lib/agents/types";
 
 const now = Date.UTC(2026, 5, 1, 12, 0, 0);
@@ -77,7 +90,7 @@ describe("automatic allowed execution", () => {
       ...defaultAgentVaultPolicy(walletName, now),
       cooldownSeconds: 0,
     });
-    await saveAgentServerSession(session());
+    await saveApprovedSession(session());
     const saved = await saveAgentServerProposal(proposal());
 
     const first = await executeAllowedAgentProposal(saved.proposal);
@@ -90,6 +103,35 @@ describe("automatic allowed execution", () => {
     expect(state.proposals[0]?.status).toBe("executed");
   });
 
+  it.each(["paused", "revoked", "expired"] as const)("does not automatically execute after its session is %s", async (status) => {
+    const pausedWallet = `automatic-session-${status}`;
+    await saveAgentServerProfile(agent(pausedWallet));
+    await saveAgentServerVaultPolicy({ ...defaultAgentVaultPolicy(pausedWallet, now), cooldownSeconds: 0 });
+    await saveApprovedSession(session(pausedWallet));
+    const saved = await saveAgentServerProposal({ ...proposal(), walletName: pausedWallet });
+    expect(saved.proposal.status).toBe("approved");
+    await updateAgentServerSessionStatus({ walletName: pausedWallet, id: "session-1", status });
+
+    const result = await executeAllowedAgentProposal(saved.proposal);
+
+    expect(result.placed).toBe(false);
+    expect(result.message).toContain("active allowance");
+    expect((await getAgentServerWalletState(pausedWallet)).executions).toHaveLength(0);
+  });
+
+  it("does not automatically execute after its allowance policy becomes stale", async () => {
+    const staleWallet = "automatic-session-stale";
+    await saveAgentServerProfile(agent(staleWallet));
+    const policy = { ...defaultAgentVaultPolicy(staleWallet, now), cooldownSeconds: 0 };
+    await saveAgentServerVaultPolicy(policy);
+    await saveApprovedSession(session(staleWallet));
+    const saved = await saveAgentServerProposal({ ...proposal(), walletName: staleWallet });
+    await saveAgentServerVaultPolicy({ ...policy, maxSessionHours: 25 });
+
+    expect((await executeAllowedAgentProposal(saved.proposal)).placed).toBe(false);
+    expect((await getAgentServerWalletState(staleWallet)).executions).toHaveLength(0);
+  });
+
   it("places an allowed practice trade when the trader sends an idea", async () => {
     const routeWalletName = "automatic-signal-route";
     await saveAgentServerProfile(agent(routeWalletName));
@@ -97,7 +139,7 @@ describe("automatic allowed execution", () => {
       ...defaultAgentVaultPolicy(routeWalletName, now),
       cooldownSeconds: 0,
     });
-    await saveAgentServerSession(session(routeWalletName));
+    await saveApprovedSession(session(routeWalletName));
     await registerAgentSignalKey({
       walletName: routeWalletName,
       agentId: "agent-alpha",
@@ -115,8 +157,8 @@ describe("automatic allowed execution", () => {
             "Content-Type": "application/json",
             "x-clearsig-signal-key": "signal-key",
           },
-          body: JSON.stringify({
-            signal: {
+          body: (() => {
+            const signal = {
               clientSignalId: "automatic-route-1",
               submittedAt: now,
               venue: "mock_perps",
@@ -128,8 +170,11 @@ describe("automatic allowed execution", () => {
               stopLossPrice: "65000",
               confidence: 72,
               expiresInMinutes: 15,
-            },
-          }),
+            } as const;
+            return JSON.stringify({ signal, signatureScheme: "hmac_sha256_v2", signature: signAgentSignalPayload({
+              signal, signalKey: "signal-key", target: { ...agentTestDeploymentIdentity(), walletAddress: agentTestWalletAddress(routeWalletName), agentId: "agent-alpha" },
+            }) });
+          })(),
         },
       ),
       {
@@ -171,6 +216,7 @@ describe("automatic allowed execution", () => {
       expiresInMinutes: 15,
     };
     const signature = signAgentSignalPayload({
+      target: { ...agentTestDeploymentIdentity(), walletAddress: agentTestWalletAddress(routeWalletName), agentId: "agent-alpha" },
       signal,
       signalKey: "different-key",
     });
@@ -185,7 +231,7 @@ describe("automatic allowed execution", () => {
             "x-clearsig-signal-key": "signal-key",
             "x-clearsig-signal-signature": signature,
           },
-          body: JSON.stringify({ signal }),
+          body: JSON.stringify({ signal, signatureScheme: "hmac_sha256_v2" }),
         },
       ),
       {
@@ -268,6 +314,7 @@ function signedAutomaticApproval({
     id: `approval-${agentId}`,
     ...input,
     approvalMethod: "wallet_signature" as const,
+    signatureVersion: 2 as const,
     approvedBy,
     signature: bytesToHex(
       nacl.sign.detached(new TextEncoder().encode(message), keypair.secretKey),

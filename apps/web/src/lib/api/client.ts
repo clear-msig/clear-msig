@@ -1,4 +1,5 @@
 // Thin API client: one place for fetch, error parsing, and request defaults.
+import { getNotificationAuthToken } from "@/lib/notifications/sessionToken";
 import { appConfig } from "@/lib/config";
 import type { ApiErrorEnvelope } from "@/lib/api/types";
 
@@ -25,10 +26,14 @@ type HttpMethod = "GET" | "POST";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-async function parseJsonSafe(response: Response): Promise<unknown> {
+async function parseJsonSafe(response: Response, signal: AbortSignal): Promise<unknown> {
   try {
     return await response.json();
-  } catch {
+  } catch (error) {
+    // An interrupted response body is not a successful empty response.
+    // Preserve cancellation so callers cannot continue a signing flow with null.
+    if (signal.aborted) throw signal.reason;
+    if (error instanceof Error && error.name === "AbortError") throw error;
     return null;
   }
 }
@@ -40,26 +45,32 @@ export async function apiRequest<TResponse, TBody = unknown>(
   options?: { timeoutMs?: number; signal?: AbortSignal }
 ): Promise<TResponse> {
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const callerSignal = options?.signal;
+  // addEventListener does not replay an abort that already happened.
+  // Never submit a request from a workflow that has already been dismissed.
+  callerSignal?.throwIfAborted();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // Bridge a caller-provided signal to our controller so an outer
   // cancel still aborts the in-flight fetch.
-  const callerSignal = options?.signal;
-  const onCallerAbort = () => controller.abort();
-  callerSignal?.addEventListener("abort", onCallerAbort);
+  const onCallerAbort = () => controller.abort(callerSignal?.reason);
+  callerSignal?.addEventListener("abort", onCallerAbort, { once: true });
 
   try {
+    const token = typeof window !== "undefined" ? getNotificationAuthToken() : undefined;
     const response = await fetch(`${backendRequestBase()}${path}`, {
       method,
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
       signal: controller.signal
     });
 
-    const json = (await parseJsonSafe(response)) as TResponse | ApiErrorEnvelope | null;
+    const json = (await parseJsonSafe(response, controller.signal)) as TResponse | ApiErrorEnvelope | null;
+    controller.signal.throwIfAborted();
     const requestId = response.headers.get("x-request-id") ?? undefined;
 
     if (!response.ok) {
@@ -74,10 +85,10 @@ export async function apiRequest<TResponse, TBody = unknown>(
 
     return json as TResponse;
   } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
+    if (controller.signal.aborted) {
       // Caller-initiated abort surfaces as the caller's own AbortError;
       // a true timeout surfaces as BackendTimeoutError.
-      if (callerSignal?.aborted) throw err;
+      if (callerSignal?.aborted) throw callerSignal.reason;
       throw new BackendTimeoutError(timeoutMs);
     }
     throw err;

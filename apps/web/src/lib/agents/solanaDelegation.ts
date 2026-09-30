@@ -1,3 +1,4 @@
+import { readScopedAgentStorage, writeScopedAgentStorage } from "@/features/agents/local-state/scope";
 import { PublicKey } from "@solana/web3.js";
 import type {
   AgentProfile,
@@ -289,7 +290,7 @@ function emptyDelegation(
 function readAll(): AgentSolanaDelegationRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = readScopedAgentStorage(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
@@ -309,7 +310,7 @@ function writeOne(record: AgentSolanaDelegationRecord): void {
         item.walletName !== record.walletName || item.agentId !== record.agentId,
     ),
   ].slice(0, 100);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  writeScopedAgentStorage(STORAGE_KEY, JSON.stringify(next));
 }
 
 function normalizeRecord(input: unknown): AgentSolanaDelegationRecord | null {

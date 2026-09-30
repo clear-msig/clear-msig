@@ -34,6 +34,22 @@ pub(crate) fn resolve_trusted_runtime_value(
     }
 }
 
+pub(crate) fn resolve_trusted_destination_rpc_url(
+    requested: Option<String>,
+    configured: Option<String>,
+    allowed: &[String],
+) -> Result<Option<String>, ApiError> {
+    let requested = requested
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(value) = requested.as_ref() {
+        if allowed.iter().any(|allowed| allowed == value) {
+            return Ok(requested);
+        }
+    }
+    resolve_trusted_runtime_value(requested, configured, "rpc_url")
+}
+
 pub(crate) fn current_unix_timestamp() -> Result<i64, ApiError> {
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -263,6 +279,52 @@ mod tests {
             Some("https://attacker.example".into()),
             None,
             "grpcUrl",
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn destination_rpc_allows_only_server_selected_multichain_endpoints() {
+        let default = Some("https://evm.example".to_string());
+        let allowed = vec![
+            "https://bitcoin.example".to_string(),
+            "https://zcash.example".to_string(),
+        ];
+        assert_eq!(
+            resolve_trusted_destination_rpc_url(None, default.clone(), &allowed).unwrap(),
+            default
+        );
+        for endpoint in [
+            "https://evm.example",
+            "https://bitcoin.example",
+            "https://zcash.example",
+        ] {
+            assert_eq!(
+                resolve_trusted_destination_rpc_url(
+                    Some(endpoint.into()),
+                    default.clone(),
+                    &allowed
+                )
+                .unwrap(),
+                Some(endpoint.into())
+            );
+        }
+        for endpoint in [
+            "http://127.0.0.1/internal",
+            "https://bitcoin.example.attacker.test",
+            "https://bitcoin.example/other",
+        ] {
+            assert!(resolve_trusted_destination_rpc_url(
+                Some(endpoint.into()),
+                default.clone(),
+                &allowed
+            )
+            .is_err());
+        }
+        assert!(resolve_trusted_destination_rpc_url(
+            Some("https://unconfigured.example".into()),
+            None,
+            &[]
         )
         .is_err());
     }

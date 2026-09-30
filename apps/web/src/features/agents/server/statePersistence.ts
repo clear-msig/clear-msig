@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { agentWalletStorageKey } from "./walletScope";
 import {
   AgentServerStatePersistenceError,
   type AgentServerWalletState,
@@ -23,7 +23,7 @@ export async function readPersistedAgentState(
     );
     return state ? normalize(state) : null;
   }
-  const state = MEMORY_STATES.get(walletName);
+  const state = MEMORY_STATES.get(stateRedisKey(walletName));
   return state ? normalize(state) : null;
 }
 
@@ -37,7 +37,7 @@ export async function writePersistedAgentState(
     await redisSet(stateRedisKey(state.walletName), state, redis);
     return;
   }
-  MEMORY_STATES.set(state.walletName, normalize(state));
+  MEMORY_STATES.set(stateRedisKey(state.walletName), normalize(state));
 }
 
 export function assertDurableAgentStateAvailable(): void {
@@ -56,6 +56,8 @@ export function agentServerStatePersistenceStatus(): {
   durable: boolean;
   memoryAllowed: boolean;
   production: boolean;
+  identityScope: "canonical_wallet_v2";
+  legacyNameOnlyState: "preserved_unassigned";
   message: string;
 } {
   const storage = agentServerStateStorageMode();
@@ -66,9 +68,11 @@ export function agentServerStatePersistenceStatus(): {
     durable: storage === "redis",
     memoryAllowed,
     production,
+    identityScope: "canonical_wallet_v2",
+    legacyNameOnlyState: "preserved_unassigned",
     message:
       storage === "redis"
-        ? "Agent state is using Redis."
+        ? "Agent state uses verified-wallet Redis namespaces. Older name-only records remain preserved and unassigned."
         : production && !memoryAllowed
           ? "Agent state requires Redis in production."
           : "Agent state is using development memory storage.",
@@ -90,8 +94,7 @@ function isProductionRuntime(): boolean {
 }
 
 function stateRedisKey(walletName: string): string {
-  const hash = createHash("sha256").update(walletName).digest("hex").slice(0, 40);
-  return `agent:state:${hash}`;
+  return agentWalletStorageKey(walletName, "state");
 }
 
 function readUpstashEnv(): UpstashEnv | null {

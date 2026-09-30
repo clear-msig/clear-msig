@@ -1,12 +1,12 @@
+import { saveApprovedSession } from "@/test/agents/signedOwnerApproval";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultAgentVaultPolicy } from "@/lib/agents/policy";
-import { runAgentAutonomyTick } from "@/lib/agents/serverAutonomousTrading";
+import { runAgentAutonomyTick } from "@/test/agents/serverOperations";
 import {
   getAgentServerWalletState,
   saveAgentServerProfile,
-  saveAgentServerSession,
   saveAgentServerVaultPolicy,
-} from "@/features/agents/server/serverState";
+} from "@/test/agents/serverState";
 import type {
   AgentProfile,
   AgentSessionGrant,
@@ -29,7 +29,7 @@ describe("agent autonomous trading tick", () => {
   it("turns live Hyperliquid market data into a guarded executable proposal", async () => {
     await saveAgentServerProfile(agent());
     await saveAgentServerVaultPolicy(policy());
-    await saveAgentServerSession(session());
+    await saveApprovedSession(session());
 
     const result = await runAgentAutonomyTick({
       walletName,

@@ -61,7 +61,9 @@ const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    // The same-origin QR scanner still requires the user's camera consent.
+    // Denying camera here made that feature fail before it could ask.
+    value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
   },
   {
     key: "Content-Security-Policy",
@@ -111,6 +113,10 @@ const nextConfig = {
   // framer-motion (heavy + scattered), Dynamic SDK (large connector
   // surface), date-fns (a handful of formatters).
   experimental: {
+    // Custom webpack config disables Next's default build worker. Opt back in
+    // so compiler memory is released before lint/type checking and prerendering.
+    // Keep the normal validation stages and sequential compiler behavior.
+    webpackBuildWorker: true,
     optimizePackageImports: [
       "lucide-react",
       "framer-motion",

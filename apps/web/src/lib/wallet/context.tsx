@@ -10,6 +10,9 @@ import type {
 type SolanaTransaction = Transaction | VersionedTransaction;
 
 export interface WalletValue {
+  /// SDK identity used only to isolate local drafts. Server authorization must
+  /// independently verify the session and canonical wallet authority.
+  sessionSubject: string | null;
   publicKey: PublicKey | null;
   connected: boolean;
   signMessage?: (
@@ -34,6 +37,7 @@ export interface WalletValue {
 }
 
 export const disconnectedWalletValue: WalletValue = {
+  sessionSubject: null,
   publicKey: null,
   connected: false,
   disconnect: async () => {},

@@ -78,7 +78,7 @@ export function IntroStage({
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
-  const blocked = !walletConnected || secureContext === false;
+  const blocked = !walletConnected || secureContext !== true;
   return (
     <motion.section
       {...motionProps}

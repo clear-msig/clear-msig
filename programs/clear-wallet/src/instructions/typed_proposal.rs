@@ -472,6 +472,14 @@ impl<'info> CancelTyped<'info> {
 
 impl<'info> ExecuteTyped<'info> {
     pub fn execute_typed(&mut self, args: ExecuteTypedArgs) -> Result<(), ProgramError> {
+        // This legacy instruction only changes status. A v4 approval must
+        // reach its action-specific executor, which performs the committed
+        // action before consuming the proposal. Public hashes are not proof
+        // that a transfer or state mutation actually happened.
+        require!(
+            !is_v4_document(self.proposal.clear_text()),
+            WalletError::InvalidClearSignAction
+        );
         verify_typed_execution_ready(
             &self.intent,
             &self.proposal,
