@@ -47,7 +47,7 @@ export function OwnerApprovalDialog({
         aria-labelledby="owner-approval-title"
         aria-describedby="owner-approval-description"
         tabIndex={-1}
-        className="w-full max-w-md rounded-card bg-surface-raised p-5 shadow-card-rest"
+        className="max-h-[calc(100dvh-3rem)] w-full max-w-md overflow-y-auto rounded-card bg-surface-raised p-5 shadow-card-rest"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -88,7 +88,7 @@ export function OwnerApprovalDialog({
                 <dt className="text-[11px] font-medium uppercase tracking-[0.12em] text-text-soft">
                   {detail.label}
                 </dt>
-                <dd className="max-w-[60%] text-right text-xs font-semibold text-text-strong">
+                <dd className="max-w-[60%] [overflow-wrap:anywhere] text-right text-xs font-semibold text-text-strong">
                   {detail.value}
                 </dd>
               </div>

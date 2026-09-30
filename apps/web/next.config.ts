@@ -24,6 +24,7 @@ class ClientBundleStatsPlugin {
             assets: true,
             chunks: true,
             chunkModules: true,
+            nestedModules: true,
             ids: true,
             modules: true,
           }),

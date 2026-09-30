@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
@@ -60,6 +60,13 @@ function ConnectRuntimeContent({
   const gate = useWalletGate();
   const wallet = useWallet();
   const openedAuthFlow = useRef(false);
+  const [initializationTimedOut, setInitializationTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (sdkHasLoaded) return;
+    const timer = window.setTimeout(() => setInitializationTimedOut(true), 12_000);
+    return () => window.clearTimeout(timer);
+  }, [sdkHasLoaded]);
 
   useEffect(() => {
     if (!autoOpen || openedAuthFlow.current || wallet.connected) return;
@@ -71,7 +78,7 @@ function ConnectRuntimeContent({
   if (wallet.connected) {
     if (gate.productSelection) {
       return (
-        <div className="fixed inset-0 z-[100] bg-[#0c0c0c]">
+        <div className="fixed inset-0 z-[100] bg-canvas">
           <ProductWalletSelectionScreen
             selection={gate.productSelection}
             address={wallet.publicKey?.toBase58() ?? null}
@@ -103,6 +110,14 @@ function ConnectRuntimeContent({
           <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.5} aria-hidden="true" />
         )}
       </button>
+      {!sdkHasLoaded && initializationTimedOut && (
+        <div role="status" className="mt-4 rounded-xl border border-border-soft bg-surface-raised p-4 text-left text-sm text-text-soft">
+          <p>Sign-in is taking longer than expected. Check your connection and try again. No wallet action has started.</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-3 inline-flex min-h-11 items-center rounded-soft px-2 font-medium text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            Reload sign-in
+          </button>
+        </div>
+      )}
       <div className="w-full">
         <LedgerConnectRow />
       </div>
@@ -140,7 +155,7 @@ function SignedInWaiting({
             };
 
   return (
-    <div className="landing-shell fixed inset-0 z-[100] bg-[#0c0c0c] text-[#ebebeb]">
+    <div className="landing-shell fixed inset-0 z-[100] bg-canvas text-text-strong">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <LandingAtmospherics />
       </div>
@@ -161,7 +176,7 @@ function SignedInWaiting({
                 stiffness: 220,
                 delay: 0.05,
               }}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-[#a3be8c] text-black shadow-[0_0_40px_rgba(163,190,140,0.5)]"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-[0_0_40px_rgba(163,190,140,0.5)]"
             >
               <MotionCheck
                 className="h-8 w-8"
@@ -174,22 +189,22 @@ function SignedInWaiting({
             </motion.div>
 
             <div className="mt-6 flex items-center gap-2">
-              <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-white/60">
+              <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-text-soft">
                 session ready
               </span>
             </div>
-            <h1 className="landing-section-heading mt-3 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">
+            <h1 className="landing-section-heading mt-3 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-text-strong">
               You&rsquo;re <span className="italic-skew">in</span>.
             </h1>
-            <p className="mt-3 text-base leading-relaxed text-white/60">
+            <p className="mt-3 text-base leading-relaxed text-text-soft">
               {copy.body}
             </p>
             <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-border-soft bg-glass-soft px-4 py-2 backdrop-blur-md">
               <Loader2
-                className="h-3.5 w-3.5 animate-spin text-[#a3be8c]"
+                className="h-3.5 w-3.5 animate-spin text-accent"
                 aria-hidden="true"
               />
-              <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/70">
+              <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-strong/70">
                 {copy.label}
               </span>
             </div>

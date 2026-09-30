@@ -44,7 +44,7 @@ const ConnectRuntimeIsland = dynamic(
 export default function ConnectPageWrapper() {
   return (
     <Suspense
-      fallback={<main className="min-h-screen bg-black" aria-hidden="true" />}
+      fallback={<main className="min-h-screen bg-canvas" aria-hidden="true" />}
     >
       <ConnectPage />
     </Suspense>
@@ -99,7 +99,7 @@ function ConnectPage() {
     // Bleed-to-edge shell - same flat structure as `/` and `/welcome`.
     // Atmospherics live in their own absolute overflow-hidden wrapper
     // so the fixed nav can layer above without being clipped.
-    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+    <div className="landing-shell relative min-h-screen bg-canvas text-text-strong">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <LandingAtmospherics />
       </div>
@@ -110,12 +110,12 @@ function ConnectPage() {
             {/* Left - brand argument */}
             <motion.section {...fadeIn(0)} className="flex flex-col">
               <div className="flex items-center">
-                <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/60">
+                <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-text-soft">
                   Shared wallets · signed by you
                 </span>
               </div>
 
-              <h1 className="landing-section-heading mt-6 text-[clamp(2.5rem,6.5vw,5rem)] font-light leading-[0.9] tracking-[-0.05em] text-white text-balance">
+              <h1 className="landing-section-heading mt-6 text-[clamp(2.5rem,6.5vw,5rem)] font-light leading-[0.9] tracking-[-0.05em] text-text-strong text-balance">
                 {selectedSurface ? (
                   <>
                     Continue to
@@ -130,7 +130,7 @@ function ConnectPage() {
                   </>
                 )}
               </h1>
-              <p className="mt-6 max-w-md text-base leading-relaxed text-white/60 sm:text-lg">
+              <p className="mt-6 max-w-md text-base leading-relaxed text-text-soft sm:text-lg">
                 {selectedSurface
                   ? `Sign in once. After your wallet connects, we will take you straight to ${selectedSurface.name}.`
                   : "Send and approve from a wallet you share with people you trust. Partners, family, your team. Every move is signed by your own wallet; we never see your keys."}
@@ -164,7 +164,7 @@ function ConnectPage() {
               {...fadeIn(0.08)}
               className="relative mx-auto w-full max-w-md"
             >
-              <div className="glass relative overflow-hidden rounded-[2rem] p-7 sm:p-8">
+              <div className="border border-border-soft bg-surface-raised relative overflow-hidden rounded-[2rem] p-7 sm:p-8">
                 {/* Inner lime glow accent */}
                 <div
                   aria-hidden="true"
@@ -177,10 +177,10 @@ function ConnectPage() {
                 />
 
                 <div className="relative flex flex-col items-center text-center">
-                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#a3be8c]/10 text-[#a3be8c] ring-1 ring-[#a3be8c]/30 shadow-[0_0_24px_rgba(163, 190, 140,0.15)]">
+                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/30 shadow-[0_0_24px_rgba(163, 190, 140,0.15)]">
                     <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
                   </div>
-                  <h2 className="landing-section-heading mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-white">
+                  <h2 className="landing-section-heading mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-text-strong">
                     {selectedSurface ? (
                       <>
                         Sign in for{" "}
@@ -192,7 +192,7 @@ function ConnectPage() {
                       </>
                     )}
                   </h2>
-                  <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-white/60">
+                  <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-text-soft">
                     {selectedSurface
                       ? selectedSurface.summary
                       : "Use your email, your phone, or a wallet you already have. We will set the rest up for you."}
@@ -221,7 +221,7 @@ function ConnectPage() {
               </div>
 
               {/* Trust strip */}
-              <ul className="mt-6 flex flex-col gap-2 text-[13px] text-white/60">
+              <ul className="mt-6 flex flex-col gap-2 text-[13px] text-text-soft">
                 <TrustItem
                   icon={Lock}
                   text="We never see your keys. Your wallet signs everything."
@@ -242,16 +242,16 @@ function ConnectPage() {
         <footer className="relative z-10 flex items-center justify-center gap-4 border-t border-border-soft px-6 py-6 sm:px-10">
           <Link
             href="/privacy"
-            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-[#a3be8c]"
+            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-soft transition-colors duration-200 hover:text-accent"
           >
             How privacy works
           </Link>
-          <span aria-hidden="true" className="text-white/20">
+          <span aria-hidden="true" className="text-text-soft">
             ·
           </span>
           <Link
             href="/"
-            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/50 transition-colors duration-200 hover:text-[#a3be8c]"
+            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-soft transition-colors duration-200 hover:text-accent"
           >
             What is Clear?
           </Link>
@@ -323,13 +323,13 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     if (kind === "wallet") {
       return (
         <>
-          <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-white/50">
+          <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-text-soft">
             Family
           </p>
-          <p className="mt-1 text-2xl font-light tracking-tight text-white">
+          <p className="mt-1 text-2xl font-light tracking-tight text-text-strong">
             $4,820
           </p>
-          <p className="mt-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/40">
+          <p className="mt-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-text-soft">
             Balance · 4 members
           </p>
         </>
@@ -339,18 +339,18 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
       return (
         <>
           <div className="flex items-center">
-            <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-[#a3be8c]">
+            <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-accent">
               Approved
             </p>
           </div>
-          <p className="mt-1.5 text-sm font-medium text-white">
+          <p className="mt-1.5 text-sm font-medium text-text-strong">
             Send $120 to Sarah
           </p>
           <div className="mt-2 flex items-center gap-1">
-            <span className="h-1.5 w-6 rounded-full bg-[#a3be8c]" />
-            <span className="h-1.5 w-6 rounded-full bg-[#a3be8c]" />
-            <span className="h-1.5 w-6 rounded-full bg-white/15" />
-            <span className="ml-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/50">
+            <span className="h-1.5 w-6 rounded-full bg-accent" />
+            <span className="h-1.5 w-6 rounded-full bg-accent" />
+            <span className="h-1.5 w-6 rounded-full bg-border-soft" />
+            <span className="ml-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-text-soft">
               2/3
             </span>
           </div>
@@ -359,23 +359,23 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     }
     return (
       <>
-        <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-white/50">
+        <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-text-soft">
           Members
         </p>
         <div className="mt-2 flex -space-x-2">
           {[
-            "bg-[#a3be8c]",
-            "bg-[#a3be8c]/70",
-            "bg-white/30",
+            "bg-accent",
+            "bg-accent/70",
+            "bg-border-strong",
             "bg-[#10b981]",
           ].map((bg, i) => (
             <span
               key={i}
-              className={"h-6 w-6 rounded-full ring-2 ring-[#0c0c0c] " + bg}
+              className={"h-6 w-6 rounded-full ring-2 ring-canvas " + bg}
             />
           ))}
         </div>
-        <p className="mt-2 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-white/40">
+        <p className="mt-2 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-text-soft">
           You + 3 friends
         </p>
       </>
@@ -384,7 +384,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
   return (
     <motion.div
       {...motionProps}
-      className={"glass rounded-2xl p-3.5 " + className}
+      className={"border border-border-soft bg-surface-raised rounded-2xl p-3.5 " + className}
     >
       {inner}
     </motion.div>
@@ -395,7 +395,7 @@ function TrustItem({ icon: Icon, text }: { icon: typeof Lock; text: string }) {
   return (
     <li className="flex items-start gap-2.5">
       <Icon
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#a3be8c]"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent"
         strokeWidth={2}
         aria-hidden="true"
       />
