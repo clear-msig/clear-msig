@@ -145,3 +145,14 @@ as does the finalized canonical settlement reader. A protected order receipt is
 not settlement/PnL evidence, and these changes do not promote synthetic receipts
 to trusted settlement. See `docs/security/completion-boundary-2026-09-30.md` for
 the venue capability findings and exact remaining product/configuration gates.
+
+## Versioned limits data (local continuation)
+
+`venueLimitsManifest.ts` now supplies strict required-field validation, exact USD
+amount encoding, a domain-separated commitment and context binding checks. See
+[the v1 specification](venue-limits-manifest-v1.md). This does not make the
+existing resolver authoritative or enable routes. Canonical signing/rendering
+and program-recognized descriptor integration remain code work; no legacy
+policy/risk hash is reinterpreted. Execution mode awaits the user decision and
+daily reset requires an explicit policy timezone. Existing gross-PnL and
+entry-fill cooldown semantics are preserved.

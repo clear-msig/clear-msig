@@ -21,15 +21,9 @@ sufficient evidence of all-or-nothing protected entry.
 `supportsAtomicProtection = true` for the approved invariant. No submission
 adapter is enabled or invented.
 
-Concrete choices for the parent/user:
-
-1. Keep the strict invariant and external trading gated until an independently
-   verified venue mechanism meets it. Paper trading and proposal review remain.
-2. Separately approve a different risk model: entry may temporarily lack
-   protection, with explicit partial-fill sizing, exposure/time limits,
-   cancellation/flattening authority and outage handling. This requires new
-   signed semantics, an emergency-close design and dedicated tests. Compensating
-   orders are not atomic and can themselves fail. No such change was made.
+The user has retained strict protection. Compensation-based entry is not an
+approved alternative, so it is not a pending implementation choice. External
+trading stays gated until a verified native mechanism meets the invariant.
 
 No alternative venue or quote provider was selected.
 
@@ -65,10 +59,10 @@ settlement artifact hash. Existing routes remain blocked.
 |---|---|---|
 | Per-trade chain authorization | Finalized canonical reader implemented and tested | **Config/live test:** trusted pinned RPC, deployed-program compatibility and real governance/wallet verification. Rust hash mirrors still need a cross-language/live-program integration run. |
 | Dedicated venue accounts and delivery | Immutable initial bindings, atomic handoff/reservations and recovery implemented | **Config:** durable shared Redis/no eviction and reviewed assignments. **Code/product:** rotation, abandoned-reservation recovery and operational repair procedures. No accounts or keys provisioned. |
-| Venue limits | Current policy hash does not encode cooldown, max positions or all venue rules | **Protocol/product decision:** define a versioned signed manifest/fields, signer display and commitment anchoring. Do not reinterpret an existing risk-check hash or treat a server assertion as wallet approval. After that, encoding/resolution/UI are code work. |
-| Atomic protected entry | Documentation does not establish the required guarantee | **External capability/product decision:** strict gate or separately approved compensation model described above. Credentials cannot fix this. |
+| Venue limits | Versioned strict manifest, exact USD encoding, canonical commitment and deployment/governance binding checks implemented; 45 regressions | **Code:** canonical descriptor/signer rendering, chain-recognized version and resolver integration. **Choices:** pending restricted versus allocated execution mode; explicit daily reset timezone. Existing amounts/controls come from saved user values. No hash is itself approval. See the manifest specification. |
+| Atomic protected entry | Documentation does not establish the required guarantee | **External capability:** strict protection remains required. Credentials cannot establish atomicity; no compensation model is authorized. |
 | Native order reconciliation | Read-only filled closing-order verification implemented | **Dependent code:** opening/child order reconciliation and exposure monitoring need the approved submission/partial-fill model and exact quantity/rounding commitments. A current open stop is not proof entry was atomically protected. |
-| Settlement evidence | Complete native closing-order evidence, durable consumption and canonical executed-settlement reader implemented | **Accounting/product:** prove allocation to a particular opening execution in a netted position; define multiple/partial close handling and fee/funding allocation. Existing `closedPnl` gross semantics are preserved. No invented net PnL or reserved-notional conversion. Promotion waits for this mapping. |
+| Settlement evidence | Complete native closing-order evidence, durable consumption and canonical executed-settlement reader implemented | **Pending mode decision / dependent code:** prove allocation to a particular opening execution in a netted position. A restricted full-close mode or concurrent/partial ledger must be explicit. Existing gross realized PnL is preserved, so fee/funding semantics are not reopened as a required choice. Promotion waits for exact entry/close mapping. |
 | Close / emergency stop | Legacy unprotected helpers blocked | **Protocol/product:** separate threshold/delegated emergency authorization, exact execution binding and reconciliation; post-fill settlement is not advance close permission. |
 | Agent HTTP composition | Real components exist, no execution route enabled | **Dependent code:** authenticated v2 order preparation/composition after the above semantics are resolved; never assign v2 authority to legacy descriptors. Read-only existing gates remain safe. |
 | Payment/settlement service | Earlier auth/deposit-evidence fixes preserved | **Config/live test:** executable quote/auth configuration, trusted provider deposit evidence, PostgreSQL/provider integration in the target environment. Paystack/Korapay kept. Quote-provider replacement is deferred, not a hidden implementation task. |
@@ -94,8 +88,8 @@ amounts, or inferred missing fills are accepted.
 
 ## Final local validation
 
-- `npm run verify` with local Redis integration enabled: **178 Vitest files /
-  1,087 tests**, plus **14 script tests** passed; intent/metadata/architecture,
+- `npm run verify` with local Redis integration enabled: **179 Vitest files /
+  1,132 tests**, plus **14 script tests** passed; intent/metadata/architecture,
   lint and TypeScript passed. Six cases use a real loopback Redis process.
 - The additional native evidence test covers concurrent consumption, database
   restart/retrieval, wrong-wallet claims, a reused fill under another order ID,
@@ -104,17 +98,34 @@ amounts, or inferred missing fills are accepted.
   secured-SDK bundle gate remains failing at the same measurements: largest
   chunk 535.7/506 kB gzip, standard authenticated route 1009.0/971, external
   runtime 1137.9/1100, Turnkey 998.8/954. No budget was loosened.
-- No UI/palette change in this continuation, so prior actual-component browser
-  results and original-color screenshot artifacts remain applicable; no new
-  live/authenticated coverage is implied.
+- Settings section navigation now uses native fragment links instead of incomplete
+  ARIA tabs and forced scripted scrolling. Focus moves to the destination; the
+  next Tab enters its controls, and browser back/forward works. Targets are at
+  least 44px; original colors are unchanged.
+- Actual SettingsNav browser fixture passed at 320/390/1440 widths with JS and
+  at 390 without JS: keyboard, destination focus, history, reduced motion and
+  overflow checks. Synthetic sections and blocked external requests; this is
+  not live authenticated Settings coverage. Prior landing images remain valid.
 - No root Rust/SBF source changed. No live RPC account/venue financial call,
   transaction, credential/account setup, push or deployment was performed.
 
-Concrete accounting choices are also needed before promotion: a deliberately
-restricted first release could permit one active execution per dedicated
-account and full closure only, with explicitly approved gross-PnL semantics.
-Keeping concurrent/partial executions instead requires a durable allocation
-ledger for entry/closing fills plus an explicit fee/funding policy. Neither
-restriction nor attribution rule was silently imposed here. Implementing the
-new signed-limit format also requires the Rust/SBF toolchain to validate the
-cross-language protocol changes; that toolchain is unavailable in this executor.
+## Bounded remaining decisions
+
+1. Pending user answer: one active execution per wallet with full closure, or
+   concurrent/partial allocation. Neither restriction has been silently applied.
+2. Confirm an explicit daily-loss calendar timezone. Current local-midnight
+   calculations can differ between server and browser. No timezone is defaulted.
+
+The schema preserves existing gross realized/net-PnL aggregation and entry-fill
+cooldown. Existing saved risk amounts, leverage, markets, session length and
+optional take-profit are inputs, not new policy choices for the assistant.
+Strict stop-loss protection is already required. Config includes trusted chain
+identities/RPC, persistent shared Redis, reviewed venue bindings and deployment
+provider/auth/quote settings; supplying those does not remove capability gates.
+
+The remaining parser/renderer, signed descriptor and resolver integration are
+technical work rather than asking the user to define signed limits. They need
+cross-language Rust/SBF validation and a separately authorized program rollout.
+The new TypeScript manifest changes no on-chain layout. Whether a layout change
+is needed must follow encoding/size analysis, not be assumed from an opaque
+hash fitting an existing field. See [the v1 specification](../architecture/venue-limits-manifest-v1.md).
