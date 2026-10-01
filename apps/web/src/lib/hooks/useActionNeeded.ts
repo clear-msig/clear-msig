@@ -39,6 +39,8 @@ export interface ActionNeededRow {
   approvalsCollected: number;
   /// Total approvers on the intent.
   approverCount: number;
+  /// Verified intent threshold, absent while the intent is unavailable.
+  approvalThreshold?: number;
   /// Base58 pubkey of the teammate who started the proposal. Renders
   /// as "started by <name>" via `proposerDisplayName`.
   proposer: string;
@@ -98,6 +100,7 @@ function useActionNeededSource(enabled: boolean): ActionNeededResult {
       string,
       {
         approvers: string[];
+        approvalThreshold: number;
         template: string;
       }
     >();
@@ -105,6 +108,7 @@ function useActionNeededSource(enabled: boolean): ActionNeededResult {
       const key = `${it.walletPda}#${it.intentIndex}`;
       intentByKey.set(key, {
         approvers: it.approvers,
+        approvalThreshold: it.approvalThreshold,
         template: it.template,
       });
     }
@@ -165,6 +169,7 @@ function useActionNeededSource(enabled: boolean): ActionNeededResult {
         intentTemplate: intent.template,
         approvalsCollected: collected,
         approverCount: intent.approvers.length,
+        approvalThreshold: intent.approvalThreshold,
         proposer: p.proposer,
         intentPending: false,
       });

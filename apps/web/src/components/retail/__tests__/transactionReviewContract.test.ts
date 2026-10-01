@@ -38,23 +38,29 @@ function sources(paths: readonly string[]): string {
 }
 
 describe("transaction review contract", () => {
-  it.each(sendReviewOwners)("shows quorum and timing on %s", (_route, owners) => {
-    const review = sources(owners);
-    expect(review).toContain('label: "Approval threshold"');
-    expect(review).toContain('label: "Timelock"');
-  });
+  it.each(sendReviewOwners)(
+    "shows quorum and timing on %s",
+    (_route, owners) => {
+      const review = sources(owners);
+      expect(review).toContain('label: "Approval threshold"');
+      expect(review).toContain('label: "Timelock"');
+    },
+  );
 
-  it.each(sendReviewOwners)("shows network fee information on %s", (_route, owners) => {
-    const review = sources(owners);
-    expect(review).toMatch(/label: "(Network fee|Gas reserve)"/);
-  });
+  it.each(sendReviewOwners)(
+    "shows network fee information on %s",
+    (_route, owners) => {
+      const review = sources(owners);
+      expect(review).toMatch(/label: "(Network fee|Gas reserve)"/);
+    },
+  );
 
-  it("keeps decision fields visible and puts only technical fields behind disclosure", () => {
+  it("keeps all supplied signing details visible without a disclosure", () => {
     const review = source("src/components/retail/SignPayloadPreview.tsx");
     expect(review).toContain('aria-label="Review transaction"');
     expect(review).toContain("primaryDetails.map");
-    expect(review).toContain("Technical details");
-    expect(review).toContain("isTechnicalDetail");
+    expect(review).not.toContain("<details");
+    expect(review).not.toContain("isTechnicalDetail");
   });
 
   it("does not call created approval requests sent", () => {
@@ -79,10 +85,13 @@ describe("transaction review contract", () => {
       "src/features/send/routes/Erc20SendPage.tsx",
       "src/features/send/ui/evm/Erc20SendResults.tsx",
     ],
-  ])("renders an under-approved remote send as pending on %s", (path, result) => {
-    const page = sources([path, result]);
-    expect(page).toContain("waitForProposalApproval(connection, proposal)");
-    expect(page).toContain("Waiting for remaining approvals");
-    expect(page).toContain('status={pending ? "pending" : "confirmed"}');
-  });
+  ])(
+    "renders an under-approved remote send as pending on %s",
+    (path, result) => {
+      const page = sources([path, result]);
+      expect(page).toContain("waitForProposalApproval(connection, proposal)");
+      expect(page).toContain("Waiting for remaining approvals");
+      expect(page).toContain('status={pending ? "pending" : "confirmed"}');
+    },
+  );
 });

@@ -18,13 +18,15 @@
 // Use a verb-phrase action ("Send $50 to Sarah", "Add Mara to Family")
 // and key-value details that name the wallet, chain, recipient,
 // approvals, or anything else load-bearing for the decision. Keep
-// details to 4 or fewer; this is a confirmation, not a wall of data.
+// all decision-relevant details visible, including exact addresses and scope.
 //
 // For high-stakes actions (large transfers, role changes, member
 // removals) pass `warning` to surface a one-line caveat the user
 // should consciously absorb before signing.
 
-import { ChevronDown, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
+
+import s from "@/components/review/ReviewSurface.module.css";
 
 export interface SignPayloadDetail {
   label: string;
@@ -37,17 +39,14 @@ export interface SignPayloadDetail {
 interface SignPayloadPreviewProps {
   /// Plain-language headline of the action being signed. Verb first.
   action: string;
-  /// Key-value rows. Keep to 4 or fewer.
+  /// Complete decision details. Never omit security fields to shorten a review.
   details?: SignPayloadDetail[];
   /// Optional warning footer for high-stakes actions.
   warning?: string;
   /// Optional signer-specific note for wallet popups that render a
   /// digest or technical bytes instead of the human summary.
   technicalNote?: string;
-  /// When true, the detail rows render behind an info icon next to
-  /// the headline instead of inline below it. Use on dense surfaces
-  /// (e.g. /send) where the rows duplicate context the user has
-  /// already keyed in. Headline + warning stay visible regardless.
+  /// Deprecated compatibility prop: all supplied details remain visible.
   collapsibleDetails?: boolean;
 }
 
@@ -56,14 +55,8 @@ export function SignPayloadPreview({
   details,
   warning,
   technicalNote,
-  collapsibleDetails = false,
 }: SignPayloadPreviewProps) {
-  const primaryDetails = collapsibleDetails
-    ? details?.filter((detail) => !isTechnicalDetail(detail))
-    : details;
-  const technicalDetails = collapsibleDetails
-    ? details?.filter(isTechnicalDetail)
-    : [];
+  const primaryDetails = details;
   return (
     <section
       aria-label="Review transaction"
@@ -79,7 +72,7 @@ export function SignPayloadPreview({
       // works. The accent stripe + accent kicker text below carry
       // the "this is the signing surface" signal that the green
       // tint used to.
-      className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest border-l-4 border-l-accent"
+      className={`${s.receipt} clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-4 text-left shadow-card-rest`}
     >
       <header className="flex items-start gap-2.5">
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
@@ -131,33 +124,6 @@ export function SignPayloadPreview({
         </dl>
       )}
 
-      {!!technicalDetails?.length && (
-        <details className="group mt-3 border-t border-border-soft pt-2">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-medium text-text-soft hover:text-text-strong">
-            Technical details
-            <ChevronDown
-              className="h-4 w-4 transition-transform group-open:rotate-180"
-              aria-hidden="true"
-            />
-          </summary>
-          <dl className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {technicalDetails.map((detail) => (
-              <div
-                key={detail.label}
-                className="clear-receipt-row flex flex-col gap-0.5 rounded-soft bg-canvas px-2.5 py-1.5"
-              >
-                <dt className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
-                  {reviewLabel(detail.label)}
-                </dt>
-                <dd className="break-all font-mono text-xs leading-snug text-text-strong">
-                  {detail.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </details>
-      )}
-
       {warning && (
         <p className="mt-3 rounded-soft bg-warning/10 px-2.5 py-1.5 text-[11px] leading-snug text-text-strong">
           <span className="font-medium text-warning">Heads up.</span> {warning}
@@ -171,17 +137,6 @@ export function SignPayloadPreview({
         </p>
       )}
     </section>
-  );
-}
-
-function isTechnicalDetail(detail: SignPayloadDetail): boolean {
-  const label = detail.label.toLowerCase();
-  return (
-    label.includes("contract") ||
-    label.includes("hash") ||
-    label.includes("payload") ||
-    label.includes("transaction id") ||
-    label === "from address"
   );
 }
 

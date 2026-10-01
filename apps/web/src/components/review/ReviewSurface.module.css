@@ -1,0 +1,205 @@
+.surface {
+  border: 1px solid var(--clear-border-soft, #333336);
+  border-radius: 24px;
+  background: var(--clear-surface-raised, #131316);
+  box-shadow:
+    inset 0 1px 0 #ebebeb15,
+    0 12px 28px #0002;
+  padding: 28px;
+}
+.kicker {
+  color: var(--clear-text-soft, #a3a3a3);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 16px;
+}
+.heading {
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  color: var(--clear-text-strong, #ebebeb);
+  margin: 0;
+}
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.breadcrumb {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--clear-text-soft, #a3a3a3);
+}
+.status {
+  font-size: 12px;
+  border: 1px solid var(--clear-border-soft, #333336);
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: var(--clear-text-strong, #ebebeb);
+}
+.subtitle {
+  font-size: 14px;
+  color: var(--clear-text-soft, #a3a3a3);
+  margin: 12px 0 24px;
+}
+.progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  padding: 20px 0;
+  border-top: 1px solid var(--clear-border-soft, #333336);
+  border-bottom: 1px solid var(--clear-border-soft, #333336);
+}
+.progress strong {
+  font-size: 18px;
+  font-weight: 500;
+}
+.progress p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--clear-text-soft, #a3a3a3);
+}
+.segments {
+  display: flex;
+  gap: 4px;
+}
+.segment {
+  width: 12px;
+  height: 32px;
+  border-radius: 4px;
+  background: var(--clear-border-soft, #333336);
+}
+.segment[data-approved="true"] {
+  background: var(--clear-accent, #ccff00);
+}
+.address {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--clear-text-soft, #a3a3a3);
+}
+.address code {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--clear-text-strong, #ebebeb);
+  margin-top: 5px;
+}
+.receipt {
+  padding: 28px !important;
+  border-radius: 24px !important;
+  border-left-width: 1px !important;
+  box-shadow:
+    inset 0 2px 0 var(--clear-accent, #ccff00),
+    0 12px 28px #0002 !important;
+}
+.receipt header > span {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+.receipt header > div > p:first-child {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+.receipt header div > div p {
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.6px;
+}
+.receipt dl {
+  margin-top: 24px;
+  gap: 0 24px;
+}
+.receipt dl > div {
+  border-radius: 0;
+  background: transparent;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--clear-border-soft, #333336);
+}
+.receipt dt {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.receipt dd {
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+.receipt > p {
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 14px;
+  margin-top: 20px;
+}
+.wallet > header h1 {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: clamp(28px, 3vw, 42px);
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+.wallet > div {
+  border-radius: 24px;
+  box-shadow:
+    inset 0 1px 0 #ebebeb20,
+    0 12px 28px #0002;
+}
+.wallet > div > div {
+  padding: 28px;
+  gap: 28px;
+}
+.wallet [role="group"] a {
+  border-radius: 16px;
+  min-height: 94px;
+}
+.wallet [role="group"] a:first-child {
+  border-color: var(--clear-accent, #ccff00);
+}
+.wallet [role="group"] a span {
+  font-size: 13px;
+}
+.wallet [role="group"] a:first-child > span:first-child {
+  background: var(--clear-accent, #ccff00);
+  color: #0c0c0c;
+}
+.wallet p {
+  line-height: 1.45;
+}
+@media (max-width: 640px) {
+  .surface,
+  .receipt {
+    padding: 20px !important;
+    border-radius: 20px !important;
+  }
+  .wallet > div > div {
+    padding: 20px;
+    gap: 22px;
+  }
+  .wallet [role="group"] a {
+    min-height: 88px;
+  }
+  .wallet [role="group"] a span {
+    font-size: 12px;
+  }
+  .receipt header div > div p {
+    font-size: 21px;
+  }
+}
+
+.wallet [class~="font-numerals"][class~="text-2xl"] {
+  font-size: clamp(42px, 5vw, 64px);
+  line-height: 1.1;
+  letter-spacing: -0.05em;
+  font-weight: 500;
+}

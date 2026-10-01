@@ -31,6 +31,8 @@ import {
 } from "@/lib/retail/walletAppearance";
 import { toHeadingName } from "@/lib/retail/walletNames";
 
+import reviewStyle from "@/components/review/ReviewSurface.module.css";
+
 export interface WalletHeroProps {
   name: string;
   portfolio: WalletPortfolio;
@@ -73,7 +75,7 @@ export function WalletHero({
       initial={reduce ? undefined : { opacity: 0, y: 8 }}
       animate={reduce ? undefined : { opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-3 sm:gap-5"
+      className={`${reviewStyle.wallet} flex flex-col gap-5 sm:gap-7`}
     >
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:gap-x-5 sm:gap-y-3">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
@@ -105,8 +107,14 @@ export function WalletHero({
               </>
             ) : memberAddresses.length > 0 ? (
               <>
-                <MemberAvatarStack addresses={memberAddresses} size="sm" max={4} />
-                <span className="font-numerals tabular-nums">{memberCount}</span>
+                <MemberAvatarStack
+                  addresses={memberAddresses}
+                  size="sm"
+                  max={4}
+                />
+                <span className="font-numerals tabular-nums">
+                  {memberCount}
+                </span>
                 <span>{memberCount === 1 ? "member" : "members"}</span>
               </>
             ) : (
@@ -166,7 +174,7 @@ export function WalletHero({
               </button>
             </div>
             {profile.stats.length > 0 ? (
-              <ul className="hidden grid-cols-3 gap-1.5 sm:grid sm:gap-2">
+              <ul className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 {profile.stats.map((stat) => (
                   <li
                     key={stat.label}
@@ -243,7 +251,9 @@ function productHeroProfile(
     return {
       ...shared,
       productName: "Personal",
-      eyebrow: shapeLabel ? `Personal wallet · ${shapeLabel}` : "Personal wallet",
+      eyebrow: shapeLabel
+        ? `Personal wallet · ${shapeLabel}`
+        : "Personal wallet",
       portfolioWrapClass:
         "grid gap-3 sm:gap-4 lg:grid-cols-[1fr_0.85fr] lg:items-end",
       actionTone: "personal",
@@ -251,7 +261,7 @@ function productHeroProfile(
       stats: [
         { label: "People", value: ({ members }) => String(members) },
         { label: "Waiting", value: ({ pending }) => String(pending) },
-        { label: "Protection", value: () => "On" },
+        { label: "Policy", value: () => "Review rules" },
       ],
     };
   }
@@ -267,7 +277,7 @@ function productHeroProfile(
       stats: [
         { label: "Approvers", value: ({ members }) => String(members) },
         { label: "Queue", value: ({ pending }) => String(pending) },
-        { label: "Protection", value: () => "On" },
+        { label: "Policy", value: () => "Review rules" },
       ],
     };
   }
@@ -281,9 +291,9 @@ function productHeroProfile(
       actionTone: "agent",
       balanceLabel: "Trading funds",
       stats: [
-        { label: "Trader", value: () => "Ready" },
+        { label: "Execution", value: () => "Gated" },
         { label: "Queue", value: ({ pending }) => String(pending) },
-        { label: "Risk", value: () => "Guarded" },
+        { label: "Risk", value: () => "Review policy" },
       ],
     };
   }
@@ -306,15 +316,45 @@ function productHeroActions(
 ): Array<{ href: string; Icon: LucideIcon; label: string; hint: string }> {
   if (surface === "agent") {
     return [
-      { href: `/app/wallet/${encoded}/agents`, Icon: Bot, label: "Desk", hint: "Trade" },
-      { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: "Deposit" },
-      { href: `/app/wallet/${encoded}/agents/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
+      {
+        href: `/app/wallet/${encoded}/agents`,
+        Icon: Bot,
+        label: "Desk",
+        hint: "Trade",
+      },
+      {
+        href: `/app/wallet/${encoded}/receive`,
+        Icon: Download,
+        label: "Receive",
+        hint: "Deposit",
+      },
+      {
+        href: `/app/wallet/${encoded}/agents/policy`,
+        Icon: ShieldCheck,
+        label: "Protect",
+        hint: "Safety",
+      },
     ];
   }
   return [
-    { href: `/app/wallet/${encoded}/send`, Icon: Send, label: "Send", hint: surface ? "Pay" : "Pay anyone" },
-    { href: `/app/wallet/${encoded}/receive`, Icon: Download, label: "Receive", hint: surface ? "Deposit" : "Get paid" },
-    { href: `/app/wallet/${encoded}/policy`, Icon: ShieldCheck, label: "Protect", hint: "Safety" },
+    {
+      href: `/app/wallet/${encoded}/send`,
+      Icon: Send,
+      label: "Send",
+      hint: surface ? "Pay" : "Pay anyone",
+    },
+    {
+      href: `/app/wallet/${encoded}/receive`,
+      Icon: Download,
+      label: "Receive",
+      hint: surface ? "Deposit" : "Get paid",
+    },
+    {
+      href: `/app/wallet/${encoded}/policy`,
+      Icon: ShieldCheck,
+      label: "Protect",
+      hint: "Safety",
+    },
   ];
 }
 
@@ -386,7 +426,12 @@ function PortfolioValue({
     portfolio.breakdown.filter((chain) => chain.raw !== null && chain.raw > 0n)
       .length > 1 || portfolio.breakdown.length > 1;
   const help = (
-    <InfoTip label="About balance prices" title="Balance prices" width="sm" size="xs">
+    <InfoTip
+      label="About balance prices"
+      title="Balance prices"
+      width="sm"
+      size="xs"
+    >
       Prices are demo values for now. Treat them as a guide, not a quote.
       {portfolio.unknownPriceChains.length > 0
         ? ` No quote is available for ${portfolio.unknownPriceChains.join(", ")} yet.`
@@ -402,11 +447,16 @@ function PortfolioValue({
         </p>
         {help}
       </div>
+      <p className="text-xs text-text-soft">
+        Fiat prices are illustrative, not executable quotes.
+      </p>
       {hasMultipleChains ? (
         portfolio.isLoading && portfolio.totalUsd === 0 ? (
           <div className="h-9 w-44 animate-pulse rounded bg-border-soft sm:h-11 sm:w-56" />
         ) : (
-          <p className={`font-numerals text-2xl font-semibold leading-none text-text-strong tabular-nums transition-[filter] duration-base sm:text-display-sm ${hiddenClass}`}>
+          <p
+            className={`font-numerals text-2xl font-semibold leading-none text-text-strong tabular-nums transition-[filter] duration-base sm:text-display-sm ${hiddenClass}`}
+          >
             {fiat.format(portfolio.totalUsd)}
           </p>
         )
@@ -414,7 +464,9 @@ function PortfolioValue({
         <div className="h-9 w-44 animate-pulse rounded bg-border-soft sm:h-11 sm:w-56" />
       ) : (
         <>
-          <p className={`flex items-baseline gap-2 transition-[filter] duration-base ${hiddenClass}`}>
+          <p
+            className={`flex items-baseline gap-2 transition-[filter] duration-base ${hiddenClass}`}
+          >
             <span className="font-numerals text-2xl font-semibold leading-none text-text-strong tabular-nums sm:text-display-sm">
               {fallbackBalance?.amount ?? "0"}
             </span>
@@ -423,7 +475,9 @@ function PortfolioValue({
             </span>
           </p>
           {fallbackBalanceLamports !== null && fallbackBalanceLamports > 0 ? (
-            <span className={`transition-[filter] duration-base ${hiddenClass}`}>
+            <span
+              className={`transition-[filter] duration-base ${hiddenClass}`}
+            >
               <UsdHint
                 amount={BigInt(Math.round(fallbackBalanceLamports))}
                 smallestPerWhole={1_000_000_000n}

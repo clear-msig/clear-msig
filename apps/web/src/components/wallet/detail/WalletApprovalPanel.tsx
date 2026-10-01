@@ -54,7 +54,7 @@ export function WalletApprovalPanel({
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-accent">
             <Bell className="h-3 w-3" strokeWidth={2.25} />
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+          <span className="font-mono text-xs uppercase tracking-[0.12em] text-accent">
             Needs your approval
           </span>
           <span className="font-numerals text-[11px] font-semibold tabular-nums text-text-strong">
@@ -73,7 +73,7 @@ export function WalletApprovalPanel({
           <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
         )}
         {!batch.progress && rows.length > 0 && (
-          <p className="text-[11px] text-text-soft">
+          <p className="text-sm text-text-soft">
             Approving fires one wallet popup per request. Tap Approve in each.
           </p>
         )}
@@ -86,9 +86,9 @@ export function WalletApprovalPanel({
             const who = proposerDisplayName(row.proposer, viewerAddress);
             const ago = relativeTime(row.proposedAt);
             const tally =
-              row.approverCount > 0
-                ? `${row.approvalsCollected} of ${row.approverCount} approved`
-                : "awaiting approval";
+              row.approvalThreshold && row.approvalThreshold > 0
+                ? `${row.approvalsCollected} of ${row.approvalThreshold} required approvals`
+                : `${row.approvalsCollected} approvals · threshold loading`;
             return (
               <li key={row.proposalPda}>
                 <Link
@@ -100,10 +100,10 @@ export function WalletApprovalPanel({
                   }
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-text-strong">
+                    <p className="text-base font-medium text-text-strong">
                       {label}
                     </p>
-                    <p className="mt-0.5 truncate text-[11px] text-text-soft">
+                    <p className="mt-1 text-xs text-text-soft">
                       by {who} · {ago} · {tally}
                     </p>
                   </div>

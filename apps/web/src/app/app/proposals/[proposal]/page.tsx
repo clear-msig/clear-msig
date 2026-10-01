@@ -21,15 +21,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  useConnection,
-  useWallet,
-} from "@/lib/wallet";
+import { useConnection, useWallet } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  ArrowRight,
   Check,
   ExternalLink,
   Link2,
@@ -54,11 +50,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
 import { WalletPopupNarration } from "@/components/retail/WalletPopupNarration";
 import { SignPayloadPreview } from "@/components/retail/SignPayloadPreview";
-import {
-  friendlyIntentLabel,
-  friendlyStatus,
-  statusChipClasses,
-} from "@/lib/retail/labels";
+import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { useContacts } from "@/lib/hooks/useContacts";
@@ -66,6 +58,8 @@ import { appConfig } from "@/lib/config";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
 import { resolveWalletProductSurface } from "@/lib/productWorkspace";
+
+import { RequestOverview } from "@/components/review/RequestOverview";
 
 export default function RequestDetailPage() {
   const params = useParams<{ proposal: string }>();
@@ -185,7 +179,8 @@ function Loaded({
   const isActive = proposal.status === ProposalStatus.Active;
 
   const myAddress = wallet.publicKey?.toBase58() ?? "";
-  const isApprover = myAddress.length > 0 && intent.approvers.includes(myAddress);
+  const isApprover =
+    myAddress.length > 0 && intent.approvers.includes(myAddress);
   const isProposer = myAddress.length > 0 && proposal.proposer === myAddress;
 
   const myApproverIndex = intent.approvers.indexOf(myAddress);
@@ -296,48 +291,17 @@ function Loaded({
       {/* Compact left-aligned hero. Back navigation lives in the
           global DashboardHeader; the wallet name is shown inline as
           a clickable breadcrumb to the parent wallet detail page. */}
-      <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <Link
-            href={`/app/wallet/${encodeURIComponent(walletName)}`}
-            className="inline-flex items-center gap-1 text-xs font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-          >
-            <span>{walletDisplay}</span>
-            <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            <span className="text-text-soft">Request</span>
-          </Link>
-          <span
-            className={
-              "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] " +
-              statusChipClasses(proposal.status)
-            }
-          >
-            {statusLabel}
-          </span>
-        </div>
-
-        <h1 className="hidden md:block mt-3 font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
-          {intentLabel}
-        </h1>
-        <p className="mt-1 text-xs text-text-soft sm:text-sm">
-          Created {createdAgo} {proposerLabel && `· ${proposerLabel}`}
-        </p>
-
-        <div className="mt-5 flex items-center gap-3">
-          <ApprovalProgress
-            collected={Math.min(approvalsCollected, approvalThreshold)}
-            total={approvalThreshold}
-          />
-          <p className="text-sm font-medium text-text-strong">
-            {approvalsCollected} of {approvalThreshold} approved
-          </p>
-        </div>
-        {approverCount > approvalThreshold && (
-          <p className="mt-1 text-xs text-text-soft">
-            {approverCount} {isPro ? "approvers" : "people"} can approve · {approvalThreshold}{" "}
-            approval{approvalThreshold === 1 ? "" : "s"} required
-          </p>
-        )}
+      <RequestOverview
+        title={intentLabel}
+        walletName={walletDisplay}
+        walletHref={`/app/wallet/${encodeURIComponent(walletName)}`}
+        status={statusLabel}
+        created={`Created ${createdAgo}${proposerLabel ? ` · ${proposerLabel}` : ""}`}
+        collected={approvalsCollected}
+        threshold={approvalThreshold}
+        members={approverCount}
+        proposalAddress={proposalPda}
+      >
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2 print:hidden">
           <ShareProposalButton />
           <PrintProposalButton />
@@ -362,12 +326,14 @@ function Loaded({
             flip on @media print. */}
         <div className="hidden print:mt-4 print:block print:text-xs print:text-black">
           <p className="font-mono break-all">Request account: {proposalPda}</p>
-          <p className="font-mono break-all">Explorer: {addressUrl(proposalPda)}</p>
+          <p className="font-mono break-all">
+            Explorer: {addressUrl(proposalPda)}
+          </p>
           <p className="mt-1 italic">
             Printed from Clear · pre-alpha · Solana devnet
           </p>
         </div>
-      </section>
+      </RequestOverview>
 
       <RequestTimeline
         status={proposal.status}
@@ -407,43 +373,49 @@ function Loaded({
           />
           <WalletPopupNarration action="approve this request" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Button
-            size="lg"
-            fullWidth
-            onClick={handleApprove}
-            disabled={isWorking}
-          >
-            {workflow.approveMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Approving…
-              </>
-            ) : (
-              <>
-                <Check className="h-4 w-4" aria-hidden="true" />
-                Approve
-              </>
-            )}
-          </Button>
-          <Button
-            size="lg"
-            variant="ghost"
-            fullWidth
-            onClick={handleDecline}
-            disabled={isWorking}
-          >
-            {workflow.cancelMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Declining…
-              </>
-            ) : (
-              <>
-                <X className="h-4 w-4" aria-hidden="true" />
-                Decline
-              </>
-            )}
-          </Button>
+            <Button
+              size="lg"
+              fullWidth
+              onClick={handleApprove}
+              disabled={isWorking}
+            >
+              {workflow.approveMutation.isPending ? (
+                <>
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Approving…
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                  Approve
+                </>
+              )}
+            </Button>
+            <Button
+              size="lg"
+              variant="ghost"
+              fullWidth
+              onClick={handleDecline}
+              disabled={isWorking}
+            >
+              {workflow.cancelMutation.isPending ? (
+                <>
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Declining…
+                </>
+              ) : (
+                <>
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Decline
+                </>
+              )}
+            </Button>
           </div>
         </div>
       )}
@@ -537,35 +509,6 @@ function Loaded({
 
 // ─── Bits & pieces ─────────────────────────────────────────────────
 
-function ApprovalProgress({
-  collected,
-  total,
-}: {
-  collected: number;
-  total: number;
-}) {
-  return (
-    <div
-      className="flex items-center gap-1"
-      role="progressbar"
-      aria-valuenow={collected}
-      aria-valuemin={0}
-      aria-valuemax={total}
-      aria-label={`${collected} of ${total} approved`}
-    >
-      {Array.from({ length: total }, (_, i) => (
-        <span
-          key={i}
-          className={
-            "h-2 w-6 rounded-full transition-colors duration-base ease-out-soft " +
-            (i < collected ? "bg-accent" : "bg-border-soft")
-          }
-        />
-      ))}
-    </div>
-  );
-}
-
 function RequestTimeline({
   status,
   approvalsCollected,
@@ -592,7 +535,11 @@ function RequestTimeline({
     {
       label: "Collect approvals",
       detail: `${Math.min(approvalsCollected, approvalThreshold)} of ${approvalThreshold} approved`,
-      state: stopped ? ("stopped" as const) : approvalsDone ? ("done" as const) : ("current" as const),
+      state: stopped
+        ? ("stopped" as const)
+        : approvalsDone
+          ? ("done" as const)
+          : ("current" as const),
     },
     {
       label: isTyped ? "Finish" : "Send money",
@@ -639,7 +586,11 @@ function RequestTimeline({
               }
             >
               {step.state === "done" ? (
-                <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
+                <Check
+                  className="h-3.5 w-3.5"
+                  strokeWidth={3}
+                  aria-hidden="true"
+                />
               ) : (
                 index + 1
               )}
@@ -683,8 +634,7 @@ function typedProposalLabel(actionKind: number): string {
 function ShareProposalButton() {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
-    const url =
-      typeof window !== "undefined" ? window.location.href : "";
+    const url = typeof window !== "undefined" ? window.location.href : "";
     if (!url) return;
     try {
       if (navigator.clipboard?.writeText) {
@@ -786,7 +736,7 @@ function ApproversBreakdown({
           const nickname = contactByAddress.get(address);
           const displayName = isYou
             ? "You"
-            : nickname ?? `Member ${avatarInitials(address)}`;
+            : (nickname ?? `Member ${avatarInitials(address)}`);
           return (
             <li
               key={address}
@@ -806,7 +756,11 @@ function ApproversBreakdown({
               >
                 {approved ? (
                   <>
-                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+                    <Check
+                      className="h-3 w-3"
+                      strokeWidth={3}
+                      aria-hidden="true"
+                    />
                     Approved
                   </>
                 ) : (
