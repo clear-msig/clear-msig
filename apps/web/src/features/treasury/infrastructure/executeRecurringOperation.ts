@@ -21,11 +21,11 @@ export async function executeRecurringOperation(walletName: string, pending: Pen
       destinationToken: pending.destinationToken!,
       recipientOwner: pending.recipientOwner!,
       amountTokens: recurringAmountToRaw(pending.amount, "USDC"),
-    });
+    }, { retry: false });
   }
   return backendApi.executeTypedRecurringSchedule(walletName, pending.proposalAddress, {
     ...common,
     recipient: pending.recipient,
     amountLamports: recurringAmountToRaw(pending.amount, "SOL"),
-  });
+  }, { retry: false });
 }

@@ -1,3 +1,7 @@
+import {
+  assertGovernanceReplacement,
+  executeAndVerifyTypedGovernance,
+} from "@/lib/chain/typedGovernanceExecution";
 import { requestRecovery } from "@/lib/clearsign/requestRecovery";
 import {
   reviewedCreationProposalAddress,
@@ -114,6 +118,7 @@ export async function completeTypedGovernance(
       throw new Error("Could not build intent body for governance update.");
     }
     // params_data = [target_index byte][intent body]
+    assertGovernanceReplacement(input, paramsHex);
     const newIntentBodyHex = paramsHex.slice(2);
     const committedPayload = encodeTypedGovernancePayload(
       input.targetIntentIndex,
@@ -265,20 +270,23 @@ export async function completeTypedGovernance(
 
       input.requestIdentity.assertCurrent();
 
-      const executed = await backendApi.executeTypedIntentGovernance(
-        input.walletName,
+      await executeAndVerifyTypedGovernance({
+        connection: input.connection,
+        walletName: input.walletName,
+        walletId: input.walletId,
+        accountKey: input.requestIdentity.accountKey,
+        assertCurrent: input.requestIdentity.assertCurrent,
         proposal,
-        {
-          actionKind: summary.actionKindCode,
-          targetIndex: input.targetIntentIndex,
-          newIntentBodyHex,
-        },
-      );
+        voteIntentIndex: input.voteIntentIndex,
+        targetIntentIndex: input.targetIntentIndex,
+        newIntentBodyHex,
+        actionKind: summary.actionKindCode,
+        policyCommitment: summary.policyCommitment,
+        payloadHash: summary.payloadHash,
+        envelopeHash: summary.envelopeHash,
+        policyBytesHex: committedPayload.hex,
+      });
 
-      if (typeof executed.txid !== "string" || !executed.txid.trim())
-        throw new Error(
-          "Execution returned no transaction ID; the change is not confirmed.",
-        );
       input.requestIdentity.assertCurrent();
       recovery.complete();
       return { kind: "executed", proposal };

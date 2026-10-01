@@ -1,3 +1,4 @@
+import { solanaSubmissionTxid } from "@/lib/chain/executionEvidence";
 import { inlineApprovalOptions } from "@/lib/clearsign/inlineApproval";
 import { backendApi } from "@/lib/api/endpoints";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
@@ -81,10 +82,12 @@ export async function finalizeSolanaSend({
         proposal,
         { actor_pubkey: approver },
       );
+      input.attempt.assertCurrent();
       const approveSigned = await signTypedDescriptor(
         approveDry,
         inlineApprovalOptions(dry, approveDry, summary, proposal, approverPk),
       );
+      input.attempt.assertCurrent();
       await backendApi.submit.approveTypedProposal(walletName, proposal, {
         ...approveSigned,
         expiry: approveDry.expiry,
@@ -144,11 +147,13 @@ export async function finalizeSolanaSend({
           proposal,
           { actor_pubkey: extraSigner.toBase58() },
         );
+        input.attempt.assertCurrent();
         const extraSigned = await signTypedDescriptor(
           extraDry,
           inlineApprovalOptions(dry, extraDry, summary, proposal, extraSigner),
         );
-        await backendApi.submit.approveTypedProposal(walletName, proposal, {
+        input.attempt.assertCurrent();
+      await backendApi.submit.approveTypedProposal(walletName, proposal, {
           ...extraSigned,
           expiry: extraDry.expiry,
         });
@@ -177,10 +182,11 @@ export async function finalizeSolanaSend({
     setPhase("executing");
     let executed: unknown;
     try {
+      input.attempt.assertCurrent();
       executed = await backendApi.executeTypedSolSend(walletName, proposal, {
         recipient: destination,
         amountLamports: lamportsToSafeNumber(lamportsBigint),
-      });
+      }, { retry: false });
     } catch (err) {
       // If an RPC race means the backend still sees Active while
       // our read briefly saw Approved, keep the request on chain
@@ -201,24 +207,17 @@ export async function finalizeSolanaSend({
       tagExecuteFailure(err, proposal);
       throw err;
     }
-    // Solana sends route through the program's `execute_custom`
-    // (chain_kind=0 stays on the local path), so the response
-    // shape is { txid, path, status } - not the broadcast
-    // wrapper EVM uses. Pull txid out so SentStage can link
-    // the user to the actual on-chain transfer.
-    const tid = (executed as { txid?: unknown })?.txid;
-    if (typeof tid === "string" && tid.length > 0) {
+    try {
+      const tid = solanaSubmissionTxid(executed, { proposal, path: "typed_sol_send", requireProposal: true });
+      const receipt = executed as Record<string, unknown>;
+      if (receipt.recipient !== destination || receipt.amount_lamports !== lamportsToSafeNumber(lamportsBigint))
+        throw new Error("Solana submission response does not match the reviewed transfer.");
+      input.attempt.accepted(proposal, tid);
       return { ...submitted, executedTxid: tid };
+    } catch (error) {
+      tagExecuteFailure(error, proposal);
+      throw error;
     }
-    // execute returned without a txid - backend reached a code
-    // path that didn't broadcast. Same UX risk as the throw
-    // above (user sees "Sent" with no on-chain effect), so
-    // surface it as a failure with the proposal link.
-    const err = new Error(
-      "The final send step finished but didn't return a transaction id. The request is saved - open it from the dashboard to retry.",
-    );
-    tagExecuteFailure(err, proposal);
-    throw err;
   }
   // Threshold not met inline (multi-member wallet, threshold > 1).
   // Proposal is on chain Active; other approvers need to act

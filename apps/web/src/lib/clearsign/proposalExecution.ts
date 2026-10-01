@@ -114,6 +114,25 @@ export function executionOutcomeLabel(outcome: ExecutionOutcome): string {
       : "Execution outcome uncertain; check the existing request";
 }
 
+/** Timeline copy consumes finalized owned context, but never infers downstream finality. */
+export function proposalTimelineExecution(
+  proposal: AnyProposalAccount,
+  intent: IntentAccount,
+  review?: CanonicalProposalReview,
+): { label: string; completedDetail: string } {
+  if (intent.chainKind !== 0 && (proposal.typed || intent.intentType > 2))
+    return { label: "Authorize execution", completedDetail: "Solana authorization recorded; destination completion unverified" };
+  if (proposal.typed && proposal.actionKind === 1 && review) {
+    try {
+      nativeSolExecutionFromReview(review, intent.chainKind);
+      return { label: "Send SOL", completedDetail: "Native SOL transfer confirmed on Solana" };
+    } catch { /* An incomplete or incompatible review cannot establish transfer semantics. */ }
+  }
+  if ((proposal.typed && [3, 4, 5].includes(proposal.actionKind)) || (!proposal.typed && intent.intentType <= 2))
+    return { label: "Apply governance change", completedDetail: "Governance execution recorded on Solana" };
+  return { label: "Execute request", completedDetail: "Execution recorded on Solana; downstream outcome unverified" };
+}
+
 export type NativeSolExecution = { recipient: string; amountLamports: number };
 export function nativeSolExecutionFromReview(
   review: CanonicalProposalReview,

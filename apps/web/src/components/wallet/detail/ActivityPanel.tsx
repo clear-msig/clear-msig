@@ -173,7 +173,7 @@ function SendAttempts({
                           : "text-warning"
                       }
                     >
-                      {row.status === "success" ? "Confirmed" : "Failed"}
+                      {row.status === "submitted" ? "Submitted · confirmation pending" : row.status === "success" ? "Submission recorded" : "Attempt needs review"}
                     </span>
                     {` · ${row.amountDisplay ?? "-"} ${row.ticker ?? ""}`}
                     {row.recipientShort ? ` to ${row.recipientShort}` : ""}
@@ -185,7 +185,7 @@ function SendAttempts({
                       : ""}
                   </p>
                 </div>
-                {row.status === "success" && row.explorerUrl ? (
+                {row.status !== "failed" && row.explorerUrl ? (
                   <ExternalAction href={row.explorerUrl}>
                     View transaction
                   </ExternalAction>

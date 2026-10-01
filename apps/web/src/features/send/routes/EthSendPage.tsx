@@ -1,5 +1,6 @@
 "use client";
 
+import { verifyChainSubmission } from "@/features/send/infrastructure/chainSubmission";
 import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
 import { SavedSendRecovery } from "@/features/send/ui/SavedSendRecovery";
@@ -666,7 +667,9 @@ function SendEthPage() {
             grpcUrl: appConfig.preAlpha.grpcUrl,
             rpcUrl: EVM_RPC_URL,
           },
+          { retry: false },
         );
+        verifyChainSubmission(executed, proposal, EVM_CHAIN_KIND);
         const broadcast = (executed as { broadcast?: BroadcastResultLike })
           ?.broadcast;
         if (!broadcast?.tx_id?.trim())
@@ -676,7 +679,7 @@ function SendEthPage() {
               "Execution returned no transaction ID. Sending is not confirmed.",
             ),
           );
-        attempt.complete();
+        attempt.accepted(proposal, broadcast?.tx_id ?? undefined);
         return { proposal, broadcast, awaitingApprovers: false };
       } finally {
         attempt.finish();
@@ -700,7 +703,7 @@ function SendEthPage() {
         explorerUrl,
         explorerLabel,
         pending: awaitingApprovers,
-        proposal: awaitingApprovers ? proposal : null,
+        proposal,
       });
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       if (awaitingApprovers) {
@@ -713,7 +716,7 @@ function SendEthPage() {
       recordAttempt({
         walletName,
         chainKind: EVM_CHAIN_KIND,
-        status: "success",
+        status: "submitted",
         amountDisplay: amount.trim(),
         ticker: EVM_TICKER,
         recipientShort: sentTo,

@@ -34,6 +34,12 @@ import {
   bindCancellationDescriptor,
   readOwnedProposalContext,
 } from "@/lib/clearsign/cancellationReview";
+import { submitReviewedVote } from "@/lib/clearsign/submitReviewedVote";
+import {
+  approvalContextMatches,
+  voteIsRecorded,
+  type VoteOutcome,
+} from "@/lib/clearsign/voteEvidence";
 import { requestRecovery } from "@/lib/clearsign/requestRecovery";
 import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 import {
@@ -177,6 +183,16 @@ export function useProposalWorkflow(
           );
         assertIdentity();
         const actorPubkey = signerPk.toBase58();
+        if (
+          requestRecovery.voteFor(
+            connection.rpcEndpoint,
+            selectedProposal,
+            actorPubkey,
+          )
+        )
+          throw new Error(
+            "A vote by this member may already have been submitted. Check its status before voting again.",
+          );
         const dry = await backendApi.prepare.approveTypedProposal(
           walletName,
           selectedProposal,
@@ -211,11 +227,35 @@ export function useProposalWorkflow(
             "Request changed while signing. Signature was not submitted; refresh and review again.",
           );
         assertIdentity();
-        return await backendApi.submit.approveTypedProposal(
-          walletName,
+        const voteContext = await readOwnedProposalContext(
+          connection,
           selectedProposal,
-          { ...signed, expiry: dry.expiry },
+          walletName,
         );
+        assertIdentity();
+        if (!voteContext || !approvalContextMatches(review, voteContext))
+          throw new Error(
+            "Request authority changed before approval submission. Refresh and review again.",
+          );
+        return await submitReviewedVote({
+          context: voteContext,
+          actor: actorPubkey,
+          vote: "approve",
+          endpoint: connection.rpcEndpoint,
+          accountKey: requestAccountKey(
+            wallet.sessionSubject,
+            wallet.publicKey?.toBase58() ?? null,
+          ),
+          assertCurrent: assertIdentity,
+          read: () =>
+            readOwnedProposalContext(connection, selectedProposal, walletName),
+          submit: () =>
+            backendApi.submit.approveTypedProposal(
+              walletName,
+              selectedProposal,
+              { ...signed, expiry: dry.expiry },
+            ),
+        });
       } finally {
         approvalInFlight.current = false;
       }
@@ -251,6 +291,16 @@ export function useProposalWorkflow(
             "No connected member can cancel this request without repeating an existing vote.",
           );
         const actorPubkey = signerPk.toBase58();
+        if (
+          requestRecovery.voteFor(
+            connection.rpcEndpoint,
+            selectedProposal,
+            actorPubkey,
+          )
+        )
+          throw new Error(
+            "A vote by this member may already have been submitted. Check its status before voting again.",
+          );
         const checkCurrent = async () => {
           const fresh = await readCancellationContext(
             connection,
@@ -275,11 +325,29 @@ export function useProposalWorkflow(
             preferSigner: signerPk,
           });
           await checkCurrent();
-          return await backendApi.submit.cancelTypedProposal(
-            walletName,
-            selectedProposal,
-            { ...signed, expiry: dry.expiry },
-          );
+          return await submitReviewedVote({
+            context,
+            actor: actorPubkey,
+            vote: "cancel",
+            endpoint: connection.rpcEndpoint,
+            accountKey: requestAccountKey(
+              wallet.sessionSubject,
+              wallet.publicKey?.toBase58() ?? null,
+            ),
+            assertCurrent: assertIdentity,
+            read: () =>
+              readOwnedProposalContext(
+                connection,
+                selectedProposal,
+                walletName,
+              ),
+            submit: () =>
+              backendApi.submit.cancelTypedProposal(
+                walletName,
+                selectedProposal,
+                { ...signed, expiry: dry.expiry },
+              ),
+          });
         }
         const dry = await backendApi.prepare.cancelProposal(
           walletName,
@@ -290,16 +358,70 @@ export function useProposalWorkflow(
         await checkCurrent();
         const signed = await signDescriptor(dry, { preferSigner: signerPk });
         await checkCurrent();
-        return await backendApi.submit.cancelProposal(
-          walletName,
-          selectedProposal,
-          { ...signed, expiry: dry.expiry },
-        );
+        return await submitReviewedVote({
+          context,
+          actor: actorPubkey,
+          vote: "cancel",
+          endpoint: connection.rpcEndpoint,
+          accountKey: requestAccountKey(
+            wallet.sessionSubject,
+            wallet.publicKey?.toBase58() ?? null,
+          ),
+          assertCurrent: assertIdentity,
+          read: () =>
+            readOwnedProposalContext(connection, selectedProposal, walletName),
+          submit: () =>
+            backendApi.submit.cancelProposal(walletName, selectedProposal, {
+              ...signed,
+              expiry: dry.expiry,
+            }),
+        });
       } finally {
         approvalInFlight.current = false;
       }
     },
     onSuccess: async () => {
+      await detailQuery.refetch();
+      await listQuery.refetch();
+    },
+  });
+
+  const checkVotesMutation = useMutation({
+    mutationFn: async (): Promise<VoteOutcome[]> => {
+      const assertIdentity = identityGuard();
+      const attempts = requestRecovery.votesFor(
+        connection.rpcEndpoint,
+        selectedProposal,
+      );
+      const context = await readOwnedProposalContext(
+        connection,
+        selectedProposal,
+        walletName,
+      );
+      assertIdentity();
+      if (!context)
+        throw new Error("Request could not be verified. No vote was retried.");
+      return attempts.map((attempt) => {
+        const actor = attempt.actor!,
+          vote = attempt.vote!;
+        const confirmed = voteIsRecorded(
+          context,
+          attempt.voteContext!,
+          actor,
+          vote,
+        );
+        if (confirmed) requestRecovery.resolveVote(attempt.key);
+        return {
+          state: confirmed ? "confirmed" : "unknown",
+          proposal: selectedProposal,
+          actor,
+          vote,
+          txid: attempt.txid,
+        };
+      });
+    },
+    onSuccess: async () => {
+      await reviewQuery.refetch();
       await detailQuery.refetch();
       await listQuery.refetch();
     },
@@ -497,6 +619,11 @@ export function useProposalWorkflow(
     reviewQuery,
     approveMutation,
     cancelMutation,
+    checkVotesMutation,
+    voteAttempts: requestRecovery.votesFor(
+      connection.rpcEndpoint,
+      selectedProposal,
+    ),
     executeMutation,
     checkExecutionMutation,
     executionAttempt: requestRecovery.executionFor(

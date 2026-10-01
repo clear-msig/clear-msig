@@ -308,6 +308,7 @@ export const backendApi = {
       escrowId: string;
       milestoneId: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -316,6 +317,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedEscrowReturn: (
@@ -325,6 +327,7 @@ export const backendApi = {
       escrowId: string;
       returns: Array<{ recipient: string; amountLamports: number }>;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -333,6 +336,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedSplEscrowRelease: (
@@ -347,6 +351,7 @@ export const backendApi = {
       escrowId: string;
       milestoneId: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -355,6 +360,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedSplEscrowReturn: (
@@ -370,6 +376,7 @@ export const backendApi = {
         amountTokens: number;
       }>;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -378,6 +385,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedCrossChainEscrowRelease: (
@@ -393,6 +401,7 @@ export const backendApi = {
       routeHash: string;
       settlementArtifactHash: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -401,6 +410,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedCrossChainEscrowReturn: (
@@ -415,6 +425,7 @@ export const backendApi = {
       routeHash: string;
       settlementArtifactHash: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -423,6 +434,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedPrivateEscrowRelease: (
@@ -437,6 +449,7 @@ export const backendApi = {
       privateEvaluationHash: string;
       settlementArtifactHash: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -445,6 +458,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedPrivateEscrowReturn: (
@@ -458,6 +472,7 @@ export const backendApi = {
       privateEvaluationHash: string;
       settlementArtifactHash: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -466,6 +481,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedRecurringSchedule: (
@@ -480,6 +496,7 @@ export const backendApi = {
       paymentCount: number;
       status: 1 | 2;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -488,11 +505,13 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeRecurringPayment: (
     walletName: string,
     input: { intent: string; scheduleId: string; recipient: string },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -501,6 +520,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedRecurringTokenSchedule: (
@@ -518,6 +538,7 @@ export const backendApi = {
       paymentCount: number;
       status: 1 | 2;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -526,6 +547,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeRecurringTokenPayment: (
@@ -538,6 +560,7 @@ export const backendApi = {
       destinationToken: string;
       recipientOwner: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -546,6 +569,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedRecurringAssetSchedule: (
@@ -563,6 +587,7 @@ export const backendApi = {
       paymentCount: number;
       status: 1 | 2;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -571,6 +596,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeRecurringAssetPayment: (
@@ -583,6 +609,7 @@ export const backendApi = {
       destinationToken: string;
       recipientOwner: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -591,6 +618,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedSolSend: (
@@ -620,6 +648,7 @@ export const backendApi = {
       policyBytesHex: string;
       chainKind: number;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -628,6 +657,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedAssetPolicyUpdate: (
@@ -641,6 +671,7 @@ export const backendApi = {
       assetId: string;
       displayAsset: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -649,6 +680,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedIntentGovernance: (
@@ -694,6 +726,7 @@ export const backendApi = {
       rpcUrl?: string;
       broadcast?: boolean;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -702,6 +735,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedSolBatchSend: (
@@ -738,6 +772,7 @@ export const backendApi = {
       routeHash: string;
       riskCheckHash: string;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -746,6 +781,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedAgentSessionGrant: (
@@ -761,6 +797,7 @@ export const backendApi = {
       expiresAt: number;
       status: 1 | 2;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -769,6 +806,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedAgentRiskPolicy: (
@@ -780,6 +818,7 @@ export const backendApi = {
       maxLossRaw: string;
       status: 1 | 2;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -788,6 +827,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedAgentTradeSettlement: (
@@ -803,6 +843,7 @@ export const backendApi = {
       pnlAbsRaw: string;
       settlementSequence: number;
     },
+    options: { retry?: boolean } = {},
   ) =>
     withRetry(() =>
       apiRequest<Record<string, unknown>, typeof input>(
@@ -811,6 +852,7 @@ export const backendApi = {
         input,
         { timeoutMs: 55_000 },
       ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   cleanupProposal: (proposalAddress: string) =>

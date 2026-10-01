@@ -125,8 +125,8 @@ export default function RecurringPage() {
                 state={recurring.states[row.id] ?? null}
                 busy={submitting || !!recurring.busyId}
                 unavailable={recurring.loading || !!recurring.error}
-                onRetry={() => run(() => recurring.retry(row), "Schedule execution submitted")}
-                onPay={() => run(() => recurring.pay(row), "Payment executed")}
+                onRetry={() => run(() => recurring.retry(row), "Existing schedule request checked")}
+                onPay={() => run(() => recurring.pay(row), "Scheduled payment verified on Solana")}
                 onRevoke={() => run(() => recurring.revoke(row), "Revocation approval created")}
                 onRemove={() => recurring.remove(row.id)}
               />

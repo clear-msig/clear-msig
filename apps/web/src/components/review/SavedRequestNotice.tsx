@@ -51,17 +51,26 @@ export function SavedRequestCard({
         {entry.outcome === "submitted"
           ? entry.phase === "execution"
             ? "execution submitted; verification pending"
-            : "request saved"
+            : entry.phase === "vote"
+              ? "vote submitted; verification pending"
+              : "request saved"
           : "submission outcome uncertain"}
       </h2>
       <p className="mt-2 text-sm text-text-soft">
         {entry.phase === "execution"
           ? "An execution attempt for this existing request may already be in progress. Open it to check verified status. Another execution attempt is blocked until its outcome is resolved."
-          : entry.outcome === "submitted"
-            ? "This request was created. Approval or execution may still be pending; this page has not confirmed that the change is active."
-            : "Submission started, but its response was not confirmed. Check this request before repeating the change."}
+          : entry.phase === "vote"
+            ? "A vote by this member may already have been submitted. Open the existing request to check the member’s finalized vote. Another vote by this member is blocked until the outcome is resolved."
+            : entry.outcome === "submitted"
+              ? "This request was created. Approval or execution may still be pending; this page has not confirmed that the change is active."
+              : "Submission started, but its response was not confirmed. Check this request before repeating the change."}
       </p>
       <p className="mt-3 break-all font-mono text-sm">{entry.proposal}</p>
+      {entry.phase === "vote" && (
+        <p className="mt-2 break-all font-mono text-xs">
+          Member: {entry.actor} · Vote: {entry.vote}
+        </p>
+      )}
       {entry.txid && (
         <p className="mt-2 break-all font-mono text-xs">
           Recorded submission ID (not confirmation): {entry.txid}
@@ -73,7 +82,7 @@ export function SavedRequestCard({
       >
         Open existing request
       </Link>
-      {entry.phase !== "execution" && (
+      {entry.phase === undefined && (
         <>
           <label className="mt-4 flex min-h-12 items-start gap-3 text-sm">
             <input

@@ -13,6 +13,9 @@
 // is lamports. For the preview demo we treat $1 ≈ 1 SOL (no oracle
 // yet) - a price feed plugs in here when the network is live.
 
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
+import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
+import { SavedSendRecovery } from "@/features/send/ui/SavedSendRecovery";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -351,9 +354,12 @@ function SendPage() {
   // your $X cap" / "would push you over" hint above the CTA.
   const budgetUsage = useWalletBudgetUsage(walletName);
 
+  const recovery = useSendRecovery(JSON.stringify([walletName, requestAccountKey(wallet.sessionSubject, wallet.publicKey?.toBase58() ?? null), connection.rpcEndpoint]));
   const submit = useMutation({
-    mutationFn: () =>
-      executeSolanaSend({
+    mutationFn: async () => {
+      const attempt = recovery.begin();
+      try { return await executeSolanaSend({
+        attempt,
         wallet,
         connection,
         signTypedDescriptor,
@@ -366,7 +372,8 @@ function SendPage() {
         resolved,
         budgetUsage,
         setPhase,
-      }),
+      }); } finally { attempt.finish(); }
+    },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
@@ -398,12 +405,7 @@ function SendPage() {
         typeof r?.proposal === "string" ? r.proposal : null;
       const awaitingApprovers = r?.awaitingApprovers === true;
       setExecutedTxid(txid);
-      // Only record the attempt as "success" when SOL actually
-      // moved (we have a chain-level txid). For multi-member
-      // wallets where the proposal is sitting in Active state
-      // waiting on approvers, the SOL has NOT moved - recording
-      // it as a successful send was lying about a state we hadn't
-      // reached yet.
+      // A transaction ID records submission only; it does not prove finality.
       if (txid) {
         const recipientFull =
           resolved.kind === "contact"
@@ -416,7 +418,7 @@ function SendPage() {
         recordAttempt({
           walletName,
           chainKind: 0,
-          status: "success",
+          status: "submitted",
           amountDisplay: sentAmountDisplay,
           ticker: "SOL",
           recipientShort: sentRecipientDisplay,
@@ -535,6 +537,8 @@ function SendPage() {
         : resolved.kind === "sns"
           ? resolved.name
           : "";
+
+  if (recovery.saved && !submit.isPending && stage !== "sent") return <SavedSendRecovery saved={recovery.saved} walletName={walletName} onStartAnother={recovery.startSeparateRequest} />;
 
   return (
     // Workspace shell (HeaderBar + sidebar + canvas blobs) is supplied

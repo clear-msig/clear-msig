@@ -1,4 +1,5 @@
 "use client";
+import { verifyChainSubmission } from "@/features/send/infrastructure/chainSubmission";
 import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { setupBitcoin } from "@/features/send/infrastructure/setupBitcoin";
 
@@ -629,7 +630,9 @@ function BitcoinSendPage() {
             // can choose Alchemy JSON-RPC or Esplora as appropriate.
             rpcUrl: bitcoinBroadcastUrl(btcNetwork),
           },
+          { retry: false },
         );
+        verifyChainSubmission(executed, proposal, 2);
         const broadcast = (executed as { broadcast?: BroadcastResultLike })
           ?.broadcast;
         if (!broadcast?.tx_id?.trim())
@@ -639,7 +642,7 @@ function BitcoinSendPage() {
               "Execution returned no transaction ID. Sending is not confirmed.",
             ),
           );
-        attempt.complete();
+        attempt.accepted(proposal, broadcast?.tx_id ?? undefined);
         return { proposal, broadcast, awaitingApprovers: false };
       } finally {
         attempt.finish();

@@ -286,8 +286,8 @@ export function SentStage({
   }
   return (
     <SendReceipt
-      status="confirmed"
-      statusLabel="Confirmed on Zcash"
+      status="submitted"
+      statusLabel="Submitted to Zcash; confirmation pending"
       amount={amount}
       ticker="ZEC"
       recipientLabel={to}

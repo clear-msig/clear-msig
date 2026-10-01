@@ -94,8 +94,8 @@ export function SentCard({
   }
   return (
     <SendReceipt
-      status="confirmed"
-      statusLabel={`Broadcast on ${networkLabel}`}
+      status="submitted"
+      statusLabel={`Broadcast on ${networkLabel}; confirmation pending`}
       amount={sent.amountBtc}
       ticker="BTC"
       recipientLabel={sent.to}

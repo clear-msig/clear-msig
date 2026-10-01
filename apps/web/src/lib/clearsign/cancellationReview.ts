@@ -24,6 +24,7 @@ export interface CancellationContext {
   address: string;
   walletName: string;
   fingerprint: string;
+  chainIdentity: string;
 }
 
 /** Cancellation does not authorize execution and must remain available for
@@ -123,6 +124,7 @@ export async function readOwnedProposalContext(
     address,
     walletName: wallet.name,
     fingerprint,
+    chainIdentity: `${genesis}:${program.toBase58()}`,
   };
 }
 

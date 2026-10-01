@@ -1,22 +1,18 @@
 "use client";
+import { savedProposalError } from "@/lib/clearsign/inlineApproval";
 
 // Remove a friend from a shared wallet via typed ClearSign governance.
 // Watchers stay local-only.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
-import { backendApi } from "@/lib/api/endpoints";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
 import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
 import { clearSignProfileForSigner } from "@/lib/clearsign";
-import {
-  IntentType,
-  ProposalStatus,
-  type IntentAccount,
-} from "@/lib/msig";
+import { IntentType, ProposalStatus, type IntentAccount } from "@/lib/msig";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { removeWatcher } from "@/lib/retail/roles";
 
@@ -101,18 +97,16 @@ export function useRemoveMember() {
       const stuck = proposals.filter(
         (p) =>
           p.intentIndex === intent.intentIndex &&
-          p.account.status === ProposalStatus.Approved,
+          (p.account.status === ProposalStatus.Approved ||
+            p.account.status === ProposalStatus.Active),
       );
-      for (const p of stuck) {
-        try {
-          await backendApi.executeProposal(walletName, p.pda.toBase58(), {});
-        } catch (err) {
-          console.warn(
-            `[remove-member] couldn't drain stuck proposal ${p.pda.toBase58()}`,
-            err,
-          );
-        }
-      }
+      if (stuck.length)
+        throw savedProposalError(
+          stuck[0].pda.toBase58(),
+          new Error(
+            "This existing request blocks the authority change. Review and finish or cancel it explicitly; no existing request was executed automatically.",
+          ),
+        );
 
       const result = await completeTypedGovernance({
         requestIdentity: requestIdentity.capture(),

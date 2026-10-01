@@ -411,13 +411,13 @@ function ProAuditCard({
 }
 
 function humanReceipt(row: TxAttempt): string {
-  const action = row.status === "success" ? "Sent" : "Tried to send";
+  const action = row.status === "failed" ? "Tried to send" : "Submitted";
   const amount = [row.amountDisplay, row.ticker].filter(Boolean).join(" ");
   const target = row.recipientShort ? ` to ${row.recipientShort}` : "";
   if (row.status === "failed") {
-    return `${action} ${amount || "money"}${target}. It did not leave the treasury.`;
+    return `${action} ${amount || "money"}${target}. Outcome not confirmed; review the request before retrying.`;
   }
-  return `${action} ${amount || "money"}${target}. Receipt saved.`;
+  return `${action} ${amount || "money"}${target}. Submission recorded; confirmation must be checked.`;
 }
 
 

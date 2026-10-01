@@ -1,4 +1,8 @@
-import { assertSubmittedCreation } from "@/lib/clearsign/inlineApproval";
+import { parseBatchAmountToLamports } from "@/features/send/domain/batch";
+import {
+  assertSubmittedCreation,
+  reviewedCreationProposalAddress,
+} from "@/lib/clearsign/inlineApproval";
 import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import {
@@ -61,6 +65,11 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
           : null;
   if (!destination) throw new Error("Pick a contact or paste an address");
 
+  // Use the same bounded decimal parser as batch sends; never derive signed units from a float.
+  const lamportsBigint = parseBatchAmountToLamports(amount);
+  if (lamportsBigint === null)
+    throw new Error("Enter a positive SOL amount with at most nine decimals within the exact supported range.");
+
   const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
     walletName,
     chainKind: 0,
@@ -98,9 +107,6 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
     throw new PolicyViolationError(policy.violations);
   }
 
-  // SOL → lamports. Solana's smallest unit, 1 SOL = 1e9 lamports.
-  const lamports = Math.round(numericAmount * 1_000_000_000);
-  const lamportsBigint = BigInt(lamports);
   // 1. Prepare a typed ClearSign proposal. This binds the
   // exact recipient account + lamports to the message the user
   // signs, and the Solana program recomputes those bytes before
@@ -158,6 +164,7 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
   });
 
   // 2. Sign with the user's wallet.
+  input.attempt.assertCurrent();
   setPhase("signing");
   const signed = await signTypedDescriptor(dry, {
     preferSigner: proposerPk,
@@ -171,6 +178,8 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
   // 3. Submit typed proposal. The program auto-approves when
   // the proposer is also an approver, so common 1-of-1 sends
   // continue to be one wallet popup.
+  input.attempt.assertCurrent();
+  input.attempt.submitting(reviewedCreationProposalAddress(dry, summary));
   setPhase("submitting");
   const submitted = (await backendApi.submit.createTypedProposal(walletName, {
     ...signed,
@@ -186,6 +195,7 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
     canonical_intent_hex: dry.canonical_intent_hex,
   })) as Record<string, unknown>;
   assertSubmittedCreation(dry, summary, submitted.proposal);
+  input.attempt.accepted(dry.proposal_pubkey);
   return {
     dry,
     summary,

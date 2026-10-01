@@ -40,8 +40,9 @@ export class SendRecovery {
         (data.outcome === "submitted" || data.outcome === "unknown") &&
         new PublicKey(data.proposal).toBase58() === data.proposal
       ) {
-        this.memory.set(scope, data);
-        return data;
+        const entry = { ...data, txid: typeof data.txid === "string" && /^[A-Za-z0-9]{20,128}$/.test(data.txid) ? data.txid : undefined };
+        this.memory.set(scope, entry);
+        return entry;
       }
     } catch {
       /* malformed/unavailable session storage cannot authorize a send */
@@ -83,8 +84,8 @@ export class SendRecovery {
           "Wallet or network changed. The previous send was stopped; review its request before retrying.",
         );
     };
-    const save = (proposal: string, outcome: SavedSend["outcome"]) => {
-      const entry = { proposal: new PublicKey(proposal).toBase58(), outcome };
+    const save = (proposal: string, outcome: SavedSend["outcome"], txid?: string) => {
+      const entry = { proposal: new PublicKey(proposal).toBase58(), outcome, txid: txid ?? this.saved(scope)?.txid };
       this.memory.set(scope, entry);
       try {
         this.storage?.setItem(this.key(scope), JSON.stringify(entry));
@@ -99,8 +100,8 @@ export class SendRecovery {
         assertCurrent();
         save(proposal, "unknown");
       },
-      accepted: (proposal: string) => {
-        save(proposal, "submitted");
+      accepted: (proposal: string, txid?: string) => {
+        save(proposal, "submitted", txid);
         assertCurrent();
       },
       complete: () => {

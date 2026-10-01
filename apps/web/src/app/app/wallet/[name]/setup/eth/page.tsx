@@ -259,7 +259,7 @@ export default function SetupEthPage() {
           // Sponsored execute. Flips the program-side state so the new
           // EvmTransfer intent is live; sends are then unblocked.
           identity.assertCurrent();
-          await backendApi.executeProposal(name, proposal, {});
+          await setupRecovery.executeAndVerify(proposal, dry.params_data_hex);
           return submitted;
         },
       );

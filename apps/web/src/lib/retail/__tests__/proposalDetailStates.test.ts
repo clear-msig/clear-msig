@@ -9,9 +9,11 @@ const fixtures = vi.hoisted(() => ({
   missing: false,
   status: 0,
   actionKind: 1,
+  typed: true, chainKind: 0, intentType: 3, nativeReview: false,
   approvals: 0,
   cancellations: 0,
   executionPending: false,
+  votePending: false,
 }));
 const member = new PublicKey(new Uint8Array(32).fill(2)).toBase58();
 vi.mock("next/navigation", () => ({
@@ -43,7 +45,7 @@ vi.mock("@tanstack/react-query", () => ({
       ? null
       : {
           proposal: {
-            typed: true,
+            typed: fixtures.typed,
             wallet: member,
             intent: member,
             proposer: member,
@@ -55,10 +57,11 @@ vi.mock("@tanstack/react-query", () => ({
           },
           wallet: { name: "Fixture wallet" },
           intent: {
+            template: "Synthetic request",
             approvers: [member, "11111111111111111111111111111111"],
             approvalThreshold: 2,
             cancellationThreshold: 2,
-            chainKind: 0,
+            chainKind: fixtures.chainKind, intentType: fixtures.intentType,
           },
         },
   }),
@@ -69,7 +72,10 @@ vi.mock("@/lib/hooks/useProposalSubscription", () => ({
 vi.mock("@/lib/hooks/useProposalWorkflow", () => ({
   useProposalWorkflow: () => ({
     reviewQuery: {
-      data: { reviewId: "fixture" },
+      data: fixtures.nativeReview ? {
+        reviewId: "fixture", binding: { actionKind: 1 }, network: "Solana Devnet",
+        headline: "Send 1 SOL", sections: [{ title: "DETAILS", text: `Amount: 1 SOL\nTo: ${member}` }],
+      } : { reviewId: "fixture" },
       isError: false,
       isFetching: false,
       refetch: vi.fn(),
@@ -78,6 +84,8 @@ vi.mock("@/lib/hooks/useProposalWorkflow", () => ({
     cancelMutation: { isPending: false },
     executeMutation: { isPending: false },
     checkExecutionMutation: { isPending: false },
+    checkVotesMutation: { isPending: false },
+    voteAttempts: fixtures.votePending ? [{ key: "fixture-vote", proposal: member, outcome: "unknown", phase: "vote" }] : [],
     executionAttempt: fixtures.executionPending
       ? { phase: "execution", outcome: "unknown" }
       : undefined,
@@ -105,9 +113,11 @@ beforeEach(() =>
     missing: false,
     status: 0,
     actionKind: 1,
+    typed: true, chainKind: 0, intentType: 3, nativeReview: false,
     approvals: 0,
     cancellations: 0,
     executionPending: false,
+  votePending: false,
   }),
 );
 describe("production proposal detail with synthetic account and provider boundaries", () => {
@@ -125,6 +135,14 @@ describe("production proposal detail with synthetic account and provider boundar
     expect(html).toContain("Check execution status");
     expect(html).toContain("needs reconciliation");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Execute action/);
+  });
+  it("shows saved vote status checking without claiming vote completion", () => {
+    fixtures.votePending = true;
+    const html = render();
+    expect(html).toContain("Vote verification pending");
+    expect(html).toContain("Check vote status");
+    expect(html).toContain("without signing or submitting again");
+    expect(html).not.toContain("Saved votes confirmed");
   });
   it("shows approval and cancellation actions for an eligible secondary wallet", () => {
     const html = render();
@@ -146,7 +164,7 @@ describe("production proposal detail with synthetic account and provider boundar
     fixtures.approvals = 3;
     const html = render();
     expect(html).toContain("Vote to cancel");
-    expect(html).toContain("Finish");
+    expect(html).toContain("Apply governance change");
   });
   it("labels a cancellation vote below quorum without claiming the request is cancelled", () => {
     fixtures.cancellations = 1;
@@ -183,6 +201,23 @@ describe("production proposal detail with synthetic account and provider boundar
     expect(html).toContain("action-specific recovery executor");
     expect(html).not.toContain(">Execute action");
     expect(html).toContain("Vote to cancel");
+  });
+  it.each([
+    { typed: true, chainKind: 0, actionKind: 1, nativeReview: true, expected: "Native SOL transfer confirmed on Solana" },
+    { typed: true, chainKind: 0, actionKind: 1, expected: "downstream outcome unverified" },
+    { typed: true, chainKind: 1, actionKind: 1, expected: "destination completion unverified" },
+    { typed: true, chainKind: 0, actionKind: 3, expected: "Governance execution recorded on Solana" },
+    { typed: true, chainKind: 0, actionKind: 12, expected: "downstream outcome unverified" },
+    { typed: true, chainKind: 0, actionKind: 17, expected: "downstream outcome unverified" },
+    { typed: false, chainKind: 1, expected: "destination completion unverified" },
+    { typed: false, chainKind: 0, expected: "downstream outcome unverified" },
+    { typed: false, chainKind: 0, intentType: 0, expected: "Governance execution recorded on Solana" },
+  ])("renders evidence-scoped Executed timeline: %j", ({ expected, ...state }) => {
+    Object.assign(fixtures, state, { status: 2 });
+    const html = render();
+    expect(html).toContain(expected);
+    expect(html).not.toContain("Action complete");
+    expect(html).not.toContain("Money sent");
   });
   it("does not offer new votes on a terminal request", () => {
     fixtures.status = 2;

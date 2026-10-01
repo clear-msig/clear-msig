@@ -1,4 +1,8 @@
 "use client";
+import {
+  executeCanonicalAction,
+  requireCanonicalCompletion,
+} from "@/lib/clearsign/canonicalActionExecution";
 import { requestRecovery } from "@/lib/clearsign/requestRecovery";
 import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 
@@ -200,39 +204,41 @@ export function usePersistPersonalWalletPolicy() {
           const ready = await waitForProposalApproval(connection, proposal);
           identity.assertCurrent();
           if (!ready) return "waiting";
-          if (isAsset) {
-            identity.assertCurrent();
-            const executed = await backendApi.executeTypedAssetPolicyUpdate(
-              input.walletName,
-              proposal,
-              {
-                policyBytesHex: input.target.policyBytesHex,
-                chainKind: input.target.chainKind,
-                scopeKind: input.target.scopeKind!,
-                decimals: input.target.decimals,
-                assetId: input.target.assetId!,
-                displayAsset: input.target.ticker,
-              },
-            );
-            if (typeof executed.txid !== "string" || !executed.txid.trim())
-              throw new Error(
-                "Execution returned no transaction ID; protection activation is not confirmed.",
-              );
-          } else {
-            identity.assertCurrent();
-            const executed = await backendApi.executeTypedWalletPolicyUpdate(
-              input.walletName,
-              proposal,
-              {
-                policyBytesHex: input.target.policyBytesHex,
-                chainKind: input.target.chainKind,
-              },
-            );
-            if (typeof executed.txid !== "string" || !executed.txid.trim())
-              throw new Error(
-                "Execution returned no transaction ID; protection activation is not confirmed.",
-              );
-          }
+          const execution = await executeCanonicalAction({
+            expectedActionKind: isAsset ? 16 : 6,
+            expectedWallet: input.walletId,
+            connection,
+            walletName: input.walletName,
+            proposal,
+            binding: summary,
+            accountKey: identity.accountKey,
+            assertCurrent: identity.assertCurrent,
+            execute: () =>
+              isAsset
+                ? backendApi.executeTypedAssetPolicyUpdate(
+                    input.walletName,
+                    proposal,
+                    {
+                      policyBytesHex: input.target.policyBytesHex,
+                      chainKind: input.target.chainKind,
+                      scopeKind: input.target.scopeKind!,
+                      decimals: input.target.decimals,
+                      assetId: input.target.assetId!,
+                      displayAsset: input.target.ticker,
+                    },
+                    { retry: false },
+                  )
+                : backendApi.executeTypedWalletPolicyUpdate(
+                    input.walletName,
+                    proposal,
+                    {
+                      policyBytesHex: input.target.policyBytesHex,
+                      chainKind: input.target.chainKind,
+                    },
+                    { retry: false },
+                  ),
+          });
+          requireCanonicalCompletion(execution, proposal);
           identity.assertCurrent();
           recovery.complete();
           return "updated";

@@ -1,6 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  assertSubmittedCreation,
+  reviewedCreationProposalAddress,
+} from "@/lib/clearsign/inlineApproval";
+import {
+  useEscrowOperationController,
+  type EscrowOperation,
+} from "@/features/treasury/controllers/useEscrowOperationController";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -83,7 +92,27 @@ export function EscrowProjectCard({
   });
   const [prepared, setPrepared] = useState<PreparedEscrowAction | null>(null);
   const [preparing, setPreparing] = useState<"release" | "return" | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    operation,
+    submitting,
+    setSubmitting,
+    recoveryError,
+    inFlight,
+    isExternal,
+    alreadyRecorded,
+    blocked,
+    saveOperation,
+    applyConfirmed,
+    resumeOperation,
+    loadSaved,
+    executeSaved,
+  } = useEscrowOperationController({
+    walletName,
+    project,
+    connection,
+    onRelease,
+    onUpdate,
+  });
 
   const walletQuery = useQuery({
     queryKey: ["wallet", walletName],
@@ -152,6 +181,7 @@ export function EscrowProjectCard({
   };
 
   const prepareReturn = async () => {
+    if (blocked) return;
     if (returnRows.length === 0) {
       toast.error("Nothing to return yet");
       return;
@@ -221,6 +251,7 @@ export function EscrowProjectCard({
   };
 
   const prepareRelease = async (milestone: ProEscrowMilestone) => {
+    if (blocked) return;
     setPreparing("release");
     try {
       let signingProject = project;
@@ -277,7 +308,7 @@ export function EscrowProjectCard({
   };
 
   const approvePrepared = async () => {
-    if (!prepared || submitting) return;
+    if (!prepared || blocked || inFlight.current) return;
     const intent = firstIntent?.account;
     if (!intent) {
       toast.error("Turn on protection before using escrow actions.");
@@ -288,8 +319,18 @@ export function EscrowProjectCard({
       toast.error("This wallet cannot propose actions for this treasury.");
       return;
     }
+    inFlight.current = true;
     setSubmitting(true);
     try {
+      const existing = loadSaved();
+      if (
+        existing &&
+        (!alreadyRecorded ||
+          existing.proposalAddress !== operation?.proposalAddress)
+      )
+        throw new Error(
+          "An existing escrow request needs review before creating another.",
+        );
       const signed = await signTypedDescriptor(prepared.dry, {
         preferSigner: proposerPk,
         expectedTyped: {
@@ -298,6 +339,21 @@ export function EscrowProjectCard({
           signableText: prepared.summary.signableText,
         },
       });
+      const proposalAddress = reviewedCreationProposalAddress(
+        prepared.dry,
+        prepared.summary,
+      );
+      const record: EscrowOperation = {
+        version: 1,
+        walletName,
+        proposalAddress,
+        envelopeHash: prepared.summary.envelopeHash,
+        payloadHash: prepared.summary.payloadHash,
+        execute: prepared.execute,
+        phase: "creating",
+      };
+      saveOperation(record);
+      setPrepared(null);
       const created = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,
         expiry: prepared.dry.expiry,
@@ -310,105 +366,20 @@ export function EscrowProjectCard({
         nonce: prepared.dry.nonce,
         canonical_intent_hex: prepared.dry.canonical_intent_hex,
       });
-      const proposalAddress = getStringField(created, "proposal");
-      if (!proposalAddress) {
-        throw new Error(
-          "Approval was created, but no proposal address returned.",
-        );
-      }
-      try {
-        switch (prepared.execute.kind) {
-          case "release":
-            await backendApi.executeTypedEscrowRelease(
-              walletName,
-              proposalAddress,
-              {
-                recipient: prepared.execute.recipient,
-                amountLamports: prepared.execute.amountLamports,
-                escrowId: prepared.execute.escrowId,
-                milestoneId: prepared.execute.milestoneId,
-              },
-            );
-            onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
-            toast.success("Milestone released");
-            break;
-          case "return":
-            await backendApi.executeTypedEscrowReturn(
-              walletName,
-              proposalAddress,
-              prepared.execute,
-            );
-            onUpdate(prepared.execute.escrowId, { status: "returned" });
-            toast.success("Funds returned");
-            break;
-          case "spl_release":
-            await backendApi.executeTypedSplEscrowRelease(
-              walletName,
-              proposalAddress,
-              prepared.execute,
-            );
-            onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
-            toast.success("Token milestone released");
-            break;
-          case "spl_return":
-            await backendApi.executeTypedSplEscrowReturn(
-              walletName,
-              proposalAddress,
-              prepared.execute,
-            );
-            onUpdate(prepared.execute.escrowId, { status: "returned" });
-            toast.success("Tokens returned");
-            break;
-          case "cross_chain_release":
-            await backendApi.executeTypedCrossChainEscrowRelease(
-              walletName,
-              proposalAddress,
-              prepared.execute,
-            );
-            onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
-            toast.success("Settlement recorded");
-            break;
-          case "cross_chain_return":
-            await backendApi.executeTypedCrossChainEscrowReturn(
-              walletName,
-              proposalAddress,
-              prepared.execute,
-            );
-            onUpdate(prepared.execute.escrowId, { status: "returned" });
-            toast.success("Return settlement recorded");
-            break;
-          case "private_release":
-            await backendApi.executeTypedPrivateEscrowRelease(
-              walletName,
-              proposalAddress,
-              prepared.execute,
-            );
-            onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
-            toast.success("Private settlement recorded");
-            break;
-          case "private_return":
-            await backendApi.executeTypedPrivateEscrowReturn(
-              walletName,
-              proposalAddress,
-              prepared.execute,
-            );
-            onUpdate(prepared.execute.escrowId, { status: "returned" });
-            toast.success("Private return recorded");
-            break;
-        }
-        setPrepared(null);
-      } catch (executeError) {
-        if (needsMoreApprovals(executeError)) {
-          toast.success("Approval requested");
-          setPrepared(null);
-          return;
-        }
-        throw executeError;
-      }
+      assertSubmittedCreation(
+        prepared.dry,
+        prepared.summary,
+        getStringField(created, "proposal"),
+      );
+      const accepted: EscrowOperation = { ...record, phase: "created" };
+      saveOperation(accepted);
+      const result = await executeSaved(accepted);
+      applyConfirmed(result);
     } catch (err) {
       const fe = friendlyError(err, "generic");
       toast.error(fe.title, { details: fe.body, durationMs: fe.durationMs });
     } finally {
+      inFlight.current = false;
       setSubmitting(false);
     }
   };
@@ -501,7 +472,7 @@ export function EscrowProjectCard({
         <MilestoneRow
           milestone={plannedMilestone}
           onPrepareRelease={prepareRelease}
-          preparing={preparing === "release"}
+          preparing={blocked || preparing === "release"}
         />
       ) : (
         <div className="mt-4 rounded-soft border border-border-soft bg-canvas/70 p-3 text-sm text-text-soft">
@@ -514,7 +485,9 @@ export function EscrowProjectCard({
           variant="secondary"
           fullWidth
           onClick={prepareReturn}
-          disabled={returnRows.length === 0 || preparing === "return"}
+          disabled={
+            blocked || returnRows.length === 0 || preparing === "return"
+          }
         >
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
           {preparing === "return" ? "Reviewing..." : "Return funds"}
@@ -594,11 +567,69 @@ export function EscrowProjectCard({
             </button>
           </div>
         </details>
-        <Button variant="ghost" onClick={onRemove} aria-label="Remove escrow">
+        <Button
+          variant="ghost"
+          disabled={blocked}
+          onClick={onRemove}
+          aria-label="Remove escrow"
+        >
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
 
+      {operation && (
+        <section
+          className="mt-4 flex flex-col gap-3 rounded-soft border border-warning/30 p-4"
+          aria-label="Saved escrow request"
+        >
+          <p className="font-semibold text-text-strong">
+            {operation.phase === "cancelled"
+              ? "Request cancellation verified on Solana"
+              : operation.phase === "confirmed"
+                ? isExternal(operation)
+                  ? "Solana execution recorded; destination settlement unverified"
+                  : "Execution verified on Solana"
+                : operation.phase === "created"
+                  ? "Existing escrow request awaits approval or execution"
+                  : "Existing escrow request outcome is pending or uncertain"}
+          </p>
+          <p className="text-sm text-text-soft">
+            Do not create this action again. Refresh checks the existing request
+            without sending another transaction.
+          </p>
+          <Link
+            className="break-all text-sm text-accent underline"
+            href={`/app/proposals/${operation.proposalAddress}`}
+          >
+            Review request {operation.proposalAddress}
+          </Link>
+          {operation.txid && (
+            <p className="break-all text-xs text-text-soft">
+              Submitted transaction: {operation.txid}
+            </p>
+          )}
+          <Button
+            variant="secondary"
+            disabled={submitting}
+            onClick={() => void resumeOperation(false)}
+          >
+            Refresh execution status
+          </Button>
+          {operation.phase === "created" && (
+            <Button
+              disabled={submitting}
+              onClick={() => void resumeOperation(true)}
+            >
+              Execute existing approved request
+            </Button>
+          )}
+        </section>
+      )}
+      {recoveryError && (
+        <p role="alert" className="mt-3 text-sm text-warning">
+          {recoveryError}
+        </p>
+      )}
       {prepared ? (
         <ClearSignReview
           prepared={prepared}

@@ -8,6 +8,15 @@ import type {
   ClearSignPayload,
 } from "@/lib/clearsign/intentInput";
 
+// Mirrors the program's canonical ClearSignActionKind discriminants.
+const ACTION_CODES: Record<ClearSignIntentInput<ClearSignPayload>["kind"], number> = {
+  send: 1, batch_send: 2, add_member: 3, remove_member: 4,
+  change_threshold: 5, set_protection: 6, release_milestone: 7,
+  return_escrow_funds: 8, agent_trade_approval: 9, recovery_action: 10,
+  swap_intent: 11, agent_session_grant: 12, agent_risk_policy: 13,
+  agent_trade_settlement: 14, recurring_schedule: 15, set_asset_protection: 16,
+};
+
 export interface BackendClearSignV4Summary {
   version: 4;
   kind: ClearSignIntentInput<ClearSignPayload>["kind"];
@@ -67,8 +76,7 @@ export async function prepareClearSignV4Action(
     response.version !== 4 ||
     response.kind !== intent.kind ||
     !Number.isSafeInteger(response.actionKindCode) ||
-    response.actionKindCode < 1 ||
-    response.actionKindCode > 15 ||
+    response.actionKindCode !== ACTION_CODES[intent.kind] ||
     !/^[0-9a-f]{64}$/.test(response.payloadHash) ||
     !/^[0-9a-f]{64}$/.test(response.envelopeHash) ||
     !/^[0-9a-f]{64}$/.test(response.canonicalIntentHash) ||

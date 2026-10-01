@@ -254,7 +254,7 @@ export default function SetupSpendingPage() {
           //    bumps `wallet.intent_index`. Sponsored by the relayer -
           //    no third user signature needed.
           identity.assertCurrent();
-          await backendApi.executeProposal(name, proposal, {});
+          await setupRecovery.executeAndVerify(proposal, dry.params_data_hex);
           return submitted;
         },
       );

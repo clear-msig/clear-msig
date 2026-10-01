@@ -1,4 +1,5 @@
 "use client";
+import { verifyChainSubmission } from "@/features/send/infrastructure/chainSubmission";
 import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { LegacySetupNotice } from "@/components/review/LegacySetupNotice";
 import { withAutomaticLegacySetup } from "@/lib/chain/legacySetup";
@@ -348,7 +349,7 @@ export default function ZcashSendPage() {
             );
           }
           identity.assertCurrent();
-          await backendApi.executeProposal(name, proposal, {});
+          await setupRecovery.executeAndVerify(proposal, dry.params_data_hex);
           return proposal;
         },
       );
@@ -678,7 +679,9 @@ export default function ZcashSendPage() {
             grpcUrl: appConfig.preAlpha.grpcUrl,
             rpcUrl: zcashRpcUrl,
           },
+          { retry: false },
         );
+        verifyChainSubmission(executed, proposal, 3);
         const broadcast = (
           executed as { broadcast?: { chain_kind?: number; tx_id?: string } }
         )?.broadcast;
@@ -689,7 +692,7 @@ export default function ZcashSendPage() {
               "Execution returned no transaction ID. Sending is not confirmed.",
             ),
           );
-        attempt.complete();
+        attempt.accepted(proposal, broadcast?.tx_id ?? undefined);
         return { proposal, broadcast, awaitingApprovers: false };
       } finally {
         attempt.finish();
@@ -724,7 +727,7 @@ export default function ZcashSendPage() {
       recordAttempt({
         walletName: name,
         chainKind: ZEC_CHAIN_KIND,
-        status: "success",
+        status: "submitted",
         amountDisplay: amount.trim(),
         ticker: "ZEC",
         recipientShort: recipientText,

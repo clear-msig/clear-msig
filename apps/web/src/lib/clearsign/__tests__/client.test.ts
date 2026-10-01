@@ -25,6 +25,7 @@ const intent: ClearSignIntentInput<SendPayload> = {
 describe("prepareClearSignV4Action", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("uses trusted canonical bytes and omits browser policy assertions", async () => {
@@ -51,6 +52,15 @@ describe("prepareClearSignV4Action", () => {
     expect(prepared.policyCommitment).toBe("66".repeat(32));
   });
 
+  it("accepts the program's asset-policy action16", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => validResponse({ kind: "set_asset_protection", actionKindCode: 16 })));
+    const prepared = await prepareClearSignV4Action({ ...intent, kind: "set_asset_protection" }, { intentIndex: 3, actorPubkey: "11111111111111111111111111111111" });
+    expect(prepared.actionKindCode).toBe(16);
+  });
+  it.each([0, 2, 16, 17, 1.5])("rejects substituted send action code %s", async (actionKindCode) => {
+    vi.stubGlobal("fetch", vi.fn(async () => validResponse({ actionKindCode })));
+    await expect(prepareClearSignV4Action(intent, { intentIndex: 3, actorPubkey: "11111111111111111111111111111111" })).rejects.toThrow("invalid binding");
+  });
   it("has no browser fallback when trusted preparation fails", async () => {
     vi.stubGlobal(
       "fetch",

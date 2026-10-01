@@ -127,9 +127,12 @@ export async function setupBitcoin({
         delayMs: 500,
         accepted: [ProposalStatus.Approved, ProposalStatus.Executed],
       });
-      if (status === ProposalStatus.Approved) {
+      if (
+        status === ProposalStatus.Approved ||
+        status === ProposalStatus.Executed
+      ) {
         assertCurrent();
-        await backendApi.executeProposal(name, proposal, {});
+        await setupRecovery.executeAndVerify(proposal, dry.params_data_hex);
       }
       if (
         status !== ProposalStatus.Approved &&

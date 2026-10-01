@@ -48,10 +48,10 @@ export function SentStage({
   }
   return (
     <SendReceipt
-      status={executedTxid ? "confirmed" : "pending"}
+      status={executedTxid ? "submitted" : "pending"}
       statusLabel={
         executedTxid
-          ? "Broadcast on Solana"
+          ? "Submitted to Solana; confirmation pending"
           : `Awaiting approvals in ${walletDisplay}`
       }
       amount={amountDisplay}

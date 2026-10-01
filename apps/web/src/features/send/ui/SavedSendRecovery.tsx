@@ -35,6 +35,7 @@ export function SavedSendRecovery({
       </p>
       <p className="mt-4 text-xs text-text-soft">Request address</p>
       <p className="break-all font-mono text-sm">{saved.proposal}</p>
+      {saved.txid && <p className="mt-3 break-all font-mono text-xs">Recorded submission ID (not confirmation): {saved.txid}</p>}
       <Link
         className="mt-6 flex min-h-12 items-center justify-center rounded-xl bg-accent px-4 font-semibold text-text-on-accent focus-visible:outline-2 focus-visible:outline-offset-4"
         href={`/app/proposals/${encodeURIComponent(saved.proposal)}`}

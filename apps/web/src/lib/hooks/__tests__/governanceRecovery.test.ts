@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import bs58 from "bs58";
+import { findIntentAddress } from "@/lib/msig/pda";
+import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { PublicKey, type Connection } from "@solana/web3.js";
 import {
   completeTypedGovernance,
@@ -29,8 +32,10 @@ vi.mock("@/lib/chain/proposals", () => ({
 }));
 vi.mock("@/lib/clearsign", () => ({
   prepareClearSignV4Action: async () => ({
-    envelopeHash: "hash",
-    payloadHash: "hash",
+    actionKindCode: 5,
+    policyCommitment: "aa".repeat(32),
+    envelopeHash: "cc".repeat(32),
+    payloadHash: "bb".repeat(32),
     signableText: "independent summary",
     canonicalIntentHex: "abcd",
   }),
@@ -49,7 +54,14 @@ function input(): TypedGovernanceInput {
       accountKey: "aa".repeat(32),
       assertCurrent: mocks.assert,
     },
-    connection: { rpcEndpoint: "mock://governance" } as Connection,
+    connection: {
+      rpcEndpoint: "mock://governance",
+      getGenesisHash: async () => "genesis",
+      getMultipleAccountsInfoAndContext: async () => ({
+        context: { slot: 1 },
+        value: [null, null],
+      }),
+    } as unknown as Connection,
     walletName: "Ops",
     walletId: pk.toBase58(),
     voteIntentIndex: 0,
@@ -71,9 +83,27 @@ function input(): TypedGovernanceInput {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  for (const entry of requestRecovery.snapshot())
-    requestRecovery.acknowledgeSeparateRequest(entry.key);
-  mocks.update.mockResolvedValue({ params_data_hex: "0102" });
+  vi.stubEnv("NEXT_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH", "genesis");
+  for (const entry of requestRecovery.snapshot()) {
+    if (entry.phase === "execution")
+      requestRecovery.resolveExecution(entry.endpoint, entry.proposal);
+    else requestRecovery.acknowledgeSeparateRequest(entry.key);
+  }
+  const [, bump] = findIntentAddress(pk, 1, CLEAR_WALLET_PROGRAM_ID);
+  const one = Buffer.from([1, 0, 0, 0]);
+  const body = Buffer.concat([
+    pk.toBuffer(),
+    Buffer.from([bump, 1, 3, 0, 1, 1, 1]),
+    Buffer.alloc(14),
+    one,
+    pk.toBuffer(),
+    one,
+    pk.toBuffer(),
+    Buffer.alloc(28),
+  ]);
+  mocks.update.mockResolvedValue({
+    params_data_hex: "01" + body.toString("hex"),
+  });
   mocks.prepare.mockResolvedValue({
     proposal_pubkey: pk.toBase58(),
     expiry: 1900000000,
@@ -81,7 +111,16 @@ beforeEach(() => {
   mocks.sign.mockResolvedValue({ signature: "mock" });
   mocks.submit.mockResolvedValue({ proposal: pk.toBase58() });
   mocks.wait.mockResolvedValue(false);
-  mocks.execute.mockResolvedValue({ txid: "synthetic-txid" });
+  mocks.execute.mockResolvedValue({
+    txid: bs58.encode(new Uint8Array(64).fill(9)),
+    proposal: pk.toBase58(),
+    path: "typed_intent_governance",
+    action_kind: 5,
+  });
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
 });
 describe("actual governance orchestrator with mocked providers", () => {
   it("keeps created awaiting-approval request and blocks creating it again", async () => {
@@ -107,16 +146,36 @@ describe("actual governance orchestrator with mocked providers", () => {
     mocks.wait.mockResolvedValue(true);
     mocks.execute.mockResolvedValue({});
     await expect(completeTypedGovernance(input())).rejects.toThrow(
-      "no transaction ID",
+      "outcome unknown",
     );
     expect(requestRecovery.snapshot()[0].outcome).toBe("submitted");
   });
-  it("releases recovery after execution response contains transaction identity", async () => {
-    mocks.wait.mockResolvedValue(true);
-    await expect(completeTypedGovernance(input())).resolves.toMatchObject({
-      kind: "executed",
-    });
-    expect(requestRecovery.snapshot()).toEqual([]);
+  it("retains both recovery locks when txid exists but finalized target is unverified", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.wait.mockResolvedValue(true);
+      const pending = expect(completeTypedGovernance(input())).rejects.toThrow(
+        "verification pending",
+      );
+      await vi.advanceTimersByTimeAsync(3000);
+      await pending;
+      expect(requestRecovery.snapshot()).toHaveLength(2);
+      await expect(completeTypedGovernance(input())).rejects.toThrow(
+        "already created",
+      );
+      expect(mocks.submit).toHaveBeenCalledTimes(1);
+      expect(mocks.execute).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("rejects a compiler response with changed threshold before any signing", async () => {
+    const changed = { ...input(), approvalThreshold: 2 };
+    await expect(completeTypedGovernance(changed)).rejects.toThrow(
+      "reviewed authority settings",
+    );
+    expect(mocks.sign).not.toHaveBeenCalled();
+    expect(mocks.submit).not.toHaveBeenCalled();
   });
   it("stops after account switch before submission", async () => {
     mocks.sign.mockImplementation(async () => {

@@ -31,7 +31,7 @@
 const STORAGE_KEY = "clear.txlog.v1";
 const MAX_ENTRIES = 100;
 
-export type TxAttemptStatus = "success" | "failed";
+export type TxAttemptStatus = "success" | "failed" | "submitted";
 
 export interface TxAttempt {
   id: string;
@@ -85,7 +85,7 @@ function isTxAttempt(x: unknown): x is TxAttempt {
     typeof r.id === "string" &&
     typeof r.walletName === "string" &&
     typeof r.chainKind === "number" &&
-    (r.status === "success" || r.status === "failed") &&
+    (r.status === "success" || r.status === "failed" || r.status === "submitted") &&
     typeof r.ts === "number"
   );
 }
@@ -114,7 +114,7 @@ export function recordAttempt(
 }
 
 async function fireSendWebhook(attempt: TxAttempt): Promise<void> {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || attempt.status === "submitted") return;
   try {
     const mod = await import("@/lib/security/webhookNotifications");
     const prefs = mod.loadWebhookPrefs();

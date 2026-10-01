@@ -9,7 +9,10 @@ export type SavedRequest = Readonly<{
   label: string;
   proposal: string;
   outcome: "unknown" | "submitted";
-  phase?: "execution";
+  phase?: "execution" | "vote";
+  actor?: string;
+  vote?: "approve" | "cancel";
+  voteContext?: string;
   txid?: string;
 }>;
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
@@ -42,7 +45,12 @@ export class RequestRecoveryStore {
                 typeof v.endpoint !== "string" ||
                 typeof v.label !== "string" ||
                 !["unknown", "submitted"].includes(v.outcome) ||
-                (v.phase !== undefined && v.phase !== "execution")
+                (v.phase !== undefined &&
+                  !["execution", "vote"].includes(v.phase)) ||
+                (v.phase === "vote" &&
+                  (typeof v.actor !== "string" ||
+                    !["approve", "cancel"].includes(v.vote) ||
+                    !/^[0-9a-f]{64}$/.test(v.voteContext)))
               )
                 return false;
               try {
@@ -86,14 +94,31 @@ export class RequestRecoveryStore {
       throw new Error("Wait for the current request to finish.");
     if (
       this.snapshot().some(
-        (entry) => entry.key === key && entry.phase === "execution",
+        (entry) =>
+          entry.key === key &&
+          (entry.phase === "execution" || entry.phase === "vote"),
       )
     )
       throw new Error(
-        "Execution may already have been submitted. Check its verified status; do not resubmit blindly.",
+        "This action may already have been submitted. Check its verified status; do not resubmit blindly.",
       );
     this.update(this.snapshot().filter((entry) => entry.key !== key));
   };
+  votesFor = (endpoint: string, proposal: string) =>
+    this.snapshot().filter(
+      (entry) =>
+        entry.phase === "vote" &&
+        entry.endpoint === endpoint &&
+        entry.proposal === proposal,
+    );
+  voteFor = (endpoint: string, proposal: string, actor: string) =>
+    this.votesFor(endpoint, proposal).find((entry) => entry.actor === actor);
+  resolveVote = (key: string) =>
+    this.update(
+      this.snapshot().filter(
+        (entry) => !(entry.phase === "vote" && entry.key === key),
+      ),
+    );
   executionFor = (endpoint: string, proposal: string) =>
     this.snapshot().find(
       (entry) =>
@@ -118,7 +143,10 @@ export class RequestRecoveryStore {
     accountKey: string;
     label: string;
     identity: unknown;
-    phase?: "execution";
+    phase?: "execution" | "vote";
+    actor?: string;
+    vote?: "approve" | "cancel";
+    voteContext?: string;
   }) {
     const key = toHex(
       sha256(
@@ -166,6 +194,13 @@ export class RequestRecoveryStore {
           outcome,
           ...(txid ? { txid } : {}),
           ...(input.phase ? { phase: input.phase } : {}),
+          ...(input.phase === "vote"
+            ? {
+                actor: input.actor,
+                vote: input.vote,
+                voteContext: input.voteContext,
+              }
+            : {}),
         }),
       ]);
     };

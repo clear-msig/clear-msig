@@ -19,6 +19,7 @@ import type { SolanaSendingPhase } from "@/features/send/domain/solanaSendProgre
 type IntentRow = Awaited<ReturnType<typeof listIntents>>[number];
 
 export interface ExecuteSolanaSendInput {
+  attempt: ReturnType<import("./sendRecovery").SendRecovery["begin"]>;
   wallet: WalletValue;
   connection: Connection;
   signTypedDescriptor: ReturnType<typeof useSignWithWallet>["signTypedDescriptor"];
@@ -37,10 +38,14 @@ import { finalizeSolanaSend } from "@/features/send/infrastructure/finalizeSolan
 import { prepareSolanaSendProposal } from "@/features/send/infrastructure/prepareSolanaSendProposal";
 
 export async function executeSolanaSend(input: ExecuteSolanaSendInput) {
+  input.attempt.assertCurrent();
   const prepared = await prepareSolanaSendProposal(input);
+  input.attempt.assertCurrent();
   const proposal = prepared.submitted.proposal;
   if (typeof proposal !== "string" || proposal.length === 0) {
-    return prepared.submitted;
+    throw new Error("Request identity is missing. Check the saved request before continuing.");
   }
-  return finalizeSolanaSend({ input, proposal, ...prepared });
+  const result = await finalizeSolanaSend({ input, proposal, ...prepared });
+  input.attempt.assertCurrent();
+  return result;
 }

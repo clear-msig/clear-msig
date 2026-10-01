@@ -1,4 +1,5 @@
 "use client";
+import { savedProposalError } from "@/lib/clearsign/inlineApproval";
 
 // Add a friend - real signed flow that grows the wallet's approver
 // list. The user types a friend's name + Solana address; we save the
@@ -16,7 +17,14 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, Loader2, Pencil, UserPlus, Users } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Loader2,
+  Pencil,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { fetchWalletByName } from "@/lib/chain/wallets";
@@ -100,7 +108,8 @@ export default function AddFriendPage() {
     // UpdateIntent). The user's spending rule is the first Custom.
     return (
       intentsQuery.data.find(
-        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
+        (it) =>
+          it.account !== null && it.account.intentType === IntentType.Custom,
       ) ?? null
     );
   }, [intentsQuery.data]);
@@ -189,13 +198,12 @@ export default function AddFriendPage() {
         );
       }
 
-      // Recovery sweep: UpdateIntent on chain refuses if the target
-      // intent has any active proposals (program error
-      // `IntentHasActiveProposals` = 0x1780). A previous failed
-      // execute could have left an Approved-but-not-Executed
-      // proposal blocking us. Try to drain those before the update.
-      // Execute is sponsored - no signature needed.
-      if (walletQuery.data && (intent.activeProposalCount ?? 0) > 0) {
+      // Open proposals block authority rewrites; require explicit review instead of automatic execution.
+      if (
+        role !== "watcher" &&
+        walletQuery.data &&
+        (intent.activeProposalCount ?? 0) > 0
+      ) {
         const proposals = await listProposalsForWallet(
           connection,
           walletQuery.data.pda,
@@ -204,18 +212,16 @@ export default function AddFriendPage() {
         const stuck = proposals.filter(
           (p) =>
             p.intentIndex === intent.intentIndex &&
-            p.account.status === ProposalStatus.Approved,
+            (p.account.status === ProposalStatus.Approved ||
+              p.account.status === ProposalStatus.Active),
         );
-        for (const p of stuck) {
-          try {
-            await backendApi.executeProposal(name, p.pda.toBase58(), {});
-          } catch (sweepErr) {
-            console.warn(
-              `[add-friend] couldn't auto-execute stuck proposal ${p.pda.toBase58()}`,
-              sweepErr,
-            );
-          }
-        }
+        if (stuck.length)
+          throw savedProposalError(
+            stuck[0].pda.toBase58(),
+            new Error(
+              "This existing request blocks the authority change. Review and finish or cancel it explicitly; no existing request was executed automatically.",
+            ),
+          );
       }
 
       // Watchers don't touch the chain - they're a local "people who
@@ -271,11 +277,16 @@ export default function AddFriendPage() {
         pickApprover: (approvers) => wallet.pickSigner(approvers),
         deviceProfile: clearSignProfileForSigner(wallet, signerPk),
       });
-      return { proposal: result.proposal, awaitingApprovals: result.kind === "awaiting_approvals" };
+      return {
+        proposal: result.proposal,
+        awaitingApprovals: result.kind === "awaiting_approvals",
+      };
     },
     onSuccess: async (result) => {
       if ("awaitingApprovals" in result && result.awaitingApprovals) {
-        toast.success("Member request created; the member has not been added yet.");
+        toast.success(
+          "Member request created; the member has not been added yet.",
+        );
         router.push(`/app/proposals/${encodeURIComponent(result.proposal)}`);
         return;
       }
@@ -488,9 +499,9 @@ export default function AddFriendPage() {
         )}
         {addressValid && alreadyMember && role !== "watcher" && (
           <p className="text-xs text-warning sm:ml-[4.5rem]">
-            This address is already a member of {toDisplayName(name)}. Pick &ldquo;Can
-            watch&rdquo; if you want to keep them in the watchers list
-            instead.
+            This address is already a member of {toDisplayName(name)}. Pick
+            &ldquo;Can watch&rdquo; if you want to keep them in the watchers
+            list instead.
           </p>
         )}
         <div className="h-px bg-border-soft" />
@@ -575,7 +586,8 @@ export default function AddFriendPage() {
               { label: "Wallet", value: toDisplayName(name) },
               {
                 label: "Their role",
-                value: role === "full" ? "Can spend & approve" : "Approves only",
+                value:
+                  role === "full" ? "Can spend & approve" : "Approves only",
               },
               {
                 label: "Address",

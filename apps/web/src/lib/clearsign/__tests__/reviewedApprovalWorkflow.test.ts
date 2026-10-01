@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import bs58 from "bs58";
+import { requestRecovery } from "../requestRecovery";
 import { PublicKey } from "@solana/web3.js";
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
+  owned: vi.fn(),
   bind: vi.fn(),
   prepare: vi.fn(),
   sign: vi.fn(),
@@ -9,7 +12,15 @@ const mocks = vi.hoisted(() => ({
   review: {
     reviewId: "reviewed",
     status: 0,
-    binding: { approvers: [] as string[], approvalBitmap: 0 },
+    proposalAddress: "11111111111111111111111111111111",
+    threshold: 1,
+    binding: {
+      approvers: [] as string[],
+      approvalBitmap: 0,
+      wallet: "wallet",
+      intent: "intent",
+      index: 1n,
+    },
     envelopeHash: "envelope",
     payloadHash: "payload",
     document: "shown document",
@@ -42,6 +53,9 @@ vi.mock("@/lib/hooks/useSignWithWallet", () => ({
 vi.mock("@/lib/clearsign/readProposalReview", () => ({
   readCanonicalProposalReview: mocks.read,
 }));
+vi.mock("@/lib/clearsign/cancellationReview", () => ({
+  readOwnedProposalContext: mocks.owned,
+}));
 vi.mock("@/lib/clearsign/proposalReview", () => ({
   bindApprovalDescriptor: mocks.bind,
 }));
@@ -54,31 +68,100 @@ vi.mock("@/lib/api/endpoints", () => ({
 import { useProposalWorkflow as createWorkflowFixture } from "@/lib/hooks/useProposalWorkflow";
 function action() {
   return (
-    createWorkflowFixture("Example", "proposal").approveMutation as unknown as {
+    createWorkflowFixture("Example", "11111111111111111111111111111111")
+      .approveMutation as unknown as {
       mutationFn: (id?: string) => Promise<unknown>;
     }
   ).mutationFn;
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  for (const entry of requestRecovery.votesFor(
+    "fixture",
+    "11111111111111111111111111111111",
+  ))
+    requestRecovery.resolveVote(entry.key);
   mocks.review.binding.approvers = [
     new PublicKey(new Uint8Array(32).fill(8)).toBase58(),
   ];
   mocks.review.binding.approvalBitmap = 0;
   mocks.read.mockResolvedValue(mocks.review);
+  mocks.owned.mockImplementation(async () => ({
+    address: mocks.review.proposalAddress,
+    walletName: "Example",
+    chainIdentity: "fixture-genesis:fixture-program",
+    fingerprint: "owned",
+    proposal: {
+      typed: true,
+      wallet: "wallet",
+      intent: "intent",
+      proposalIndex: 1n,
+      envelopeHash: "envelope",
+      payloadHash: "payload",
+      approvalBitmap: mocks.review.binding.approvalBitmap,
+      cancellationBitmap: 0,
+    },
+    intent: {
+      approvers: mocks.review.binding.approvers,
+      approvalThreshold: 1,
+      cancellationThreshold: 1,
+    },
+  }));
   mocks.prepare.mockResolvedValue({ expiry: 1800000000 });
   mocks.sign.mockResolvedValue({ signature: "synthetic" });
-  mocks.submit.mockResolvedValue({ ok: true });
+  mocks.submit.mockResolvedValue({
+    txid: bs58.encode(new Uint8Array(64).fill(8)),
+    action: "typed_approve",
+    approver_index: 0,
+  });
 });
 describe("production approval workflow with mocked chain/backend/wallet boundaries", () => {
+  it("returns unknown for empty submission and blocks blind repeated approval", async () => {
+    mocks.submit.mockResolvedValue({});
+    await expect(action()("reviewed")).resolves.toMatchObject({
+      state: "unknown",
+      vote: "approve",
+    });
+    await expect(action()("reviewed")).rejects.toThrow(/may already/);
+    expect(mocks.submit).toHaveBeenCalledOnce();
+  });
+  it("returns submitted rather than recorded while finalized actor bitmap is still absent", async () => {
+    await expect(action()("reviewed")).resolves.toMatchObject({
+      state: "submitted",
+      vote: "approve",
+    });
+  });
+  it("returns confirmed only after finalized matching actor vote, with read-only recovery support", async () => {
+    await action()("reviewed");
+    const initial = await mocks.owned();
+    mocks.owned.mockResolvedValue({
+      ...initial,
+      proposal: { ...initial.proposal, approvalBitmap: 1 },
+    });
+    const check = (
+      createWorkflowFixture("Example", "11111111111111111111111111111111")
+        .checkVotesMutation as unknown as { mutationFn: () => Promise<unknown> }
+    ).mutationFn;
+    await expect(check()).resolves.toEqual([
+      expect.objectContaining({ state: "confirmed", vote: "approve" }),
+    ]);
+    expect(mocks.submit).toHaveBeenCalledOnce();
+    expect(
+      requestRecovery.votesFor("fixture", "11111111111111111111111111111111"),
+    ).toEqual([]);
+  });
   it("selects an unvoted connected member instead of repeating the preferred member's approval", async () => {
     const second = new PublicKey(new Uint8Array(32).fill(9)).toBase58();
     mocks.review.binding.approvers.push(second);
     mocks.review.binding.approvalBitmap = 1;
     await action()("reviewed");
-    expect(mocks.prepare).toHaveBeenCalledWith("Example", "proposal", {
-      actor_pubkey: second,
-    });
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      "Example",
+      "11111111111111111111111111111111",
+      {
+        actor_pubkey: second,
+      },
+    );
   });
   it("does not prepare another approval when all connected members already approved", async () => {
     mocks.review.binding.approvalBitmap = 1;

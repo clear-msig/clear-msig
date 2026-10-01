@@ -8,6 +8,10 @@ export type ProScheduleCategory = "vendor" | "payroll";
 export type ProScheduleCadence = "Weekly" | "Monthly";
 
 export interface PendingRecurringExecution {
+  envelopeHash?: string;
+  payloadHash?: string;
+  phase?: "creating" | "created" | "attempted";
+  txid?: string;
   version: 1;
   proposalAddress: string;
   scheduleId: string;
@@ -48,6 +52,7 @@ export interface ProSchedule {
   recipientOwner?: string;
   policyVersion?: "CSP1" | "CSP2";
   pendingExecution?: PendingRecurringExecution;
+  pendingPayment?: { executedPayments: number; remainingPayments: number; address: string; fingerprint: string; txid?: string };
 }
 
 export interface ProTreasuryRuntime {

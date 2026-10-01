@@ -1,21 +1,13 @@
+import type { CanonicalExecutionBinding } from "@/lib/clearsign/canonicalActionExecution";
 import type { EncryptedPayload } from "@/lib/encrypt/client";
 export type AgentVersion = 1;
 
-export type AgentKind =
-  | "manual"
-  | "api"
-  | "hermes"
-  | "mock";
+export type AgentKind = "manual" | "api" | "hermes" | "mock";
 
-export type AgentStatus =
-  | "active"
-  | "paused"
-  | "revoked";
+export type AgentStatus = "active" | "paused" | "revoked";
 
 export type TradingVenue =
-  | "mock_perps"
-  | "hyperliquid_testnet"
-  | "bulktrade_mock";
+  "mock_perps" | "hyperliquid_testnet" | "bulktrade_mock";
 
 export type TradeSide = "long" | "short";
 
@@ -55,10 +47,7 @@ export interface AgentTradeDecisionJournal {
   version: AgentVersion;
 }
 
-export type AgentTradingMode =
-  | "read_only"
-  | "paper"
-  | "bounded_live";
+export type AgentTradingMode = "read_only" | "paper" | "bounded_live";
 
 export interface AgentStrategyProfile {
   mode: AgentTradingMode;
@@ -74,10 +63,7 @@ export interface AgentStrategyProfile {
 
 export type AgentPublishingStatus = "draft" | "published";
 export type AgentModerationStatus =
-  | "pending_review"
-  | "approved"
-  | "paused"
-  | "delisted";
+  "pending_review" | "approved" | "paused" | "delisted";
 
 export interface AgentPublishingModeration {
   status: AgentModerationStatus;
@@ -116,9 +102,7 @@ export type AgentProposalStatus =
   | "executed"
   | "expired";
 
-export type AgentExecutionStatus =
-  | "open"
-  | "closed";
+export type AgentExecutionStatus = "open" | "closed";
 
 export type AgentExecutionMode = "paper" | "testnet";
 export type AgentAllocationTierId = "probation" | "trusted" | "proven";
@@ -126,9 +110,7 @@ export type AgentTrackRecordSource = "paper" | "testnet" | "verified_live";
 
 export type AgentPostTradeOutcome = "win" | "loss" | "flat";
 export type AgentTradeThesisVerdict =
-  | "confirmed"
-  | "invalidated"
-  | "inconclusive";
+  "confirmed" | "invalidated" | "inconclusive";
 
 export interface AgentPostTradeReview {
   outcome: AgentPostTradeOutcome;
@@ -141,9 +123,7 @@ export interface AgentPostTradeReview {
   version: AgentVersion;
 }
 
-export type AgentExecutionAdapterStatus =
-  | "ready"
-  | "backend_required";
+export type AgentExecutionAdapterStatus = "ready" | "backend_required";
 
 export type AgentOwnerActionKind =
   | "grant_allowance"
@@ -154,9 +134,7 @@ export type AgentOwnerActionKind =
   | "close_practice_trade"
   | "close_all_practice_trades";
 
-export type AgentOwnerApprovalMethod =
-  | "browser_confirm"
-  | "wallet_signature";
+export type AgentOwnerApprovalMethod = "browser_confirm" | "wallet_signature";
 
 export interface AgentOwnerApprovalDetail {
   label: string;
@@ -170,7 +148,8 @@ export interface AgentOwnerApproval {
   action: AgentOwnerActionKind;
   summary: string;
   details: AgentOwnerApprovalDetail[];
-  targetType?: "agent" | "session" | "proposal" | "execution" | "policy" | "venue";
+  targetType?:
+    "agent" | "session" | "proposal" | "execution" | "policy" | "venue";
   targetId?: string;
   approvalMethod: AgentOwnerApprovalMethod;
   approvedBy?: string | null;
@@ -255,6 +234,7 @@ export interface AgentTradeClearSignSnapshot {
     proposalIndex: number;
     intentIndex: number;
     status: "created" | "approved" | "executed";
+    executionBinding?: CanonicalExecutionBinding;
     createdAt: number;
     executedAt?: number;
     txid?: string;
@@ -438,6 +418,7 @@ export interface AgentSessionGrant {
     intentIndex: number;
     operation: "active" | "revoked";
     status: "created" | "approved" | "executed";
+    executionBinding?: CanonicalExecutionBinding;
     txid?: string;
     updatedAt: number;
   };
@@ -448,6 +429,7 @@ export interface AgentSessionGrant {
     policyHash: string;
     operation: "active" | "paused";
     status: "created" | "approved" | "executed";
+    executionBinding?: CanonicalExecutionBinding;
     txid?: string;
     updatedAt: number;
   };
@@ -465,9 +447,7 @@ export interface AgentRiskSnapshot {
 }
 
 export type AgentPolicyDecision =
-  | "blocked"
-  | "requires_human_approval"
-  | "allowed";
+  "blocked" | "requires_human_approval" | "allowed";
 
 export type AgentPolicyViolationCode =
   | "policy_disabled"
@@ -547,11 +527,7 @@ export type AgentReadinessStatus = "ready" | "needs_setup" | "blocked";
 export type AgentReadinessItemStatus = "pass" | "todo" | "block";
 
 export type AgentReadinessAction =
-  | "none"
-  | "risk_limits"
-  | "strategy"
-  | "session"
-  | "agent";
+  "none" | "risk_limits" | "strategy" | "session" | "agent";
 
 export interface AgentReadinessItem {
   id: string;

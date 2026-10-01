@@ -14,7 +14,7 @@ describe("history action identity", () => {
       expect(friendlyIntentLabel(template)).not.toMatch(/Custom|Typed/);
       if (kind > 2) {
         expect(friendlyStatus(ProposalStatus.Executed, template)).toBe(
-          "Executed",
+          "Executed on Solana",
         );
         expect(friendlyStatus(ProposalStatus.Approved, template)).toBe(
           "Ready to execute",
@@ -25,7 +25,7 @@ describe("history action identity", () => {
   it("keeps transfer and legacy metadata labels but never invents a transfer for unknown actions", () => {
     expect(
       friendlyStatus(ProposalStatus.Executed, proposalActivityTemplate(4, 1)),
-    ).toBe("Sent");
+    ).toBe("Executed on Solana");
     expect(proposalActivityTemplate(1)).toBe("RemoveIntent");
     for (const template of [
       undefined,
@@ -33,7 +33,7 @@ describe("history action identity", () => {
       proposalActivityTemplate(4, 99),
     ]) {
       expect(friendlyStatus(ProposalStatus.Executed, template)).toBe(
-        "Executed",
+        "Executed on Solana",
       );
       expect(friendlyStatus(ProposalStatus.Approved, template)).toBe(
         "Ready to execute",

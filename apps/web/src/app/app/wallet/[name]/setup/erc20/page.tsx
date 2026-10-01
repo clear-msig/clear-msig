@@ -244,7 +244,7 @@ export default function SetupErc20Page() {
           // Sponsored execute. Flips the program-side state so the new
           // ERC-20 intent is live; per-token sends are then unblocked.
           identity.assertCurrent();
-          await backendApi.executeProposal(name, proposal, {});
+          await setupRecovery.executeAndVerify(proposal, dry.params_data_hex);
           return submitted;
         },
       );

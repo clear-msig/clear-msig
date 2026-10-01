@@ -46,9 +46,9 @@ export function SentStage({
   }
   return (
     <SendReceipt
-      status={pending ? "pending" : "confirmed"}
+      status={pending ? "pending" : "submitted"}
       statusLabel={
-        pending ? "Waiting for remaining approvals" : `Confirmed on ${networkLabel}`
+        pending ? "Waiting for remaining approvals" : `Submitted to ${networkLabel}; confirmation pending`
       }
       amount={amount}
       ticker={ticker}

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import bs58 from "bs58";
+import { requestRecovery } from "../requestRecovery";
 import { PublicKey } from "@solana/web3.js";
 const m = vi.hoisted(() => ({
   read: vi.fn(),
+  owned: vi.fn(),
   bind: vi.fn(),
   prepare: vi.fn(),
   sign: vi.fn(),
@@ -42,6 +45,7 @@ vi.mock("@/lib/hooks/useSignWithWallet", () => ({
 }));
 vi.mock("@/lib/clearsign/cancellationReview", () => ({
   readCancellationContext: m.read,
+  readOwnedProposalContext: m.owned,
   bindCancellationDescriptor: m.bind,
 }));
 vi.mock("@/lib/api/endpoints", () => ({
@@ -54,29 +58,75 @@ import { useProposalWorkflow as renderWorkflow } from "@/lib/hooks/useProposalWo
 const signer = new PublicKey(new Uint8Array(32).fill(8)).toBase58();
 const context = {
   fingerprint: "unchanged",
-  proposal: { typed: true, cancellationBitmap: 0 },
-  intent: { approvers: [signer] },
+  chainIdentity: "fixture-genesis:fixture-program",
+  address: "11111111111111111111111111111111",
+  walletName: "Example",
+  proposal: {
+    typed: true,
+    proposalIndex: 1n,
+    cancellationBitmap: 0,
+    approvalBitmap: 0,
+    paramsData: new Uint8Array(),
+  },
+  intent: {
+    approvers: [signer],
+    approvalThreshold: 1,
+    cancellationThreshold: 1,
+  },
 };
 function action() {
   m.cursor = 0;
   return (
-    renderWorkflow("Example", "proposal").cancelMutation as unknown as {
+    renderWorkflow("Example", "11111111111111111111111111111111")
+      .cancelMutation as unknown as {
       mutationFn: () => Promise<unknown>;
     }
   ).mutationFn;
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  for (const entry of requestRecovery.votesFor("fixture", context.address))
+    requestRecovery.resolveVote(entry.key);
   m.refs = [];
   m.cursor = 0;
   m.endpoint = "fixture";
   m.subject = "user-a";
   m.read.mockResolvedValue(context);
+  m.owned.mockResolvedValue(context);
   m.prepare.mockResolvedValue({ expiry: 1900000000 });
   m.sign.mockResolvedValue({ signature: "synthetic" });
-  m.submit.mockResolvedValue({ ok: true });
+  m.submit.mockResolvedValue({
+    txid: bs58.encode(new Uint8Array(64).fill(8)),
+    action: "typed_cancel",
+    approver_index: 0,
+  });
 });
 describe("production cancellation workflow with mocked boundaries", () => {
+  it("does not report cancellation recorded for an empty response", async () => {
+    m.submit.mockResolvedValue({});
+    await expect(action()()).resolves.toMatchObject({
+      state: "unknown",
+      vote: "cancel",
+    });
+    await expect(action()()).rejects.toThrow(/may already/);
+    expect(m.submit).toHaveBeenCalledOnce();
+  });
+  it("distinguishes submitted cancellation from this member's finalized cancellation vote", async () => {
+    await expect(action()()).resolves.toMatchObject({
+      state: "submitted",
+      vote: "cancel",
+    });
+  });
+  it("reports confirmed cancellation vote only after finalized own actor bitmap", async () => {
+    m.owned.mockResolvedValue({
+      ...context,
+      proposal: { ...context.proposal, cancellationBitmap: 1 },
+    });
+    await expect(action()()).resolves.toMatchObject({
+      state: "confirmed",
+      vote: "cancel",
+    });
+  });
   it.each([true, false])(
     "binds typed=%s target and rechecks authority before signing and submit",
     async (typed) => {

@@ -316,7 +316,7 @@ function NewWalletContent() {
             );
           }
           identity.assertCurrent();
-          await backendApi.executeProposal(walletSlug, proposal, {});
+          await setupRecovery.executeAndVerify(proposal, dry.params_data_hex);
 
           return { walletSlug };
         },

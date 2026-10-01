@@ -52,10 +52,9 @@ export interface ReceiptAction {
 }
 
 export interface SendReceiptProps {
-  /// Drives the eyebrow + disc treatment. "confirmed" = signed +
-  /// broadcast; "pending" = proposal landed but still needs other
-  /// signers.
-  status: "confirmed" | "pending";
+  /// Confirmed requires finalized evidence; submitted means broadcast only.
+  /// Pending means the proposal still needs approval.
+  status: "confirmed" | "pending" | "submitted";
   /// Eyebrow caption, e.g. "Confirmed on Solana", "Awaiting approvals",
   /// "Broadcast on Sepolia".
   statusLabel: string;
@@ -99,7 +98,7 @@ export function SendReceipt({
         initial: { opacity: 0, y: 12 },
         animate: { opacity: 1, y: 0 },
       };
-  const heading = status === "confirmed" ? "Send confirmed" : "Request created";
+  const heading = status === "confirmed" ? "Send confirmed" : status === "submitted" ? "Transfer submitted" : "Request created";
   const rows = details ?? [];
   return (
     <motion.section

@@ -31,10 +31,8 @@ const CHAIN_LABEL: Record<number, string> = {
 
 export type ProposalStatusLike = ProposalStatus | number;
 
-// Template families that mutate the wallet's rules rather than move
-// money. For these, "Executed" should read as "Done" - saying "Sent"
-// next to "Set up a spending rule" makes users think they just lost
-// SOL. We branch on template name to keep the per-status word right.
+// Template families distinguish readiness for governance from readiness
+// to transfer. Executed labels always describe the Solana proposal state.
 const META_TEMPLATES = new Set([
   "AddIntent",
   "RemoveIntent",
@@ -94,11 +92,8 @@ export function friendlyStatus(
           ? "Ready to send"
           : "Ready to execute";
     case ProposalStatus.Executed:
-      return isMeta
-        ? "Done"
-        : TRANSFER_TEMPLATES.has(intentTemplate ?? "")
-          ? "Sent"
-          : "Executed";
+      // This is the Solana proposal state, not evidence of destination receipt.
+      return "Executed on Solana";
     case ProposalStatus.Cancelled:
       return "Cancelled";
     default:

@@ -91,7 +91,7 @@ describe("transaction review contract", () => {
       const page = sources([path, result]);
       expect(page).toMatch(/waitForProposalApproval\(\s*connection,\s*proposal,?\s*\)/);
       expect(page).toContain("Waiting for remaining approvals");
-      expect(page).toContain('status={pending ? "pending" : "confirmed"}');
+      expect(page).toContain('status={pending ? "pending" : "submitted"}');
     },
   );
 });

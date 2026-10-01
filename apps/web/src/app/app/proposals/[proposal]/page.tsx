@@ -45,6 +45,7 @@ import { useProposalWorkflow } from "@/lib/hooks/useProposalWorkflow";
 import {
   executionOutcomeLabel,
   proposalExecutionUnavailable,
+  proposalTimelineExecution,
 } from "@/lib/clearsign/proposalExecution";
 import { proposalVoterState } from "@/lib/retail/proposalVotes";
 import { friendlyError } from "@/lib/api/errors";
@@ -61,6 +62,8 @@ import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
 import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 
+import { VoteRecoveryNotice } from "@/components/review/VoteRecoveryNotice";
+import { RequestTimeline } from "@/components/review/RequestTimeline";
 import { ExecutionRecoveryNotice } from "@/components/review/ExecutionRecoveryNotice";
 import { CanonicalActionReview } from "@/components/review/CanonicalActionReview";
 import { RequestOverview } from "@/components/review/RequestOverview";
@@ -201,10 +204,11 @@ function Loaded({
 
   const handleApprove = async () => {
     try {
-      await workflow.approveMutation.mutateAsync(
+      const outcome = await workflow.approveMutation.mutateAsync(
         workflow.reviewQuery.data?.reviewId,
       );
-      toast.success("Approval vote recorded");
+      if (outcome.state === "confirmed") toast.success("Approval vote confirmed on Solana");
+      else toast.info("Approval vote verification pending; keep the existing request");
       onChanged();
     } catch (err) {
       surfaceWriteError(err, toast, "approve");
@@ -213,8 +217,9 @@ function Loaded({
 
   const handleDecline = async () => {
     try {
-      await workflow.cancelMutation.mutateAsync();
-      toast.success("Cancellation vote recorded");
+      const outcome = await workflow.cancelMutation.mutateAsync();
+      if (outcome.state === "confirmed") toast.success("Cancellation vote confirmed on Solana");
+      else toast.info("Cancellation vote verification pending; keep the existing request");
       onChanged();
     } catch (err) {
       surfaceWriteError(err, toast, "decline");
@@ -375,12 +380,20 @@ function Loaded({
         />
       )}
 
+      {Boolean(workflow.voteAttempts?.length) && <VoteRecoveryNotice
+        attempts={workflow.voteAttempts}
+        check={() => workflow.checkVotesMutation.mutateAsync()}
+        checking={workflow.checkVotesMutation.isPending}
+        disabled={isWorking}
+        onChanged={onChanged}
+      />}
+
       <RequestTimeline
         status={proposal.status}
         approvalsCollected={approvalsCollected}
         approvalThreshold={approvalThreshold}
         createdAgo={createdAgo}
-        isTyped={proposal.typed === true}
+        execution={proposalTimelineExecution(proposal, intent, workflow.reviewQuery.data)}
       />
 
       <ApproversBreakdown
@@ -600,104 +613,6 @@ function Loaded({
 
 // ─── Bits & pieces ─────────────────────────────────────────────────
 
-function RequestTimeline({
-  status,
-  approvalsCollected,
-  approvalThreshold,
-  createdAgo,
-  isTyped,
-}: {
-  status: ProposalStatus;
-  approvalsCollected: number;
-  approvalThreshold: number;
-  createdAgo: string;
-  isTyped?: boolean;
-}) {
-  const approvalsDone = approvalsCollected >= approvalThreshold;
-  const stopped = status === ProposalStatus.Cancelled;
-  const sent = status === ProposalStatus.Executed;
-  const ready = status === ProposalStatus.Approved || sent;
-  const steps = [
-    {
-      label: "Request created",
-      detail: `Created ${createdAgo}`,
-      state: "done" as const,
-    },
-    {
-      label: "Collect approvals",
-      detail: `${Math.min(approvalsCollected, approvalThreshold)} of ${approvalThreshold} approved`,
-      state: stopped
-        ? ("stopped" as const)
-        : approvalsDone
-          ? ("done" as const)
-          : ("current" as const),
-    },
-    {
-      label: isTyped ? "Finish" : "Send money",
-      detail: sent
-        ? isTyped
-          ? "Action complete"
-          : "Money sent"
-        : stopped
-          ? "Request declined"
-          : ready
-            ? "Ready to finish"
-            : "Starts after enough approvals",
-      state: sent
-        ? ("done" as const)
-        : stopped
-          ? ("stopped" as const)
-          : ready
-            ? ("current" as const)
-            : ("next" as const),
-    },
-  ];
-
-  return (
-    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        Request timeline
-      </h2>
-      <ol className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {steps.map((step, index) => (
-          <li
-            key={step.label}
-            className="flex min-w-0 items-start gap-3 rounded-soft border border-border-soft bg-canvas p-3"
-          >
-            <span
-              className={
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-numerals text-[11px] font-semibold tabular-nums " +
-                (step.state === "done"
-                  ? "bg-accent/15 text-accent"
-                  : step.state === "current"
-                    ? "bg-warning/15 text-warning"
-                    : step.state === "stopped"
-                      ? "bg-warning/10 text-warning"
-                      : "bg-glass-soft text-text-soft")
-              }
-            >
-              {step.state === "done" ? (
-                <Check
-                  className="h-3.5 w-3.5"
-                  strokeWidth={3}
-                  aria-hidden="true"
-                />
-              ) : (
-                index + 1
-              )}
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-text-strong">
-                {step.label}
-              </p>
-              <p className="mt-0.5 text-xs text-text-soft">{step.detail}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
 
 function typedProposalLabel(actionKind: number): string {
   switch (actionKind) {

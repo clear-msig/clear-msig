@@ -1,3 +1,4 @@
+import { executeAndVerifyLegacySetup } from "./legacySetupExecution";
 import { requestRecovery } from "@/lib/clearsign/requestRecovery";
 import { PublicKey, type Connection, type AccountInfo } from "@solana/web3.js";
 import { CLEAR_WALLET_PROGRAM_ID } from "./client";
@@ -138,7 +139,12 @@ export async function withAutomaticLegacySetup<T>(
   },
   create: (
     authority: IntentAccount,
-    recovery: ReturnType<typeof requestRecovery.begin>,
+    recovery: ReturnType<typeof requestRecovery.begin> & {
+      executeAndVerify: (
+        proposal: string,
+        paramsDataHex: string,
+      ) => Promise<void>;
+    },
   ) => Promise<T>,
 ): Promise<T> {
   const authority = await readAutomaticLegacySetup(input);
@@ -153,6 +159,16 @@ export async function withAutomaticLegacySetup<T>(
     input.assertCurrent?.();
     return await create(authority, {
       ...recovery,
+      executeAndVerify: (proposal, paramsDataHex) =>
+        executeAndVerifyLegacySetup({
+          connection: input.connection,
+          walletName: input.walletName,
+          walletAddress: input.walletAddress!,
+          accountKey: input.accountKey,
+          proposal,
+          paramsDataHex,
+          assertCurrent: input.assertCurrent ?? (() => {}),
+        }),
       submitting: (proposal) => {
         input.assertCurrent?.();
         recovery.submitting(proposal);
