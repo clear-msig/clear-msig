@@ -310,11 +310,12 @@ function Loaded({
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6"
+      className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]"
     >
       {/* Compact left-aligned hero. Back navigation lives in the
           global DashboardHeader; the wallet name is shown inline as
           a clickable breadcrumb to the parent wallet detail page. */}
+      <div className="min-w-0 lg:sticky lg:top-6">
       <RequestOverview
         title={intentLabel}
         walletName={walletDisplay}
@@ -358,7 +359,9 @@ function Loaded({
           </p>
         </div>
       </RequestOverview>
+      </div>
 
+      <div className="flex min-w-0 flex-col gap-6">
       <CanonicalActionReview
         review={
           workflow.reviewQuery.isError ? undefined : workflow.reviewQuery.data
@@ -607,6 +610,7 @@ function Loaded({
           )}
         </div>
       )}
+      </div>
     </motion.div>
   );
 }
