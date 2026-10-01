@@ -1,4 +1,7 @@
 "use client";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
+import { LegacySetupNotice } from "@/components/review/LegacySetupNotice";
+import { withAutomaticLegacySetup } from "@/lib/chain/legacySetup";
 
 import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
@@ -108,6 +111,7 @@ export default function ZcashSendPage() {
   }, [params?.name]);
   const reduce = useReducedMotion();
   const wallet = useWallet();
+  const setupIdentity = useRequestIdentity();
   const { connection } = useConnection();
   const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
@@ -258,6 +262,7 @@ export default function ZcashSendPage() {
 
   const setup = useMutation({
     mutationFn: async () => {
+      const identity = setupIdentity.capture();
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
       if (!zcashBinding) throw new Error("Bind Zcash to this wallet first");
       const addIntent = (intentsQuery.data ?? []).find(
@@ -271,69 +276,82 @@ export default function ZcashSendPage() {
           "None of your connected wallets is in this wallet's proposer list.",
         );
       }
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
+      return withAutomaticLegacySetup(
         {
-          plaintext: enc.encode(JSON.stringify([signerPk.toBase58()])),
-          fheType: "ebytes",
+          connection,
+          assertCurrent: identity.assertCurrent,
+          walletName: name,
+          walletAddress: walletQuery.data?.pda,
+          signer: signerPk,
+          accountKey: requestAccountKey(
+            wallet.sessionSubject,
+            wallet.publicKey?.toBase58() ?? null,
+          ),
+          template: ZEC_TEMPLATE,
         },
-        {
-          plaintext: enc.encode(JSON.stringify([signerPk.toBase58()])),
-          fheType: "ebytes",
+        async (_authority, setupRecovery) => {
+          const enc = new TextEncoder();
+          const encrypted = await encryptPolicyBatch([
+            {
+              plaintext: enc.encode(JSON.stringify([signerPk.toBase58()])),
+              fheType: "ebytes",
+            },
+            {
+              plaintext: enc.encode(JSON.stringify([signerPk.toBase58()])),
+              fheType: "ebytes",
+            },
+            { plaintext: new Uint8Array([1]), fheType: "euint8" },
+            { plaintext: new Uint8Array([0]), fheType: "euint32" },
+          ]);
+          const policy_ciphertexts = encrypted
+            .map((p) => p.ciphertextIdentifier)
+            .filter((id): id is string => typeof id === "string");
+          const dry = await backendApi.prepare.addIntent(name, {
+            file: ZEC_TEMPLATE,
+            proposers: [signerPk.toBase58()],
+            approvers: [signerPk.toBase58()],
+            threshold: 1,
+            cancellation_threshold: 1,
+            timelock: 0,
+            policy_ciphertexts,
+          });
+          identity.assertCurrent();
+          const signed = await signDescriptor(dry, { preferSigner: signerPk });
+          if (!dry.proposal_pubkey)
+            throw new Error(
+              "Setup preparation returned no request identity. Nothing was submitted.",
+            );
+
+          setupRecovery.submitting(dry.proposal_pubkey);
+
+          const submitted = await backendApi.submit.addIntent(name, {
+            ...signed,
+            params_data_hex: dry.params_data_hex,
+            expiry: dry.expiry,
+            file: ZEC_TEMPLATE,
+          });
+          const proposal = (submitted as Record<string, unknown>)?.proposal;
+          if (typeof proposal !== "string" || proposal.length === 0) {
+            throw new Error(
+              "Backend didn't return a proposal address from setup",
+            );
+          }
+          if (proposal !== dry.proposal_pubkey)
+            throw new Error(
+              "Setup response returned another request. Check the prepared request before retrying.",
+            );
+          setupRecovery.accepted(proposal);
+          const decision = await approveIfNeeded(connection, proposal);
+          if (decision.needsApproveSignature) {
+            throw new Error(
+              `Setup request ${proposal} is saved but requires an unsupported legacy approval. Open the existing request for status; do not create it again.`,
+            );
+          }
+          identity.assertCurrent();
+          await backendApi.executeProposal(name, proposal, {});
+          return proposal;
         },
-        { plaintext: new Uint8Array([1]), fheType: "euint8" },
-        { plaintext: new Uint8Array([0]), fheType: "euint32" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
-      const dry = await backendApi.prepare.addIntent(name, {
-        file: ZEC_TEMPLATE,
-        proposers: [signerPk.toBase58()],
-        approvers: [signerPk.toBase58()],
-        threshold: 1,
-        cancellation_threshold: 1,
-        timelock: 0,
-        policy_ciphertexts,
-      });
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      const submitted = await backendApi.submit.addIntent(name, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        file: ZEC_TEMPLATE,
-      });
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error("Backend didn't return a proposal address from setup");
-      }
-      const decision = await approveIfNeeded(connection, proposal);
-      if (decision.needsApproveSignature) {
-        const approverPk = addIntent?.account
-          ? wallet.pickSigner(addIntent.account.approvers)
-          : signerPk;
-        if (!approverPk) {
-          throw new Error(
-            "The setup proposal landed, but none of your connected wallets can approve it.",
-          );
-        }
-        const approveDry = await backendApi.prepare.approveProposal(
-          name,
-          proposal,
-          {
-            actor_pubkey: approverPk.toBase58(),
-          },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: approverPk,
-        });
-        await backendApi.submit.approveProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-      await backendApi.executeProposal(name, proposal, {});
-      return proposal;
+      );
     },
     onSuccess: () => {
       void Promise.all([
@@ -361,7 +379,10 @@ export default function ZcashSendPage() {
   const recovery = useSendRecovery(
     JSON.stringify([
       name,
-      requestAccountKey(wallet.sessionSubject, wallet.publicKey?.toBase58() ?? null),
+      requestAccountKey(
+        wallet.sessionSubject,
+        wallet.publicKey?.toBase58() ?? null,
+      ),
       connection.rpcEndpoint,
       zcashRpcUrl,
     ]),
@@ -778,28 +799,31 @@ export default function ZcashSendPage() {
                 <p className="mt-2 text-sm text-text-soft">
                   Finish setup to unlock Zcash sends.
                 </p>
-                <Button
-                  size="lg"
-                  fullWidth
-                  className="mt-4"
-                  onClick={() => setup.mutate()}
-                  disabled={setup.isPending || !zcashBinding}
-                >
-                  {setup.isPending ? (
-                    <>
-                      <Loader2
-                        className="h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                      Enabling
-                    </>
-                  ) : (
-                    <>
-                      Turn on Zcash
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </>
-                  )}
-                </Button>
+                <>
+                  <LegacySetupNotice error={setup.error} />
+                  <Button
+                    size="lg"
+                    fullWidth
+                    className="mt-4"
+                    onClick={() => setup.mutate()}
+                    disabled={setup.isPending || !zcashBinding}
+                  >
+                    {setup.isPending ? (
+                      <>
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                        Enabling
+                      </>
+                    ) : (
+                      <>
+                        Turn on Zcash
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </>
+                    )}
+                  </Button>
+                </>
               </div>
             )}
           {!send.isPending &&

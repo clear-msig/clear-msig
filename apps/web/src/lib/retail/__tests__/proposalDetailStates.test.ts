@@ -8,8 +8,10 @@ const fixtures = vi.hoisted(() => ({
   contextError: false,
   missing: false,
   status: 0,
+  actionKind: 1,
   approvals: 0,
   cancellations: 0,
+  executionPending: false,
 }));
 const member = new PublicKey(new Uint8Array(32).fill(2)).toBase58();
 vi.mock("next/navigation", () => ({
@@ -45,7 +47,7 @@ vi.mock("@tanstack/react-query", () => ({
             wallet: member,
             intent: member,
             proposer: member,
-            actionKind: 1,
+            actionKind: fixtures.actionKind,
             status: fixtures.status,
             approvalBitmap: fixtures.approvals,
             cancellationBitmap: fixtures.cancellations,
@@ -75,6 +77,10 @@ vi.mock("@/lib/hooks/useProposalWorkflow", () => ({
     approveMutation: { isPending: false },
     cancelMutation: { isPending: false },
     executeMutation: { isPending: false },
+    checkExecutionMutation: { isPending: false },
+    executionAttempt: fixtures.executionPending
+      ? { phase: "execution", outcome: "unknown" }
+      : undefined,
   }),
 }));
 vi.mock("@/components/review/CanonicalActionReview", () => ({
@@ -98,11 +104,28 @@ beforeEach(() =>
     contextError: false,
     missing: false,
     status: 0,
+    actionKind: 1,
     approvals: 0,
     cancellations: 0,
+    executionPending: false,
   }),
 );
 describe("production proposal detail with synthetic account and provider boundaries", () => {
+  it("describes exact-request voting rather than claiming to enable protection", () => {
+    const html = render();
+    expect(html).toContain("records your approval vote");
+    expect(html).not.toContain("turns on sending protection");
+  });
+  it("provides read-only execution recovery without permitting blind resend", () => {
+    fixtures.status = 1;
+    fixtures.actionKind = 3;
+    fixtures.executionPending = true;
+    const html = render();
+    expect(html).toContain("Execution verification pending");
+    expect(html).toContain("Check execution status");
+    expect(html).toContain("needs reconciliation");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Execute action/);
+  });
   it("shows approval and cancellation actions for an eligible secondary wallet", () => {
     const html = render();
     expect(html).toContain(">Approve</button>");
@@ -119,6 +142,7 @@ describe("production proposal detail with synthetic account and provider boundar
   });
   it("allows cancellation while approved and keeps execution a separate action", () => {
     fixtures.status = 1;
+    fixtures.actionKind = 3;
     fixtures.approvals = 3;
     const html = render();
     expect(html).toContain("Vote to cancel");
@@ -150,6 +174,15 @@ describe("production proposal detail with synthetic account and provider boundar
     expect(html).toContain("find that request");
     expect(html).toContain("configured network");
     expect(html).not.toContain("not be a member");
+  });
+  it("shows known unsupported execution as unavailable before any click while preserving cancellation", () => {
+    fixtures.status = 1;
+    fixtures.actionKind = 9;
+    const html = render();
+    expect(html).toContain("Execution unavailable here");
+    expect(html).toContain("action-specific recovery executor");
+    expect(html).not.toContain(">Execute action");
+    expect(html).toContain("Vote to cancel");
   });
   it("does not offer new votes on a terminal request", () => {
     fixtures.status = 2;

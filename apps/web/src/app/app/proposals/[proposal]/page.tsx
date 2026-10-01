@@ -42,6 +42,10 @@ import {
 } from "@/lib/msig";
 import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
 import { useProposalWorkflow } from "@/lib/hooks/useProposalWorkflow";
+import {
+  executionOutcomeLabel,
+  proposalExecutionUnavailable,
+} from "@/lib/clearsign/proposalExecution";
 import { proposalVoterState } from "@/lib/retail/proposalVotes";
 import { friendlyError } from "@/lib/api/errors";
 import { useToast } from "@/components/ui/Toast";
@@ -57,6 +61,7 @@ import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
 import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 
+import { ExecutionRecoveryNotice } from "@/components/review/ExecutionRecoveryNotice";
 import { CanonicalActionReview } from "@/components/review/CanonicalActionReview";
 import { RequestOverview } from "@/components/review/RequestOverview";
 
@@ -223,10 +228,18 @@ function Loaded({
   // chain_kind=0 routes through the program's `execute_custom`
   // CPI (no extra options); kinds 1–4 are Ika-driven and need the
   // dWallet/gRPC/RPC config so the backend can sign+broadcast.
-  const isIkaChain = intent.chainKind !== 0;
+  const executionUnavailable = proposalExecutionUnavailable(
+    proposal,
+    intent,
+    workflow.reviewQuery.data,
+    workflow.reviewQuery.isFetching,
+    workflow.reviewQuery.isError,
+  );
+  const isIkaChain =
+    !proposal.typed && intent.intentType > 2 && intent.chainKind !== 0;
   const handleExecute = async () => {
     try {
-      await workflow.executeMutation.mutateAsync(
+      const outcome = await workflow.executeMutation.mutateAsync(
         isIkaChain
           ? {
               broadcast: true,
@@ -236,7 +249,9 @@ function Loaded({
             }
           : {},
       );
-      toast.success(proposal.typed ? "Done" : "Sent");
+      if (outcome.state === "confirmed" && outcome.kind !== "external")
+        toast.success(executionOutcomeLabel(outcome));
+      else toast.info(executionOutcomeLabel(outcome));
       // Refresh wallet balances so the dashboard reflects the
       // post-execute state on next mount. Multiple keys for the
       // same vault balance - invalidate all of them.
@@ -257,6 +272,23 @@ function Loaded({
       console.error("[request-execute]", err);
       const fe = friendlyError(err, "send");
       toast.error(fe.title, { details: fe.body });
+    } finally {
+      onChanged();
+    }
+  };
+  const handleCheckExecution = async () => {
+    try {
+      const outcome = await workflow.checkExecutionMutation.mutateAsync();
+      if (outcome.state === "confirmed" && outcome.kind !== "external")
+        toast.success(executionOutcomeLabel(outcome));
+      else toast.info(executionOutcomeLabel(outcome));
+      onChanged();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not verify execution status.",
+      );
     }
   };
 
@@ -333,6 +365,16 @@ function Loaded({
         }}
       />
 
+      {workflow.executionAttempt && (
+        <ExecutionRecoveryNotice
+          proposal={proposalPda}
+          txid={workflow.executionAttempt.txid}
+          onCheck={handleCheckExecution}
+          checking={workflow.checkExecutionMutation.isPending}
+          disabled={isWorking}
+        />
+      )}
+
       <RequestTimeline
         status={proposal.status}
         approvalsCollected={approvalsCollected}
@@ -373,7 +415,10 @@ function Loaded({
           <p className="break-all font-mono text-xs text-text-soft">
             Signing member: {voters.approver?.toBase58()}
           </p>
-          <WalletPopupNarration action="approve this request" />
+          <WalletPopupNarration
+            action="approve this exact request"
+            note="This signature records your approval vote for the action shown above. Execution is a separate step after the threshold, timelock and policy checks pass."
+          />
           <div className="grid grid-cols-1 gap-3">
             <Button
               size="lg"
@@ -485,8 +530,10 @@ function Loaded({
           body={
             proposal.status === ProposalStatus.Executed
               ? proposal.typed
-                ? "The action is complete."
-                : "The money has been sent."
+                ? "Execution of this request is recorded on Solana. This does not establish external trade, payment-provider, or destination-chain completion."
+                : isIkaChain
+                  ? "Solana authorization is recorded. Destination-chain completion has not been verified by this page."
+                  : "Execution of this request is recorded on Solana."
               : "No further action is needed."
           }
         />
@@ -499,23 +546,32 @@ function Loaded({
       {proposal.status === ProposalStatus.Approved && (
         <div className="flex flex-col gap-3">
           <InfoCard
-            title={proposal.typed ? "Ready to execute" : "Ready to send"}
+            title={
+              executionUnavailable
+                ? workflow.reviewQuery.isFetching
+                  ? "Checking execution availability"
+                  : "Execution unavailable here"
+                : proposal.typed
+                  ? "Ready to execute"
+                  : "Ready to send"
+            }
             body={
-              isApprover
+              executionUnavailable ??
+              (isApprover
                 ? proposal.typed
                   ? "Enough approvals collected. Execution is a separate action and remains subject to the request’s timelock and execution checks."
                   : "Enough approvals collected. Tap below to finish the send."
                 : proposal.typed
                   ? "Enough approvals collected. A connected approver can request execution after the timelock and execution checks pass."
-                  : "Enough approvals collected. Anyone who can approve can finish the send."
+                  : "Enough approvals collected. Anyone who can approve can finish the send.")
             }
           />
-          {isApprover && (
+          {isApprover && !executionUnavailable && (
             <Button
               size="lg"
               fullWidth
               onClick={handleExecute}
-              disabled={isWorking}
+              disabled={isWorking || Boolean(workflow.executionAttempt)}
             >
               {workflow.executeMutation.isPending ? (
                 <>

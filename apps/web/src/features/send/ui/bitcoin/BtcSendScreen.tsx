@@ -1,5 +1,7 @@
 "use client";
 
+import { LegacySetupNotice } from "@/components/review/LegacySetupNotice";
+
 import type { ComponentProps } from "react";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
@@ -21,7 +23,10 @@ import {
   BitcoinSetupPendingCard,
   SentCard,
 } from "@/features/send/ui/bitcoin/BtcSendResults";
-import { buildBtcPreviewDetails, shortBtcAddress } from "@/features/send/ui/bitcoin/bitcoinPreview";
+import {
+  buildBtcPreviewDetails,
+  shortBtcAddress,
+} from "@/features/send/ui/bitcoin/bitcoinPreview";
 
 type ComposeProps = ComponentProps<typeof ComposeForm>;
 
@@ -37,6 +42,7 @@ interface BtcSendScreenProps {
   needsSetup: boolean;
   ready: boolean;
   setupPending: boolean;
+  setupError?: unknown;
   setupSucceeded: boolean;
   onSetup: () => void;
   setupRequest: ComponentProps<typeof BitcoinSetupPendingCard> | null;
@@ -47,12 +53,14 @@ interface BtcSendScreenProps {
   sendError: ComponentProps<typeof SendErrorBanner>["error"] | null;
   onResetError: () => void;
   onDismissError: () => void;
-  policyEvaluation: ComponentProps<typeof PolicyMatchBanner>["evaluation"] | null;
+  policyEvaluation:
+    ComponentProps<typeof PolicyMatchBanner>["evaluation"] | null;
   compose: ComposeProps;
   approvalThreshold: number;
   timelockSeconds: number;
   sent: ComponentProps<typeof SentCard>["sent"] | null;
-  awaitingApproval: ComponentProps<typeof AwaitingApprovalCard>["request"] | null;
+  awaitingApproval:
+    ComponentProps<typeof AwaitingApprovalCard>["request"] | null;
   onSendAnother: () => void;
   onRequestAnother: () => void;
 }
@@ -69,6 +77,7 @@ export function BtcSendScreen({
   needsSetup,
   ready,
   setupPending,
+  setupError,
   setupSucceeded,
   onSetup,
   setupRequest,
@@ -113,11 +122,15 @@ export function BtcSendScreen({
             </div>
           </div>
           <p className="text-xs text-text-soft sm:text-sm">
-            From <span className="font-medium text-text-strong">{walletDisplay}</span>
+            From{" "}
+            <span className="font-medium text-text-strong">
+              {walletDisplay}
+            </span>
             <span className="ml-1 text-text-soft/70">· {network}</span>
           </p>
         </header>
 
+        {needsSetup && <LegacySetupNotice error={setupError} />}
         <SendChainPicker walletName={walletName} activeKind={BTC_CHAIN_KIND} />
 
         {disconnected && (
@@ -139,7 +152,9 @@ export function BtcSendScreen({
           </div>
         )}
 
-        {needsBinding && <NeedsBinding walletName={walletName} reduce={reduceMotion} />}
+        {needsBinding && (
+          <NeedsBinding walletName={walletName} reduce={reduceMotion} />
+        )}
         {needsSetup && !setupRequest && (
           <NeedsSetup
             address={bindingAddress}
@@ -152,7 +167,9 @@ export function BtcSendScreen({
             reduce={reduceMotion}
           />
         )}
-        {needsSetup && setupRequest && <BitcoinSetupPendingCard {...setupRequest} />}
+        {needsSetup && setupRequest && (
+          <BitcoinSetupPendingCard {...setupRequest} />
+        )}
         {ready && !sent && !awaitingApproval && sendError && (
           <SendErrorBanner
             error={sendError}
@@ -164,7 +181,10 @@ export function BtcSendScreen({
           <BitcoinSetupPendingCard {...setupRequest} />
         )}
         {ready && !sent && !awaitingApproval && policyEvaluation?.matched && (
-          <PolicyMatchBanner walletName={walletName} evaluation={policyEvaluation} />
+          <PolicyMatchBanner
+            walletName={walletName}
+            evaluation={policyEvaluation}
+          />
         )}
         {ready && !sent && !awaitingApproval && (
           <SignPayloadPreview

@@ -1,4 +1,8 @@
 "use client";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
+import { LegacySetupNotice } from "@/components/review/LegacySetupNotice";
+import { withAutomaticLegacySetup } from "@/lib/chain/legacySetup";
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 
 // Set up sending - single-tap spending-rule bootstrap.
 //
@@ -24,7 +28,14 @@ import { IntentType } from "@/lib/msig";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { toDisplayName, toHeadingName } from "@/lib/retail/walletNames";
 import { resolveWalletProductSurface } from "@/lib/productWorkspace";
-import { ArrowRight, Check, Loader2, Send, UserPlus, Wallet } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Loader2,
+  Send,
+  UserPlus,
+  Wallet,
+} from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { encryptPolicyBatch } from "@/lib/encrypt/client";
@@ -56,6 +67,7 @@ export default function SetupSpendingPage() {
 
   const router = useRouter();
   const wallet = useWallet();
+  const setupIdentity = useRequestIdentity();
   const { connection } = useConnection();
   const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
@@ -115,6 +127,7 @@ export default function SetupSpendingPage() {
 
   const setup = useMutation({
     mutationFn: async () => {
+      const identity = setupIdentity.capture();
       if (!wallet.publicKey) {
         throw new Error("Connect your wallet first");
       }
@@ -145,79 +158,106 @@ export default function SetupSpendingPage() {
       //    surface. Pre-alpha returns plaintext-as-ciphertext; the
       //    identifiers flow through to the backend + CLI so the
       //    full wire path is exercised.
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
-        { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
+      return withAutomaticLegacySetup(
+        {
+          connection,
+          assertCurrent: identity.assertCurrent,
+          walletName: name,
+          walletAddress: walletQuery.data?.pda,
+          signer: signerPk,
+          accountKey: requestAccountKey(
+            wallet.sessionSubject,
+            wallet.publicKey?.toBase58() ?? null,
+          ),
+          template: TEMPLATE_FILE,
+        },
+        async (_authority, setupRecovery) => {
+          const enc = new TextEncoder();
+          const encrypted = await encryptPolicyBatch([
+            {
+              plaintext: enc.encode(JSON.stringify(proposers)),
+              fheType: "ebytes",
+            },
+            {
+              plaintext: enc.encode(JSON.stringify(approvers)),
+              fheType: "ebytes",
+            },
+            { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
+            { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
+          ]);
+          const policy_ciphertexts = encrypted
+            .map((p) => p.ciphertextIdentifier)
+            .filter((id): id is string => typeof id === "string");
 
-      // 1. Prepare: backend builds the unsigned add-intent transaction
-      //    and returns the bytes the user has to sign.
-      const dry = await backendApi.prepare.addIntent(name, {
-        file: TEMPLATE_FILE,
-        proposers,
-        approvers,
-        threshold,
-        cancellation_threshold: 1,
-        timelock: delaySeconds,
-        policy_ciphertexts,
-      });
+          // 1. Prepare: backend builds the unsigned add-intent transaction
+          //    and returns the bytes the user has to sign.
+          const dry = await backendApi.prepare.addIntent(name, {
+            file: TEMPLATE_FILE,
+            proposers,
+            approvers,
+            threshold,
+            cancellation_threshold: 1,
+            timelock: delaySeconds,
+            policy_ciphertexts,
+          });
 
-      // 2. Sign: user's wallet pops up its sign-message UI.
-      //    preferSigner routes through the matching Ledger/Dynamic
-      //    pubkey resolved above.
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
+          // 2. Sign: user's wallet pops up its sign-message UI.
+          //    preferSigner routes through the matching Ledger/Dynamic
+          //    pubkey resolved above.
+          identity.assertCurrent();
+          const signed = await signDescriptor(dry, { preferSigner: signerPk });
 
-      // 3. Submit propose: lands the AddIntent proposal on chain in
-      //    `Active` status with empty approval bitmap. The proposer's
-      //    signature does NOT auto-flip an approval bit - that's a
-      //    separate step.
-      const submitted = await backendApi.submit.addIntent(name, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        file: TEMPLATE_FILE,
-      });
+          // 3. Submit propose: lands the AddIntent proposal on chain in
+          //    `Active` status with empty approval bitmap. The proposer's
+          //    signature does NOT auto-flip an approval bit - that's a
+          //    separate step.
+          if (!dry.proposal_pubkey)
+            throw new Error(
+              "Setup preparation returned no request identity. Nothing was submitted.",
+            );
 
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error(
-          "Backend didn't return a proposal address from the propose step",
-        );
-      }
+          setupRecovery.submitting(dry.proposal_pubkey);
 
-      // 4. Approve, but only if the propose didn't already flip the
-      //    proposer's bit and meet threshold on chain. With the
-      //    auto-approve program update this is the common case for
-      //    1-of-1 wallets and the second popup goes away. Old
-      //    program → still falls through to the explicit approve.
-      const decision = await approveIfNeeded(connection, proposal);
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          name,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
+          const submitted = await backendApi.submit.addIntent(name, {
+            ...signed,
+            params_data_hex: dry.params_data_hex,
+            expiry: dry.expiry,
+            file: TEMPLATE_FILE,
+          });
 
-      // 5. Execute: now that the proposal is Approved, run it. The
-      //    AddIntent meta-handler creates the SolTransfer intent and
-      //    bumps `wallet.intent_index`. Sponsored by the relayer -
-      //    no third user signature needed.
-      await backendApi.executeProposal(name, proposal, {});
-      return submitted;
+          const proposal = (submitted as Record<string, unknown>)?.proposal;
+          if (typeof proposal !== "string" || proposal.length === 0) {
+            throw new Error(
+              "Backend didn't return a proposal address from the propose step",
+            );
+          }
+
+          // 4. Approve, but only if the propose didn't already flip the
+          //    proposer's bit and meet threshold on chain. With the
+          //    auto-approve program update this is the common case for
+          //    1-of-1 wallets and the second popup goes away. Old
+          //    program → still falls through to the explicit approve.
+          if (proposal !== dry.proposal_pubkey)
+            throw new Error(
+              "Setup response returned another request. Check the prepared request before retrying.",
+            );
+          setupRecovery.accepted(proposal);
+          const decision = await approveIfNeeded(connection, proposal);
+          if (decision.needsApproveSignature) {
+            throw new Error(
+              `Setup request ${proposal} is saved but requires an unsupported legacy approval. Open the existing request for status; do not create it again.`,
+            );
+          }
+
+          // 5. Execute: now that the proposal is Approved, run it. The
+          //    AddIntent meta-handler creates the SolTransfer intent and
+          //    bumps `wallet.intent_index`. Sponsored by the relayer -
+          //    no third user signature needed.
+          identity.assertCurrent();
+          await backendApi.executeProposal(name, proposal, {});
+          return submitted;
+        },
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet-intents"] });
@@ -249,7 +289,10 @@ export default function SetupSpendingPage() {
         <Breadcrumb
           segments={[
             { label: "Wallets", href: "/app" },
-            { label: toDisplayName(name), href: `/app/wallet/${encodeURIComponent(name)}` },
+            {
+              label: toDisplayName(name),
+              href: `/app/wallet/${encodeURIComponent(name)}`,
+            },
             { label: "Turn on sending" },
           ]}
         />
@@ -271,7 +314,8 @@ export default function SetupSpendingPage() {
                 <Check className="h-8 w-8" strokeWidth={2.5} />
               </div>
               <h1 className="font-display text-display-sm leading-[1.05] text-text-strong">
-                <span className="text-accent">{toHeadingName(name)}</span> is ready to send
+                <span className="text-accent">{toHeadingName(name)}</span> is
+                ready to send
               </h1>
               <p className="mt-3 max-w-sm text-base text-text-soft">
                 Sending is now turned on. The activity row you see is the
@@ -306,52 +350,59 @@ export default function SetupSpendingPage() {
               </div>
             </div>
           ) : (
-          <div className="flex flex-col items-center text-center">
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <Send className="h-7 w-7" strokeWidth={1.75} />
-            </div>
-            <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-              First-time setup
-            </p>
-            <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
-              Turn on sending in <span className="text-accent">{toHeadingName(name)}</span>
-            </h1>
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
+                <Send className="h-7 w-7" strokeWidth={1.75} />
+              </div>
+              <span aria-hidden="true" className="block h-px w-10 bg-accent" />
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                First-time setup
+              </p>
+              <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
+                Turn on sending in{" "}
+                <span className="text-accent">{toHeadingName(name)}</span>
+              </h1>
 
-            <div className="mt-6 flex w-full flex-col gap-3">
-              <SignPayloadPreview
-                action="Turn on sending"
-                details={[
-                  { label: "Wallet", value: toDisplayName(name) },
-                  {
-                    label: "Chain",
-                    value: "Solana",
-                  },
-                ]}
-                collapsibleDetails
-              />
-            </div>
+              <div className="mt-6 flex w-full flex-col gap-3">
+                <SignPayloadPreview
+                  action="Turn on sending"
+                  details={[
+                    { label: "Wallet", value: toDisplayName(name) },
+                    {
+                      label: "Chain",
+                      value: "Solana",
+                    },
+                  ]}
+                  collapsibleDetails
+                />
+              </div>
 
-            <Button
-              size="lg"
-              fullWidth
-              className="mt-3"
-              onClick={() => setup.mutate()}
-              disabled={setup.isPending}
-            >
-              {setup.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Setting up…
-                </>
-              ) : (
-                <>
-                  Turn on sending
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </>
-              )}
-            </Button>
-          </div>
+              <>
+                <LegacySetupNotice error={setup.error} />
+                <Button
+                  size="lg"
+                  fullWidth
+                  className="mt-3"
+                  onClick={() => setup.mutate()}
+                  disabled={setup.isPending}
+                >
+                  {setup.isPending ? (
+                    <>
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Setting up…
+                    </>
+                  ) : (
+                    <>
+                      Turn on sending
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </>
+                  )}
+                </Button>
+              </>
+            </div>
           )}
         </motion.section>
       </div>

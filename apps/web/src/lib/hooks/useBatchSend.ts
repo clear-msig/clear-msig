@@ -1,6 +1,10 @@
 "use client";
 
+import { requestRecovery } from "@/lib/clearsign/requestRecovery";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
+import { solanaSubmissionTxid } from "@/lib/chain/executionEvidence";
 import {
+  reviewedCreationProposalAddress,
   inlineApprovalOptions,
   assertSubmittedCreation,
 } from "@/lib/clearsign/inlineApproval";
@@ -63,6 +67,8 @@ export interface BatchSendProgress {
   done: boolean;
   outcome?: BatchSendOutcome;
   message?: string;
+  proposalPdas?: string[];
+  executionTxid?: string;
 }
 
 export interface BatchFailure {
@@ -74,7 +80,8 @@ export type BatchSendOutcome =
   | "empty"
   | "cancelled"
   | "created"
-  | "executed"
+  | "execution_submitted"
+  | "execution_unknown"
   | "submission_unknown"
   | "failed";
 
@@ -89,6 +96,7 @@ const BATCH_LOG_KEY = "clear-msig:batches:v1";
 export function useBatchSend() {
   const { signTypedDescriptor } = useSignWithWallet();
   const wallet = useWallet();
+  const requestIdentity = useRequestIdentity();
   const { pickSigner } = wallet;
   const { connection } = useConnection();
   const queryClient = useQueryClient();
@@ -120,12 +128,18 @@ export function useBatchSend() {
 
       // Keep the signed input stable even if the caller edits its draft while
       // chain reads or wallet signing are pending.
+      const identity = requestIdentity.capture();
       const rows = inputRows.map((row) => ({ ...row }));
       const run = { cancelled: false };
       const assertNotCancelled = () => {
+        identity.assertCurrent();
         if (run.cancelled) throw new BatchCancelledError();
       };
       activeRunRef.current = run;
+      let creationRecovery:
+        ReturnType<typeof requestRecovery.begin> | undefined;
+      let executionRecovery:
+        ReturnType<typeof requestRecovery.begin> | undefined;
 
       try {
         const batchId = generateBatchId();
@@ -135,6 +149,8 @@ export function useBatchSend() {
         let failed = 0;
         let submissionStarted = false;
         let proposalAccepted = false;
+        let executionStarted = false;
+        let executionTxid: string | undefined;
         let outcome: BatchSendOutcome = "failed";
         let message: string | undefined;
         const showStep = (currentLabel: string) =>
@@ -152,6 +168,17 @@ export function useBatchSend() {
           const walletData = await fetchWalletByName(connection, walletName);
           assertNotCancelled();
           if (!walletData) throw new Error("Couldn't load wallet");
+          creationRecovery = requestRecovery.begin({
+            walletName,
+            endpoint: connection.rpcEndpoint,
+            accountKey: identity.accountKey,
+            label: "Batch transfer",
+            identity: [
+              walletData.pda.toBase58(),
+              intentIndex,
+              rows.map((row) => [row.destination, row.lamports.toString()]),
+            ],
+          });
           const intentRow = await fetchIntent(
             connection,
             walletData.pda,
@@ -244,6 +271,12 @@ export function useBatchSend() {
           // authorize a submission after this attempt has been stopped.
           assertNotCancelled();
           showStep("Submitting batch request");
+          const expectedProposal = reviewedCreationProposalAddress(
+            dry,
+            summary,
+          );
+          creationRecovery.submitting(expectedProposal);
+          proposalPdas.push(expectedProposal);
           submissionStarted = true;
           const submitted = await backendApi.submit.createTypedProposal(
             walletName,
@@ -261,19 +294,17 @@ export function useBatchSend() {
               canonical_intent_hex: dry.canonical_intent_hex,
             },
           );
-          // Record accepted chain work before checking cancellation: stopping
-          // locally cannot undo a proposal or any already-submitted approval.
+          const proposalPda = assertSubmittedCreation(
+            dry,
+            summary,
+            submitted?.proposal,
+          );
+          creationRecovery.accepted(proposalPda);
           proposalAccepted = true;
           succeeded = rows.length;
           outcome = "created";
           message =
             "Batch request created. Check Activity for approval and execution status.";
-          const proposalPda =
-            typeof submitted?.proposal === "string"
-              ? submitted.proposal
-              : undefined;
-          assertSubmittedCreation(dry, summary, proposalPda);
-          if (proposalPda) proposalPdas.push(proposalPda);
           assertNotCancelled();
 
           if (proposalPda) {
@@ -323,7 +354,26 @@ export function useBatchSend() {
             assertNotCancelled();
             if (status === ProposalStatus.Approved) {
               showStep("Sending batch");
-              await backendApi.executeTypedSolBatchSend(
+              executionStarted = true;
+              if (
+                requestRecovery.executionFor(
+                  connection.rpcEndpoint,
+                  proposalPda,
+                )
+              )
+                throw new Error(
+                  "This request already has an execution attempt. Check its verified status.",
+                );
+              executionRecovery = requestRecovery.begin({
+                walletName,
+                endpoint: connection.rpcEndpoint,
+                accountKey: identity.accountKey,
+                label: "Batch execution",
+                identity: ["execute", proposalPda],
+                phase: "execution",
+              });
+              executionRecovery.submitting(proposalPda);
+              const executed = await backendApi.executeTypedSolBatchSend(
                 walletName,
                 proposalPda,
                 {
@@ -332,16 +382,27 @@ export function useBatchSend() {
                     amountLamports: lamportsToSafeNumber(row.lamports),
                   })),
                 },
+                { retry: false },
               );
               // Once execution was sent, cancellation cannot reverse it. Keep
               // the accepted execution result instead of claiming it stopped.
-              outcome = "executed";
+              executionTxid = solanaSubmissionTxid(executed, {
+                proposal: proposalPda,
+                path: "typed_sol_batch_send",
+                requireProposal: true,
+              });
+              executionRecovery.accepted(proposalPda, executionTxid);
+              outcome = "execution_submitted";
               message =
-                "Batch execution submitted. Check Activity for confirmation.";
+                "Batch transaction submitted. This is not confirmation that the recipients were paid. Check the existing request for chain status.";
             }
           }
         } catch (err) {
-          if (proposalAccepted) {
+          if (executionStarted) {
+            outcome = "execution_unknown";
+            message =
+              "Execution may have been submitted, but its response could not be verified. Check the existing request before any retry; starting another batch could pay twice.";
+          } else if (proposalAccepted) {
             outcome = "created";
             message =
               err instanceof BatchCancelledError
@@ -389,13 +450,32 @@ export function useBatchSend() {
           done: true,
           outcome,
           message,
+          proposalPdas: [...proposalPdas],
+          executionTxid,
         });
-        return { batchId, succeeded, failed, proposalPdas, outcome, message };
+        return {
+          batchId,
+          succeeded,
+          failed,
+          proposalPdas,
+          outcome,
+          message,
+          executionTxid,
+        };
       } finally {
+        creationRecovery?.finish();
+        executionRecovery?.finish();
         activeRunRef.current = null;
       }
     },
-    [signTypedDescriptor, queryClient, connection, pickSigner, wallet],
+    [
+      signTypedDescriptor,
+      queryClient,
+      connection,
+      pickSigner,
+      wallet,
+      requestIdentity,
+    ],
   );
 
   const cancel = useCallback(() => {

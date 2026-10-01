@@ -46,35 +46,59 @@ export function DoneStage({
         <p className="mt-5 text-base font-semibold text-text-strong">
           {copy.summary}
         </p>
-        <p className="mt-1.5 text-sm text-text-soft">
-          {copy.description}
-        </p>
+        <p className="mt-1.5 text-sm text-text-soft">{copy.description}</p>
 
-        {progress.outcome !== "cancelled" && !copy.successful && progress.failures.length > 0 && (
-          <ul className="mt-5 divide-y divide-border-soft rounded-soft border border-border-soft bg-canvas text-left">
-            {progress.failures.map((f, i) => (
-              <li
-                key={i}
-                className="flex items-center justify-between gap-3 px-3 py-2.5"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-text-strong">
-                    {f.row.label}
-                  </p>
-                  <p className="truncate text-xs text-text-soft">
-                    {f.message}
-                  </p>
-                </div>
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-warning">
-                  Failed
-                </span>
-              </li>
-            ))}
-          </ul>
+        {progress.proposalPdas?.map((proposal) => (
+          <Link
+            key={proposal}
+            className="mt-4 flex min-h-tap flex-col justify-center gap-1 rounded-soft border border-border-soft p-3 text-sm text-text-strong"
+            href={`/app/proposals/${encodeURIComponent(proposal)}`}
+          >
+            <strong>Open existing request</strong>
+            <span className="break-all font-mono text-xs">{proposal}</span>
+          </Link>
+        ))}
+        {progress.executionTxid && (
+          <div className="mt-4 text-sm">
+            <p className="font-semibold">
+              Submitted transaction · confirmation pending
+            </p>
+            <p className="break-all font-mono text-xs">
+              {progress.executionTxid}
+            </p>
+          </div>
         )}
+
+        {progress.outcome !== "cancelled" &&
+          !copy.successful &&
+          progress.failures.length > 0 && (
+            <ul className="mt-5 divide-y divide-border-soft rounded-soft border border-border-soft bg-canvas text-left">
+              {progress.failures.map((f, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between gap-3 px-3 py-2.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-text-strong">
+                      {f.row.label}
+                    </p>
+                    <p className="truncate text-xs text-text-soft">
+                      {f.message}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-warning">
+                    Failed
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
       </div>
 
-      <Link href="/app/activity" className="inline-flex min-h-tap items-center justify-center gap-2 rounded-soft border border-border-soft px-4 text-sm font-semibold text-text-strong">
+      <Link
+        href={`/app/wallet/${encodeURIComponent(walletName)}/activity`}
+        className="inline-flex min-h-tap items-center justify-center gap-2 rounded-soft border border-border-soft px-4 text-sm font-semibold text-text-strong"
+      >
         Check Activity
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Link>

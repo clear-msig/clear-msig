@@ -56,11 +56,12 @@ export function usePersistPersonalWalletPolicy() {
       currentCommitment: string;
       target: PersistentPolicyTarget;
     }): Promise<"updated" | "waiting"> => {
-      requestIdentity.assertCurrent();
+      const identity = requestIdentity.capture();
+      identity.assertCurrent();
       const recovery = requestRecovery.begin({
         walletName: input.walletName,
         endpoint: connection.rpcEndpoint,
-        accountKey: requestIdentity.accountKey,
+        accountKey: identity.accountKey,
         label: "Protection policy change",
         identity: [
           input.walletId,
@@ -105,7 +106,7 @@ export function usePersistPersonalWalletPolicy() {
           policyBytesHex: input.target.policyBytesHex,
           deviceProfile: clearSignProfileForSigner(wallet, input.proposerPk),
         });
-        requestIdentity.assertCurrent();
+        identity.assertCurrent();
         const dry = await backendApi.prepare.createTypedProposal(
           input.walletName,
           {
@@ -123,7 +124,7 @@ export function usePersistPersonalWalletPolicy() {
             actor_pubkey: input.proposerPk.toBase58(),
           },
         );
-        requestIdentity.assertCurrent();
+        identity.assertCurrent();
         const signed = await signTypedDescriptor(dry, {
           preferSigner: input.proposerPk,
           expectedTyped: {
@@ -132,7 +133,7 @@ export function usePersistPersonalWalletPolicy() {
             signableText: summary.signableText,
           },
         });
-        requestIdentity.assertCurrent();
+        identity.assertCurrent();
         recovery.submitting(reviewedCreationProposalAddress(dry, summary));
         const submitted = await backendApi.submit.createTypedProposal(
           input.walletName,
@@ -168,13 +169,13 @@ export function usePersistPersonalWalletPolicy() {
           });
           if (decision.needsApproveSignature) {
             if (!approverPk) return "waiting";
-            requestIdentity.assertCurrent();
+            identity.assertCurrent();
             const approveDry = await backendApi.prepare.approveTypedProposal(
               input.walletName,
               proposal,
               { actor_pubkey: approverPk.toBase58() },
             );
-            requestIdentity.assertCurrent();
+            identity.assertCurrent();
             const approveSigned = await signTypedDescriptor(
               approveDry,
               inlineApprovalOptions(
@@ -185,7 +186,7 @@ export function usePersistPersonalWalletPolicy() {
                 approverPk,
               ),
             );
-            requestIdentity.assertCurrent();
+            identity.assertCurrent();
             await backendApi.submit.approveTypedProposal(
               input.walletName,
               proposal,
@@ -197,10 +198,10 @@ export function usePersistPersonalWalletPolicy() {
           }
 
           const ready = await waitForProposalApproval(connection, proposal);
-          requestIdentity.assertCurrent();
+          identity.assertCurrent();
           if (!ready) return "waiting";
           if (isAsset) {
-            requestIdentity.assertCurrent();
+            identity.assertCurrent();
             const executed = await backendApi.executeTypedAssetPolicyUpdate(
               input.walletName,
               proposal,
@@ -218,7 +219,7 @@ export function usePersistPersonalWalletPolicy() {
                 "Execution returned no transaction ID; protection activation is not confirmed.",
               );
           } else {
-            requestIdentity.assertCurrent();
+            identity.assertCurrent();
             const executed = await backendApi.executeTypedWalletPolicyUpdate(
               input.walletName,
               proposal,
@@ -232,7 +233,7 @@ export function usePersistPersonalWalletPolicy() {
                 "Execution returned no transaction ID; protection activation is not confirmed.",
               );
           }
-          requestIdentity.assertCurrent();
+          identity.assertCurrent();
           recovery.complete();
           return "updated";
         } catch (cause) {

@@ -1,4 +1,6 @@
 "use client";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
+import { setupBitcoin } from "@/features/send/infrastructure/setupBitcoin";
 
 import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
@@ -51,7 +53,6 @@ import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { IntentType, ProposalStatus, toHex } from "@/lib/msig";
 import {
-  assertPreparedBitcoinSetupIsCurrent,
   clearSignBitcoinNetwork,
   type BitcoinBroadcastResult as BroadcastResultLike,
   bytesToHex,
@@ -116,8 +117,6 @@ import {
   selectBitcoinSendIntent,
 } from "@/lib/chain/btcIntentReadiness";
 
-const BTC_TEMPLATE = "examples/intents/btc_transfer.json";
-
 export default function BitcoinSendPageWrapper() {
   return (
     <div className="relative flex min-h-screen flex-col bg-canvas">
@@ -138,6 +137,7 @@ function BitcoinSendPage() {
   }, [params?.name]);
   const reduce = useReducedMotion();
   const wallet = useWallet();
+  const setupIdentity = useRequestIdentity();
   const { connection } = useConnection();
   const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
@@ -285,113 +285,17 @@ function BitcoinSendPage() {
 
   // ── Mutations: setup intent (one-time), then send ─────────────────
   const setupIntent = useMutation({
-    mutationFn: async () => {
-      if (!wallet.publicKey) throw new Error("Connect your wallet first");
-      if (!btcBinding) throw new Error("Bind Bitcoin to this wallet first");
-      if (!walletQuery.data) throw new Error("Wallet is still loading");
-      const addIntent = (intentsQuery.data ?? []).find(
-        (it) => it.account?.intentType === IntentType.AddIntent,
-      );
-      const signerPk = addIntent?.account
-        ? wallet.pickSigner(addIntent.account.proposers)
-        : wallet.publicKey;
-      if (!signerPk) {
-        throw new Error(
-          "None of your connected wallets is in this wallet's proposer list.",
-        );
-      }
-      const me = signerPk.toBase58();
-      const proposers = addIntent?.account?.proposers.length
-        ? addIntent.account.proposers
-        : [me];
-      const approvers = addIntent?.account?.approvers.length
-        ? addIntent.account.approvers
-        : [me];
-      const threshold =
-        addIntent?.account?.approvalThreshold &&
-        addIntent.account.approvalThreshold <= approvers.length
-          ? addIntent.account.approvalThreshold
-          : 1;
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
-        { plaintext: new Uint8Array([0]), fheType: "euint32" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
-      const dry = await backendApi.prepare.addIntent(name, {
-        file: BTC_TEMPLATE,
-        proposers,
-        approvers,
-        threshold,
-        cancellation_threshold: 1,
-        timelock: 0,
-        policy_ciphertexts,
-      });
-      assertPreparedBitcoinSetupIsCurrent(dry.params_data_hex);
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      const submitted = await backendApi.submit.addIntent(name, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        file: BTC_TEMPLATE,
-      });
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error("Backend didn't return a proposal address");
-      }
-      const decision = await approveIfNeeded(connection, proposal, {
-        approvers: addIntent?.account?.approvers,
-        approverPubkey: addIntent?.account
-          ? (wallet.pickSigner(addIntent.account.approvers)?.toBase58() ?? null)
-          : signerPk.toBase58(),
-        approvalThreshold: addIntent?.account?.approvalThreshold ?? 1,
-      });
-      if (decision.needsApproveSignature) {
-        const approverPk = addIntent?.account
-          ? wallet.pickSigner(addIntent.account.approvers)
-          : signerPk;
-        if (!approverPk) {
-          throw new Error(
-            "The setup proposal landed, but none of your connected wallets can approve it.",
-          );
-        }
-        const approveDry = await backendApi.prepare.approveProposal(
-          name,
-          proposal,
-          { actor_pubkey: approverPk.toBase58() },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: approverPk,
-        });
-        await backendApi.submit.approveProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-      const status = await waitForProposalStatus(connection, proposal, {
-        attempts: 12,
-        delayMs: 500,
-        accepted: [ProposalStatus.Approved, ProposalStatus.Executed],
-      });
-      if (status === ProposalStatus.Approved) {
-        await backendApi.executeProposal(name, proposal, {});
-      }
-      if (
-        status !== ProposalStatus.Approved &&
-        status !== ProposalStatus.Executed
-      ) {
-        return { proposal, status: "pending_approval" as const };
-      }
-      const ready = await waitForBitcoinChangeIntent(connection, name);
-      if (!ready) {
-        return { proposal, status: "pending_sync" as const };
-      }
-      return { proposal, status: "ready" as const };
-    },
+    mutationFn: () =>
+      setupBitcoin({
+        assertCurrent: setupIdentity.capture().assertCurrent,
+        wallet,
+        connection,
+        name,
+        hasBinding: !!btcBinding,
+        walletData: walletQuery.data,
+        intents: intentsQuery.data ?? [],
+        signDescriptor,
+      }),
     onSuccess: async (result) => {
       // BTC's setup+send live in the same page, so the next render
       // after this mutation flips us from "needs setup" to "compose".
@@ -927,6 +831,7 @@ function BitcoinSendPage() {
       needsSetup={!!needsSetup}
       ready={!!ready}
       setupPending={setupIntent.isPending}
+      setupError={setupIntent.error}
       setupSucceeded={setupIntent.isSuccess}
       onSetup={() => setupIntent.mutate()}
       setupRequest={

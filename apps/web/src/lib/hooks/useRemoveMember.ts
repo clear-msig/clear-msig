@@ -115,7 +115,7 @@ export function useRemoveMember() {
       }
 
       const result = await completeTypedGovernance({
-        requestIdentity,
+        requestIdentity: requestIdentity.capture(),
         connection,
         walletName,
         walletId: walletData.pda.toBase58(),

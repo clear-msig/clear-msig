@@ -19,7 +19,10 @@ export function useSendRecovery(scope: string) {
   // Read session storage after mount, preserving server/client hydration parity.
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    const current = controller.current!;
+    current.mount();
     setMounted(true);
+    return () => current.unmount();
   }, []);
   return {
     startSeparateRequest: () => controller.current!.startSeparateRequest(),

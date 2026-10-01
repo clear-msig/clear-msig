@@ -1,4 +1,14 @@
 "use client";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
+import {
+  withAutomaticLegacySetup,
+  assertNewWalletSetupSupported,
+  assertLegacySetupNetwork,
+} from "@/lib/chain/legacySetup";
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
+import { PublicKey } from "@solana/web3.js";
+import { fetchWalletByName } from "@/lib/chain/wallets";
+import { LegacySetupNotice } from "@/components/review/LegacySetupNotice";
 
 // New shared wallet - the in-app creation flow.
 //
@@ -70,6 +80,7 @@ function NewWalletContent() {
   const router = useRouter();
   const search = useSearchParams();
   const wallet = useWallet();
+  const setupIdentity = useRequestIdentity();
   const { connection } = useConnection();
   const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
@@ -106,7 +117,8 @@ function NewWalletContent() {
     ) {
       return "share";
     }
-    if (requested === "secure" || requestedSurface === "secure") return "secure";
+    if (requested === "secure" || requestedSurface === "secure")
+      return "secure";
     if (requested === "agent" || requestedSurface === "agent") return "agent";
     return "share";
   }, [search, requestedSurface]);
@@ -171,18 +183,33 @@ function NewWalletContent() {
 
   const setupAll = useMutation({
     mutationFn: async () => {
+      const identity = setupIdentity.capture();
       if (!me) throw new Error("Connect your wallet first.");
       const walletSlug = toOnChainName(slug(cleanName), me);
       const initialMembers = Array.from(
         new Set([me, ...(importMode ? importedSigners : [])]),
       );
-      const threshold = initialMembers.length > 1 ? Math.min(2, initialMembers.length) : 1;
+      const threshold =
+        initialMembers.length > 1 ? Math.min(2, initialMembers.length) : 1;
 
+      assertNewWalletSetupSupported(
+        initialMembers,
+        initialMembers,
+        threshold,
+        me,
+      );
+      await assertLegacySetupNetwork(connection);
       // ── popup 1: create wallet ──
       const enc = new TextEncoder();
       const createCt = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(initialMembers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(initialMembers)), fheType: "ebytes" },
+        {
+          plaintext: enc.encode(JSON.stringify(initialMembers)),
+          fheType: "ebytes",
+        },
+        {
+          plaintext: enc.encode(JSON.stringify(initialMembers)),
+          fheType: "ebytes",
+        },
         { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
       ]);
       const createIds = createCt
@@ -190,6 +217,7 @@ function NewWalletContent() {
         .filter((id): id is string => typeof id === "string");
 
       try {
+        identity.assertCurrent();
         await backendApi.createWallet({
           name: walletSlug,
           proposers: initialMembers,
@@ -213,56 +241,86 @@ function NewWalletContent() {
       }
 
       // ── popup 2: enable sending (propose AddIntent) ──
-      const enableCt = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(initialMembers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(initialMembers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
-        { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
-      ]);
-      const enableIds = enableCt
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
+      return withAutomaticLegacySetup(
+        {
+          connection,
+          assertCurrent: identity.assertCurrent,
+          walletName: walletSlug,
+          walletAddress: (await fetchWalletByName(connection, walletSlug))?.pda,
+          signer: new PublicKey(me),
+          waitForFinalization: true,
+          accountKey: requestAccountKey(
+            wallet.sessionSubject,
+            wallet.publicKey?.toBase58() ?? null,
+          ),
+          template: SOL_TRANSFER_TEMPLATE,
+        },
+        async (_authority, setupRecovery) => {
+          const enableCt = await encryptPolicyBatch([
+            {
+              plaintext: enc.encode(JSON.stringify(initialMembers)),
+              fheType: "ebytes",
+            },
+            {
+              plaintext: enc.encode(JSON.stringify(initialMembers)),
+              fheType: "ebytes",
+            },
+            { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
+            { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
+          ]);
+          const enableIds = enableCt
+            .map((p) => p.ciphertextIdentifier)
+            .filter((id): id is string => typeof id === "string");
 
-      const dry = await backendApi.prepare.addIntent(walletSlug, {
-        file: SOL_TRANSFER_TEMPLATE,
-        proposers: initialMembers,
-        approvers: initialMembers,
-        threshold,
-        cancellation_threshold: 1,
-        timelock: delaySeconds,
-        policy_ciphertexts: enableIds,
-      });
-      const signed = await signDescriptor(dry);
-      const submitted = await backendApi.submit.addIntent(walletSlug, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        file: SOL_TRANSFER_TEMPLATE,
-      });
+          const dry = await backendApi.prepare.addIntent(walletSlug, {
+            file: SOL_TRANSFER_TEMPLATE,
+            proposers: initialMembers,
+            approvers: initialMembers,
+            threshold,
+            cancellation_threshold: 1,
+            timelock: delaySeconds,
+            policy_ciphertexts: enableIds,
+          });
+          identity.assertCurrent();
+          const signed = await signDescriptor(dry);
+          if (!dry.proposal_pubkey)
+            throw new Error(
+              "Setup preparation returned no request identity. Nothing was submitted.",
+            );
 
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error(
-          "Backend did not return a proposal address from enable-sending.",
-        );
-      }
+          setupRecovery.submitting(dry.proposal_pubkey);
 
-      const decision = await approveIfNeeded(connection, proposal);
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          walletSlug,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry);
-        await backendApi.submit.approveProposal(walletSlug, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-      await backendApi.executeProposal(walletSlug, proposal, {});
+          const submitted = await backendApi.submit.addIntent(walletSlug, {
+            ...signed,
+            params_data_hex: dry.params_data_hex,
+            expiry: dry.expiry,
+            file: SOL_TRANSFER_TEMPLATE,
+          });
 
-      return { walletSlug };
+          const proposal = (submitted as Record<string, unknown>)?.proposal;
+          if (typeof proposal !== "string" || proposal.length === 0) {
+            throw new Error(
+              "Backend did not return a proposal address from enable-sending.",
+            );
+          }
+
+          if (proposal !== dry.proposal_pubkey)
+            throw new Error(
+              "Setup response returned another request. Check the prepared request before retrying.",
+            );
+          setupRecovery.accepted(proposal);
+          const decision = await approveIfNeeded(connection, proposal);
+          if (decision.needsApproveSignature) {
+            throw new Error(
+              `Setup request ${proposal} is saved but requires an unsupported legacy approval. Open the existing request for status; do not create it again.`,
+            );
+          }
+          identity.assertCurrent();
+          await backendApi.executeProposal(walletSlug, proposal, {});
+
+          return { walletSlug };
+        },
+      );
     },
     onSuccess: ({ walletSlug }) => {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
@@ -287,9 +345,7 @@ function NewWalletContent() {
         details:
           "Email sign-in alone is weaker than a passkey. Open Security to enroll one for this device.",
       });
-      router.push(
-        postCreateHref(walletSlug, surface, purpose),
-      );
+      router.push(postCreateHref(walletSlug, surface, purpose));
     },
     onError: (err) => {
       console.error("[new-wallet] setupAll failed", err);
@@ -307,8 +363,7 @@ function NewWalletContent() {
   const setupInfo =
     purpose === "agent" ? agentSetupInfo() : productSetupFor(surface);
   const SetupIcon = setupInfo.Icon;
-  const showShapePicker =
-    purpose === "share" && surface === "personal";
+  const showShapePicker = purpose === "share" && surface === "personal";
 
   if (surface === "p2pdefi") {
     return <ProductComingSoon title="P2P DeFi is coming soon" />;
@@ -330,17 +385,17 @@ function NewWalletContent() {
             ? surface === "personal"
               ? "Create a personal wallet"
               : surface === "pro"
-              ? "Create a team treasury"
-              : surface === "payments"
+                ? "Create a team treasury"
+                : surface === "payments"
                   ? "Create a payments-ready workspace"
-              : "New shared wallet"
+                  : "New shared wallet"
             : purpose === "secure"
               ? surface === "secure"
                 ? "Set up personal recovery"
                 : "Secure your key"
               : purpose === "agent"
                 ? "Create an agent vault"
-              : "Create a wallet"}
+                : "Create a wallet"}
         </h1>
         <p className="max-w-md text-sm leading-relaxed text-text-soft">
           Start with a personal wallet, or choose a team or agent setup.
@@ -458,255 +513,280 @@ function NewWalletContent() {
           ClearSig wallet. The post-create route decides whether the
           user lands on wallet overview or the agent launch flow. */}
       {(purpose === "share" || purpose === "agent") && (
-      <section className="flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
-        {!lockedProduct ? (
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-              Wallet purpose
-            </p>
-            <div
-              className="mt-2 grid grid-cols-3 rounded-soft border border-border-soft bg-canvas p-1"
-              role="group"
-              aria-label="Wallet purpose"
-            >
-              {PRODUCT_CHOICES.map((choice) => {
-                const selected = surface === choice.id;
-                const Icon = choice.Icon;
-                return (
-                  <button
-                    key={choice.id}
-                    type="button"
-                    onClick={() => chooseProduct(choice.id)}
-                    aria-pressed={selected}
-                    className={clsx(
-                      "inline-flex min-h-tap items-center justify-center gap-2 rounded-[6px] px-2 py-2 text-xs font-semibold",
-                      "transition-[background-color,color,box-shadow] duration-base ease-out-soft",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
-                      selected
-                        ? "bg-surface-raised text-text-strong shadow-card-rest"
-                        : "text-text-soft hover:text-text-strong",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />
-                    <span>{choice.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        <ol className="grid grid-cols-3 gap-2">
-          {[
-            ["1", showShapePicker ? "Preset" : "Workspace"],
-            ["2", "Name"],
-            ["3", "Create"],
-          ].map(([step, label]) => (
-            <li
-              key={step}
-              className="flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2"
-            >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 font-numerals text-[11px] font-semibold text-accent">
-                {step}
-              </span>
-              <span className="truncate text-[11px] font-medium text-text-soft">
-                {label}
-              </span>
-            </li>
-          ))}
-        </ol>
-
-        {showShapePicker ? (
-          <div className="flex flex-col gap-3">
+        <section className="flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
+          {!lockedProduct ? (
             <div>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
-                Pick a starter wallet
-              </span>
-              <p className="mt-1 text-xs text-text-soft">
-                You can invite more people later.
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+                Wallet purpose
               </p>
-            </div>
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {PERSONAL_SHAPES.map((s) => {
-                const selected = shape === s.id;
-                return (
-                  <li key={s.id}>
+              <div
+                className="mt-2 grid grid-cols-3 rounded-soft border border-border-soft bg-canvas p-1"
+                role="group"
+                aria-label="Wallet purpose"
+              >
+                {PRODUCT_CHOICES.map((choice) => {
+                  const selected = surface === choice.id;
+                  const Icon = choice.Icon;
+                  return (
                     <button
+                      key={choice.id}
                       type="button"
-                      onClick={() => {
-                        setShape(s.id);
-                        if (!name.trim() || name === currentShape.defaultName) {
-                          setName(s.defaultName);
-                        }
-                      }}
+                      onClick={() => chooseProduct(choice.id)}
                       aria-pressed={selected}
                       className={clsx(
-                        "group flex h-full w-full items-start justify-between gap-3 rounded-soft border p-4 text-left",
-                        "transition-[border-color,background-color,transform] duration-base ease-out-soft",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+                        "inline-flex min-h-tap items-center justify-center gap-2 rounded-[6px] px-2 py-2 text-xs font-semibold",
+                        "transition-[background-color,color,box-shadow] duration-base ease-out-soft",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                         selected
-                          ? "border-accent bg-accent/[0.08] text-accent"
-                          : "border-border-soft bg-canvas text-text-soft hover:-translate-y-px hover:border-accent/40 hover:text-text-strong",
+                          ? "bg-surface-raised text-text-strong shadow-card-rest"
+                          : "text-text-soft hover:text-text-strong",
                       )}
                     >
-                      <div className="min-w-0">
-                        <p className="font-display text-sm font-semibold leading-tight text-text-strong">
-                          {s.label}
-                        </p>
-                        <p className="mt-1 text-xs text-text-soft">
-                          {s.blurb}
-                        </p>
-                      </div>
-                      <span
+                      <Icon
+                        className="h-4 w-4"
+                        strokeWidth={1.9}
+                        aria-hidden="true"
+                      />
+                      <span>{choice.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <ol className="grid grid-cols-3 gap-2">
+            {[
+              ["1", showShapePicker ? "Preset" : "Workspace"],
+              ["2", "Name"],
+              ["3", "Create"],
+            ].map(([step, label]) => (
+              <li
+                key={step}
+                className="flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2"
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 font-numerals text-[11px] font-semibold text-accent">
+                  {step}
+                </span>
+                <span className="truncate text-[11px] font-medium text-text-soft">
+                  {label}
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          {showShapePicker ? (
+            <div className="flex flex-col gap-3">
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+                  Pick a starter wallet
+                </span>
+                <p className="mt-1 text-xs text-text-soft">
+                  You can invite more people later.
+                </p>
+              </div>
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {PERSONAL_SHAPES.map((s) => {
+                  const selected = shape === s.id;
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShape(s.id);
+                          if (
+                            !name.trim() ||
+                            name === currentShape.defaultName
+                          ) {
+                            setName(s.defaultName);
+                          }
+                        }}
+                        aria-pressed={selected}
                         className={clsx(
-                          "shrink-0 rounded-full border px-2 py-0.5 font-numerals text-[10px] font-semibold tabular-nums",
+                          "group flex h-full w-full items-start justify-between gap-3 rounded-soft border p-4 text-left",
+                          "transition-[border-color,background-color,transform] duration-base ease-out-soft",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                           selected
-                            ? "border-accent/30 bg-accent/10 text-accent"
-                            : "border-border-soft bg-surface-raised text-text-soft",
+                            ? "border-accent bg-accent/[0.08] text-accent"
+                            : "border-border-soft bg-canvas text-text-soft hover:-translate-y-px hover:border-accent/40 hover:text-text-strong",
                         )}
                       >
-                        {s.expectedMembers}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : (
-          <div className="rounded-soft border border-border-soft bg-canvas p-4">
-            <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <SetupIcon className="h-4 w-4" strokeWidth={1.75} />
-              </span>
-              <div className="min-w-0">
-                <p className="font-display text-sm font-semibold leading-tight text-text-strong">
-                  {setupInfo.label}
-                </p>
-                <p className="mt-1 text-xs text-text-soft">
-                  {setupInfo.body}
-                </p>
-              </div>
+                        <div className="min-w-0">
+                          <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                            {s.label}
+                          </p>
+                          <p className="mt-1 text-xs text-text-soft">
+                            {s.blurb}
+                          </p>
+                        </div>
+                        <span
+                          className={clsx(
+                            "shrink-0 rounded-full border px-2 py-0.5 font-numerals text-[10px] font-semibold tabular-nums",
+                            selected
+                              ? "border-accent/30 bg-accent/10 text-accent"
+                              : "border-border-soft bg-surface-raised text-text-soft",
+                          )}
+                        >
+                          {s.expectedMembers}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-          </div>
-        )}
-
-        {importMode && surface === "pro" ? (
-          <section className="rounded-soft border border-border-soft bg-canvas p-4">
-            <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <Upload className="h-4 w-4" strokeWidth={1.75} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-display text-sm font-semibold leading-tight text-text-strong">
-                  Import signers
-                </p>
-                <p className="mt-1 text-xs text-text-soft">
-                  {proRuntime.importSources.join(" / ")}
-                </p>
-              </div>
-            </div>
-            <textarea
-              aria-label="Signers to import"
-              value={importText}
-              onChange={(event) => setImportText(event.target.value)}
-              rows={5}
-              placeholder="name,address,role"
-              spellCheck={false}
-              className="mt-3 min-h-28 w-full resize-y rounded-soft border border-border-soft bg-surface-raised px-3 py-2 font-mono text-xs leading-relaxed text-text-strong outline-none placeholder:text-text-soft/60 focus:border-accent/50"
-            />
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-numerals text-[11px] tabular-nums text-text-soft">
-                {importedSigners.length + 1} signer{importedSigners.length === 0 ? "" : "s"}
-              </span>
-              {importedSigners.slice(0, 3).map((address) => (
-                <span
-                  key={address}
-                  className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-mono text-[10px] text-text-soft"
-                >
-                  {shortAddress(address)}
-                </span>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {/* Name */}
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="new-wallet-name"
-            className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft"
-          >
-            Name your wallet
-          </label>
-          <div className="flex items-stretch gap-3">
-            <span
-              aria-hidden="true"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/15 text-lg font-semibold text-accent ring-1 ring-accent/30"
-            >
-              {cleanName.charAt(0).toUpperCase() || "?"}
-            </span>
-            <input
-              id="new-wallet-name"
-              aria-label="Wallet name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={currentShape.defaultName}
-              maxLength={57}
-              autoFocus
-              className={clsx(
-                "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2.5 text-sm text-text-strong outline-none",
-                "transition-[border-color,box-shadow] duration-base ease-out-soft",
-                "placeholder:text-text-soft/60",
-                "focus:border-accent focus:shadow-accent-rest",
-              )}
-            />
-          </div>
-        </div>
-
-        <div className="inline-flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs text-text-soft">
-          <ShieldCheck className="h-3.5 w-3.5 text-accent" strokeWidth={2} aria-hidden="true" />
-          <span>Your wallet will ask you to confirm. No funds move.</span>
-        </div>
-
-        {/* Create CTA */}
-        <button
-          type="button"
-          onClick={() => setupAll.mutate()}
-          disabled={!nameValid || setupAll.isPending || isBrokenSigner}
-          className={clsx(
-            "inline-flex min-h-tap-lg w-full items-center justify-center gap-2 rounded-soft bg-accent px-5 py-3 text-sm font-semibold text-text-on-accent shadow-accent-rest",
-            "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
-            "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
-            "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent disabled:hover:shadow-accent-rest",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
-          )}
-        >
-          {setupAll.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              Creating
-            </>
-          ) : isBrokenSigner ? (
-            <span className="truncate">Sign in with a different wallet</span>
           ) : (
-            <>
-              <Sparkles className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
-              <span className="truncate">
-                Create {cleanName || (purpose === "agent" ? "Agent vault" : currentShape.defaultName)}
-              </span>
-              <ArrowRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-            </>
+            <div className="rounded-soft border border-border-soft bg-canvas p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                  <SetupIcon className="h-4 w-4" strokeWidth={1.75} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                    {setupInfo.label}
+                  </p>
+                  <p className="mt-1 text-xs text-text-soft">
+                    {setupInfo.body}
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
-        </button>
 
-        {isBrokenSigner && (
-          <p className="text-center text-[11px] uppercase tracking-[0.2em] text-text-soft/80">
-            This account is on the legacy embedded signer path.
-            Recreate the embedded wallet or use a hardware wallet.
-          </p>
-        )}
-      </section>
+          {importMode && surface === "pro" ? (
+            <section className="rounded-soft border border-border-soft bg-canvas p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                  <Upload className="h-4 w-4" strokeWidth={1.75} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-display text-sm font-semibold leading-tight text-text-strong">
+                    Import signers
+                  </p>
+                  <p className="mt-1 text-xs text-text-soft">
+                    {proRuntime.importSources.join(" / ")}
+                  </p>
+                </div>
+              </div>
+              <textarea
+                aria-label="Signers to import"
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+                rows={5}
+                placeholder="name,address,role"
+                spellCheck={false}
+                className="mt-3 min-h-28 w-full resize-y rounded-soft border border-border-soft bg-surface-raised px-3 py-2 font-mono text-xs leading-relaxed text-text-strong outline-none placeholder:text-text-soft/60 focus:border-accent/50"
+              />
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-numerals text-[11px] tabular-nums text-text-soft">
+                  {importedSigners.length + 1} signer
+                  {importedSigners.length === 0 ? "" : "s"}
+                </span>
+                {importedSigners.slice(0, 3).map((address) => (
+                  <span
+                    key={address}
+                    className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-mono text-[10px] text-text-soft"
+                  >
+                    {shortAddress(address)}
+                  </span>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Name */}
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="new-wallet-name"
+              className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft"
+            >
+              Name your wallet
+            </label>
+            <div className="flex items-stretch gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/15 text-lg font-semibold text-accent ring-1 ring-accent/30"
+              >
+                {cleanName.charAt(0).toUpperCase() || "?"}
+              </span>
+              <input
+                id="new-wallet-name"
+                aria-label="Wallet name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={currentShape.defaultName}
+                maxLength={57}
+                autoFocus
+                className={clsx(
+                  "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2.5 text-sm text-text-strong outline-none",
+                  "transition-[border-color,box-shadow] duration-base ease-out-soft",
+                  "placeholder:text-text-soft/60",
+                  "focus:border-accent focus:shadow-accent-rest",
+                )}
+              />
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs text-text-soft">
+            <ShieldCheck
+              className="h-3.5 w-3.5 text-accent"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+            <span>Your wallet will ask you to confirm. No funds move.</span>
+          </div>
+
+          <LegacySetupNotice error={setupAll.error} />
+          {/* Create CTA */}
+          <button
+            type="button"
+            onClick={() => setupAll.mutate()}
+            disabled={!nameValid || setupAll.isPending || isBrokenSigner}
+            className={clsx(
+              "inline-flex min-h-tap-lg w-full items-center justify-center gap-2 rounded-soft bg-accent px-5 py-3 text-sm font-semibold text-text-on-accent shadow-accent-rest",
+              "transition-[background-color,box-shadow,transform] duration-base ease-out-soft",
+              "hover:bg-accent-hover hover:shadow-accent-hover active:scale-[0.98]",
+              "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent disabled:hover:shadow-accent-rest",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
+            )}
+          >
+            {setupAll.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Creating
+              </>
+            ) : isBrokenSigner ? (
+              <span className="truncate">Sign in with a different wallet</span>
+            ) : (
+              <>
+                <Sparkles
+                  className="h-4 w-4"
+                  strokeWidth={2.25}
+                  aria-hidden="true"
+                />
+                <span className="truncate">
+                  Create{" "}
+                  {cleanName ||
+                    (purpose === "agent"
+                      ? "Agent vault"
+                      : currentShape.defaultName)}
+                </span>
+                <ArrowRight
+                  className="h-4 w-4"
+                  strokeWidth={2.5}
+                  aria-hidden="true"
+                />
+              </>
+            )}
+          </button>
+
+          {isBrokenSigner && (
+            <p className="text-center text-[11px] uppercase tracking-[0.2em] text-text-soft/80">
+              This account is on the legacy embedded signer path. Recreate the
+              embedded wallet or use a hardware wallet.
+            </p>
+          )}
+        </section>
       )}
 
       {/* Quiet exit - back to the app entry. Sits below the form so

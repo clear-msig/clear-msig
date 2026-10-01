@@ -32,7 +32,16 @@ import { readCanonicalProposalReview } from "@/lib/clearsign/readProposalReview"
 import {
   readCancellationContext,
   bindCancellationDescriptor,
+  readOwnedProposalContext,
 } from "@/lib/clearsign/cancellationReview";
+import { requestRecovery } from "@/lib/clearsign/requestRecovery";
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
+import {
+  executionKind,
+  verifiedExecutionSubmission,
+  nativeSolExecutionFromReview,
+  type ExecutionOutcome,
+} from "@/lib/clearsign/proposalExecution";
 import { unvotedMembers } from "@/lib/retail/proposalVotes";
 import { bindApprovalDescriptor } from "@/lib/clearsign/proposalReview";
 
@@ -52,20 +61,37 @@ export function useProposalWorkflow(
     selectedProposal,
     walletName,
   ].join("|");
-  const mounted = useRef(true);
+  const lifecycle = useRef({ identity, generation: 0, mounted: true });
+  if (lifecycle.current.identity !== identity) {
+    lifecycle.current.identity = identity;
+    lifecycle.current.generation += 1;
+  }
   useEffect(() => {
-    mounted.current = true;
+    const state = lifecycle.current;
+    state.mounted = true;
     return () => {
-      mounted.current = false;
+      state.mounted = false;
+      state.generation += 1;
     };
   }, []);
-  const liveIdentity = useRef(identity);
-  liveIdentity.current = identity;
-  const assertIdentity = () => {
-    if (!mounted.current || liveIdentity.current !== identity)
+  // Capture per attempt, not per render: StrictMode's setup/cleanup cycle must
+  // invalidate pending work without making a fresh click unusable.
+  const identityGuard = () => {
+    const generation = lifecycle.current.generation;
+    if (!lifecycle.current.mounted || lifecycle.current.identity !== identity)
       throw new Error(
         "Account, network or request changed. Start again from the current request.",
       );
+    return () => {
+      if (
+        !lifecycle.current.mounted ||
+        lifecycle.current.generation !== generation ||
+        lifecycle.current.identity !== identity
+      )
+        throw new Error(
+          "Account, network or request changed. Start again from the current request.",
+        );
+    };
   };
 
   // Push live bitmap updates straight into the ["proposal", addr] cache.
@@ -117,6 +143,7 @@ export function useProposalWorkflow(
   const approvalInFlight = useRef(false);
   const approveMutation = useMutation({
     mutationFn: async (reviewedId?: string) => {
+      const assertIdentity = identityGuard();
       if (approvalInFlight.current)
         throw new Error("An approval is already in progress.");
       approvalInFlight.current = true;
@@ -202,6 +229,7 @@ export function useProposalWorkflow(
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
+      const assertIdentity = identityGuard();
       if (approvalInFlight.current)
         throw new Error("A request vote is already in progress.");
       approvalInFlight.current = true;
@@ -278,21 +306,177 @@ export function useProposalWorkflow(
   });
 
   const executeMutation = useMutation({
-    mutationFn: async (input: ExecuteProposalInput) => {
-      const proposal = await fetchProposal(
-        connection,
-        new PublicKey(selectedProposal),
-      );
-      if (proposal?.typed) {
-        if ([3, 4, 5].includes(proposal.actionKind)) {
-          return backendApi.executeTypedIntentGovernance(
-            walletName,
-            selectedProposal,
+    mutationFn: async (
+      input: ExecuteProposalInput,
+    ): Promise<ExecutionOutcome> => {
+      const assertIdentity = identityGuard();
+      if (approvalInFlight.current)
+        throw new Error("A request action is already in progress.");
+      if (
+        requestRecovery.executionFor(connection.rpcEndpoint, selectedProposal)
+      )
+        throw new Error(
+          "Execution may already have been submitted. Check this existing request's status before any further action.",
+        );
+      approvalInFlight.current = true;
+      let recovery: ReturnType<typeof requestRecovery.begin> | undefined;
+      try {
+        const context = await readOwnedProposalContext(
+          connection,
+          selectedProposal,
+          walletName,
+        );
+        assertIdentity();
+        if (!context || context.proposal.status !== 1)
+          throw new Error(
+            "This verified request is not approved for execution.",
           );
+        const { proposal, intent } = context;
+        const kind = executionKind(proposal, intent);
+        let native: ReturnType<typeof nativeSolExecutionFromReview> | undefined;
+        if (
+          proposal.typed &&
+          proposal.actionKind === 1 &&
+          intent.chainKind === 0
+        ) {
+          const review = await readCanonicalProposalReview(
+            connection,
+            selectedProposal,
+            walletName,
+          );
+          if (
+            reviewQuery.isError ||
+            review.reviewId !== reviewQuery.data?.reviewId
+          )
+            throw new Error(
+              "Refresh and review the verified native SOL details before executing.",
+            );
+          native = nativeSolExecutionFromReview(review, intent.chainKind);
+          const fresh = await readCanonicalProposalReview(
+            connection,
+            selectedProposal,
+            walletName,
+          );
+          assertIdentity();
+          if (fresh.reviewId !== review.reviewId || fresh.status !== 1)
+            throw new Error(
+              "Native SOL request changed. Refresh its exact details before execution.",
+            );
+        } else if (proposal.typed && ![3, 4, 5].includes(proposal.actionKind))
+          throw new Error(
+            "This request needs an action-specific recovery executor that is not available on this page. Generic execution cannot perform this action. No execution was submitted; reviewing and cancelling remain available.",
+          );
+        recovery = requestRecovery.begin({
+          walletName,
+          endpoint: connection.rpcEndpoint,
+          accountKey: requestAccountKey(
+            wallet.sessionSubject,
+            wallet.publicKey?.toBase58() ?? null,
+          ),
+          label: "Execution of existing request",
+          identity: ["execute", selectedProposal],
+          phase: "execution",
+        });
+        assertIdentity();
+        recovery.submitting(selectedProposal);
+        const response = native
+          ? await backendApi.executeTypedSolSend(
+              walletName,
+              selectedProposal,
+              native,
+              { retry: false },
+            )
+          : proposal.typed
+            ? [3, 4, 5].includes(proposal.actionKind)
+              ? await backendApi.executeTypedIntentGovernance(
+                  walletName,
+                  selectedProposal,
+                  {},
+                  { retry: false },
+                )
+              : await backendApi.executeTypedProposal(
+                  walletName,
+                  selectedProposal,
+                  { retry: false },
+                )
+            : await backendApi.executeProposal(
+                walletName,
+                selectedProposal,
+                input,
+                { retry: false },
+              );
+        const txid = verifiedExecutionSubmission(
+          response,
+          selectedProposal,
+          proposal,
+          intent,
+          native,
+        );
+        recovery.accepted(selectedProposal, txid);
+        assertIdentity();
+        let verified = null;
+        try {
+          verified = await readOwnedProposalContext(
+            connection,
+            selectedProposal,
+            walletName,
+          );
+        } catch {
+          /* submitted is not finalized */
         }
-        return backendApi.executeTypedProposal(walletName, selectedProposal);
+        assertIdentity();
+        const confirmed =
+          kind !== "external" && verified?.proposal.status === 2;
+        if (confirmed) recovery.complete();
+        return {
+          state: confirmed ? "confirmed" : "submitted",
+          proposal: selectedProposal,
+          kind,
+          txid,
+        };
+      } catch (cause) {
+        if (
+          requestRecovery.executionFor(connection.rpcEndpoint, selectedProposal)
+        )
+          throw new Error(
+            `Execution outcome is not confirmed. Request ${selectedProposal} is preserved; check its status before trying anything else. ${cause instanceof Error ? cause.message : "The response was unavailable."}`,
+          );
+        throw cause;
+      } finally {
+        recovery?.finish();
+        approvalInFlight.current = false;
       }
-      return backendApi.executeProposal(walletName, selectedProposal, input);
+    },
+    onSettled: async () => {
+      await detailQuery.refetch();
+      await listQuery.refetch();
+    },
+  });
+  const checkExecutionMutation = useMutation({
+    mutationFn: async (): Promise<ExecutionOutcome> => {
+      const assertIdentity = identityGuard();
+      const context = await readOwnedProposalContext(
+        connection,
+        selectedProposal,
+        walletName,
+      );
+      assertIdentity();
+      if (!context)
+        throw new Error(
+          "Request could not be verified. No execution was retried.",
+        );
+      const kind = executionKind(context.proposal, context.intent);
+      const confirmed = kind !== "external" && context.proposal.status === 2;
+      if (confirmed)
+        requestRecovery.resolveExecution(
+          connection.rpcEndpoint,
+          selectedProposal,
+        );
+      return {
+        state: confirmed ? "confirmed" : "unknown",
+        proposal: selectedProposal,
+        kind,
+      };
     },
     onSuccess: async () => {
       await detailQuery.refetch();
@@ -314,6 +498,11 @@ export function useProposalWorkflow(
     approveMutation,
     cancelMutation,
     executeMutation,
+    checkExecutionMutation,
+    executionAttempt: requestRecovery.executionFor(
+      connection.rpcEndpoint,
+      selectedProposal,
+    ),
     cleanupMutation,
   };
 }

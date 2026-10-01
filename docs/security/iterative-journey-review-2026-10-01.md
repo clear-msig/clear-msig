@@ -156,3 +156,13 @@ consumption. These are tested with synthetic provider inputs and temporary local
 Redis; they do not establish live execution readiness. Root Rust/SBF remains
 unchanged. Any program deployment needs separate authorization; credentials
 alone cannot resolve missing protocol capability or incomplete composition.
+
+## Subsequent independent-review correction
+
+The c617900 checkpoint missed execution-evidence handling in the inbox recovery
+consumer and batch, unmount/A→B→A signing lifetime cases, and legacy setup
+producer compatibility. Its J08 completion statement must not be read as
+end-to-end coverage of those paths. See
+[the correction review](correction-review-2026-10-01.md) for the fixes, exact
+remaining capability boundaries and final handoff evidence. Historical counts
+above describe the earlier checkpoint, not the correction tree.

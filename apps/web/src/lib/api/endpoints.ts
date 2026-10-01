@@ -27,7 +27,7 @@ import type {
   SignedTypedProposalCreateInput,
   SignedUpdateIntentInput,
   TypedDryRunDescriptor,
-  WalletChainsResponse
+  WalletChainsResponse,
 } from "@/lib/api/types";
 
 export const backendApi = {
@@ -38,7 +38,10 @@ export const backendApi = {
       execution_workers: number;
     }>("/health", "GET"),
   memberships: (address: string) =>
-    apiRequest<Record<string, unknown>>(`/memberships?address=${encodeURIComponent(address)}`, "GET"),
+    apiRequest<Record<string, unknown>>(
+      `/memberships?address=${encodeURIComponent(address)}`,
+      "GET",
+    ),
 
   // Bootstrap ops (no user signature required . on-chain instructions are
   // payed for and submitted by the relayer's sponsored-gas keypair).
@@ -47,11 +50,19 @@ export const backendApi = {
   // submit lands can replay the same instruction against an already
   // initialized PDA and turn a partial success into a hard failure.
   createWallet: (input: CreateWalletInput) =>
-    apiRequest<Record<string, unknown>, CreateWalletInput>("/wallets", "POST", input, {
-      timeoutMs: 55_000,
-    }),
+    apiRequest<Record<string, unknown>, CreateWalletInput>(
+      "/wallets",
+      "POST",
+      input,
+      {
+        timeoutMs: 55_000,
+      },
+    ),
   showWallet: (walletName: string) =>
-    apiRequest<Record<string, unknown>>(`/wallets/${encodeURIComponent(walletName)}`, "GET"),
+    apiRequest<Record<string, unknown>>(
+      `/wallets/${encodeURIComponent(walletName)}`,
+      "GET",
+    ),
   listWalletChains: (walletName: string) =>
     apiRequest<WalletChainsResponse>(
       `/wallets/${encodeURIComponent(walletName)}/chains`,
@@ -77,11 +88,20 @@ export const backendApi = {
 
   // Reads.
   listIntents: (walletName: string) =>
-    apiRequest<unknown[]>(`/wallets/${encodeURIComponent(walletName)}/intents`, "GET"),
+    apiRequest<unknown[]>(
+      `/wallets/${encodeURIComponent(walletName)}/intents`,
+      "GET",
+    ),
   listProposals: (walletName: string) =>
-    apiRequest<unknown[]>(`/wallets/${encodeURIComponent(walletName)}/proposals`, "GET"),
+    apiRequest<unknown[]>(
+      `/wallets/${encodeURIComponent(walletName)}/proposals`,
+      "GET",
+    ),
   showProposal: (proposalAddress: string) =>
-    apiRequest<Record<string, unknown>>(`/proposals/${encodeURIComponent(proposalAddress)}`, "GET"),
+    apiRequest<Record<string, unknown>>(
+      `/proposals/${encodeURIComponent(proposalAddress)}`,
+      "GET",
+    ),
 
   // ── Dry-run "what do I sign?" routes ──────────────────────────────────
   prepare: {
@@ -110,36 +130,55 @@ export const backendApi = {
         "POST",
         withFreshExpiry(input),
       ),
-    createTypedProposal: (walletName: string, input: PrepareTypedProposalCreateInput) =>
+    createTypedProposal: (
+      walletName: string,
+      input: PrepareTypedProposalCreateInput,
+    ) =>
       apiRequest<TypedDryRunDescriptor, PrepareTypedProposalCreateInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/typed/create`,
         "POST",
         withFreshExpiry(input),
       ),
-    approveProposal: (walletName: string, proposalAddress: string, input: PrepareApproveCancelInput) =>
+    approveProposal: (
+      walletName: string,
+      proposalAddress: string,
+      input: PrepareApproveCancelInput,
+    ) =>
       apiRequest<DryRunDescriptor, PrepareApproveCancelInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/approve`,
         "POST",
         withFreshExpiry(input),
       ),
-    approveTypedProposal: (walletName: string, proposalAddress: string, input: PrepareApproveCancelInput) =>
+    approveTypedProposal: (
+      walletName: string,
+      proposalAddress: string,
+      input: PrepareApproveCancelInput,
+    ) =>
       apiRequest<TypedDryRunDescriptor, PrepareApproveCancelInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-approve`,
         "POST",
         withFreshExpiry(input),
       ),
-    cancelProposal: (walletName: string, proposalAddress: string, input: PrepareApproveCancelInput) =>
+    cancelProposal: (
+      walletName: string,
+      proposalAddress: string,
+      input: PrepareApproveCancelInput,
+    ) =>
       apiRequest<DryRunDescriptor, PrepareApproveCancelInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/cancel`,
         "POST",
         withFreshExpiry(input),
       ),
-    cancelTypedProposal: (walletName: string, proposalAddress: string, input: PrepareApproveCancelInput) =>
+    cancelTypedProposal: (
+      walletName: string,
+      proposalAddress: string,
+      input: PrepareApproveCancelInput,
+    ) =>
       apiRequest<TypedDryRunDescriptor, PrepareApproveCancelInput>(
         `/prepare/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-cancel`,
         "POST",
         withFreshExpiry(input),
-      )
+      ),
   },
 
   // ── Signed submit routes ─────────────────────────────────────────────
@@ -160,72 +199,104 @@ export const backendApi = {
       apiRequest<Record<string, unknown>, SignedRemoveIntentInput>(
         `/wallets/${encodeURIComponent(walletName)}/intents/remove`,
         "POST",
-        input
+        input,
       ),
     updateIntent: (walletName: string, input: SignedUpdateIntentInput) =>
       apiRequest<Record<string, unknown>, SignedUpdateIntentInput>(
         `/wallets/${encodeURIComponent(walletName)}/intents/update`,
         "POST",
-        input
+        input,
       ),
     createProposal: (walletName: string, input: SignedCreateProposalInput) =>
       apiRequest<Record<string, unknown>, SignedCreateProposalInput>(
         `/wallets/${encodeURIComponent(walletName)}/proposals`,
         "POST",
-        input
+        input,
       ),
-    createTypedProposal: (walletName: string, input: SignedTypedProposalCreateInput) =>
+    createTypedProposal: (
+      walletName: string,
+      input: SignedTypedProposalCreateInput,
+    ) =>
       apiRequest<Record<string, unknown>, SignedTypedProposalCreateInput>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/typed`,
         "POST",
-        input
+        input,
       ),
-    approveProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
+    approveProposal: (
+      walletName: string,
+      proposalAddress: string,
+      input: SignedApproveCancelInput,
+    ) =>
       apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/approve`,
         "POST",
         input,
         { timeoutMs: 55_000 },
       ),
-    approveTypedProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
+    approveTypedProposal: (
+      walletName: string,
+      proposalAddress: string,
+      input: SignedApproveCancelInput,
+    ) =>
       apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-approve`,
         "POST",
         input,
         { timeoutMs: 55_000 },
       ),
-    cancelProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
+    cancelProposal: (
+      walletName: string,
+      proposalAddress: string,
+      input: SignedApproveCancelInput,
+    ) =>
       apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/cancel`,
         "POST",
-        input
+        input,
       ),
-    cancelTypedProposal: (walletName: string, proposalAddress: string, input: SignedApproveCancelInput) =>
+    cancelTypedProposal: (
+      walletName: string,
+      proposalAddress: string,
+      input: SignedApproveCancelInput,
+    ) =>
       apiRequest<Record<string, unknown>, SignedApproveCancelInput>(
         `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-cancel`,
         "POST",
-        input
-      )
+        input,
+      ),
   },
 
-  executeProposal: (walletName: string, proposalAddress: string, input: ExecuteProposalInput) =>
-    withRetry(() =>
-      apiRequest<Record<string, unknown>, ExecuteProposalInput>(
-        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/execute`,
-        "POST",
-        input,
-        { timeoutMs: 55_000 },
-      ),
+  executeProposal: (
+    walletName: string,
+    proposalAddress: string,
+    input: ExecuteProposalInput,
+    options: { retry?: boolean } = {},
+  ) =>
+    withRetry(
+      () =>
+        apiRequest<Record<string, unknown>, ExecuteProposalInput>(
+          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/execute`,
+          "POST",
+          input,
+          { timeoutMs: 55_000 },
+        ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
-  executeTypedProposal: (walletName: string, proposalAddress: string) =>
-    withRetry(() =>
-      apiRequest<Record<string, unknown>, Record<string, never>>(
-        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-execute`,
-        "POST",
-        {},
-        { timeoutMs: 55_000 },
-      ),
+  executeTypedProposal: (
+    walletName: string,
+    proposalAddress: string,
+    options: { retry?: boolean } = {},
+  ) =>
+    withRetry(
+      () =>
+        apiRequest<Record<string, unknown>, Record<string, never>>(
+          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-execute`,
+          "POST",
+          {},
+          { timeoutMs: 55_000 },
+        ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedEscrowRelease: (
@@ -529,14 +600,17 @@ export const backendApi = {
       recipient: string;
       amountLamports: number;
     },
+    options: { retry?: boolean } = {},
   ) =>
-    withRetry(() =>
-      apiRequest<Record<string, unknown>, typeof input>(
-        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-sol-send`,
-        "POST",
-        input,
-        { timeoutMs: 55_000 },
-      ),
+    withRetry(
+      () =>
+        apiRequest<Record<string, unknown>, typeof input>(
+          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-sol-send`,
+          "POST",
+          input,
+          { timeoutMs: 55_000 },
+        ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedWalletPolicyUpdate: (
@@ -580,25 +654,30 @@ export const backendApi = {
   executeTypedIntentGovernance: (
     walletName: string,
     proposalAddress: string,
-    input: {
-      actionKind: number;
-      targetIndex: number;
-      newIntentBodyHex?: string;
-      file?: string;
-      proposers?: string[];
-      approvers?: string[];
-      threshold?: number;
-      cancellationThreshold?: number;
-      timelock?: number;
-    } | Record<string, never> = {},
+    input:
+      | {
+          actionKind: number;
+          targetIndex: number;
+          newIntentBodyHex?: string;
+          file?: string;
+          proposers?: string[];
+          approvers?: string[];
+          threshold?: number;
+          cancellationThreshold?: number;
+          timelock?: number;
+        }
+      | Record<string, never> = {},
+    options: { retry?: boolean } = {},
   ) =>
-    withRetry(() =>
-      apiRequest<Record<string, unknown>, typeof input>(
-        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-intent-governance`,
-        "POST",
-        input,
-        { timeoutMs: 55_000 },
-      ),
+    withRetry(
+      () =>
+        apiRequest<Record<string, unknown>, typeof input>(
+          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-intent-governance`,
+          "POST",
+          input,
+          { timeoutMs: 55_000 },
+        ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedChainSend: (
@@ -631,14 +710,17 @@ export const backendApi = {
     input: {
       payments: Array<{ recipient: string; amountLamports: number }>;
     },
+    options: { retry?: boolean } = {},
   ) =>
-    withRetry(() =>
-      apiRequest<Record<string, unknown>, typeof input>(
-        `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-sol-batch-send`,
-        "POST",
-        input,
-        { timeoutMs: 55_000 },
-      ),
+    withRetry(
+      () =>
+        apiRequest<Record<string, unknown>, typeof input>(
+          `/wallets/${encodeURIComponent(walletName)}/proposals/${encodeURIComponent(proposalAddress)}/typed-sol-batch-send`,
+          "POST",
+          input,
+          { timeoutMs: 55_000 },
+        ),
+      options.retry === false ? { maxAttempts: 1 } : undefined,
     ),
 
   executeTypedAgentTradeApproval: (
@@ -735,6 +817,6 @@ export const backendApi = {
     apiRequest<Record<string, unknown>, Record<string, never>>(
       `/proposals/${encodeURIComponent(proposalAddress)}/cleanup`,
       "POST",
-      {}
-    )
+      {},
+    ),
 };

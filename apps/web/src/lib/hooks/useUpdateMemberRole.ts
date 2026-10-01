@@ -152,7 +152,7 @@ export function useUpdateMemberRole() {
             : "add_member";
 
       const result = await completeTypedGovernance({
-        requestIdentity,
+        requestIdentity: requestIdentity.capture(),
         connection,
         walletName,
         walletId: walletData.pda.toBase58(),

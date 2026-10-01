@@ -249,7 +249,7 @@ export default function AddFriendPage() {
 
       const voteIntent = updateIntent?.account ?? intent;
       const result = await completeTypedGovernance({
-        requestIdentity,
+        requestIdentity: requestIdentity.capture(),
         connection,
         walletName: name,
         walletId: walletQuery.data?.pda.toBase58() ?? name,

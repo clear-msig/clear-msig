@@ -6,6 +6,7 @@ export class SendRecovery {
   private running = false;
   private currentScope: string;
   private scopeVersion = 0;
+  private mounted = true;
   private memory = new Map<string, SavedSend>();
   constructor(
     scope: string,
@@ -17,6 +18,13 @@ export class SendRecovery {
   scope(scope: string) {
     if (scope !== this.currentScope) this.scopeVersion += 1;
     this.currentScope = scope;
+  }
+  mount() {
+    this.mounted = true;
+  }
+  unmount() {
+    this.mounted = false;
+    this.scopeVersion += 1;
   }
   private key(scope: string) {
     return `clearsig:send-recovery:v1:${scope}`;
@@ -51,6 +59,10 @@ export class SendRecovery {
     this.changed();
   }
   begin() {
+    if (!this.mounted)
+      throw new Error(
+        "The send page has closed. Review the existing request before retrying.",
+      );
     const scope = this.currentScope;
     const version = this.scopeVersion;
     if (this.running) throw new Error("A send is already in progress.");
@@ -62,6 +74,7 @@ export class SendRecovery {
     let finished = false;
     const assertCurrent = () => {
       if (
+        !this.mounted ||
         finished ||
         scope !== this.currentScope ||
         version !== this.scopeVersion

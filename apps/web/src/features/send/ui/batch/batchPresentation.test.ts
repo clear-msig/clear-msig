@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { batchResultCopy, formatBatchLamports } from "./batchPresentation";
-import type { BatchSendOutcome, BatchSendProgress } from "@/lib/hooks/useBatchSend";
+import type {
+  BatchSendOutcome,
+  BatchSendProgress,
+} from "@/lib/hooks/useBatchSend";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DoneStage } from "./BatchDoneStage";
@@ -19,13 +22,30 @@ describe("reviewed batch amounts", () => {
 
 describe("batch outcome UI", () => {
   function progress(outcome: BatchSendOutcome): BatchSendProgress {
-    return { total: 2, succeeded: outcome === "created" || outcome === "executed" ? 2 : 0, failed: outcome === "failed" ? 2 : 0, failures: [], done: true, outcome };
+    return {
+      total: 2,
+      succeeded:
+        outcome === "created" || outcome === "execution_submitted" ? 2 : 0,
+      failed: outcome === "failed" ? 2 : 0,
+      failures: [],
+      done: true,
+      outcome,
+    };
   }
 
   it("does not mistake an unknown submission for success or invite duplicate retry", () => {
     const result = progress("submission_unknown");
-    expect(batchResultCopy(result)).toMatchObject({ successful: false, canRestart: false });
-    const markup = renderToStaticMarkup(createElement(DoneStage, { walletName: "treasury", progress: result, onSendAnother: () => {} }));
+    expect(batchResultCopy(result)).toMatchObject({
+      successful: false,
+      canRestart: false,
+    });
+    const markup = renderToStaticMarkup(
+      createElement(DoneStage, {
+        walletName: "treasury",
+        progress: result,
+        onSendAnother: () => {},
+      }),
+    );
     expect(markup).toContain("Check batch status");
     expect(markup).toContain("Check Activity before retrying");
     expect(markup).not.toContain("Send another batch");
@@ -33,17 +53,54 @@ describe("batch outcome UI", () => {
     expect(markup).not.toContain("awaiting treasury approvals");
   });
 
-  it.each(["cancelled", "failed"] as const)("allows editing the preserved draft after %s", (outcome) => {
-    expect(batchResultCopy(progress(outcome))).toMatchObject({ successful: false, canRestart: true, restartLabel: "Edit batch" });
-  });
+  it.each(["cancelled", "failed"] as const)(
+    "allows editing the preserved draft after %s",
+    (outcome) => {
+      expect(batchResultCopy(progress(outcome))).toMatchObject({
+        successful: false,
+        canRestart: true,
+        restartLabel: "Edit batch",
+      });
+    },
+  );
 
   it("distinguishes a created request from submitted execution", () => {
-    expect(batchResultCopy(progress("created")).heading).toBe("Batch request created");
-    expect(batchResultCopy(progress("executed")).heading).toBe("Batch execution submitted");
-    expect(batchResultCopy(progress("executed")).description).toContain("execution status");
+    expect(batchResultCopy(progress("created")).heading).toBe(
+      "Batch request created",
+    );
+    expect(batchResultCopy(progress("execution_submitted")).heading).toBe(
+      "Batch execution submitted",
+    );
+    expect(
+      batchResultCopy(progress("execution_submitted")).description,
+    ).toContain("execution status");
   });
 
   it("preserves the operation's more specific reconciliation message", () => {
-    expect(batchResultCopy({ ...progress("created"), message: "Stopped after submission. Existing request remains." }).description).toBe("Stopped after submission. Existing request remains.");
+    expect(
+      batchResultCopy({
+        ...progress("created"),
+        message: "Stopped after submission. Existing request remains.",
+      }).description,
+    ).toBe("Stopped after submission. Existing request remains.");
+  });
+  it("does not offer blind retry after unverified execution and keeps the request address", () => {
+    const result = {
+      ...progress("execution_unknown"),
+      succeeded: 2,
+      proposalPdas: ["11111111111111111111111111111111"],
+    };
+    const markup = renderToStaticMarkup(
+      createElement(DoneStage, {
+        walletName: "treasury",
+        progress: result,
+        onSendAnother: () => {},
+      }),
+    );
+    expect(markup).toContain("Check batch execution status");
+    expect(markup).toContain("Open existing request");
+    expect(markup).toContain("/app/proposals/11111111111111111111111111111111");
+    expect(markup).not.toContain("Send another batch");
+    expect(markup).not.toContain("Edit batch");
   });
 });

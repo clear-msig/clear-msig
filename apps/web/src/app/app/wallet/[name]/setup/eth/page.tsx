@@ -1,4 +1,8 @@
 "use client";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
+import { LegacySetupNotice } from "@/components/review/LegacySetupNotice";
+import { withAutomaticLegacySetup } from "@/lib/chain/legacySetup";
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 
 // Turn on Ethereum sending. Mirrors /setup but for the EVM transfer
 // template instead of SolTransfer. Adds a per-chain spending intent
@@ -72,6 +76,7 @@ export default function SetupEthPage() {
 
   const router = useRouter();
   const wallet = useWallet();
+  const setupIdentity = useRequestIdentity();
   const { connection } = useConnection();
   const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
@@ -154,8 +159,10 @@ export default function SetupEthPage() {
 
   const setup = useMutation({
     mutationFn: async () => {
+      const identity = setupIdentity.capture();
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
-      if (!ethBinding) throw new Error(`Bind ${EVM_LABEL} to this wallet first`);
+      if (!ethBinding)
+        throw new Error(`Bind ${EVM_LABEL} to this wallet first`);
       // Resolve which signer pubkey the wallet's AddIntent meta-
       // intent expects (Ledger vs Dynamic embedded). See setup/page.tsx.
       const addIntent = (intentsQuery.data ?? []).find(
@@ -176,59 +183,86 @@ export default function SetupEthPage() {
       const threshold = 1;
 
       // Encrypt policy fields, same shape the SOL setup uses.
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
-        { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
+      return withAutomaticLegacySetup(
+        {
+          connection,
+          assertCurrent: identity.assertCurrent,
+          walletName: name,
+          walletAddress: walletQuery.data?.pda,
+          signer: signerPk,
+          accountKey: requestAccountKey(
+            wallet.sessionSubject,
+            wallet.publicKey?.toBase58() ?? null,
+          ),
+          template: EVM_TEMPLATE,
+        },
+        async (_authority, setupRecovery) => {
+          const enc = new TextEncoder();
+          const encrypted = await encryptPolicyBatch([
+            {
+              plaintext: enc.encode(JSON.stringify(proposers)),
+              fheType: "ebytes",
+            },
+            {
+              plaintext: enc.encode(JSON.stringify(approvers)),
+              fheType: "ebytes",
+            },
+            { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
+            { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
+          ]);
+          const policy_ciphertexts = encrypted
+            .map((p) => p.ciphertextIdentifier)
+            .filter((id): id is string => typeof id === "string");
 
-      const dry = await backendApi.prepare.addIntent(name, {
-        file: EVM_TEMPLATE,
-        proposers,
-        approvers,
-        threshold,
-        cancellation_threshold: 1,
-        timelock: delaySeconds,
-        policy_ciphertexts,
-      });
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      const submitted = await backendApi.submit.addIntent(name, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        file: EVM_TEMPLATE,
-      });
+          const dry = await backendApi.prepare.addIntent(name, {
+            file: EVM_TEMPLATE,
+            proposers,
+            approvers,
+            threshold,
+            cancellation_threshold: 1,
+            timelock: delaySeconds,
+            policy_ciphertexts,
+          });
+          identity.assertCurrent();
+          const signed = await signDescriptor(dry, { preferSigner: signerPk });
+          if (!dry.proposal_pubkey)
+            throw new Error(
+              "Setup preparation returned no request identity. Nothing was submitted.",
+            );
 
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error(
-          `Backend didn't return a proposal address from enable-${EVM_LABEL}`,
-        );
-      }
-      const decision = await approveIfNeeded(connection, proposal);
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          name,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-      // Sponsored execute. Flips the program-side state so the new
-      // EvmTransfer intent is live; sends are then unblocked.
-      await backendApi.executeProposal(name, proposal, {});
-      return submitted;
+          setupRecovery.submitting(dry.proposal_pubkey);
+
+          const submitted = await backendApi.submit.addIntent(name, {
+            ...signed,
+            params_data_hex: dry.params_data_hex,
+            expiry: dry.expiry,
+            file: EVM_TEMPLATE,
+          });
+
+          const proposal = (submitted as Record<string, unknown>)?.proposal;
+          if (typeof proposal !== "string" || proposal.length === 0) {
+            throw new Error(
+              `Backend didn't return a proposal address from enable-${EVM_LABEL}`,
+            );
+          }
+          if (proposal !== dry.proposal_pubkey)
+            throw new Error(
+              "Setup response returned another request. Check the prepared request before retrying.",
+            );
+          setupRecovery.accepted(proposal);
+          const decision = await approveIfNeeded(connection, proposal);
+          if (decision.needsApproveSignature) {
+            throw new Error(
+              `Setup request ${proposal} is saved but requires an unsupported legacy approval. Open the existing request for status; do not create it again.`,
+            );
+          }
+          // Sponsored execute. Flips the program-side state so the new
+          // EvmTransfer intent is live; sends are then unblocked.
+          identity.assertCurrent();
+          await backendApi.executeProposal(name, proposal, {});
+          return submitted;
+        },
+      );
     },
     onSuccess: async () => {
       await Promise.all([
@@ -250,7 +284,13 @@ export default function SetupEthPage() {
   });
 
   useEffect(() => {
-    if (!autoStartSetup || autoStartedSetup || needsBinding || existingEthIntent) return;
+    if (
+      !autoStartSetup ||
+      autoStartedSetup ||
+      needsBinding ||
+      existingEthIntent
+    )
+      return;
     if (!ethBinding || setup.isPending || setup.isSuccess) return;
     setAutoStartedSetup(true);
     setup.mutate();
@@ -394,27 +434,30 @@ export default function SetupEthPage() {
                   />
                 </div>
 
-                <Button
-                  size="lg"
-                  fullWidth
-                  onClick={() => setup.mutate()}
-                  disabled={setup.isPending || !ethBinding}
-                >
-                  {setup.isPending ? (
-                    <>
-                      <Loader2
-                        className="h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                      Setting up
-                    </>
-                  ) : (
-                    <>
-                      Turn on {EVM_LABEL}
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </>
-                  )}
-                </Button>
+                <>
+                  <LegacySetupNotice error={setup.error} />
+                  <Button
+                    size="lg"
+                    fullWidth
+                    onClick={() => setup.mutate()}
+                    disabled={setup.isPending || !ethBinding}
+                  >
+                    {setup.isPending ? (
+                      <>
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                        Setting up
+                      </>
+                    ) : (
+                      <>
+                        Turn on {EVM_LABEL}
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </>
+                    )}
+                  </Button>
+                </>
               </>
             )}
           </>

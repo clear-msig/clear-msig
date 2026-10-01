@@ -1,4 +1,8 @@
 "use client";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
+import { LegacySetupNotice } from "@/components/review/LegacySetupNotice";
+import { withAutomaticLegacySetup } from "@/lib/chain/legacySetup";
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 
 // Turn on ERC-20 sending. Sibling of /setup/eth: same shape, different
 // template + chain_kind. The on-chain ERC-20 intent uses the
@@ -69,6 +73,7 @@ export default function SetupErc20Page() {
 
   const router = useRouter();
   const wallet = useWallet();
+  const setupIdentity = useRequestIdentity();
   const { connection } = useConnection();
   const { signDescriptor } = useSignWithWallet();
   const toast = useToast();
@@ -142,9 +147,9 @@ export default function SetupErc20Page() {
 
   const setup = useMutation({
     mutationFn: async () => {
+      const identity = setupIdentity.capture();
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
-      if (!ethBinding)
-        throw new Error("Bind Ethereum to this wallet first");
+      if (!ethBinding) throw new Error("Bind Ethereum to this wallet first");
       const addIntent = (intentsQuery.data ?? []).find(
         (it) => it.account?.intentType === IntentType.AddIntent,
       );
@@ -163,59 +168,86 @@ export default function SetupErc20Page() {
       const threshold = 1;
 
       // Encrypt policy fields, same shape as the ETH setup uses.
-      const enc = new TextEncoder();
-      const encrypted = await encryptPolicyBatch([
-        { plaintext: enc.encode(JSON.stringify(proposers)), fheType: "ebytes" },
-        { plaintext: enc.encode(JSON.stringify(approvers)), fheType: "ebytes" },
-        { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
-        { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
-      ]);
-      const policy_ciphertexts = encrypted
-        .map((p) => p.ciphertextIdentifier)
-        .filter((id): id is string => typeof id === "string");
+      return withAutomaticLegacySetup(
+        {
+          connection,
+          assertCurrent: identity.assertCurrent,
+          walletName: name,
+          walletAddress: walletQuery.data?.pda,
+          signer: signerPk,
+          accountKey: requestAccountKey(
+            wallet.sessionSubject,
+            wallet.publicKey?.toBase58() ?? null,
+          ),
+          template: ERC20_TEMPLATE,
+        },
+        async (_authority, setupRecovery) => {
+          const enc = new TextEncoder();
+          const encrypted = await encryptPolicyBatch([
+            {
+              plaintext: enc.encode(JSON.stringify(proposers)),
+              fheType: "ebytes",
+            },
+            {
+              plaintext: enc.encode(JSON.stringify(approvers)),
+              fheType: "ebytes",
+            },
+            { plaintext: new Uint8Array([threshold]), fheType: "euint8" },
+            { plaintext: u32LeBytes(delaySeconds), fheType: "euint32" },
+          ]);
+          const policy_ciphertexts = encrypted
+            .map((p) => p.ciphertextIdentifier)
+            .filter((id): id is string => typeof id === "string");
 
-      const dry = await backendApi.prepare.addIntent(name, {
-        file: ERC20_TEMPLATE,
-        proposers,
-        approvers,
-        threshold,
-        cancellation_threshold: 1,
-        timelock: delaySeconds,
-        policy_ciphertexts,
-      });
-      const signed = await signDescriptor(dry, { preferSigner: signerPk });
-      const submitted = await backendApi.submit.addIntent(name, {
-        ...signed,
-        params_data_hex: dry.params_data_hex,
-        expiry: dry.expiry,
-        file: ERC20_TEMPLATE,
-      });
+          const dry = await backendApi.prepare.addIntent(name, {
+            file: ERC20_TEMPLATE,
+            proposers,
+            approvers,
+            threshold,
+            cancellation_threshold: 1,
+            timelock: delaySeconds,
+            policy_ciphertexts,
+          });
+          identity.assertCurrent();
+          const signed = await signDescriptor(dry, { preferSigner: signerPk });
+          if (!dry.proposal_pubkey)
+            throw new Error(
+              "Setup preparation returned no request identity. Nothing was submitted.",
+            );
 
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error(
-          "Backend didn't return a proposal address from enable-ERC-20",
-        );
-      }
-      const decision = await approveIfNeeded(connection, proposal);
-      if (decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveProposal(
-          name,
-          proposal,
-          { actor_pubkey: me },
-        );
-        const approveSigned = await signDescriptor(approveDry, {
-          preferSigner: signerPk,
-        });
-        await backendApi.submit.approveProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-      // Sponsored execute. Flips the program-side state so the new
-      // ERC-20 intent is live; per-token sends are then unblocked.
-      await backendApi.executeProposal(name, proposal, {});
-      return submitted;
+          setupRecovery.submitting(dry.proposal_pubkey);
+
+          const submitted = await backendApi.submit.addIntent(name, {
+            ...signed,
+            params_data_hex: dry.params_data_hex,
+            expiry: dry.expiry,
+            file: ERC20_TEMPLATE,
+          });
+
+          const proposal = (submitted as Record<string, unknown>)?.proposal;
+          if (typeof proposal !== "string" || proposal.length === 0) {
+            throw new Error(
+              "Backend didn't return a proposal address from enable-ERC-20",
+            );
+          }
+          if (proposal !== dry.proposal_pubkey)
+            throw new Error(
+              "Setup response returned another request. Check the prepared request before retrying.",
+            );
+          setupRecovery.accepted(proposal);
+          const decision = await approveIfNeeded(connection, proposal);
+          if (decision.needsApproveSignature) {
+            throw new Error(
+              `Setup request ${proposal} is saved but requires an unsupported legacy approval. Open the existing request for status; do not create it again.`,
+            );
+          }
+          // Sponsored execute. Flips the program-side state so the new
+          // ERC-20 intent is live; per-token sends are then unblocked.
+          identity.assertCurrent();
+          await backendApi.executeProposal(name, proposal, {});
+          return submitted;
+        },
+      );
     },
     onSuccess: async () => {
       await Promise.all([
@@ -234,7 +266,13 @@ export default function SetupErc20Page() {
   });
 
   useEffect(() => {
-    if (!autoStartSetup || autoStartedSetup || needsBinding || existingErc20Intent) return;
+    if (
+      !autoStartSetup ||
+      autoStartedSetup ||
+      needsBinding ||
+      existingErc20Intent
+    )
+      return;
     if (!ethBinding || setup.isPending || setup.isSuccess) return;
     setAutoStartedSetup(true);
     setup.mutate();
@@ -307,8 +345,8 @@ export default function SetupErc20Page() {
                 </p>
                 <p className="mt-1 text-xs text-text-soft">
                   This wallet does not have an Ethereum address yet. Add
-                  Ethereum on the chains page (about 30 seconds) and come
-                  back here.
+                  Ethereum on the chains page (about 30 seconds) and come back
+                  here.
                 </p>
                 <Link
                   href={`/app/wallet/${encodeURIComponent(name)}/chains/add?chain=evm_1559&next=erc20&autostart=1`}
@@ -344,28 +382,31 @@ export default function SetupErc20Page() {
                   />
                 </div>
 
-                <Button
-                  size="lg"
-                  fullWidth
-                  className="mt-3"
-                  onClick={() => setup.mutate()}
-                  disabled={setup.isPending || !ethBinding}
-                >
-                  {setup.isPending ? (
-                    <>
-                      <Loader2
-                        className="h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                      Setting up
-                    </>
-                  ) : (
-                    <>
-                      Turn on token sending
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </>
-                  )}
-                </Button>
+                <>
+                  <LegacySetupNotice error={setup.error} />
+                  <Button
+                    size="lg"
+                    fullWidth
+                    className="mt-3"
+                    onClick={() => setup.mutate()}
+                    disabled={setup.isPending || !ethBinding}
+                  >
+                    {setup.isPending ? (
+                      <>
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                        Setting up
+                      </>
+                    ) : (
+                      <>
+                        Turn on token sending
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </>
+                    )}
+                  </Button>
+                </>
               </>
             )}
           </div>

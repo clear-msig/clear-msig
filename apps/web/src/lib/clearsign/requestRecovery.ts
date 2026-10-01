@@ -9,6 +9,8 @@ export type SavedRequest = Readonly<{
   label: string;
   proposal: string;
   outcome: "unknown" | "submitted";
+  phase?: "execution";
+  txid?: string;
 }>;
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
 const STORAGE_KEY = "clearsig:canonical-request-recovery:v1";
@@ -28,24 +30,35 @@ export class RequestRecoveryStore {
           this.storage?.getItem(STORAGE_KEY) ?? "[]",
         );
         if (Array.isArray(values))
-          this.entries = values.slice(0, 100).filter((v): v is SavedRequest => {
-            if (
-              !v ||
-              typeof v !== "object" ||
-              !/^[0-9a-f]{64}$/.test(v.key) ||
-              !/^[0-9a-f]{64}$/.test(v.accountKey) ||
-              typeof v.walletName !== "string" ||
-              typeof v.endpoint !== "string" ||
-              typeof v.label !== "string" ||
-              !["unknown", "submitted"].includes(v.outcome)
-            )
-              return false;
-            try {
-              return new PublicKey(v.proposal).toBase58() === v.proposal;
-            } catch {
-              return false;
-            }
-          });
+          this.entries = values
+            .slice(0, 100)
+            .filter((v): v is SavedRequest => {
+              if (
+                !v ||
+                typeof v !== "object" ||
+                !/^[0-9a-f]{64}$/.test(v.key) ||
+                !/^[0-9a-f]{64}$/.test(v.accountKey) ||
+                typeof v.walletName !== "string" ||
+                typeof v.endpoint !== "string" ||
+                typeof v.label !== "string" ||
+                !["unknown", "submitted"].includes(v.outcome) ||
+                (v.phase !== undefined && v.phase !== "execution")
+              )
+                return false;
+              try {
+                return new PublicKey(v.proposal).toBase58() === v.proposal;
+              } catch {
+                return false;
+              }
+            })
+            .map((entry) => {
+              const txid =
+                typeof entry.txid === "string" &&
+                /^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(entry.txid)
+                  ? entry.txid
+                  : undefined;
+              return { ...entry, txid };
+            });
       } catch {
         /* untrusted recovery metadata grants no authority */
       }
@@ -71,14 +84,41 @@ export class RequestRecoveryStore {
   acknowledgeSeparateRequest = (key: string) => {
     if (this.running.has(key))
       throw new Error("Wait for the current request to finish.");
+    if (
+      this.snapshot().some(
+        (entry) => entry.key === key && entry.phase === "execution",
+      )
+    )
+      throw new Error(
+        "Execution may already have been submitted. Check its verified status; do not resubmit blindly.",
+      );
     this.update(this.snapshot().filter((entry) => entry.key !== key));
   };
+  executionFor = (endpoint: string, proposal: string) =>
+    this.snapshot().find(
+      (entry) =>
+        entry.phase === "execution" &&
+        entry.endpoint === endpoint &&
+        entry.proposal === proposal,
+    );
+  resolveExecution = (endpoint: string, proposal: string) =>
+    this.update(
+      this.snapshot().filter(
+        (entry) =>
+          !(
+            entry.phase === "execution" &&
+            entry.endpoint === endpoint &&
+            entry.proposal === proposal
+          ),
+      ),
+    );
   begin(input: {
     walletName: string;
     endpoint: string;
     accountKey: string;
     label: string;
     identity: unknown;
+    phase?: "execution";
   }) {
     const key = toHex(
       sha256(
@@ -107,7 +147,11 @@ export class RequestRecoveryStore {
       );
     this.running.add(key);
     let finished = false;
-    const save = (proposal: string, outcome: SavedRequest["outcome"]) => {
+    const save = (
+      proposal: string,
+      outcome: SavedRequest["outcome"],
+      txid?: string,
+    ) => {
       if (finished) throw new Error("This request attempt has ended.");
       new PublicKey(proposal);
       this.update([
@@ -120,12 +164,15 @@ export class RequestRecoveryStore {
           label: input.label,
           proposal,
           outcome,
+          ...(txid ? { txid } : {}),
+          ...(input.phase ? { phase: input.phase } : {}),
         }),
       ]);
     };
     return {
       submitting: (proposal: string) => save(proposal, "unknown"),
-      accepted: (proposal: string) => save(proposal, "submitted"),
+      accepted: (proposal: string, txid?: string) =>
+        save(proposal, "submitted", txid),
       complete: () =>
         this.update(this.snapshot().filter((entry) => entry.key !== key)),
       finish: () => {

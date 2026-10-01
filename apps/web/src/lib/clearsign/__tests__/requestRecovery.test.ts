@@ -119,3 +119,42 @@ describe("governance and policy recovery metadata (synthetic, no wallet/RPC)", (
     current.finish();
   });
 });
+
+it("persists uncertain execution lock across reload and refuses separate-request acknowledgement", () => {
+  const backing = storage(),
+    first = new RequestRecoveryStore(backing);
+  const attempt = first.begin({
+    ...identity,
+    phase: "execution",
+    identity: ["execute", address],
+  });
+  attempt.submitting(address);
+  attempt.finish();
+  const second = new RequestRecoveryStore(backing),
+    saved = second.executionFor(identity.endpoint, address)!;
+  expect(saved.phase).toBe("execution");
+  expect(() => second.acknowledgeSeparateRequest(saved.key)).toThrow(
+    /may already/,
+  );
+  expect(second.executionFor("other-network", address)).toBeUndefined();
+  second.resolveExecution(identity.endpoint, address);
+  expect(second.executionFor(identity.endpoint, address)).toBeUndefined();
+});
+
+it("preserves known execution signature through reload without using it as authority", () => {
+  const backing = storage(),
+    first = new RequestRecoveryStore(backing),
+    signature = "2".repeat(88);
+  const attempt = first.begin({
+    ...identity,
+    phase: "execution",
+    identity: ["execute", address],
+  });
+  attempt.submitting(address);
+  attempt.accepted(address, signature);
+  attempt.finish();
+  expect(
+    new RequestRecoveryStore(backing).executionFor(identity.endpoint, address)
+      ?.txid,
+  ).toBe(signature);
+});

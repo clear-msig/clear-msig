@@ -1,3 +1,5 @@
+import bs58 from "bs58";
+import { requestRecovery } from "@/lib/clearsign/requestRecovery";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PublicKey } from "@solana/web3.js";
@@ -24,7 +26,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/wallet", () => ({
   useWallet: () => ({ pickSigner: mocks.pickSigner }),
-  useConnection: () => ({ connection: {} }),
+  useConnection: () => ({ connection: { rpcEndpoint: "mock://batch" } }),
 }));
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
@@ -72,6 +74,7 @@ vi.mock("@/lib/policies/persistentWalletPolicy", () => ({
 
 // Cancellation tests mock verification; inlineApproval.test.ts exercises its real binding.
 vi.mock("@/lib/clearsign/inlineApproval", () => ({
+  reviewedCreationProposalAddress: () => "11111111111111111111111111111111",
   assertSubmittedCreation: (
     _creation: unknown,
     _expected: unknown,
@@ -98,6 +101,7 @@ vi.mock("@/lib/clearsign/inlineApproval", () => ({
 }));
 
 const signer = new PublicKey("11111111111111111111111111111111");
+const executionTxid = bs58.encode(new Uint8Array(64).fill(9));
 const proposal = "11111111111111111111111111111111";
 const walletData = { pda: signer };
 const intentData = {
@@ -171,6 +175,11 @@ function hook() {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  for (const entry of [...requestRecovery.snapshot()]) {
+    if (entry.phase === "execution")
+      requestRecovery.resolveExecution(entry.endpoint, entry.proposal);
+    else requestRecovery.acknowledgeSeparateRequest(entry.key);
+  }
   mocks.fetchWallet.mockResolvedValue(walletData);
   mocks.fetchIntent.mockResolvedValue(intentData);
   mocks.pickSigner.mockReturnValue(signer);
@@ -184,7 +193,11 @@ beforeEach(() => {
   mocks.prepareApprove.mockResolvedValue(dry);
   mocks.submitApprove.mockResolvedValue({});
   mocks.fetchProposal.mockResolvedValue({ status: ProposalStatus.Approved });
-  mocks.execute.mockResolvedValue({});
+  mocks.execute.mockResolvedValue({
+    txid: executionTxid,
+    proposal,
+    path: "typed_sol_batch_send",
+  });
   mocks.invalidate.mockResolvedValue(undefined);
   const storage = new Map<string, string>();
   vi.stubGlobal("window", {
@@ -246,7 +259,7 @@ describe("batch send cancellation and admission", () => {
     await expect(first).resolves.toMatchObject({
       succeeded: 1,
       failed: 0,
-      outcome: "executed",
+      outcome: "execution_submitted",
     });
     expect(mocks.submitCreate).toHaveBeenCalledOnce();
     expect(mocks.execute).toHaveBeenCalledOnce();
@@ -267,7 +280,7 @@ describe("batch send cancellation and admission", () => {
     expect(mocks.submitCreate).not.toHaveBeenCalled();
     actions.reset();
     await expect(actions.sendBatch(args())).resolves.toMatchObject({
-      outcome: "executed",
+      outcome: "execution_submitted",
     });
     expect(mocks.submitCreate).toHaveBeenCalledOnce();
   });
@@ -284,7 +297,7 @@ describe("batch send cancellation and admission", () => {
       await expect(actions.sendBatch(args())).resolves.toMatchObject({
         succeeded: 1,
         failed: 0,
-        outcome: "executed",
+        outcome: "execution_submitted",
       });
       expect(mocks.submitCreate).toHaveBeenCalledOnce();
     },
@@ -310,11 +323,16 @@ describe("batch send cancellation and admission", () => {
         asset: "SOL",
       },
     ]);
-    expect(mocks.execute).toHaveBeenCalledWith("vault", proposal, {
-      payments: [
-        { recipient: signer.toBase58(), amountLamports: 1_000_000_001 },
-      ],
-    });
+    expect(mocks.execute).toHaveBeenCalledWith(
+      "vault",
+      proposal,
+      {
+        payments: [
+          { recipient: signer.toBase58(), amountLamports: 1_000_000_001 },
+        ],
+      },
+      { retry: false },
+    );
   });
   it("rejects oversized input before RPC and permits a valid retry", async () => {
     const actions = hook();
@@ -327,7 +345,7 @@ describe("batch send cancellation and admission", () => {
     ).rejects.toThrow("16 recipients");
     expect(mocks.fetchWallet).not.toHaveBeenCalled();
     await expect(actions.sendBatch(input)).resolves.toMatchObject({
-      outcome: "executed",
+      outcome: "execution_submitted",
     });
   });
 });
@@ -425,11 +443,15 @@ describe("batch send cancellation after a consequential call", () => {
     await expect(actions.sendBatch(args())).rejects.toThrow(
       "already in progress",
     );
-    pending.resolve({});
+    pending.resolve({
+      txid: executionTxid,
+      proposal,
+      path: "typed_sol_batch_send",
+    });
     await expect(work).resolves.toMatchObject({
       succeeded: 1,
       failed: 0,
-      outcome: "executed",
+      outcome: "execution_submitted",
     });
   });
   it("reports an unknown submission outcome instead of claiming cancellation prevented it", async () => {
@@ -454,7 +476,7 @@ describe("batch send cancellation after a consequential call", () => {
     await expect(hook().sendBatch(args())).resolves.toMatchObject({
       succeeded: 1,
       failed: 0,
-      outcome: "created",
+      outcome: "execution_unknown",
       proposalPdas: [proposal],
     });
     expect(listBatches()).toHaveLength(1);
@@ -482,5 +504,52 @@ describe("batch send cancellation after a consequential call", () => {
       policyBytesHex: undefined,
       canonical_intent_hex: dry.canonical_intent_hex,
     });
+  });
+  it.each([
+    {},
+    { txid: "" },
+    { txid: "not-a-signature" },
+    { txid: executionTxid, proposal: "wrong", path: "typed_sol_batch_send" },
+    { txid: executionTxid, proposal, path: "different_action" },
+  ])(
+    "preserves saved request on unverified execution response %#",
+    async (response) => {
+      mocks.execute.mockResolvedValueOnce(response);
+      const actions = hook();
+      const result = await actions.sendBatch(args());
+      expect(result).toMatchObject({
+        outcome: "execution_unknown",
+        proposalPdas: [proposal],
+        failed: 0,
+        succeeded: 1,
+      });
+      expect(result.executionTxid).toBeUndefined();
+      const lock = requestRecovery.executionFor("mock://batch", proposal)!;
+      expect(lock.outcome).toBe("unknown");
+      expect(() =>
+        requestRecovery.acknowledgeSeparateRequest(lock.key),
+      ).toThrow();
+      await actions.sendBatch(args());
+      expect(mocks.submitCreate).toHaveBeenCalledOnce();
+      expect(mocks.execute).toHaveBeenCalledOnce();
+    },
+  );
+  it("records valid execution submission but never chain confirmation", async () => {
+    const result = await hook().sendBatch(args());
+    expect(result).toMatchObject({
+      outcome: "execution_submitted",
+      executionTxid,
+      proposalPdas: [proposal],
+    });
+    expect(result.message).toContain("not confirmation");
+    expect(
+      requestRecovery.executionFor("mock://batch", proposal)?.outcome,
+    ).toBe("submitted");
+    expect(mocks.execute).toHaveBeenLastCalledWith(
+      "vault",
+      proposal,
+      expect.any(Object),
+      { retry: false },
+    );
   });
 });
