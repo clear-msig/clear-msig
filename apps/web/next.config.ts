@@ -162,11 +162,27 @@ const nextConfig = {
   webpack: (
     config: {
       cache?: unknown;
+      resolve?: { alias?: Record<string, string> };
       externals?: unknown[];
       plugins?: Array<{ apply(compiler: WebpackCompiler): void }>;
     },
     context: { isServer: boolean; nextRuntime?: string },
   ) => {
+    if (!context.isServer) {
+      // Yup imports five public Lodash helpers as CommonJS while Formik
+      // already loads the same-version ESM helpers. Share their implementation
+      // in the browser only; do not alias the entire package or SDK internals.
+      config.resolve ??= {};
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        ...Object.fromEntries(
+          ["has", "snakeCase", "camelCase", "mapKeys", "mapValues"].map((name) => [
+            `lodash/${name}$`,
+            resolve(process.cwd(), `node_modules/lodash-es/${name}.js`),
+          ]),
+        ),
+      };
+    }
     config.externals = [
       ...(config.externals ?? []),
       "pino-pretty",
