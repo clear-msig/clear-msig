@@ -203,3 +203,41 @@
   letter-spacing: -0.05em;
   font-weight: 500;
 }
+.canonicalSection {
+  padding: 18px 0;
+  border-top: 1px solid var(--clear-border-soft);
+}
+.canonicalSection h3 {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  color: var(--clear-text-soft);
+}
+.canonicalSection pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 0;
+}
+.canonicalSection p {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.refresh {
+  border: 1px solid var(--clear-border-soft);
+  border-radius: 12px;
+  min-height: 48px;
+  padding: 0 16px;
+  margin-top: 20px;
+  font-size: 14px;
+}
+.refresh:focus-visible {
+  outline: 2px solid var(--clear-accent);
+  outline-offset: 4px;
+}
+.refresh:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

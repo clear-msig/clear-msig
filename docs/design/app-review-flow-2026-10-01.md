@@ -72,3 +72,8 @@ fees, deposits and financial actions were not tested.
   test the production wallet/signature mutations.
 
 No source push, deployment, credential setup or live financial operation.
+
+## Canonical approval follow-up
+
+The production approval data gap described above is addressed for the supported
+full-profile v4 action kinds in [the canonical review report](../security/canonical-approval-review-2026-10-01.md). That report records the exact unsupported/blocked cases, final checks and configuration requirements. Its captures are still synthetic component evidence, not live signing verification.

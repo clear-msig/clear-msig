@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Bell } from "lucide-react";
-import { BadgePill } from "@/components/retail/BadgePill";
 import type { ActionNeededRow } from "@/lib/hooks/useActionNeeded";
-import { useBatchApprove } from "@/lib/hooks/useBatchApprove";
 import { friendlyIntentLabel } from "@/lib/retail/labels";
 import { proposerDisplayName } from "@/lib/retail/proposerName";
 import { relativeTime } from "@/lib/util/relativeTime";
@@ -23,25 +21,8 @@ export function WalletApprovalPanel({
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const batch = useBatchApprove();
   const wallet = useWallet();
   const viewerAddress = wallet.publicKey?.toBase58() ?? "";
-  const running =
-    batch.progress !== null &&
-    batch.progress.completed < batch.progress.total &&
-    !batch.progress.error;
-  const showApproveAll = rows.length >= 2;
-
-  const handleApproveAll = () => {
-    batch.approveAll(
-      rows.map((r) => ({
-        walletName: r.walletName,
-        proposalPda: r.proposalPda,
-        label: friendlyIntentLabel(r.intentTemplate),
-      })),
-    );
-  };
-
   return (
     <motion.section
       id="action-needed"
@@ -61,22 +42,13 @@ export function WalletApprovalPanel({
             {rows.length}
           </span>
         </span>
-        {showApproveAll && (
-          <BadgePill onClick={handleApproveAll} disabled={running}>
-            {running ? "Approving…" : "Approve all"}
-          </BadgePill>
-        )}
       </header>
 
       <div className="px-5 py-4">
-        {batch.progress && (
-          <BatchProgressRow progress={batch.progress} onDismiss={batch.reset} />
-        )}
-        {!batch.progress && rows.length > 0 && (
-          <p className="text-sm text-text-soft">
-            Approving fires one wallet popup per request. Tap Approve in each.
-          </p>
-        )}
+        <p className="text-sm text-text-soft">
+          Open each request to review its verified action details before
+          approving.
+        </p>
 
         <ul className="mt-3 flex flex-col divide-y divide-border-soft">
           {rows.map((row) => {
@@ -118,63 +90,5 @@ export function WalletApprovalPanel({
         </ul>
       </div>
     </motion.section>
-  );
-}
-
-// ─── Inline batch-progress row (mirrors the dashboard) ─────────────
-
-function BatchProgressRow({
-  progress,
-  onDismiss,
-}: {
-  progress: {
-    total: number;
-    completed: number;
-    error?: string;
-    currentLabel?: string;
-  };
-  onDismiss: () => void;
-}) {
-  const done = progress.completed >= progress.total;
-  const stopped = !!progress.error;
-  const pct = Math.round((progress.completed / progress.total) * 100);
-  return (
-    <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="font-medium text-text-strong">
-          {stopped
-            ? `Stopped. Approved ${progress.completed} of ${progress.total}`
-            : done
-              ? `Approved ${progress.total} request${progress.total === 1 ? "" : "s"}`
-              : `Approving ${progress.completed + 1} of ${progress.total}…`}
-        </span>
-        {(done || stopped) && (
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
-          >
-            Dismiss
-          </button>
-        )}
-      </div>
-      {!done && !stopped && progress.currentLabel && (
-        <p className="mt-1 truncate text-[11px] text-text-soft">
-          {progress.currentLabel}
-        </p>
-      )}
-      {stopped && progress.error && (
-        <p className="mt-1 text-[11px] text-warning">{progress.error}</p>
-      )}
-      <div
-        aria-hidden="true"
-        className="mt-2 h-1 overflow-hidden rounded-full bg-border-soft"
-      >
-        <div
-          className="h-full bg-accent transition-[width] duration-base ease-out-soft"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
   );
 }

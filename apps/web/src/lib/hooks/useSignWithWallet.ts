@@ -109,13 +109,8 @@ export class WalletSignError extends Error {
 /// `descriptor.message_hex` before invoking the wallet. See
 /// `rebuildAndVerifyMessage` and SECURITY.md surface A.
 export function useSignWithWallet() {
-  const {
-    signMessage,
-    publicKey,
-    connected,
-    isLedger,
-    ledgerPublicKey,
-  } = useWallet();
+  const { signMessage, publicKey, connected, isLedger, ledgerPublicKey } =
+    useWallet();
   const { connection } = useConnection();
 
   const signBytes = useCallback(
@@ -126,13 +121,13 @@ export function useSignWithWallet() {
       if (!connected || !publicKey) {
         throw new WalletSignError(
           "not_connected",
-          "Connect a wallet before signing"
+          "Connect a wallet before signing",
         );
       }
       if (!signMessage) {
         throw new WalletSignError(
           "no_sign_message",
-          "This wallet does not support signMessage. Try Solflare, Backpack, or a Ledger."
+          "This wallet does not support signMessage. Try Solflare, Backpack, or a Ledger.",
         );
       }
       // Effective signer pubkey: caller's preference if set, else
@@ -160,11 +155,7 @@ export function useSignWithWallet() {
       // that here means the user gets a clean error in the browser
       // instead of a 502 from the CLI's verifier.
       if (
-        !nacl.sign.detached.verify(
-          messageBytes,
-          sig,
-          effectiveSigner.toBytes(),
-        )
+        !nacl.sign.detached.verify(messageBytes, sig, effectiveSigner.toBytes())
       ) {
         throw new WalletSignError(
           "wallet_signed_wrong_bytes",
@@ -176,7 +167,7 @@ export function useSignWithWallet() {
       if (sig.length !== 64) {
         throw new WalletSignError(
           "unknown",
-          `Wallet returned an unexpected signature length (${sig.length}, want 64)`
+          `Wallet returned an unexpected signature length (${sig.length}, want 64)`,
         );
       }
       return {
@@ -184,7 +175,7 @@ export function useSignWithWallet() {
         signature: toHex(sig),
       };
     },
-    [connected, publicKey, signMessage]
+    [connected, publicKey, signMessage],
   );
 
   const signDescriptorWithFlavor = useCallback(
@@ -193,6 +184,11 @@ export function useSignWithWallet() {
       options: SignOptions | undefined,
       flavor: MessageFlavor,
     ): Promise<SignedPayload> => {
+      if (["proposal_approve", "approve"].includes(descriptor.action))
+        throw new WalletSignError(
+          "message_mismatch",
+          "Legacy approval has no complete canonical review. Open the request to inspect its blocked state.",
+        );
       let bytes: Uint8Array;
       try {
         bytes = await rebuildAndVerifyMessage(descriptor, connection, flavor);
@@ -233,11 +229,7 @@ export function useSignWithWallet() {
         ledgerPublicKey,
       });
       try {
-        return await signDescriptorWithFlavor(
-          descriptor,
-          options,
-          flavor,
-        );
+        return await signDescriptorWithFlavor(descriptor, options, flavor);
       } catch (err) {
         if (
           flavor === "plain_v2" &&
@@ -245,11 +237,7 @@ export function useSignWithWallet() {
           err instanceof WalletSignError &&
           err.code === "wallet_signed_wrong_bytes"
         ) {
-          return signDescriptorWithFlavor(
-            descriptor,
-            options,
-            "offchain_v1",
-          );
+          return signDescriptorWithFlavor(descriptor, options, "offchain_v1");
         }
         if (
           flavor === "offchain_v1" &&
@@ -257,11 +245,7 @@ export function useSignWithWallet() {
           err instanceof WalletSignError &&
           err.code === "wallet_signed_wrong_bytes"
         ) {
-          return signDescriptorWithFlavor(
-            descriptor,
-            options,
-            "plain_v2",
-          );
+          return signDescriptorWithFlavor(descriptor, options, "plain_v2");
         }
         throw err;
       }
@@ -318,7 +302,12 @@ export function useSignWithWallet() {
     options?: SignOptions,
   ): Promise<SignedPayload> {
     ensureDescriptorFresh(descriptor);
-    if (descriptor.action === "proposal_typed_create" && !options?.expectedTyped) {
+    if (
+      ["proposal_typed_create", "proposal_typed_approve", "approve"].includes(
+        descriptor.action,
+      ) &&
+      !options?.expectedTyped
+    ) {
       throw new WalletSignError(
         "message_mismatch",
         "Typed proposal signing requires the transaction details rebuilt in this browser.",
@@ -326,7 +315,10 @@ export function useSignWithWallet() {
     }
     let bytes: Uint8Array;
     try {
-      bytes = verifiedTypedClearSignMessageBytes(descriptor, options?.expectedTyped);
+      bytes = verifiedTypedClearSignMessageBytes(
+        descriptor,
+        options?.expectedTyped,
+      );
     } catch (err) {
       if (err instanceof TypedClearSignMessageVerificationError) {
         throw new WalletSignError("message_mismatch", err.message);
@@ -353,7 +345,6 @@ export function useSignWithWallet() {
       signed_message_hex: descriptor.message_hex,
     };
   }
-
 }
 
 function ensureDescriptorFresh(descriptor: { expiry: number }) {

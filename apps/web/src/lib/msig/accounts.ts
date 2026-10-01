@@ -137,7 +137,7 @@ export function parseIntent(data: Uint8Array): IntentAccount {
   }
 
   const template = new TextDecoder().decode(
-    checkedSlice(bytePool, templateOffset, templateLen, "template")
+    checkedSlice(bytePool, templateOffset, templateLen, "template"),
   );
   checkedSlice(bytePool, txTemplateOffset, txTemplateLen, "tx_template");
   for (let i = 0; i < params.length; i++) {
@@ -205,7 +205,13 @@ function checkedSlice(
   label: string,
 ): Uint8Array {
   const end = offset + len;
-  if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(len) || offset < 0 || len < 0 || end > data.length) {
+  if (
+    !Number.isSafeInteger(offset) ||
+    !Number.isSafeInteger(len) ||
+    offset < 0 ||
+    len < 0 ||
+    end > data.length
+  ) {
     throw new Error(
       `parseIntent: ${label} range ${offset}..${end} outside byte_pool length ${data.length}`,
     );
@@ -240,10 +246,11 @@ function readOptionalVecU8(
   offset: number,
   tag: string,
 ): { bytes: Uint8Array; nextOffset: number } {
-  if (offset === data.length) return { bytes: new Uint8Array(), nextOffset: offset };
+  if (offset === data.length)
+    return { bytes: new Uint8Array(), nextOffset: offset };
   if (offset + 4 > data.length) {
     throw new Error(
-      `parse${tag}: unexpected end of data (need 4 at offset ${offset}, total ${data.length})`
+      `parse${tag}: unexpected end of data (need 4 at offset ${offset}, total ${data.length})`,
     );
   }
   const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -252,7 +259,7 @@ function readOptionalVecU8(
   const end = start + len;
   if (end > data.length) {
     throw new Error(
-      `parse${tag}: unexpected end of data (need ${len} at offset ${start}, total ${data.length})`
+      `parse${tag}: unexpected end of data (need ${len} at offset ${start}, total ${data.length})`,
     );
   }
   return { bytes: data.slice(start, end), nextOffset: end };
@@ -266,7 +273,8 @@ export const ProposalStatus = {
   Executed: 2,
   Cancelled: 3,
 } as const;
-export type ProposalStatus = (typeof ProposalStatus)[keyof typeof ProposalStatus];
+export type ProposalStatus =
+  (typeof ProposalStatus)[keyof typeof ProposalStatus];
 
 export interface ProposalAccount {
   typed?: false;
@@ -307,6 +315,10 @@ export interface TypedProposalAccount {
   actionId: string;
   nonce: string;
   policyBytesHex: string;
+  /** Exact stored bytes; missing on older layouts means review is unavailable. */
+  actionIdHex?: string;
+  nonceHex?: string;
+  clearTextHex?: string;
 }
 
 export type AnyProposalAccount = ProposalAccount | TypedProposalAccount;
@@ -325,9 +337,9 @@ export function parseProposal(data: Uint8Array): ProposalAccount {
   const cancellationBitmap = r.u16();
   const rentRefund = r.address();
   const paramsData = r.vecU8();
-  const statusLabel = (
-    ["Active", "Approved", "Executed", "Cancelled"] as const
-  )[statusByte] ?? "Unknown";
+  const statusLabel =
+    (["Active", "Approved", "Executed", "Cancelled"] as const)[statusByte] ??
+    "Unknown";
   return {
     typed: false,
     wallet,
@@ -364,25 +376,34 @@ export function parseTypedProposal(data: Uint8Array): TypedProposalAccount {
   const policyCommitment = hex(r.fixed(32));
   const payloadHash = hex(r.fixed(32));
   const envelopeHash = hex(r.fixed(32));
-  const actionId = r.utf8(Number(r.u32()));
-  const nonce = r.utf8(Number(r.u32()));
+  const actionBytes = r.vecU8();
+  const nonceBytes = r.vecU8();
+  const actionId = new TextDecoder().decode(actionBytes);
+  const nonce = new TextDecoder().decode(nonceBytes);
   const beforePolicy = r.position();
   let policyBytesHex = "";
+  let clearTextHex: string | undefined;
   try {
-    const policyBytes = r.vecU8();
-    try {
-      r.vecU8();
-      r.reset(beforePolicy);
-      policyBytesHex = hex(r.vecU8());
-    } catch {
-      r.reset(beforePolicy);
-    }
+    const policy = r.vecU8();
+    if (policy.length > 2048) throw new Error("Unsupported policy size");
+    policyBytesHex = hex(policy);
+    const document = r.vecU8();
+    if (
+      policy.length > 2048 ||
+      document.length > 2048 ||
+      actionBytes.length > 128 ||
+      nonceBytes.length > 128 ||
+      data.slice(r.position()).some(Boolean)
+    )
+      throw new Error("Unsupported typed proposal layout");
+    policyBytesHex = hex(policy);
+    clearTextHex = hex(document);
   } catch {
     r.reset(beforePolicy);
   }
-  const statusLabel = (
-    ["Active", "Approved", "Executed", "Cancelled"] as const
-  )[statusByte] ?? "Unknown";
+  const statusLabel =
+    (["Active", "Approved", "Executed", "Cancelled"] as const)[statusByte] ??
+    "Unknown";
   return {
     typed: true,
     wallet,
@@ -405,6 +426,9 @@ export function parseTypedProposal(data: Uint8Array): TypedProposalAccount {
     actionId,
     nonce,
     policyBytesHex,
+    actionIdHex: hex(actionBytes),
+    nonceHex: hex(nonceBytes),
+    clearTextHex,
   };
 }
 
@@ -433,7 +457,7 @@ export interface IkaConfigAccount {
 export function parseIkaConfig(data: Uint8Array): IkaConfigAccount {
   if (data.length < 100 || data[0] !== DISC_IKA_CONFIG) {
     throw new Error(
-      `parseIkaConfig: not an IkaConfig account (disc=${data[0]}, len=${data.length})`
+      `parseIkaConfig: not an IkaConfig account (disc=${data[0]}, len=${data.length})`,
     );
   }
   const wallet = bs58.encode(data.subarray(1, 33));
@@ -462,10 +486,12 @@ export interface DwalletOwnershipAccount {
   bump: number;
 }
 
-export function parseDwalletOwnership(data: Uint8Array): DwalletOwnershipAccount {
+export function parseDwalletOwnership(
+  data: Uint8Array,
+): DwalletOwnershipAccount {
   if (data.length < 66 || data[0] !== DISC_DWALLET_OWNERSHIP) {
     throw new Error(
-      `parseDwalletOwnership: bad account (disc=${data[0]}, len=${data.length})`
+      `parseDwalletOwnership: bad account (disc=${data[0]}, len=${data.length})`,
     );
   }
   return {
@@ -484,12 +510,12 @@ class Reader {
   constructor(
     private readonly data: Uint8Array,
     private readonly tag: string,
-    expectedDisc: number
+    expectedDisc: number,
   ) {
     this.dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
     if (data.length === 0 || data[0] !== expectedDisc) {
       throw new Error(
-        `parse${tag}: not a ${tag} account (disc=${data[0]}, expected ${expectedDisc})`
+        `parse${tag}: not a ${tag} account (disc=${data[0]}, expected ${expectedDisc})`,
       );
     }
     this.off = 1;
@@ -539,7 +565,9 @@ class Reader {
   }
   utf8(len: number): string {
     this.ensureAvailable(len);
-    const s = new TextDecoder().decode(this.data.subarray(this.off, this.off + len));
+    const s = new TextDecoder().decode(
+      this.data.subarray(this.off, this.off + len),
+    );
     this.off += len;
     return s;
   }
@@ -660,7 +688,7 @@ class Reader {
   private ensureAvailable(n: number): void {
     if (this.off + n > this.data.length) {
       throw new Error(
-        `parse${this.tag}: unexpected end of data (need ${n} at offset ${this.off}, total ${this.data.length})`
+        `parse${this.tag}: unexpected end of data (need ${n} at offset ${this.off}, total ${this.data.length})`,
       );
     }
   }

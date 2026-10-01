@@ -59,6 +59,7 @@ import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
 import { resolveWalletProductSurface } from "@/lib/productWorkspace";
 
+import { CanonicalActionReview } from "@/components/review/CanonicalActionReview";
 import { RequestOverview } from "@/components/review/RequestOverview";
 
 export default function RequestDetailPage() {
@@ -213,7 +214,9 @@ function Loaded({
 
   const handleApprove = async () => {
     try {
-      await workflow.approveMutation.mutateAsync();
+      await workflow.approveMutation.mutateAsync(
+        workflow.reviewQuery.data?.reviewId,
+      );
       toast.success("Approved");
       onChanged();
     } catch (err) {
@@ -335,6 +338,17 @@ function Loaded({
         </div>
       </RequestOverview>
 
+      <CanonicalActionReview
+        review={
+          workflow.reviewQuery.isError ? undefined : workflow.reviewQuery.data
+        }
+        error={workflow.reviewQuery.error?.message}
+        loading={workflow.reviewQuery.isFetching}
+        onRefresh={() => {
+          void workflow.reviewQuery.refetch();
+        }}
+      />
+
       <RequestTimeline
         status={proposal.status}
         approvalsCollected={approvalsCollected}
@@ -359,7 +373,7 @@ function Loaded({
               { label: "In wallet", value: walletDisplay },
               {
                 label: "Approvals so far",
-                value: `${approvalsCollected} of ${approvalThreshold}`,
+                value: `${approvalsCollected} of ${approvalThreshold} required approvals`,
               },
               {
                 label: "Created",
@@ -377,7 +391,12 @@ function Loaded({
               size="lg"
               fullWidth
               onClick={handleApprove}
-              disabled={isWorking}
+              disabled={
+                isWorking ||
+                workflow.reviewQuery.isFetching ||
+                workflow.reviewQuery.isError ||
+                !workflow.reviewQuery.data
+              }
             >
               {workflow.approveMutation.isPending ? (
                 <>
