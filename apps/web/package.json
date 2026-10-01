@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "typecheck:clean": "tsc --noEmit --incremental false",
-    "check:intents": "node scripts/check-intent-registry.mjs",
+    "check:intents": "node scripts/check-intent-registry.mjs && node scripts/check-signing-envelope.mjs",
     "check:metadata": "node scripts/check-metadata.mjs",
     "check:architecture": "node scripts/check-architecture.mjs",
     "check:bundles": "node scripts/check-bundle-budgets.mjs",

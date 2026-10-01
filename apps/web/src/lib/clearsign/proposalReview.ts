@@ -1,3 +1,4 @@
+import { canonicalEnvelopeHash } from "./generatedEnvelope";
 import { reviewStoredProtectionPolicy } from "./policyReview";
 import { PublicKey } from "@solana/web3.js";
 import type { IntentAccount, TypedProposalAccount } from "@/lib/msig/accounts";
@@ -46,27 +47,6 @@ export interface CanonicalProposalReview {
     approvalBitmap: number;
   };
 }
-function bytes(value: Uint8Array | string): Uint8Array {
-  const raw = typeof value === "string" ? encoder.encode(value) : value;
-  return concat(uint(BigInt(raw.length), 4), raw);
-}
-function concat(...rows: Uint8Array[]): Uint8Array {
-  const result = new Uint8Array(rows.reduce((n, r) => n + r.length, 0));
-  let at = 0;
-  for (const row of rows) {
-    result.set(row, at);
-    at += row.length;
-  }
-  return result;
-}
-function uint(value: bigint, size: number): Uint8Array {
-  if (value < 0n || value >= 1n << BigInt(size * 8))
-    throw new Error("Unrepresentable canonical integer.");
-  const out = new Uint8Array(size);
-  for (let i = 0; i < size; i++)
-    out[i] = Number((value >> BigInt(i * 8)) & 255n);
-  return out;
-}
 function hashBytes(value: string | undefined): Uint8Array {
   if (!value || !/^[a-f0-9]{64}$/.test(value))
     throw new Error("Missing canonical commitment bytes.");
@@ -77,32 +57,28 @@ function count(n: number): number {
   for (let v = n; v; v >>>= 1) result += v & 1;
   return result;
 }
-/** Rust hashing.rs envelope_hash_fields mirror; locked against the repository golden vector. */
+/** Verify with the shared Rust-derived envelope codec and repository golden vector. */
 export function canonicalReviewEnvelope(
   proposal: TypedProposalAccount,
   walletName: string,
   threshold: number,
   network: number,
 ): string {
-  return toHex(
-    sha256(
-      concat(
-        bytes("clearsig:policy-engine:v4"),
-        new Uint8Array([4, proposal.actionKind, network]),
-        uint(proposal.proposalIndex, 8),
-        bytes(walletName),
-        bytes(new PublicKey(proposal.wallet).toBytes()),
-        bytes(new PublicKey(proposal.proposer).toBytes()),
-        bytes(hashBytes(proposal.actionIdHex)),
-        bytes(hashBytes(proposal.nonceHex)),
-        uint(proposal.expiresAt, 8),
-        new Uint8Array([threshold]),
-        hashBytes(proposal.policyCommitment),
-        hashBytes(proposal.payloadHash),
-        sha256(fromHex(proposal.clearTextHex ?? "")),
-      ),
-    ),
-  );
+  return canonicalEnvelopeHash({
+    kind: proposal.actionKind,
+    network,
+    proposal_index: proposal.proposalIndex,
+    wallet_name: encoder.encode(walletName),
+    wallet_id: new PublicKey(proposal.wallet).toBytes(),
+    actor: new PublicKey(proposal.proposer).toBytes(),
+    action_id: hashBytes(proposal.actionIdHex),
+    nonce: hashBytes(proposal.nonceHex),
+    expires_at: proposal.expiresAt,
+    approval_required: threshold,
+    policy_commitment: hashBytes(proposal.policyCommitment),
+    payload_hash: hashBytes(proposal.payloadHash),
+    clear_text_hash: sha256(fromHex(proposal.clearTextHex ?? "")),
+  });
 }
 export function verifyCanonicalProposalReview(
   proposal: TypedProposalAccount,

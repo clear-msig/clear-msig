@@ -1,3 +1,4 @@
+import { canonicalEnvelopeHash } from "@/lib/clearsign/generatedEnvelope";
 import type { Connection } from "@solana/web3.js";
 import { solanaAuthorityCodec as codec } from "./serverSolanaTradeAuthority";
 import {
@@ -105,23 +106,21 @@ export function createSolanaSettlementAuthorityReader(config: {
       !proposal.nonce.some(Boolean)
     )
       throw new Error("Canonical settlement payload or replay fields differ.");
-    const envelope = codec.hash(
-      Buffer.concat([
-        codec.bytes("clearsig:policy-engine:v4"),
-        Buffer.from([4, 14, 7]),
-        codec.uint(proposal.index, 8),
-        codec.bytes(wallet.name),
-        codec.bytes(walletKey.toBuffer()),
-        codec.bytes(codec.canonicalKey(proposal.proposer).toBuffer()),
-        codec.bytes(proposal.actionId),
-        codec.bytes(proposal.nonce),
-        codec.uint(BigInt(proposal.expiresAtMs / 1000), 8),
-        Buffer.from([intent.approvalThreshold]),
-        Buffer.from(policy, "hex"),
-        Buffer.from(payload, "hex"),
-        Buffer.from(codec.hash(proposal.clearText), "hex"),
-      ]),
-    );
+    const envelope = canonicalEnvelopeHash({
+      kind: 14,
+      network: 7,
+      proposal_index: proposal.index,
+      wallet_name: new TextEncoder().encode(wallet.name),
+      wallet_id: walletKey.toBytes(),
+      actor: codec.canonicalKey(proposal.proposer).toBytes(),
+      action_id: proposal.actionId,
+      nonce: proposal.nonce,
+      expires_at: BigInt(proposal.expiresAtMs / 1000),
+      approval_required: intent.approvalThreshold,
+      policy_commitment: Buffer.from(policy, "hex"),
+      payload_hash: Buffer.from(payload, "hex"),
+      clear_text_hash: Buffer.from(codec.hash(proposal.clearText), "hex"),
+    });
     if (proposal.envelopeHash !== envelope)
       throw new Error("Canonical v4 settlement envelope verification failed.");
     // Expiry governs execution, not later proof of an already executed settlement.

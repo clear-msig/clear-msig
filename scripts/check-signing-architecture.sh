@@ -13,7 +13,10 @@ if rg -n '^(use|extern crate)[[:space:]]+(solana|tokio|axum|reqwest|serde_json|q
   exit 1
 fi
 
-if rg -n 'CSIGINT4|clearsig:canonical-intent:v4|clearsig:policy-engine:v4' \
+# Only this mechanically generated verifier may contain the envelope domain.
+# Generation checks the canonical Rust field order, widths and validation first.
+node apps/web/scripts/check-signing-envelope.mjs
+if rg -n --glob '!apps/web/src/lib/clearsign/generatedEnvelope.ts' 'CSIGINT4|clearsig:canonical-intent:v4|clearsig:policy-engine:v4' \
   apps/api/src apps/web/src; then
   echo "Signing architecture check failed: a transport or browser module reimplemented a v4 authority domain." >&2
   exit 1

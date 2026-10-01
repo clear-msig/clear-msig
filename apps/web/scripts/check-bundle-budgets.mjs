@@ -56,13 +56,31 @@ export const REVIEW_PREVIEW_BUDGETS = Object.freeze({
   chunk: 518,
 });
 
+// Approval is for this repository's current main DEVNET channel, not a
+// mainnet release. A future channel change must review this scope explicitly.
+export const MAIN_DEVNET_BUDGETS = Object.freeze({
+  ...REVIEW_PREVIEW_BUDGETS,
+  id: "main-devnet-2026-10-01-v1",
+});
+
 export function selectBundleBudgets(env = {}) {
-  return env.VERCEL === "1" &&
-    env.VERCEL_ENV === "preview" &&
-    (env.VERCEL_TARGET_ENV === undefined || env.VERCEL_TARGET_ENV === "preview") &&
-    env.VERCEL_GIT_COMMIT_REF === "review/security-ux-audit-2026-09-30"
-    ? REVIEW_PREVIEW_BUDGETS
-    : DEFAULT_BUNDLE_BUDGETS;
+  const vercel = env.VERCEL === "1";
+  if (vercel &&
+      env.VERCEL_ENV === "preview" &&
+      (env.VERCEL_TARGET_ENV === undefined || env.VERCEL_TARGET_ENV === "preview") &&
+      env.VERCEL_GIT_COMMIT_REF === "review/security-ux-audit-2026-09-30")
+    return REVIEW_PREVIEW_BUDGETS;
+  if (vercel && env.VERCEL_ENV === "production" &&
+      (env.VERCEL_TARGET_ENV === undefined || env.VERCEL_TARGET_ENV === "production") &&
+      env.VERCEL_GIT_REPO_OWNER === "clear-msig" &&
+      env.VERCEL_GIT_REPO_SLUG === "clear-msig" &&
+      env.VERCEL_GIT_COMMIT_REF === "main")
+    return MAIN_DEVNET_BUDGETS;
+  if (env.VERCEL === undefined && env.GITHUB_ACTIONS === "true" &&
+      env.GITHUB_REPOSITORY === "clear-msig/clear-msig" &&
+      env.GITHUB_EVENT_NAME === "push" && env.GITHUB_REF === "refs/heads/main")
+    return MAIN_DEVNET_BUDGETS;
+  return DEFAULT_BUNDLE_BUDGETS;
 }
 
 const TARGET_APP_TOTAL_BUDGET_KB = 250;

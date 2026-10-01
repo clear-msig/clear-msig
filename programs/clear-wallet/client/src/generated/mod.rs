@@ -8,6 +8,7 @@ pub mod cleanup_proposal;
 pub mod cleanup_typed_proposal;
 pub mod create_wallet;
 pub mod execute;
+pub mod execute_recurring_asset_payment;
 pub mod execute_recurring_payment;
 pub mod execute_recurring_token_payment;
 pub mod execute_typed;
@@ -15,6 +16,7 @@ pub mod execute_typed_agent_risk_policy;
 pub mod execute_typed_agent_session_grant;
 pub mod execute_typed_agent_trade_approval;
 pub mod execute_typed_agent_trade_settlement;
+pub mod execute_typed_asset_policy_update;
 pub mod execute_typed_chain_send;
 pub mod execute_typed_cross_chain_escrow_release;
 pub mod execute_typed_cross_chain_escrow_return;
@@ -23,6 +25,7 @@ pub mod execute_typed_escrow_return;
 pub mod execute_typed_intent_governance;
 pub mod execute_typed_private_escrow_release;
 pub mod execute_typed_private_escrow_return;
+pub mod execute_typed_recurring_asset_schedule;
 pub mod execute_typed_recurring_schedule;
 pub mod execute_typed_recurring_token_schedule;
 pub mod execute_typed_sol_batch_send;
@@ -45,6 +48,7 @@ pub use cleanup_proposal::*;
 pub use cleanup_typed_proposal::*;
 pub use create_wallet::*;
 pub use execute::*;
+pub use execute_recurring_asset_payment::*;
 pub use execute_recurring_payment::*;
 pub use execute_recurring_token_payment::*;
 pub use execute_typed::*;
@@ -52,6 +56,7 @@ pub use execute_typed_agent_risk_policy::*;
 pub use execute_typed_agent_session_grant::*;
 pub use execute_typed_agent_trade_approval::*;
 pub use execute_typed_agent_trade_settlement::*;
+pub use execute_typed_asset_policy_update::*;
 pub use execute_typed_chain_send::*;
 pub use execute_typed_cross_chain_escrow_release::*;
 pub use execute_typed_cross_chain_escrow_return::*;
@@ -60,6 +65,7 @@ pub use execute_typed_escrow_return::*;
 pub use execute_typed_intent_governance::*;
 pub use execute_typed_private_escrow_release::*;
 pub use execute_typed_private_escrow_return::*;
+pub use execute_typed_recurring_asset_schedule::*;
 pub use execute_typed_recurring_schedule::*;
 pub use execute_typed_recurring_token_schedule::*;
 pub use execute_typed_sol_batch_send::*;
@@ -301,6 +307,29 @@ pub enum ProgramInstruction {
         status: u8,
     },
     ExecuteRecurringTokenPayment {
+        schedule_id_hash: [u8; 32],
+    },
+    ExecuteTypedAssetPolicyUpdate {
+        current_policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        chain_kind: u8,
+        scope_kind: u8,
+        decimals: u8,
+        asset_id: [u8; 32],
+        display_asset: DynVec<u8>,
+        new_policy_bytes: DynVec<u8>,
+    },
+    ExecuteTypedRecurringAssetSchedule {
+        policy_commitment: [u8; 32],
+        envelope_hash: [u8; 32],
+        schedule_id_hash: [u8; 32],
+        amount_tokens: u64,
+        interval_seconds: u32,
+        first_execution_at: i64,
+        payment_count: u32,
+        status: u8,
+    },
+    ExecuteRecurringAssetPayment {
         schedule_id_hash: [u8; 32],
     },
     ApproveTyped {
@@ -1003,6 +1032,70 @@ pub fn decode_instruction(data: &[u8]) -> Option<ProgramInstruction> {
             let payload = &data[1..];
             let schedule_id_hash: [u8; 32] = wincode::deserialize(payload).ok()?;
             Some(ProgramInstruction::ExecuteRecurringTokenPayment { schedule_id_hash })
+        }
+        36 => {
+            let payload = &data[1..];
+            let mut offset = 0usize;
+            let current_policy_commitment: [u8; 32] =
+                wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&current_policy_commitment).ok()? as usize;
+            let envelope_hash: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&envelope_hash).ok()? as usize;
+            let chain_kind: u8 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&chain_kind).ok()? as usize;
+            let scope_kind: u8 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&scope_kind).ok()? as usize;
+            let decimals: u8 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&decimals).ok()? as usize;
+            let asset_id: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&asset_id).ok()? as usize;
+            let display_asset: DynVec<u8> = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&display_asset).ok()? as usize;
+            let new_policy_bytes: DynVec<u8> = wincode::deserialize(&payload[offset..]).ok()?;
+            Some(ProgramInstruction::ExecuteTypedAssetPolicyUpdate {
+                current_policy_commitment,
+                envelope_hash,
+                chain_kind,
+                scope_kind,
+                decimals,
+                asset_id,
+                display_asset,
+                new_policy_bytes,
+            })
+        }
+        37 => {
+            let payload = &data[1..];
+            let mut offset = 0usize;
+            let policy_commitment: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&policy_commitment).ok()? as usize;
+            let envelope_hash: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&envelope_hash).ok()? as usize;
+            let schedule_id_hash: [u8; 32] = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&schedule_id_hash).ok()? as usize;
+            let amount_tokens: u64 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&amount_tokens).ok()? as usize;
+            let interval_seconds: u32 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&interval_seconds).ok()? as usize;
+            let first_execution_at: i64 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&first_execution_at).ok()? as usize;
+            let payment_count: u32 = wincode::deserialize(&payload[offset..]).ok()?;
+            offset += wincode::serialized_size(&payment_count).ok()? as usize;
+            let status: u8 = wincode::deserialize(&payload[offset..]).ok()?;
+            Some(ProgramInstruction::ExecuteTypedRecurringAssetSchedule {
+                policy_commitment,
+                envelope_hash,
+                schedule_id_hash,
+                amount_tokens,
+                interval_seconds,
+                first_execution_at,
+                payment_count,
+                status,
+            })
+        }
+        38 => {
+            let payload = &data[1..];
+            let schedule_id_hash: [u8; 32] = wincode::deserialize(payload).ok()?;
+            Some(ProgramInstruction::ExecuteRecurringAssetPayment { schedule_id_hash })
         }
         9 => {
             let payload = &data[1..];

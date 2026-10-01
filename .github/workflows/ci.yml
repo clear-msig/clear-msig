@@ -97,7 +97,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-next-${{ hashFiles('apps/web/package-lock.json') }}-
 
+      - name: Install isolated ledger test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+
       - name: Production verification
+        env:
+          CLEARSIG_TEST_REDIS_BIN: /usr/bin/redis-server
+          CLEARSIG_TEST_REDIS_CLI: /usr/bin/redis-cli
         run: npm run build
 
   # ------------------------------------------------------------------

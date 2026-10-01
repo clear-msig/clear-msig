@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   analyzeBundleManifest,
   DEFAULT_BUNDLE_BUDGETS,
+  MAIN_DEVNET_BUDGETS,
   REVIEW_PREVIEW_BUDGETS,
   selectBundleBudgets,
   evaluateBundleBudgets,
@@ -181,4 +182,42 @@ test("preview never widens public, connect or route-owned budgets", () => {
     assert.equal(evaluateBundleBudgets(sample, REVIEW_PREVIEW_BUDGETS).length, 1);
     assert.deepEqual(evaluateBundleBudgets(sample, REVIEW_PREVIEW_BUDGETS), evaluateBundleBudgets(sample));
   }
+});
+
+const approvedMain = {
+  VERCEL: "1", VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main",
+  VERCEL_GIT_REPO_OWNER: "clear-msig", VERCEL_GIT_REPO_SLUG: "clear-msig",
+};
+const approvedMainCi = {
+  GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "clear-msig/clear-msig",
+  GITHUB_EVENT_NAME: "push", GITHUB_REF: "refs/heads/main",
+};
+test("approved main devnet Vercel and push CI use exactly the measured preview ceilings", () => {
+  for (const env of [approvedMain, {...approvedMain, VERCEL_TARGET_ENV: "production"}, approvedMainCi])
+    assert.equal(selectBundleBudgets(env), MAIN_DEVNET_BUDGETS);
+  assert.deepEqual(MAIN_DEVNET_BUDGETS, {...REVIEW_PREVIEW_BUDGETS, id: "main-devnet-2026-10-01-v1"});
+});
+test("main baseline requires exact platform, repository, branch and event metadata", () => {
+  for (const env of [approvedMain, approvedMainCi]) {
+    for (const key of Object.keys(env)) {
+      for (const value of [undefined, "", " ", true, 1, "other"])
+        assert.equal(selectBundleBudgets({...env, [key]: value}), DEFAULT_BUNDLE_BUDGETS);
+    }
+  }
+  for (const VERCEL_TARGET_ENV of ["preview", "staging", "", "mainnet"])
+    assert.equal(selectBundleBudgets({...approvedMain, VERCEL_TARGET_ENV}), DEFAULT_BUNDLE_BUDGETS);
+  assert.equal(selectBundleBudgets({...approvedMainCi, VERCEL: "0"}), DEFAULT_BUNDLE_BUDGETS);
+  assert.equal(selectBundleBudgets({...approvedMainCi, GITHUB_EVENT_NAME: "pull_request"}), DEFAULT_BUNDLE_BUDGETS);
+});
+test("main devnet ceilings still reject one byte of growth in every measured profile", () => {
+  for (const [field, budget] of [["routeSizes", "app"], ["externalAppSizes", "external"], ["turnkeyAppSizes", "turnkey"]]) {
+    const sample = metrics();
+    sample[field] = [row("/app/example/page", MAIN_DEVNET_BUDGETS[budget] * 1024)];
+    assert.deepEqual(evaluateBundleBudgets(sample, MAIN_DEVNET_BUDGETS), []);
+    sample[field][0].totalBytes++;
+    assert.equal(evaluateBundleBudgets(sample, MAIN_DEVNET_BUDGETS).length, 1);
+  }
+  const sample = metrics();
+  sample.chunks.set("runtime.js", MAIN_DEVNET_BUDGETS.chunk * 1024 + 1);
+  assert.equal(evaluateBundleBudgets(sample, MAIN_DEVNET_BUDGETS).length, 1);
 });

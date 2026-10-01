@@ -1,3 +1,4 @@
+import { canonicalEnvelopeHash } from "@/lib/clearsign/generatedEnvelope";
 import { createHash } from "node:crypto";
 import { PublicKey, type AccountInfo, type Connection } from "@solana/web3.js";
 import { parseIntent, parseWallet } from "@/lib/msig/accounts";
@@ -111,23 +112,21 @@ export function createSolanaTradeAuthorityReader(
       proposal.expiresAtMs !== order.expiresAtMs
     )
       throw new Error("Canonical proposal differs from the exact venue order.");
-    const envelope = hash(
-      Buffer.concat([
-        bytes("clearsig:policy-engine:v4"),
-        Buffer.from([4, 9, 7]),
-        uint(proposal.index, 8),
-        bytes(wallet.name),
-        bytes(walletKey.toBuffer()),
-        bytes(canonicalKey(proposal.proposer).toBuffer()),
-        bytes(proposal.actionId),
-        bytes(proposal.nonce),
-        uint(BigInt(proposal.expiresAtMs / 1000), 8),
-        Buffer.from([intent.approvalThreshold]),
-        Buffer.from(policyCommitment, "hex"),
-        Buffer.from(payloadHash, "hex"),
-        Buffer.from(hash(proposal.clearText), "hex"),
-      ]),
-    );
+    const envelope = canonicalEnvelopeHash({
+      kind: 9,
+      network: 7,
+      proposal_index: proposal.index,
+      wallet_name: new TextEncoder().encode(wallet.name),
+      wallet_id: walletKey.toBytes(),
+      actor: canonicalKey(proposal.proposer).toBytes(),
+      action_id: proposal.actionId,
+      nonce: proposal.nonce,
+      expires_at: BigInt(proposal.expiresAtMs / 1000),
+      approval_required: intent.approvalThreshold,
+      policy_commitment: Buffer.from(policyCommitment, "hex"),
+      payload_hash: Buffer.from(payloadHash, "hex"),
+      clear_text_hash: Buffer.from(hash(proposal.clearText), "hex"),
+    });
     if (envelope !== proposal.envelopeHash)
       throw new Error("Canonical v4 envelope verification failed.");
     const session = parseSession(

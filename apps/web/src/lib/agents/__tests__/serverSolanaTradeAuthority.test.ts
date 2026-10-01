@@ -1,3 +1,4 @@
+import { canonicalEnvelopeHash } from "@/lib/clearsign/generatedEnvelope";
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { PublicKey, type AccountInfo, type Connection } from "@solana/web3.js";
@@ -138,22 +139,23 @@ function fixture(kind: 9 | 14 = 9) {
   const document = Buffer.from(
     "ClearSig\nProtocol: clearsig-intent-v4@1\nSynthetic test document",
   );
-  const envelope = sha(
-    Buffer.concat([
-      vector("clearsig:policy-engine:v4"),
-      Buffer.from([4, kind, 7]),
-      number(8, 8),
-      vector(name),
-      vector(wallet.toBuffer()),
-      vector(proposer.toBuffer()),
-      vector(actionId),
-      vector(nonce),
-      number(order.expiresAtMs / 1000, 8),
-      number(2, 1),
-      digest(policyCommitment),
-      payload,
-      sha(document),
-    ]),
+  const envelope = Buffer.from(
+    canonicalEnvelopeHash({
+      kind,
+      network: 7,
+      proposal_index: 8n,
+      wallet_name: Buffer.from(name),
+      wallet_id: wallet.toBytes(),
+      actor: proposer.toBytes(),
+      action_id: actionId,
+      nonce,
+      expires_at: BigInt(order.expiresAtMs / 1000),
+      approval_required: 2,
+      policy_commitment: digest(policyCommitment),
+      payload_hash: payload,
+      clear_text_hash: sha(document),
+    }),
+    "hex",
   );
   const proposalData = Buffer.concat([
     Buffer.from([6]),
