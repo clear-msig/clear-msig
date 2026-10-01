@@ -1,0 +1,46 @@
+{
+  "id": "review-preview-2026-10-01-v1",
+  "sourceCommit": "161a2b84925301db46ddb529a8cd8a321673a41e",
+  "sourceTree": "bb4eaa09633bbdefac0d6c16b84a332501267164",
+  "scope": {
+    "VERCEL": "1",
+    "VERCEL_ENV": "preview",
+    "VERCEL_GIT_COMMIT_REF": "review/security-ux-audit-2026-09-30",
+    "VERCEL_TARGET_ENV": "absent or preview"
+  },
+  "measurement": {
+    "unit": "gzip bytes; budget KiB = bytes / 1024",
+    "standard": {
+      "bytes": 1022438,
+      "limitKiB": 999
+    },
+    "external": {
+      "bytes": 1150377,
+      "limitKiB": 1124
+    },
+    "turnkey": {
+      "bytes": 1014102,
+      "limitKiB": 991
+    },
+    "chunk": {
+      "bytes": 530226,
+      "limitKiB": 518,
+      "file": "static/chunks/3975.173ec998305e2df2.js"
+    },
+    "maxRoute": "/app/wallet/[name]/agents/page"
+  },
+  "tools": {
+    "node": "v24.19.0",
+    "npm": "11.9.0",
+    "zlib": "1.3.2.1-motley-3246f1b",
+    "next": "15.5.27"
+  },
+  "sha256": {
+    "package.json": "12f73ec7a4a6ad02bcd64b4ad38f9ba253e961610678fcfff79b02fb6dba79d7",
+    "package-lock.json": "f04c53757d9afacaf67e143e915171b86add0b1d9f479021e3d304b463ca9c60",
+    "next.config.ts": "51450c53451b34a1bfdcbe88a817bb3060536ddb1ac8665aadc7a6c971bde20f",
+    ".next/app-build-manifest.json": "2a77ae989870db9700aa0c68d6c08258a8a5e8618467249e7ff21010f2017a1e",
+    ".next/react-loadable-manifest.json": "169ff49bdde4af93c191874cb83878b5bfef9891fb25b934ab9427c2f19a2208"
+  },
+  "rounding": "Ceiling to next whole KiB; less than 1024 bytes above each measured maximum."
+}

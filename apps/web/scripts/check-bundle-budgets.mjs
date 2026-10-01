@@ -39,6 +39,32 @@ const CURRENT_APP_TOTAL_BUDGET_KB = 971;
 const CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB = 954;
 const CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB = 1_100;
 const CURRENT_MAX_CHUNK_BUDGET_KB = 506;
+// The opt-in scope is fixed in source, not a caller-supplied numeric override.
+// Evidence and approval: docs/security/preview-bundle-baseline-2026-10-01.md.
+export const DEFAULT_BUNDLE_BUDGETS = Object.freeze({
+  id: "production-ratchet-2026-07-16",
+  app: CURRENT_APP_TOTAL_BUDGET_KB,
+  external: CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB,
+  turnkey: CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB,
+  chunk: CURRENT_MAX_CHUNK_BUDGET_KB,
+});
+export const REVIEW_PREVIEW_BUDGETS = Object.freeze({
+  id: "review-preview-2026-10-01-v1",
+  app: 999,
+  external: 1124,
+  turnkey: 991,
+  chunk: 518,
+});
+
+export function selectBundleBudgets(env = {}) {
+  return env.VERCEL === "1" &&
+    env.VERCEL_ENV === "preview" &&
+    (env.VERCEL_TARGET_ENV === undefined || env.VERCEL_TARGET_ENV === "preview") &&
+    env.VERCEL_GIT_COMMIT_REF === "review/security-ux-audit-2026-09-30"
+    ? REVIEW_PREVIEW_BUDGETS
+    : DEFAULT_BUNDLE_BUDGETS;
+}
+
 const TARGET_APP_TOTAL_BUDGET_KB = 250;
 const TARGET_MAX_CHUNK_BUDGET_KB = 150;
 
@@ -95,7 +121,69 @@ function sumSizes(files, gzipBytesForFile) {
   return files.reduce((total, file) => total + gzipBytesForFile(file), 0);
 }
 
+export function evaluateBundleBudgets(
+  { routeSizes, externalAppSizes, turnkeyAppSizes, chunks },
+  budgets = DEFAULT_BUNDLE_BUDGETS,
+) {
+  const failures = [];
+  for (const item of routeSizes) {
+    const appRoute = item.route.startsWith("/app/");
+    const connectRoute = item.route === "/connect/page";
+    const totalBudgetKb = appRoute
+      ? budgets.app
+      : connectRoute
+        ? CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB
+        : 260;
+    const routeBudgetKb = appRoute || connectRoute ? 230 : 180;
+    const totalKb = item.totalBytes / 1024;
+    const routeKb = item.routeBytes / 1024;
+    if (totalKb > totalBudgetKb) {
+      failures.push(
+        `${item.route} is ${totalKb.toFixed(1)} kB gzip total; budget is ${totalBudgetKb} kB`,
+      );
+    }
+    if (routeKb > routeBudgetKb) {
+      failures.push(
+        `${item.route} owns ${routeKb.toFixed(1)} kB gzip; budget is ${routeBudgetKb} kB`,
+      );
+    }
+  }
+
+  for (const item of externalAppSizes) {
+    const totalKb = item.totalBytes / 1024;
+    if (totalKb > budgets.external) {
+      failures.push(
+        `${item.route} is ${totalKb.toFixed(1)} kB gzip with external-wallet runtime; ` +
+          `budget is ${budgets.external} kB`,
+      );
+    }
+  }
+
+  for (const item of turnkeyAppSizes) {
+    const totalKb = item.totalBytes / 1024;
+    if (totalKb > budgets.turnkey) {
+      failures.push(
+        `${item.route} is ${totalKb.toFixed(1)} kB with legacy Turnkey runtime; ` +
+          `budget is ${budgets.turnkey} kB`,
+      );
+    }
+  }
+
+  for (const [file, bytes] of chunks) {
+    const chunkKb = bytes / 1024;
+    if (chunkKb > budgets.chunk) {
+      failures.push(
+        `${file} is ${chunkKb.toFixed(1)} kB gzip; chunk budget is ${budgets.chunk} kB`,
+      );
+    }
+  }
+
+  return failures;
+}
+
 function run() {
+  const budgets = selectBundleBudgets(process.env);
+  console.log(`Bundle baseline: ${budgets.id}`);
   const buildRoot = new URL("../.next/", import.meta.url).pathname;
   const manifestPath = `${buildRoot}app-build-manifest.json`;
   const loadableManifestPath = `${buildRoot}react-loadable-manifest.json`;
@@ -170,57 +258,10 @@ function run() {
     return bytes;
   }).filter((item) => item.route.startsWith("/app/"));
 
-  for (const item of routeSizes) {
-    const appRoute = item.route.startsWith("/app/");
-    const connectRoute = item.route === "/connect/page";
-    const totalBudgetKb = appRoute
-      ? CURRENT_APP_TOTAL_BUDGET_KB
-      : connectRoute
-        ? CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB
-        : 260;
-    const routeBudgetKb = appRoute || connectRoute ? 230 : 180;
-    const totalKb = item.totalBytes / 1024;
-    const routeKb = item.routeBytes / 1024;
-    if (totalKb > totalBudgetKb) {
-      failures.push(
-        `${item.route} is ${totalKb.toFixed(1)} kB gzip total; budget is ${totalBudgetKb} kB`,
-      );
-    }
-    if (routeKb > routeBudgetKb) {
-      failures.push(
-        `${item.route} owns ${routeKb.toFixed(1)} kB gzip; budget is ${routeBudgetKb} kB`,
-      );
-    }
-  }
-
-  for (const item of externalAppSizes) {
-    const totalKb = item.totalBytes / 1024;
-    if (totalKb > CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB) {
-      failures.push(
-        `${item.route} is ${totalKb.toFixed(1)} kB gzip with external-wallet runtime; ` +
-          `budget is ${CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB} kB`,
-      );
-    }
-  }
-
-  for (const item of turnkeyAppSizes) {
-    const totalKb = item.totalBytes / 1024;
-    if (totalKb > CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB) {
-      failures.push(
-        `${item.route} is ${totalKb.toFixed(1)} kB with legacy Turnkey runtime; ` +
-          `budget is ${CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB} kB`,
-      );
-    }
-  }
-
-  for (const [file, bytes] of gzipCache) {
-    const chunkKb = bytes / 1024;
-    if (chunkKb > CURRENT_MAX_CHUNK_BUDGET_KB) {
-      failures.push(
-        `${file} is ${chunkKb.toFixed(1)} kB gzip; chunk budget is ${CURRENT_MAX_CHUNK_BUDGET_KB} kB`,
-      );
-    }
-  }
+  failures.push(...evaluateBundleBudgets(
+    { routeSizes, externalAppSizes, turnkeyAppSizes, chunks: gzipCache },
+    budgets,
+  ));
 
   routeSizes.sort((left, right) => right.totalBytes - left.totalBytes);
   console.log("Largest route payloads (total = shared + route-owned):");
@@ -232,22 +273,22 @@ function run() {
     );
   }
   console.log(
-    `Bundle ratchet: authenticated routes <= ${CURRENT_APP_TOTAL_BUDGET_KB} kB and chunks <= ` +
-      `${CURRENT_MAX_CHUNK_BUDGET_KB} kB gzip; final targets are ${TARGET_APP_TOTAL_BUDGET_KB} kB and ` +
+    `Bundle ratchet: authenticated routes <= ${budgets.app} kB and chunks <= ` +
+      `${budgets.chunk} kB gzip; final targets are ${TARGET_APP_TOTAL_BUDGET_KB} kB and ` +
       `${TARGET_MAX_CHUNK_BUDGET_KB} kB.`,
   );
   externalAppSizes.sort((left, right) => right.totalBytes - left.totalBytes);
   if (externalAppSizes[0]) {
     console.log(
       `External-wallet profile: max ${(externalAppSizes[0].totalBytes / 1024).toFixed(1)} kB gzip; ` +
-        `budget ${CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB} kB.`,
+        `budget ${budgets.external} kB.`,
     );
   }
   turnkeyAppSizes.sort((left, right) => right.totalBytes - left.totalBytes);
   if (turnkeyAppSizes[0]) {
     console.log(
       `Legacy Turnkey profile: max ${(turnkeyAppSizes[0].totalBytes / 1024).toFixed(1)} kB gzip; ` +
-        `budget ${CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB} kB.`,
+        `budget ${budgets.turnkey} kB.`,
     );
   }
 
