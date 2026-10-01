@@ -378,8 +378,10 @@ export function parseTypedProposal(data: Uint8Array): TypedProposalAccount {
   const envelopeHash = hex(r.fixed(32));
   const actionBytes = r.vecU8();
   const nonceBytes = r.vecU8();
-  const actionId = new TextDecoder().decode(actionBytes);
-  const nonce = new TextDecoder().decode(nonceBytes);
+  // Match Rust String::from_utf8_lossy: a leading BOM is part of the replay identity.
+  const replayDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
+  const actionId = replayDecoder.decode(actionBytes);
+  const nonce = replayDecoder.decode(nonceBytes);
   const beforePolicy = r.position();
   let policyBytesHex = "";
   let clearTextHex: string | undefined;

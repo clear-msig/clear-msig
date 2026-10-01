@@ -63,8 +63,8 @@ function AddressFormatRow() {
             Address display
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            How EVM + Solana addresses look in the UI. EIP-55 mixed-case
-            applies to EVM only (Solana base58 has no case form).
+            How EVM + Solana addresses look in the UI. EIP-55 mixed-case applies
+            to EVM only (Solana base58 has no case form).
           </p>
         </div>
       </div>
@@ -77,15 +77,16 @@ function AddressFormatRow() {
                 key={opt}
                 type="button"
                 onClick={() => set(opt)}
+                aria-pressed={active}
                 className={
-                  "rounded-soft border px-3 py-2 text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                  "min-h-11 rounded-soft border px-3 py-2 text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
                   (active
                     ? "border-accent bg-accent/[0.08] text-text-strong"
                     : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
                 }
               >
                 {opt === "abbreviated"
-                  ? "Abbreviated"
+                  ? "Short"
                   : opt === "checksum"
                     ? "EIP-55"
                     : "Full"}
@@ -120,8 +121,9 @@ function DisplayCurrencyRow() {
             Display currency
           </p>
           <p className="mt-0.5 text-xs text-text-soft">
-            Wallet totals render in this fiat. Budget caps and policy
-            thresholds stay set in USD - that&rsquo;s the unit on chain.
+            Wallet totals use this display currency. Policy limits keep their
+            original asset and units; changing this preference does not change
+            them.
           </p>
         </div>
       </div>
@@ -133,9 +135,10 @@ function DisplayCurrencyRow() {
               key={opt}
               type="button"
               onClick={() => set(opt)}
+              aria-pressed={active}
               title={currencyLabel(opt)}
               className={
-                "rounded-soft border px-3 py-2 text-center text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
+                "min-h-11 rounded-soft border px-3 py-2 text-center text-xs font-medium transition-[border-color,background-color,transform] duration-base ease-out-soft " +
                 (active
                   ? "border-accent bg-accent/[0.08] text-text-strong"
                   : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
@@ -149,10 +152,9 @@ function DisplayCurrencyRow() {
           );
         })}
       </div>
-      <p className="mt-2 text-[11px] text-text-soft">
-        Demo FX rates today. The live oracle that ships with the price
-        feeds workstream replaces both the spot prices and these rates
-        in one swap.
+      <p className="mt-2 text-xs text-text-soft">
+        Illustrative exchange rates only. These totals are not executable quotes
+        or the amounts used to enforce a policy.
       </p>
     </section>
   );
@@ -203,7 +205,11 @@ function ThemeSettingRow() {
           accent dot). The active tile gets the accent ring + a
           check badge in its corner so the choice reads at a
           glance. Tiles are tap-targets ≥80px tall on mobile. */}
-      <div role="radiogroup" aria-label="Theme" className="mt-5 grid grid-cols-3 gap-3">
+      <div
+        role="radiogroup"
+        aria-label="Theme"
+        className="mt-5 grid grid-cols-3 gap-3"
+      >
         <ThemeTile
           id="light"
           label="Light"
@@ -259,7 +265,7 @@ function ThemeSettingRow() {
         />
       </div>
 
-      <p className="mt-4 text-[11px] text-text-soft">
+      <p className="mt-4 text-xs text-text-soft">
         Saved on this device. Changes fade in over ~220ms.
       </p>
     </section>
@@ -313,7 +319,9 @@ function ThemeTile({
       <span
         className={clsx(
           "inline-flex items-center justify-center gap-1.5 text-[11px] font-medium",
-          active ? "text-text-strong" : "text-text-soft group-hover:text-text-strong",
+          active
+            ? "text-text-strong"
+            : "text-text-soft group-hover:text-text-strong",
         )}
       >
         <Icon className="h-3 w-3" strokeWidth={2} aria-hidden="true" />

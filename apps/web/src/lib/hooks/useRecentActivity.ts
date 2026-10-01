@@ -9,6 +9,7 @@
 // Uses tanstack-query useQueries so each per-wallet fetch is cached and
 // invalidated independently.
 
+import { proposalActivityTemplate } from "@/lib/retail/labels";
 import { useMemo } from "react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
@@ -53,6 +54,9 @@ export interface RecentActivityResult {
   allRows: RecentActivityRow[];
   pendingByWallet: Map<string, number>;
   loading: boolean;
+  error: unknown;
+  refreshing: boolean;
+  refresh: () => Promise<void>;
 }
 
 interface RecentActivityOptions {
@@ -69,7 +73,7 @@ export function useRecentActivity(
   const enabled = (options.enabled ?? true) && address.length > 0;
 
   const memberships = useQuery({
-    queryKey: ["my-organizations", address],
+    queryKey: ["my-organizations", address, connection.rpcEndpoint],
     queryFn: () => fetchOnchainMemberships(address),
     enabled,
     staleTime: 30_000,
@@ -83,20 +87,27 @@ export function useRecentActivity(
   const walletQueries = useQueries({
     queries: enabled
       ? (memberships.data ?? []).map((m) => ({
-      queryKey: ["wallet-account-by-pda", m.wallet],
-      queryFn: async (): Promise<{
-        membership: OnchainMembership;
-        account: WalletAccount | null;
-      }> => {
-        const account = await fetchWalletByPda(connection, new PublicKey(m.wallet));
-        return { membership: m, account };
-      },
-      staleTime: 30_000,
-      // A stale wallet high-water mark hides proposals created after mount,
-      // even while the proposal-list query itself keeps polling.
-      refetchInterval: 30_000,
-      refetchIntervalInBackground: true,
-      }))
+          queryKey: ["wallet-account-by-pda", m.wallet, connection.rpcEndpoint],
+          queryFn: async (): Promise<{
+            membership: OnchainMembership;
+            account: WalletAccount | null;
+          }> => {
+            const account = await fetchWalletByPda(
+              connection,
+              new PublicKey(m.wallet),
+            );
+            if (!account)
+              throw new Error(
+                "A wallet account could not be read; history may be incomplete.",
+              );
+            return { membership: m, account };
+          },
+          staleTime: 30_000,
+          // A stale wallet high-water mark hides proposals created after mount,
+          // even while the proposal-list query itself keeps polling.
+          refetchInterval: 30_000,
+          refetchIntervalInBackground: true,
+        }))
       : [],
   });
 
@@ -105,38 +116,39 @@ export function useRecentActivity(
   const proposalsQueries = useQueries({
     queries: enabled
       ? walletQueries.map((wq) => {
-      const ready = wq.data?.account != null;
-      return {
-        queryKey: [
-          "wallet-proposals-recent",
-          wq.data?.membership.wallet ?? "pending",
-          wq.data?.account?.intentIndex ?? null,
-          wq.data?.account?.proposalIndex.toString() ?? null,
-        ],
-        queryFn: async (): Promise<{
-          membership: OnchainMembership;
-          rows: ProposalWithPda[];
-        }> => {
-          const m = wq.data!.membership;
-          const wAccount = wq.data!.account!;
-          const rows = await listProposalsForWallet(
-            connection,
-            new PublicKey(m.wallet),
-            wAccount
-          );
-          return { membership: m, rows };
-        },
-        enabled: ready,
-        staleTime: 5_000,
-        // Multisig proposals arrive at human pace. A 30s foreground
-        // refresh keeps badges current with one shared observer. Keep
-        // it alive in the background so browser approval notifications
-        // still arrive when a teammate proposes from another device.
-        refetchInterval: 30_000,
-        refetchIntervalInBackground: true,
-        refetchOnWindowFocus: true,
-      };
-      })
+          const ready = wq.data?.account != null;
+          return {
+            queryKey: [
+              "wallet-proposals-recent",
+              connection.rpcEndpoint,
+              wq.data?.membership.wallet ?? "pending",
+              wq.data?.account?.intentIndex ?? null,
+              wq.data?.account?.proposalIndex.toString() ?? null,
+            ],
+            queryFn: async (): Promise<{
+              membership: OnchainMembership;
+              rows: ProposalWithPda[];
+            }> => {
+              const m = wq.data!.membership;
+              const wAccount = wq.data!.account!;
+              const rows = await listProposalsForWallet(
+                connection,
+                new PublicKey(m.wallet),
+                wAccount,
+              );
+              return { membership: m, rows };
+            },
+            enabled: ready,
+            staleTime: 5_000,
+            // Multisig proposals arrive at human pace. A 30s foreground
+            // refresh keeps badges current with one shared observer. Keep
+            // it alive in the background so browser approval notifications
+            // still arrive when a teammate proposes from another device.
+            refetchInterval: 30_000,
+            refetchIntervalInBackground: true,
+            refetchOnWindowFocus: true,
+          };
+        })
       : [],
   });
 
@@ -148,7 +160,10 @@ export function useRecentActivity(
   // upstream don't recompute their derived rows on unrelated
   // re-renders.
   const proposalsFingerprint = proposalsQueries
-    .map((q) => `${q.data?.membership.wallet ?? "pending"}.${q.dataUpdatedAt}.${q.status}`)
+    .map(
+      (q) =>
+        `${q.data?.membership.wallet ?? "pending"}.${q.dataUpdatedAt}.${q.status}`,
+    )
     .join("|");
   const allRows = useMemo<RecentActivityRow[]>(() => {
     const flat: RecentActivityRow[] = [];
@@ -166,14 +181,10 @@ export function useRecentActivity(
           statusLabel: p.account.statusLabel,
           proposedAt: p.account.proposedAt,
           approvalBitmap: p.account.approvalBitmap,
-          intentTemplate:
-            p.intentIndex === 0
-              ? "AddIntent"
-              : p.intentIndex === 1
-                ? "RemoveIntent"
-                : p.intentIndex === 2
-                  ? "UpdateIntent"
-                  : "Custom",
+          intentTemplate: proposalActivityTemplate(
+            p.intentIndex,
+            "actionKind" in p.account ? p.account.actionKind : undefined,
+          ),
           proposer: p.account.proposer,
         });
       }
@@ -188,7 +199,7 @@ export function useRecentActivity(
     });
     return flat;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proposalsFingerprint]);
+  }, [proposalsFingerprint, connection.rpcEndpoint, address]);
 
   const rows = useMemo(() => allRows.slice(0, limit), [allRows, limit]);
 
@@ -209,7 +220,28 @@ export function useRecentActivity(
     walletQueries.some((q) => q.isLoading) ||
     proposalsQueries.some((q) => q.isLoading);
 
-  return { rows, allRows, pendingByWallet, loading };
+  const queries = [memberships, ...walletQueries, ...proposalsQueries];
+  const error = queries.find((query) => query.error)?.error ?? null;
+  const refreshing = queries.some((query) => query.isFetching);
+  const refresh = async () => {
+    if (!enabled) return;
+    await memberships.refetch();
+    await Promise.all(walletQueries.map((query) => query.refetch()));
+    await Promise.all(
+      proposalsQueries
+        .filter((query) => query.data || query.error)
+        .map((query) => query.refetch()),
+    );
+  };
+  return {
+    rows,
+    allRows,
+    pendingByWallet,
+    loading,
+    error,
+    refreshing,
+    refresh,
+  };
 }
 
 // ProposalStatus.Active - inlined to avoid pulling the whole enum into

@@ -521,9 +521,15 @@ export function useStartTradingController() {
       setAgentVaultEmergencyPause(name, true);
       const synced = await syncAgentEmergencyPause(name, true);
       setKillSwitchHandoff(synced.killSwitch ?? null);
-      toast.success("All agent trading paused", synced.killSwitch
-        ? { details: synced.killSwitch.message }
-        : undefined);
+      if (synced.ok) {
+        toast.success("ClearSig automatic actions paused", {
+          details: [synced.killSwitch?.message, "External positions and orders are not confirmed closed or cancelled."].filter(Boolean).join(" "),
+        });
+      } else {
+        toast.info("Pause saved on this device only", {
+          details: `${synced.message} Server synchronization and external position closure are not confirmed.`,
+        });
+      }
       await refresh();
     });
   };

@@ -1,3 +1,4 @@
+import { reviewStoredProtectionPolicy } from "./policyReview";
 import { PublicKey } from "@solana/web3.js";
 import type { IntentAccount, TypedProposalAccount } from "@/lib/msig/accounts";
 import type { TypedDryRunDescriptor } from "@/lib/api/types";
@@ -16,7 +17,7 @@ const NETWORKS = [
   [8, 4, "Ethereum Sepolia"],
 ] as const;
 export const REVIEWABLE_ACTION_KINDS = [
-  1, 2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 15,
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16,
 ] as const;
 export interface CanonicalProposalReview {
   reviewId: string;
@@ -109,10 +110,6 @@ export function verifyCanonicalProposalReview(
   walletName: string,
   proposalAddress: string,
 ): CanonicalProposalReview {
-  if ([6, 16].includes(proposal.actionKind))
-    throw new Error(
-      "Protection-policy changes require a decoded policy review; a commitment alone is insufficient. Approval is blocked.",
-    );
   if (
     !REVIEWABLE_ACTION_KINDS.includes(
       proposal.actionKind as (typeof REVIEWABLE_ACTION_KINDS)[number],
@@ -198,6 +195,15 @@ export function verifyCanonicalProposalReview(
       "Timelock seconds:",
       "Final proposers:",
       "Final approvers:",
+    ],
+    6: ["Wallet:", "Policy chain kind:", "New policy commitment:"],
+    16: [
+      "Wallet:",
+      "Asset:",
+      "Asset mint:",
+      "Decimals:",
+      "Policy scope:",
+      "New policy commitment:",
     ],
     7: [
       "Wallet:",
@@ -302,6 +308,18 @@ export function verifyCanonicalProposalReview(
     const at = p.indexOf("\n");
     return Object.freeze({ title: p.slice(0, at), text: p.slice(at + 1) });
   });
+  if ([6, 16].includes(proposal.actionKind)) {
+    sections.push(
+      Object.freeze({
+        title: "NEW PROTECTION RULES (DECODED)",
+        text: reviewStoredProtectionPolicy(
+          proposal.actionKind,
+          proposal.policyBytesHex,
+          sections[1].text,
+        ),
+      }),
+    );
+  }
   const binding = Object.freeze({
     wallet: proposal.wallet,
     intent: proposal.intent,

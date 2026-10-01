@@ -4,6 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import type { IntentAccount, TypedProposalAccount } from "@/lib/msig/accounts";
 import type { TypedDryRunDescriptor } from "@/lib/api/types";
+import { policyCommitmentHex } from "@/lib/policies/onchain";
 import { sha256, toHex } from "@/lib/msig/hash";
 import {
   bindApprovalDescriptor,
@@ -138,7 +139,7 @@ describe("canonical proposal review (synthetic accounts, existing Rust golden ve
     expect(review().document).toBe(document);
     expect(review().network).toBe("Solana Devnet");
   });
-  it.each([0, 6, 10, 11, 16, 17])(
+  it.each([0, 10, 11, 17])(
     "blocks unsupported or opaque policy kind %s",
     (kind) => {
       const { p } = example();
@@ -325,6 +326,47 @@ describe("supported action document coverage", () => {
       p.clearTextHex = toHex(enc.encode(sections.join("\n\n")));
       p.envelopeHash = canonicalReviewEnvelope(p, "Team treasury", 2, 1);
       expect(() => review(p)).toThrow(/missing/);
+    },
+  );
+});
+
+describe("policy review integration", () => {
+  it.each([6, 16])(
+    "reviews committed decoded rules for kind %s without changing signed document",
+    (kind) => {
+      const { p } = example();
+      p.actionKind = kind;
+      const inner = new Uint8Array(19);
+      inner.set(new TextEncoder().encode("CSP1"));
+      const policy =
+        kind === 6
+          ? inner
+          : new Uint8Array([
+              ...new TextEncoder().encode("CSP2"),
+              1,
+              6,
+              ...new PublicKey(pk(4)).toBytes(),
+              ...inner,
+            ]);
+      p.policyBytesHex = toHex(policy);
+      const scope =
+        kind === 6
+          ? "Policy chain kind: 0"
+          : `Asset: USDC\nAsset mint: ${pk(4)}\nDecimals: 6\nPolicy scope: SPL token`;
+      const sections = document.split("\n\n");
+      sections[1] = `ACTION\nReplace ${kind === 6 ? "wallet" : "USDC"} protection policy`;
+      sections[2] = `DETAILS\nWallet: Team treasury\nNetwork: Solana Devnet\n${scope}\nNew policy commitment: ${policyCommitmentHex(policy)}`;
+      const text = sections.join("\n\n");
+      p.clearTextHex = toHex(enc.encode(text));
+      p.envelopeHash = canonicalReviewEnvelope(p, "Team treasury", 2, 1);
+      const result = review(p);
+      expect(result.document).toBe(text);
+      expect(result.sections.at(-1)?.title).toContain("DECODED");
+      expect(result.sections.at(-1)?.text).toContain("No amount cap");
+      const changed = policy.slice();
+      changed[changed.length - 1] = 1;
+      p.policyBytesHex = toHex(changed);
+      expect(() => review(p)).toThrow(/commitment/);
     },
   );
 });

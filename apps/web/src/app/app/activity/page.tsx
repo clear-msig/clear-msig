@@ -1,4 +1,5 @@
 "use client";
+import { HistoryReadNotice } from "@/components/activity/HistoryReadNotice";
 
 // Cross-wallet activity feed.
 //
@@ -36,7 +37,11 @@ import {
 import { useRecentActivity } from "@/lib/hooks/useRecentActivity";
 import { useUserIntents } from "@/lib/hooks/useUserIntents";
 import { ProposalStatus } from "@/lib/msig";
-import { friendlyIntentLabel, friendlyStatus, statusTextColor } from "@/lib/retail/labels";
+import {
+  friendlyIntentLabel,
+  friendlyStatus,
+  statusTextColor,
+} from "@/lib/retail/labels";
 import { friendlyChainName } from "@/lib/retail/chains";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { relativeTime } from "@/lib/util/relativeTime";
@@ -177,9 +182,18 @@ export default function CrossWalletActivityPage() {
       }
       return true;
     });
-  }, [recent.allRows, statusFilter, chainFilter, walletFilter, chainByIntent, search]);
+  }, [
+    recent.allRows,
+    statusFilter,
+    chainFilter,
+    walletFilter,
+    chainByIntent,
+    search,
+  ]);
 
   const handleExport = () => {
+    if (recent.loading || intents.loading || recent.error || intents.error)
+      return;
     const csv = buildActivityCsv({ rows: filtered });
     const stamp = new Date().toISOString().slice(0, 10);
     const suffix =
@@ -200,6 +214,11 @@ export default function CrossWalletActivityPage() {
   };
 
   const loading = recent.loading || intents.loading;
+  const readError = recent.error || intents.error;
+  const refreshing = recent.refreshing || intents.refreshing;
+  const refresh = () => {
+    void Promise.all([recent.refresh(), intents.refresh()]);
+  };
   const hasActivity = recent.allRows.length > 0;
 
   return (
@@ -208,10 +227,14 @@ export default function CrossWalletActivityPage() {
         filteredCount={filtered.length}
         totalCount={recent.allRows.length}
         loading={loading}
+        incomplete={!!readError}
         reduce={!!reduce}
       />
 
-      {hasActivity && (
+      {!!readError && (
+        <HistoryReadNotice refreshing={refreshing} onRefresh={refresh} />
+      )}
+      {hasActivity && !readError && (
         <StatusStatsRow
           counts={counts}
           activeFilter={statusFilter}
@@ -229,16 +252,18 @@ export default function CrossWalletActivityPage() {
         chainFilter={chainFilter}
         onChainChange={(v) => setChainFilter(v as ChainFilter)}
         onExport={handleExport}
-        canExport={filtered.length > 0}
+        canExport={!loading && !readError && filtered.length > 0}
       />
 
-      <ActivityList
-        rows={filtered}
-        chainByIntent={chainByIntent}
-        loading={loading}
-        emptyKind={hasActivity ? "no-match" : "no-activity"}
-        onClearFilters={clearFilters}
-      />
+      {(!readError || filtered.length > 0) && (
+        <ActivityList
+          rows={filtered}
+          chainByIntent={chainByIntent}
+          loading={loading}
+          emptyKind={hasActivity ? "no-match" : "no-activity"}
+          onClearFilters={clearFilters}
+        />
+      )}
     </div>
   );
 }
@@ -246,11 +271,13 @@ export default function CrossWalletActivityPage() {
 // ─── Hero ──────────────────────────────────────────────────────────
 
 function Hero({
+  incomplete,
   filteredCount,
   totalCount,
   loading,
   reduce,
 }: {
+  incomplete: boolean;
   filteredCount: number;
   totalCount: number;
   loading: boolean;
@@ -259,11 +286,13 @@ function Hero({
   const motionProps = reduce
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
-  const summary = loading
-    ? "Loading…"
-    : totalCount === 0
-      ? "Nothing yet - no requests across your wallets."
-      : `${filteredCount} of ${totalCount} request${totalCount === 1 ? "" : "s"}`;
+  const summary = incomplete
+    ? "History incomplete"
+    : loading
+      ? "Loading…"
+      : totalCount === 0
+        ? "Nothing yet - no requests across your wallets."
+        : `${filteredCount} of ${totalCount} request${totalCount === 1 ? "" : "s"}`;
   return (
     <motion.div
       {...motionProps}
@@ -336,8 +365,7 @@ function StatusStatsRow({
               "group flex flex-col items-start gap-2 rounded-card border bg-surface-raised p-4 text-left shadow-card-rest",
               "transition-[border-color,transform,box-shadow,opacity] duration-base ease-out-soft",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
-              !disabled &&
-                "hover:-translate-y-0.5 hover:shadow-card-raised",
+              !disabled && "hover:-translate-y-0.5 hover:shadow-card-raised",
               disabled && "cursor-not-allowed opacity-50",
               active ? "border-accent/40" : "border-border-soft",
             )}
@@ -743,7 +771,11 @@ function ActivityList({
           `${row.walletPda}#${row.intentIndex}`,
         );
         return (
-          <ActivityRowItem key={row.proposalPda} row={row} chainKind={chainKind} />
+          <ActivityRowItem
+            key={row.proposalPda}
+            row={row}
+            chainKind={chainKind}
+          />
         );
       })}
     </ul>

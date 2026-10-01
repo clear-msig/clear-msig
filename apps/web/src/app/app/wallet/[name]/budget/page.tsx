@@ -191,14 +191,14 @@ export default function BudgetPage() {
         summarisePolicy(weeklyUsd, perChainUsd, velocityPerDay),
         result.updated > 0
           ? `${result.updated} on-chain ${result.updated === 1 ? "rule" : "rules"} updated`
-          : "On-chain rules already matched",
+          : result.waiting > 0 ? "New limits are not yet active on chain" : "On-chain rules already matched",
         result.waiting > 0
           ? `${result.waiting} ${result.waiting === 1 ? "update is" : "updates are"} waiting for another approval`
           : null,
       ]
         .filter(Boolean)
         .join(" · ");
-      toast.success(`${toDisplayName(name)}'s limits saved`, {
+      toast.success(result.waiting > 0 ? "Limits proposed; activation pending" : `${toDisplayName(name)}'s limits saved`, {
         details: detail,
       });
       router.push(`/app/wallet/${encodeURIComponent(name)}`);

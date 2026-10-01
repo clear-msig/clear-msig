@@ -27,10 +27,7 @@ import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Connection, PublicKey } from "@solana/web3.js";
-import {
-  ArrowLeft,
-  ArrowRight,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { Button } from "@/components/retail/Button";
 import { PageEyebrow } from "@/components/retail/PageEyebrow";
@@ -58,7 +55,10 @@ import {
 import { SCHEME_SOLANA_ADDRESS } from "@/lib/ikavery/constants";
 import { decodeProposal } from "@/lib/ikavery/codec/proposal";
 import { secureActionErrorCopy } from "@/lib/ikavery/errors";
-import { ApprovalCollectionClosedError, createApprovalCollection } from "@/features/secure/domain/approvalCollection";
+import {
+  ApprovalCollectionClosedError,
+  createApprovalCollection,
+} from "@/features/secure/domain/approvalCollection";
 import {
   ComposeStage,
   DoneStage,
@@ -263,7 +263,8 @@ function SweepPage() {
   const isSpl = assetMint !== null;
   const decimals = isSpl ? (selectedHolding?.decimals ?? 0) : 9;
   const assetSymbol = isSpl
-    ? (selectedHolding?.symbol ?? `${assetMint!.slice(0, 4)}…${assetMint!.slice(-4)}`)
+    ? (selectedHolding?.symbol ??
+      `${assetMint!.slice(0, 4)}…${assetMint!.slice(-4)}`)
     : "SOL";
   const [runStage, setRunStage] = useState<ActionStage | null>(null);
   const [proposeSig, setProposeSig] = useState<string | null>(null);
@@ -283,7 +284,10 @@ function SweepPage() {
   const [collectError, setCollectError] = useState<string | null>(null);
   const runBusyRef = useRef(false);
   const collectBusyRef = useRef(false);
-  const approvalCollection = useMemo(() => createApprovalCollection(recoveryStr), [recoveryStr]);
+  const approvalCollection = useMemo(
+    () => createApprovalCollection(recoveryStr),
+    [recoveryStr],
+  );
   useEffect(() => {
     approvalCollection.open();
     return () => approvalCollection.close();
@@ -588,8 +592,8 @@ function SweepPage() {
             Connect a wallet first
           </h1>
           <p className="mx-auto mt-2 max-w-md text-base text-text-soft">
-            Sweep is authorised by the vault&rsquo;s roster. Sign in to
-            compose one.
+            Sweep is authorised by the vault&rsquo;s roster. Sign in to compose
+            one.
           </p>
           <Link
             href={`/connect?next=/app/secure/${encodeURIComponent(recoveryStr)}/sweep`}
@@ -623,9 +627,7 @@ function SweepPage() {
         </div>
       )}
 
-      {!blockedByDisconnect &&
-        !vaultQuery.isError &&
-        stage === "compose" && (
+      {!blockedByDisconnect && !vaultQuery.isError && stage === "compose" && (
         <ComposeStage
           destination={destination}
           setDestination={setDestination}
@@ -652,7 +654,10 @@ function SweepPage() {
             if (isSpl) {
               if (!selectedHolding) return;
               setAmountInput(
-                formatTokenAmount(selectedHolding.amount, selectedHolding.decimals),
+                formatTokenAmount(
+                  selectedHolding.amount,
+                  selectedHolding.decimals,
+                ),
               );
               return;
             }
@@ -675,11 +680,13 @@ function SweepPage() {
           destination={destinationPk?.toBase58() ?? ""}
           amountDisplay={`${amountInput} ${assetSymbol}`}
           dwalletPubkey={dwalletPubkey?.toBase58() ?? ""}
+          mint={previewSpl?.mint ?? null}
+          threshold={vaultQuery.data?.account.threshold ?? null}
+          memberCount={vaultQuery.data?.account.members.length ?? null}
           messageBytesLen={previewMessageBytes?.length ?? 0}
           isSpl={isSpl}
           willCreateAta={
-            previewSpl !== null &&
-            previewMessageBytes !== null
+            previewSpl !== null && previewMessageBytes !== null
             // The compose-stage preview always includes the AtaCreate ix
             // for size estimation; the actual run only emits it when the
             // destination ATA doesn't exist. We surface this disclosure

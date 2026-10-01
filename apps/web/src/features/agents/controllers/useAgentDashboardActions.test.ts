@@ -421,3 +421,23 @@ describe("agent dashboard action lifecycle", () => {
   });
 
 });
+
+
+describe("emergency pause communication", () => {
+  it("does not equate a successful policy sync with external position closure", async () => {
+    vi.mocked(state.syncAgentEmergencyPause).mockResolvedValue({ ...synced, killSwitch: { venue: "hyperliquid_testnet", state: "not_configured", message: "Execution bridge gated." } });
+    const { actions, context } = dashboard();
+    await actions.setKillSwitch(true);
+    expect(context.toast.success).toHaveBeenCalledWith("ClearSig automatic actions paused", { details: expect.stringContaining("External positions and orders are not confirmed closed or cancelled") });
+    expect(context.toast.success).toHaveBeenCalledWith(expect.any(String), { details: expect.stringContaining("Execution bridge gated.") });
+  });
+  it("keeps unsynced pause local and resume subject to the other gates", async () => {
+    vi.mocked(state.syncAgentEmergencyPause).mockResolvedValueOnce({ ok: false, message: "Offline" }).mockResolvedValueOnce(synced);
+    const { actions, context } = dashboard();
+    await actions.setKillSwitch(true);
+    expect(context.toast.success).not.toHaveBeenCalled();
+    expect(context.toast.info).toHaveBeenCalledWith("This change is saved on this device for now", { details: expect.stringContaining("not confirmed closed") });
+    await actions.setKillSwitch(false);
+    expect(context.toast.success).toHaveBeenCalledWith("ClearSig pause removed", { details: expect.stringContaining("execution gates still apply") });
+  });
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { SavedRequestNotice } from "@/components/review/SavedRequestNotice";
 import { useEffect } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { getWalletAppearance } from "@/lib/retail/walletAppearance";
@@ -19,7 +20,9 @@ export default function WalletProductLayout({
     const raw = params?.name ?? "";
     const walletName = decodeRouteParam(raw);
     if (!walletName) return;
-    const surface = walletProductSurface(getWalletAppearance(walletName)?.surface);
+    const surface = walletProductSurface(
+      getWalletAppearance(walletName)?.surface,
+    );
     const redirect = productWorkspaceRedirectHref({
       walletName,
       surface,
@@ -30,7 +33,12 @@ export default function WalletProductLayout({
     }
   }, [params?.name, pathname, router]);
 
-  return children;
+  return (
+    <>
+      <SavedRequestNotice walletName={decodeRouteParam(params?.name ?? "")} />
+      {children}
+    </>
+  );
 }
 
 function decodeRouteParam(value: string): string {

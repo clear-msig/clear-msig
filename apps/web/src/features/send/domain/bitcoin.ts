@@ -1,6 +1,9 @@
-import { decodeSegwitAddress } from "@/lib/chain/btc";
-import { BTC_CHAIN_KIND, bitcoinSendReady } from "@/lib/chain/btcIntentReadiness";
-import { pkhClearSignRecipient } from "@/lib/clearsign";
+import { decodeSegwitAddress, type BitcoinNetwork } from "@/lib/chain/btc";
+import {
+  BTC_CHAIN_KIND,
+  bitcoinSendReady,
+} from "@/lib/chain/btcIntentReadiness";
+import { pkhClearSignRecipient, type ClearSignNetwork } from "@/lib/clearsign";
 import { fromHex, parseIntent } from "@/lib/msig";
 
 export function assertPreparedBitcoinSetupIsCurrent(paramsDataHex: string) {
@@ -39,4 +42,25 @@ export function normalizeBitcoinPolicyRecipient(value: string): string {
   return decoded && decoded.version === 0 && decoded.program.length === 20
     ? pkhClearSignRecipient("btc-p2wpkh", decoded.program)
     : value.trim();
+}
+
+export function clearSignBitcoinNetwork(
+  network: BitcoinNetwork,
+): ClearSignNetwork {
+  switch (network) {
+    case "testnet":
+      return "Bitcoin testnet";
+    case "signet":
+      return "Bitcoin signet";
+    default:
+      throw new Error(
+        `Bitcoin ${network} is not registered for ClearSign execution.`,
+      );
+  }
+}
+
+export interface BitcoinBroadcastResult {
+  chain_kind?: number;
+  tx_id?: string;
+  raw_tx_hex?: string;
 }

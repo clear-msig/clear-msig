@@ -44,6 +44,40 @@ const META_TEMPLATES = new Set([
   "Cleanup",
 ]);
 
+/** Canonical typed action identity takes precedence over its containing intent slot. */
+export function proposalActivityTemplate(
+  intentIndex: number,
+  actionKind?: number,
+): string {
+  if (actionKind !== undefined)
+    return TYPED_ACTIVITY_TEMPLATES[actionKind] ?? "TypedUnknown";
+  return ["AddIntent", "RemoveIntent", "UpdateIntent"][intentIndex] ?? "Custom";
+}
+const TYPED_ACTIVITY_TEMPLATES: Record<number, string> = {
+  1: "TypedTransfer",
+  2: "TypedBatchTransfer",
+  3: "TypedUpdateMembers",
+  4: "TypedRemoveMembers",
+  5: "TypedUpdateThreshold",
+  6: "TypedWalletPolicy",
+  7: "TypedEscrowRelease",
+  8: "TypedEscrowReturn",
+  9: "TypedAgentTrade",
+  10: "TypedRecovery",
+  11: "TypedSwap",
+  12: "TypedAgentSession",
+  13: "TypedAgentRisk",
+  14: "TypedAgentSettlement",
+  15: "TypedRecurringPayment",
+  16: "TypedAssetPolicy",
+};
+const TRANSFER_TEMPLATES = new Set([
+  "SolTransfer",
+  "TokenTransfer",
+  "TypedTransfer",
+  "TypedBatchTransfer",
+]);
+
 export function friendlyStatus(
   s: ProposalStatusLike,
   intentTemplate?: string,
@@ -54,9 +88,17 @@ export function friendlyStatus(
     case ProposalStatus.Active:
       return "Waiting for approval";
     case ProposalStatus.Approved:
-      return isMeta ? "Ready" : "Ready to send";
+      return isMeta
+        ? "Ready"
+        : TRANSFER_TEMPLATES.has(intentTemplate ?? "")
+          ? "Ready to send"
+          : "Ready to execute";
     case ProposalStatus.Executed:
-      return isMeta ? "Done" : "Sent";
+      return isMeta
+        ? "Done"
+        : TRANSFER_TEMPLATES.has(intentTemplate ?? "")
+          ? "Sent"
+          : "Executed";
     case ProposalStatus.Cancelled:
       return "Cancelled";
     default:
@@ -65,6 +107,25 @@ export function friendlyStatus(
 }
 
 const TEMPLATE_LABELS: Record<string, string> = {
+  TypedTransfer: "Send funds",
+  TypedBatchTransfer: "Batch payment",
+  TypedUpdateMembers: "Update members",
+  TypedRemoveMembers: "Remove members",
+  TypedUpdateThreshold: "Change approval rules",
+  TypedWalletPolicy: "Update wallet policy",
+  TypedEscrowRelease: "Release escrow milestone",
+  TypedEscrowReturn: "Return escrow funds",
+  TypedAgentTrade: "Agent trade",
+  TypedRecovery: "Recovery request",
+  TypedSwap: "Swap request",
+  TypedAgentSession: "Update agent session",
+  TypedAgentRisk: "Update agent risk policy",
+  TypedAgentSettlement: "Settle agent execution",
+  TypedRecurringPayment: "Update recurring payment",
+  TypedAssetPolicy: "Update asset policy",
+  TypedUnknown: "Typed request",
+  Custom: "Custom request",
+
   SolTransfer: "Send money",
   TokenTransfer: "Send a token",
   AddIntent: "Set up a spending rule",
@@ -97,12 +158,15 @@ export function friendlyIntentLabel(intent: IntentAccount | string): string {
 }
 
 function labelFromString(t: string): string {
-  if (!t) return "Send";
+  if (!t) return "Request";
   if (TEMPLATE_LABELS[t]) return TEMPLATE_LABELS[t];
   // Strip every interpolation placeholder before display so no
   // `{0}` / `{1}` / `{2:10^9}` ever reaches a user.
-  const cleaned = t.replace(/\{[^}]*\}/g, "").replace(/\s+/g, " ").trim();
-  return cleaned ? sentenceCase(cleaned) : "Send";
+  const cleaned = t
+    .replace(/\{[^}]*\}/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned ? sentenceCase(cleaned) : "Request";
 }
 
 function sentenceCase(s: string): string {

@@ -14,10 +14,7 @@ import { useEffect } from "react";
 import { useConnection } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  parseAnyProposal,
-  type AnyProposalAccount,
-} from "@/lib/msig";
+import { parseAnyProposal, type AnyProposalAccount } from "@/lib/msig";
 import { DEFAULT_COMMITMENT } from "@/lib/chain/client";
 
 /// Subscribe to `proposalPda` for as long as the component is mounted.
@@ -25,7 +22,9 @@ import { DEFAULT_COMMITMENT } from "@/lib/chain/client";
 /// the `["proposal", <pda>]` query cache so every consumer updates.
 ///
 /// Pass an empty string / null to disable (e.g. "no proposal selected").
-export function useProposalSubscription(proposalPda: string | null | undefined): void {
+export function useProposalSubscription(
+  proposalPda: string | null | undefined,
+): void {
   const { connection } = useConnection();
   const queryClient = useQueryClient();
 
@@ -43,9 +42,19 @@ export function useProposalSubscription(proposalPda: string | null | undefined):
       pubkey,
       (account) => {
         if (unsubscribed) return;
+        // The detail overview uses an owned/PDA-verified multi-account snapshot.
+        // Never populate it directly with an unverified websocket payload.
+        void queryClient.invalidateQueries({
+          queryKey: ["proposal-display", proposalPda, connection.rpcEndpoint],
+        });
         try {
-          const parsed: AnyProposalAccount = parseAnyProposal(new Uint8Array(account.data));
-          queryClient.setQueryData(["proposal", proposalPda], parsed);
+          const parsed: AnyProposalAccount = parseAnyProposal(
+            new Uint8Array(account.data),
+          );
+          queryClient.setQueryData(
+            ["proposal", proposalPda, connection.rpcEndpoint],
+            parsed,
+          );
         } catch (err) {
           // Wrong disc, removed, or still a zero-byte account slot .
           // nothing to surface, just drop the event.
@@ -56,7 +65,7 @@ export function useProposalSubscription(proposalPda: string | null | undefined):
       },
       // New-style config object . the string-commitment overload is
       // deprecated in recent @solana/web3.js releases.
-      { commitment: DEFAULT_COMMITMENT }
+      { commitment: DEFAULT_COMMITMENT },
     );
 
     return () => {

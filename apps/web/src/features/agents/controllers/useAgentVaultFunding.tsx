@@ -32,5 +32,16 @@ export function useAgentVaultFunding(walletName: string) {
     vaultAddress: addressQuery.data ?? null,
     proSources: sourcesQuery.data ?? [],
     loadingAddress: addressQuery.isLoading,
+    addressError: addressQuery.error,
+    loadingSources: sourcesQuery.isLoading,
+    sourcesError: sourcesQuery.error,
+    connected: ownerAddress.length > 0,
+    refreshing: addressQuery.isFetching || sourcesQuery.isFetching,
+    refresh: async () => {
+      await Promise.all([
+        addressQuery.refetch(),
+        ...(ownerAddress ? [sourcesQuery.refetch()] : []),
+      ]);
+    },
   };
 }

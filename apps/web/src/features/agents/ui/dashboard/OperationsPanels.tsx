@@ -47,7 +47,7 @@ export function KillSwitchPanel({
           </span>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-text-strong">
-              {paused ? "All automatic actions are stopped" : "Automatic actions are allowed"}
+              {paused ? "ClearSig automatic actions are paused" : "ClearSig pause is off"}
             </p>
             <p className="mt-1 text-xs text-text-soft">
               {paused
@@ -58,6 +58,7 @@ export function KillSwitchPanel({
                   ? "Emergency stop can notify the connected practice account."
                   : "Emergency stop pauses ClearSig. Finish practice account setup for account handoff."}
             </p>
+            <p className="mt-1 text-xs text-text-soft">External positions and orders are not confirmed closed or cancelled by this status. Other policy and execution gates still apply.</p>
             <span
               className={clsx(
                 "mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",

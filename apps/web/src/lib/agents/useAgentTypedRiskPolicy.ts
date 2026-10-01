@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  inlineApprovalOptions,
+  assertSubmittedCreation,
+} from "@/lib/clearsign/inlineApproval";
+
 import { useCallback } from "react";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { waitForProposalApproval } from "@/lib/chain/proposals";
@@ -28,13 +33,16 @@ export function useAgentTypedRiskPolicy(walletName: string) {
       policy: AgentVaultPolicy,
     ): Promise<AgentSessionGrant> => {
       if (session.onchain?.status !== "executed") {
-        throw new Error("The on-chain agent session must execute before its risk policy.");
+        throw new Error(
+          "The on-chain agent session must execute before its risk policy.",
+        );
       }
       if (!policy.policyHash) {
         throw new Error("The safety policy is missing its integrity hash.");
       }
       const walletData = await fetchWalletByName(connection, walletName);
-      if (!walletData) throw new Error("Couldn't load this shared wallet on chain.");
+      if (!walletData)
+        throw new Error("Couldn't load this shared wallet on chain.");
       const intents = await listIntents(
         connection,
         walletData.pda,
@@ -47,9 +55,11 @@ export function useAgentTypedRiskPolicy(walletName: string) {
           row.account.chainKind === 5 &&
           wallet.pickSigner(row.account.proposers),
       );
-      if (!intent?.account) throw new Error("No approved intent can set agent risk.");
+      if (!intent?.account)
+        throw new Error("No approved intent can set agent risk.");
       const proposer = wallet.pickSigner(intent.account.proposers);
-      if (!proposer) throw new Error("Your connected wallet cannot propose agent risk.");
+      if (!proposer)
+        throw new Error("Your connected wallet cannot propose agent risk.");
 
       const binding = buildAgentRiskPolicyClearSign(
         session,
@@ -63,7 +73,10 @@ export function useAgentTypedRiskPolicy(walletName: string) {
         pending.policyHash === policy.policyHash &&
         pending.status !== "executed"
       ) {
-        const ready = await waitForProposalApproval(connection, pending.proposalAddress);
+        const ready = await waitForProposalApproval(
+          connection,
+          pending.proposalAddress,
+        );
         let status: "created" | "approved" | "executed" = ready
           ? "approved"
           : "created";
@@ -75,6 +88,10 @@ export function useAgentTypedRiskPolicy(walletName: string) {
             binding.executor,
           );
           txid = stringField(executed, "txid");
+          if (!txid)
+            throw new Error(
+              "Execution returned no transaction ID. Check the saved request before retrying.",
+            );
           status = "executed";
         }
         return {
@@ -109,69 +126,115 @@ export function useAgentTypedRiskPolicy(walletName: string) {
           signableText: prepared.signableText,
         },
       });
-      const submitted = await backendApi.submit.createTypedProposal(walletName, {
-        ...signed,
-        expiry: dry.expiry,
-        intent_index: dry.intent_index,
-        action_kind: dry.action_kind,
-        policy_commitment: dry.policy_commitment_hex,
-        payload_hash: dry.payload_hash_hex,
-        envelope_hash: dry.envelope_hash_hex,
-        action_id: dry.action_id,
-        nonce: dry.nonce,
-        canonical_intent_hex: dry.canonical_intent_hex,
-      });
-      const proposalAddress = stringField(submitted, "proposal");
-      if (!proposalAddress) throw new Error("Backend did not return a risk proposal.");
-
-      const approver = wallet.pickSigner(intent.account.approvers);
-      const decision = await approveIfNeeded(connection, proposalAddress, {
-        approvers: intent.account.approvers,
-        approverPubkey: approver?.toBase58() ?? null,
-        approvalThreshold: intent.account.approvalThreshold,
-      });
-      if (approver && decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveTypedProposal(
-          walletName,
-          proposalAddress,
-          { actor_pubkey: approver.toBase58() },
-        );
-        const approveSigned = await signTypedDescriptor(approveDry, {
-          preferSigner: approver,
-        });
-        await backendApi.submit.approveTypedProposal(walletName, proposalAddress, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      const ready = await waitForProposalApproval(connection, proposalAddress);
-      let status: "created" | "approved" | "executed" = ready
-        ? "approved"
-        : "created";
-      let txid: string | undefined;
-      if (ready) {
-        const executed = await backendApi.executeTypedAgentRiskPolicy(
-          walletName,
-          proposalAddress,
-          binding.executor,
-        );
-        txid = stringField(executed, "txid");
-        status = "executed";
-      }
-      return {
-        ...session,
-        riskOnchain: {
-          proposalAddress,
-          proposalIndex: Number(dry.proposal_index),
-          intentIndex: intent.account.intentIndex,
-          policyHash: policy.policyHash,
-          operation,
-          status,
-          txid,
-          updatedAt: Date.now(),
+      const submitted = await backendApi.submit.createTypedProposal(
+        walletName,
+        {
+          ...signed,
+          expiry: dry.expiry,
+          intent_index: dry.intent_index,
+          action_kind: dry.action_kind,
+          policy_commitment: dry.policy_commitment_hex,
+          payload_hash: dry.payload_hash_hex,
+          envelope_hash: dry.envelope_hash_hex,
+          action_id: dry.action_id,
+          nonce: dry.nonce,
+          canonical_intent_hex: dry.canonical_intent_hex,
         },
-      };
+      );
+      const proposalAddress = assertSubmittedCreation(
+        dry,
+        prepared,
+        stringField(submitted, "proposal"),
+      );
+      try {
+        if (!proposalAddress)
+          throw new Error("Backend did not return a risk proposal.");
+
+        const approver = wallet.pickSigner(intent.account.approvers);
+        const decision = await approveIfNeeded(connection, proposalAddress, {
+          approvers: intent.account.approvers,
+          approverPubkey: approver?.toBase58() ?? null,
+          approvalThreshold: intent.account.approvalThreshold,
+        });
+        if (approver && decision.needsApproveSignature) {
+          const approveDry = await backendApi.prepare.approveTypedProposal(
+            walletName,
+            proposalAddress,
+            { actor_pubkey: approver.toBase58() },
+          );
+          const approveSigned = await signTypedDescriptor(
+            approveDry,
+            inlineApprovalOptions(
+              dry,
+              approveDry,
+              prepared,
+              proposalAddress,
+              approver,
+            ),
+          );
+          await backendApi.submit.approveTypedProposal(
+            walletName,
+            proposalAddress,
+            {
+              ...approveSigned,
+              expiry: approveDry.expiry,
+            },
+          );
+        }
+
+        const ready = await waitForProposalApproval(
+          connection,
+          proposalAddress,
+        );
+        let status: "created" | "approved" | "executed" = ready
+          ? "approved"
+          : "created";
+        let txid: string | undefined;
+        if (ready) {
+          const executed = await backendApi.executeTypedAgentRiskPolicy(
+            walletName,
+            proposalAddress,
+            binding.executor,
+          );
+          txid = stringField(executed, "txid");
+          if (!txid)
+            throw new Error(
+              "Execution returned no transaction ID. Check the saved request before retrying.",
+            );
+          status = "executed";
+        }
+        return {
+          ...session,
+          riskOnchain: {
+            proposalAddress,
+            proposalIndex: Number(dry.proposal_index),
+            intentIndex: intent.account.intentIndex,
+            policyHash: policy.policyHash,
+            operation,
+            status,
+            txid,
+            updatedAt: Date.now(),
+          },
+        };
+      } catch {
+        // The accepted proposal survives wallet cancellation or an unavailable approval/execute step.
+        // Return its identity so the caller persists it and retries the existing request.
+        const status = "created" as "created" | "approved" | "executed";
+        const txid: string | undefined = undefined;
+        return {
+          ...session,
+          riskOnchain: {
+            proposalAddress,
+            proposalIndex: Number(dry.proposal_index),
+            intentIndex: intent.account.intentIndex,
+            policyHash: policy.policyHash,
+            operation,
+            status,
+            txid,
+            updatedAt: Date.now(),
+          },
+        };
+      }
     },
     [connection, signTypedDescriptor, wallet, walletName],
   );

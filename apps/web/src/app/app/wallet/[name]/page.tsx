@@ -270,6 +270,7 @@ export default function WalletDetailPage() {
         <WalletApprovalPanel rows={walletAction} reduce={!!reduce} />
       )}
       <WalletDetailTabs
+        allActivity={allActivity}
         tab={detailTab}
         onTabChange={setDetailTab}
         // Activity tab data
@@ -309,6 +310,7 @@ export default function WalletDetailPage() {
 // opens Holdings for every product surface.
 
 interface WalletDetailTabsProps {
+  allActivity: ReturnType<typeof useRecentActivity>;
   tab: WalletTab;
   onTabChange: (next: WalletTab) => void;
   activityRows: RecentActivityRow[];
@@ -329,6 +331,7 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
   const {
     tab,
     onTabChange,
+    allActivity,
     activityRows,
     activityAllRows,
     sendAttempts,
@@ -394,6 +397,10 @@ function WalletDetailTabs(props: WalletDetailTabsProps) {
 
       {tab === "activity" && (
         <ActivityPanel
+          error={allActivity.error}
+          loading={allActivity.loading}
+          refreshing={allActivity.refreshing}
+          onRefresh={() => void allActivity.refresh()}
           rows={activityRows}
           allRows={activityAllRows}
           walletName={name}

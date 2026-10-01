@@ -23,7 +23,10 @@ import {
   type ProductSurfaceId,
 } from "@/lib/productSurfaces";
 import { rememberProductSurfaceChoice } from "@/lib/productSession";
-import { LandingAtmospherics, LandingNav } from "@/components/landing/LandingChrome";
+import {
+  LandingAtmospherics,
+  LandingNav,
+} from "@/components/landing/LandingChrome";
 import { BrandMark } from "@/components/retail/BrandMark";
 
 const ICONS: Record<ProductSurfaceId, LucideIcon> = {
@@ -67,6 +70,13 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
           <p className="mt-5 max-w-xl text-base leading-snug text-white/62 sm:text-lg">
             {surface.summary}
           </p>
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/76">
+            {surface.id === "agent"
+              ? "Devnet preview · Test funds only. External trading is blocked until authorization, venue protection, and settlement checks are verified."
+              : surface.id === "secure"
+                ? "Pre-alpha recovery preview · Test networks only. Review the supported recovery paths before relying on a vault."
+                : "Devnet preview · Test funds only."}
+          </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href={surface.ctaHref}
@@ -81,7 +91,11 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
             >
               {surface.ctaLabel}
               {surface.status === "live" ? (
-                <ArrowRight className="h-4 w-4" aria-hidden="true" strokeWidth={2.5} />
+                <ArrowRight
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                  strokeWidth={2.5}
+                />
               ) : null}
             </Link>
             {surface.secondaryHref && surface.secondaryLabel ? (
@@ -97,6 +111,10 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
 
         <aside className="self-center">
           <ProductPreview surfaceId={surface.id} size="lg" />
+          <p className="mt-3 text-xs leading-relaxed text-white/76">
+            Illustrative preview. No live balance, trading performance, or
+            transaction is shown.
+          </p>
 
           <div className="mt-6 flex items-start gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#ccff00] text-black">
@@ -112,7 +130,11 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
 
           <SurfaceIconList title="Core actions" items={surface.features} />
           {surface.boundaries.length > 0 ? (
-            <SurfaceIconList title="Not here" items={surface.boundaries} muted />
+            <SurfaceIconList
+              title="Not here"
+              items={surface.boundaries}
+              muted
+            />
           ) : null}
 
           <div className="mt-6">
@@ -145,15 +167,23 @@ function ProductShell({
 }) {
   return (
     <main className="landing-shell product-experience relative min-h-screen overflow-hidden bg-[#0c0c0c] text-[#ebebeb]">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
         <LandingAtmospherics />
       </div>
       <LandingNav cta={cta} />
       {children}
       <footer className="relative z-10 mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] px-5 py-7 text-xs text-white/45 sm:px-8 lg:px-10">
-        <Link href="/" className="flex items-center gap-2 transition-colors hover:text-white">
+        <Link
+          href="/"
+          className="flex items-center gap-2 transition-colors hover:text-white"
+        >
           <BrandMark size={28} />
-          <span className="font-mono-tech uppercase tracking-[0.24em]">clearsig</span>
+          <span className="font-mono-tech uppercase tracking-[0.24em]">
+            clearsig
+          </span>
         </Link>
         <span>Simple wallets. Readable receipts.</span>
       </footer>
@@ -200,7 +230,10 @@ function PersonalPreview() {
           {["bg-emerald-300", "bg-cyan-200", "bg-lime-300"].map((tone) => (
             <span
               key={tone}
-              className={clsx("h-8 w-8 rounded-full border-2 border-black/35", tone)}
+              className={clsx(
+                "h-8 w-8 rounded-full border-2 border-black/35",
+                tone,
+              )}
             />
           ))}
         </div>
@@ -210,7 +243,9 @@ function PersonalPreview() {
       </div>
       <div>
         <div className="text-2xl font-semibold text-white">$2,480</div>
-        <div className="mt-1 text-[11px] text-emerald-100/55">Shared wallet</div>
+        <div className="mt-1 text-[11px] text-emerald-100/55">
+          Shared wallet
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
         {["Send", "Receive", "Protect"].map((label) => (
@@ -241,7 +276,10 @@ function ProPreview() {
           ["Vendor", "w-[54%]", "bg-cyan-200"],
           ["Ops", "w-[36%]", "bg-white/55"],
         ].map(([label, width, tone]) => (
-          <div key={label} className="rounded-xl border border-white/[0.08] bg-white/[0.055] p-2.5">
+          <div
+            key={label}
+            className="rounded-xl border border-white/[0.08] bg-white/[0.055] p-2.5"
+          >
             <div className="flex items-center justify-between text-[10px] text-white/62">
               <span>{label}</span>
               <span>Queued</span>
@@ -261,7 +299,7 @@ function AgentPreview() {
     <div className="flex h-full flex-col justify-between gap-4">
       <div className="flex items-center justify-between">
         <span className="rounded-full bg-[#ccff00]/12 px-2.5 py-1 text-[10px] font-semibold text-[#ccff00]">
-          Live desk
+          Illustrative agent view
         </span>
         <span className="h-2 w-2 rounded-full bg-[#ccff00]" />
       </div>
@@ -279,7 +317,7 @@ function AgentPreview() {
           Rules
         </span>
         <span className="rounded-xl border border-white/[0.08] bg-white/[0.055] px-2 py-2 text-white/68">
-          Kill switch
+          Execution gated
         </span>
       </div>
     </div>
@@ -332,7 +370,9 @@ function ProductSupportLink({ surface }: { surface: ProductSurface }) {
       </span>
       <span className="min-w-0">
         <span className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-white">{surface.shortName}</span>
+          <span className="text-sm font-semibold text-white">
+            {surface.shortName}
+          </span>
           <span className="rounded-full border border-white/[0.1] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/46">
             {planned ? "Coming soon" : "Capability"}
           </span>

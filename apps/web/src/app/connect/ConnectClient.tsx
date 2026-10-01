@@ -19,12 +19,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  ArrowRight,
-  Check,
-  Lock,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
 import {
   LandingAtmospherics,
   LandingNav,
@@ -36,10 +31,10 @@ import {
 } from "@/lib/productSurfaces";
 import { rememberProductSurfaceChoice } from "@/lib/productSession";
 
-const ConnectRuntimeIsland = dynamic(
-  () => import("./ConnectRuntimeIsland"),
-  { ssr: false, loading: () => null },
-);
+const ConnectRuntimeIsland = dynamic(() => import("./ConnectRuntimeIsland"), {
+  ssr: false,
+  loading: () => null,
+});
 
 export default function ConnectPageWrapper() {
   return (
@@ -82,11 +77,15 @@ function ConnectPage() {
     };
   }, [authRequested, hydrateAuthRuntime]);
 
-  const fadeIn = (delay = 0, y = 12) =>
+  const fadeIn = (delay = 0, _y = 12) =>
     reduce
-      ? {}
+      ? {
+          initial: false as const,
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0 },
+        }
       : {
-          initial: { opacity: 0, y },
+          initial: false as const,
           animate: { opacity: 1, y: 0 },
           transition: {
             duration: 0.45,
@@ -100,7 +99,10 @@ function ConnectPage() {
     // Atmospherics live in their own absolute overflow-hidden wrapper
     // so the fixed nav can layer above without being clipped.
     <div className="landing-shell relative min-h-screen bg-canvas text-text-strong">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
         <LandingAtmospherics />
       </div>
       <LandingNav cta={null} status="SIGN IN · DEVNET" />
@@ -120,7 +122,10 @@ function ConnectPage() {
                   <>
                     Continue to
                     <br />
-                    <span className="italic-skew">{selectedSurface.shortName}</span>.
+                    <span className="italic-skew">
+                      {selectedSurface.shortName}
+                    </span>
+                    .
                   </>
                 ) : (
                   <>
@@ -157,6 +162,9 @@ function ConnectPage() {
                   {...fadeIn(0.34, 16)}
                 />
               </div>
+              <p className="mt-4 hidden text-xs text-text-soft lg:block">
+                Illustrative examples. No live wallet data.
+              </p>
             </motion.section>
 
             {/* Right - connect surface */}
@@ -184,7 +192,10 @@ function ConnectPage() {
                     {selectedSurface ? (
                       <>
                         Sign in for{" "}
-                        <span className="italic-skew">{selectedSurface.shortName}</span>.
+                        <span className="italic-skew">
+                          {selectedSurface.shortName}
+                        </span>
+                        .
                       </>
                     ) : (
                       <>
@@ -228,7 +239,7 @@ function ConnectPage() {
                 />
                 <TrustItem
                   icon={ShieldCheck}
-                  text="Spending rules are Encrypt-ready for the pre-alpha."
+                  text="Review supported rules and preview limitations before signing."
                 />
                 <TrustItem
                   icon={Check}
@@ -261,7 +272,9 @@ function ConnectPage() {
   );
 }
 
-function productSurfaceFromSearch(surface: string | null): ProductSurface | null {
+function productSurfaceFromSearch(
+  surface: string | null,
+): ProductSurface | null {
   return isProductSurfaceId(surface) ? productSurfaceById(surface) : null;
 }
 
@@ -309,12 +322,12 @@ function FastConnectCta({ onClick }: { onClick: () => void }) {
 interface PreviewCardProps {
   className: string;
   kind: "wallet" | "request" | "members";
-  initial?: { opacity: number; y: number };
+  initial?: false | { opacity: number; y: number };
   animate?: { opacity: number; y: number };
   transition?: {
     duration: number;
-    delay: number;
-    ease: readonly [number, number, number, number];
+    delay?: number;
+    ease?: readonly [number, number, number, number];
   };
 }
 
@@ -384,7 +397,10 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
   return (
     <motion.div
       {...motionProps}
-      className={"border border-border-soft bg-surface-raised rounded-2xl p-3.5 " + className}
+      className={
+        "border border-border-soft bg-surface-raised rounded-2xl p-3.5 " +
+        className
+      }
     >
       {inner}
     </motion.div>

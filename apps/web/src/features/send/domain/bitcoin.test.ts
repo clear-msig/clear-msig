@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   assertPreparedBitcoinSetupIsCurrent,
   bytesToHex,
+  clearSignBitcoinNetwork,
   normalizeBitcoinPolicyRecipient,
 } from "@/features/send/domain/bitcoin";
 
 describe("bitcoin send domain", () => {
   it("canonicalizes a P2WPKH recipient to its committed hash", () => {
     expect(
-      normalizeBitcoinPolicyRecipient("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4"),
+      normalizeBitcoinPolicyRecipient(
+        "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
+      ),
     ).toBe("btc-p2wpkh:0x751e76e8199196d454941c45d1b3a323f1433bd6");
   });
 
@@ -26,5 +29,10 @@ describe("bitcoin send domain", () => {
     expect(() => assertPreparedBitcoinSetupIsCurrent("00")).toThrow(
       "Bitcoin sending could not be prepared",
     );
+  });
+  it("maps only registered ClearSign Bitcoin networks", () => {
+    expect(clearSignBitcoinNetwork("testnet")).toBe("Bitcoin testnet");
+    expect(clearSignBitcoinNetwork("signet")).toBe("Bitcoin signet");
+    expect(() => clearSignBitcoinNetwork("mainnet")).toThrow("not registered");
   });
 });

@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  inlineApprovalOptions,
+  assertSubmittedCreation,
+} from "@/lib/clearsign/inlineApproval";
+
 // Batch send - one input, one typed proposal.
 //
 // The shared-wallet equivalent of payroll: a proposer enters a list
@@ -99,12 +104,18 @@ export function useBatchSend() {
       }
       if (inputRows.length === 0) {
         return {
-          batchId: null, succeeded: 0, failed: 0, proposalPdas: [],
-          outcome: "empty" as BatchSendOutcome, message: undefined,
+          batchId: null,
+          succeeded: 0,
+          failed: 0,
+          proposalPdas: [],
+          outcome: "empty" as BatchSendOutcome,
+          message: undefined,
         };
       }
       if (inputRows.length > MAX_BATCH_RECIPIENTS) {
-        throw new Error(`Batch sends support up to ${MAX_BATCH_RECIPIENTS} recipients at once.`);
+        throw new Error(
+          `Batch sends support up to ${MAX_BATCH_RECIPIENTS} recipients at once.`,
+        );
       }
 
       // Keep the signed input stable even if the caller edits its draft while
@@ -126,24 +137,37 @@ export function useBatchSend() {
         let proposalAccepted = false;
         let outcome: BatchSendOutcome = "failed";
         let message: string | undefined;
-        const showStep = (currentLabel: string) => setProgress({
-          total: rows.length, succeeded, failed, failures: [...failures],
-          done: false, currentLabel,
-        });
+        const showStep = (currentLabel: string) =>
+          setProgress({
+            total: rows.length,
+            succeeded,
+            failed,
+            failures: [...failures],
+            done: false,
+            currentLabel,
+          });
         showStep("Preparing batch");
 
         try {
           const walletData = await fetchWalletByName(connection, walletName);
           assertNotCancelled();
           if (!walletData) throw new Error("Couldn't load wallet");
-          const intentRow = await fetchIntent(connection, walletData.pda, intentIndex);
+          const intentRow = await fetchIntent(
+            connection,
+            walletData.pda,
+            intentIndex,
+          );
           assertNotCancelled();
           if (!intentRow.account) {
-            throw new Error("Couldn't load this wallet's send rule from chain.");
+            throw new Error(
+              "Couldn't load this wallet's send rule from chain.",
+            );
           }
           const proposerPk = pickSigner(intentRow.account.proposers);
           if (!proposerPk) {
-            throw new Error("None of your connected wallets can propose this send.");
+            throw new Error(
+              "None of your connected wallets can propose this send.",
+            );
           }
           const approverPk = pickSigner(intentRow.account.approvers);
           const actionId = randomActionLabel("sol-batch");
@@ -221,27 +245,34 @@ export function useBatchSend() {
           assertNotCancelled();
           showStep("Submitting batch request");
           submissionStarted = true;
-          const submitted = await backendApi.submit.createTypedProposal(walletName, {
-            ...signed,
-            expiry: dry.expiry,
-            intent_index: dry.intent_index,
-            action_kind: dry.action_kind,
-            policy_commitment: dry.policy_commitment_hex,
-            payload_hash: dry.payload_hash_hex,
-            envelope_hash: dry.envelope_hash_hex,
-            action_id: dry.action_id,
-            nonce: dry.nonce,
-            policyBytesHex: onchainPolicy?.hex,
-            canonical_intent_hex: dry.canonical_intent_hex,
-          });
+          const submitted = await backendApi.submit.createTypedProposal(
+            walletName,
+            {
+              ...signed,
+              expiry: dry.expiry,
+              intent_index: dry.intent_index,
+              action_kind: dry.action_kind,
+              policy_commitment: dry.policy_commitment_hex,
+              payload_hash: dry.payload_hash_hex,
+              envelope_hash: dry.envelope_hash_hex,
+              action_id: dry.action_id,
+              nonce: dry.nonce,
+              policyBytesHex: onchainPolicy?.hex,
+              canonical_intent_hex: dry.canonical_intent_hex,
+            },
+          );
           // Record accepted chain work before checking cancellation: stopping
           // locally cannot undo a proposal or any already-submitted approval.
           proposalAccepted = true;
           succeeded = rows.length;
           outcome = "created";
-          message = "Batch request created. Check Activity for approval and execution status.";
+          message =
+            "Batch request created. Check Activity for approval and execution status.";
           const proposalPda =
-            typeof submitted?.proposal === "string" ? submitted.proposal : undefined;
+            typeof submitted?.proposal === "string"
+              ? submitted.proposal
+              : undefined;
+          assertSubmittedCreation(dry, summary, proposalPda);
           if (proposalPda) proposalPdas.push(proposalPda);
           assertNotCancelled();
 
@@ -263,54 +294,74 @@ export function useBatchSend() {
               );
               assertNotCancelled();
               showStep("Signing batch approval");
-              const approveSigned = await signTypedDescriptor(approveDry, {
-                preferSigner: approverPk,
-              });
+              const approveSigned = await signTypedDescriptor(
+                approveDry,
+                inlineApprovalOptions(
+                  dry,
+                  approveDry,
+                  summary,
+                  proposalPda,
+                  approverPk,
+                ),
+              );
               assertNotCancelled();
-              await backendApi.submit.approveTypedProposal(walletName, proposalPda, {
-                ...approveSigned,
-                expiry: approveDry.expiry,
-              });
+              await backendApi.submit.approveTypedProposal(
+                walletName,
+                proposalPda,
+                {
+                  ...approveSigned,
+                  expiry: approveDry.expiry,
+                },
+              );
               assertNotCancelled();
             }
 
             const status =
               decision.status === ProposalStatus.Approved
                 ? ProposalStatus.Approved
-                : (await refetchProposalStatus(connection, proposalPda));
+                : await refetchProposalStatus(connection, proposalPda);
             assertNotCancelled();
             if (status === ProposalStatus.Approved) {
               showStep("Sending batch");
-              await backendApi.executeTypedSolBatchSend(walletName, proposalPda, {
-                payments: rows.map((row) => ({
-                  recipient: row.destination,
-                  amountLamports: lamportsToSafeNumber(row.lamports),
-                })),
-              });
+              await backendApi.executeTypedSolBatchSend(
+                walletName,
+                proposalPda,
+                {
+                  payments: rows.map((row) => ({
+                    recipient: row.destination,
+                    amountLamports: lamportsToSafeNumber(row.lamports),
+                  })),
+                },
+              );
               // Once execution was sent, cancellation cannot reverse it. Keep
               // the accepted execution result instead of claiming it stopped.
               outcome = "executed";
-              message = "Batch execution submitted. Check Activity for confirmation.";
+              message =
+                "Batch execution submitted. Check Activity for confirmation.";
             }
           }
         } catch (err) {
           if (proposalAccepted) {
             outcome = "created";
-            message = err instanceof BatchCancelledError
-              ? "Stopped before the next step. The batch request was already submitted; check Activity for its status."
-              : "Batch request created. Check Activity for approval and execution status before retrying.";
+            message =
+              err instanceof BatchCancelledError
+                ? "Stopped before the next step. The batch request was already submitted; check Activity for its status."
+                : "Batch request created. Check Activity for approval and execution status before retrying.";
           } else if (submissionStarted) {
             // A lost response is not evidence that chain submission failed.
             // Do not count these rows as safely retryable failures.
             outcome = "submission_unknown";
-            message = "The batch request may have been submitted. Check Activity before retrying.";
+            message =
+              "The batch request may have been submitted. Check Activity before retrying.";
           } else {
             outcome = run.cancelled ? "cancelled" : "failed";
             const failureMessage = run.cancelled
               ? "Stopped before submission. No batch request was submitted."
               : friendlyError(err, "send").title;
             message = failureMessage;
-            failures.push(...rows.map((row) => ({ row, message: failureMessage })));
+            failures.push(
+              ...rows.map((row) => ({ row, message: failureMessage })),
+            );
             failed = rows.length;
           }
         }
@@ -326,10 +377,18 @@ export function useBatchSend() {
         }
         // Refresh even after an uncertain submission so reconciliation can
         // reveal a proposal whose response was lost.
-        void queryClient.invalidateQueries({ queryKey: ["proposals", walletName] });
+        void queryClient.invalidateQueries({
+          queryKey: ["proposals", walletName],
+        });
         void queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
         setProgress({
-          total: rows.length, succeeded, failed, failures, done: true, outcome, message,
+          total: rows.length,
+          succeeded,
+          failed,
+          failures,
+          done: true,
+          outcome,
+          message,
         });
         return { batchId, succeeded, failed, proposalPdas, outcome, message };
       } finally {

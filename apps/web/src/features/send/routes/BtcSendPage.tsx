@@ -1,5 +1,14 @@
 "use client";
 
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
+import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
+import { SavedSendRecovery } from "@/features/send/ui/SavedSendRecovery";
+import {
+  inlineApprovalOptions,
+  reviewedCreationProposalAddress,
+  savedProposalError,
+} from "@/lib/clearsign/inlineApproval";
+
 // Bitcoin (P2WPKH) send + setup, fused into one page.
 //
 // Mirrors the eth flow's two halves (`/setup/eth` then `/send/eth`)
@@ -43,15 +52,15 @@ import { listIntents } from "@/lib/chain/intents";
 import { IntentType, ProposalStatus, toHex } from "@/lib/msig";
 import {
   assertPreparedBitcoinSetupIsCurrent,
+  clearSignBitcoinNetwork,
+  type BitcoinBroadcastResult as BroadcastResultLike,
   bytesToHex,
 } from "@/features/send/domain/bitcoin";
 import {
   hasBitcoinChangeIntent,
   waitForBitcoinChangeIntent,
 } from "@/features/send/infrastructure/bitcoinIntent";
-import {
-  type BtcSetupPendingReason,
-} from "@/features/send/ui/bitcoin/BtcSetupStates";
+import { type BtcSetupPendingReason } from "@/features/send/ui/bitcoin/BtcSetupStates";
 import { shortBtcAddress } from "@/features/send/ui/bitcoin/bitcoinPreview";
 import { BtcSendScreen } from "@/features/send/ui/bitcoin/BtcSendScreen";
 import { encodeParams } from "@/lib/msig/encode";
@@ -76,9 +85,7 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
-import {
-  policyCommitmentHexForParts,
-} from "@/lib/policies/onchain";
+import { policyCommitmentHexForParts } from "@/lib/policies/onchain";
 import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import {
   clearSignProfileForSigner,
@@ -87,7 +94,6 @@ import {
   randomActionLabel,
   textCommitmentHex,
   type ClearSignIntentInput,
-  type ClearSignNetwork,
   type SendPayload,
 } from "@/lib/clearsign";
 import {
@@ -111,11 +117,6 @@ import {
 } from "@/lib/chain/btcIntentReadiness";
 
 const BTC_TEMPLATE = "examples/intents/btc_transfer.json";
-interface BroadcastResultLike {
-  chain_kind?: number;
-  tx_id?: string;
-  raw_tx_hex?: string;
-}
 
 export default function BitcoinSendPageWrapper() {
   return (
@@ -209,7 +210,9 @@ function BitcoinSendPage() {
   }, [dwalletAddress]);
 
   const btcIntent = useMemo(() => {
-    return selectBitcoinSendIntent((intentsQuery.data ?? []).map((it) => it.account));
+    return selectBitcoinSendIntent(
+      (intentsQuery.data ?? []).map((it) => it.account),
+    );
   }, [intentsQuery.data]);
   const btcIntentSupportsChange = bitcoinSendReady(btcIntent);
 
@@ -221,14 +224,17 @@ function BitcoinSendPage() {
   );
   const largestSpendableSats = useMemo(() => {
     const largest = btcUtxos[0];
-    if (!largest || largest.value <= Number(BTC_SEND_FEE_RESERVE_SATS)) return 0n;
+    if (!largest || largest.value <= Number(BTC_SEND_FEE_RESERVE_SATS))
+      return 0n;
     return BigInt(largest.value) - BTC_SEND_FEE_RESERVE_SATS;
   }, [btcUtxos]);
 
   // ── Form state ────────────────────────────────────────────────────
   const [destination, setDestination] = useState("");
   const [amountBtc, setAmountBtc] = useState("");
-  const [note, setNote] = useState(() => searchParams?.get("note")?.trim() ?? "");
+  const [note, setNote] = useState(
+    () => searchParams?.get("note")?.trim() ?? "",
+  );
   const [destinationError, setDestinationError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [sentLabel, setSentLabel] = useState<{
@@ -340,7 +346,7 @@ function BitcoinSendPage() {
       const decision = await approveIfNeeded(connection, proposal, {
         approvers: addIntent?.account?.approvers,
         approverPubkey: addIntent?.account
-          ? wallet.pickSigner(addIntent.account.approvers)?.toBase58() ?? null
+          ? (wallet.pickSigner(addIntent.account.approvers)?.toBase58() ?? null)
           : signerPk.toBase58(),
         approvalThreshold: addIntent?.account?.approvalThreshold ?? 1,
       });
@@ -374,7 +380,10 @@ function BitcoinSendPage() {
       if (status === ProposalStatus.Approved) {
         await backendApi.executeProposal(name, proposal, {});
       }
-      if (status !== ProposalStatus.Approved && status !== ProposalStatus.Executed) {
+      if (
+        status !== ProposalStatus.Approved &&
+        status !== ProposalStatus.Executed
+      ) {
         return { proposal, status: "pending_approval" as const };
       }
       const ready = await waitForBitcoinChangeIntent(connection, name);
@@ -396,7 +405,10 @@ function BitcoinSendPage() {
         queryClient.refetchQueries({ queryKey: ["wallet-intents"] }),
         queryClient.refetchQueries({ queryKey: ["wallet", name] }),
       ]);
-      if (result?.status === "pending_approval" || result?.status === "pending_sync") {
+      if (
+        result?.status === "pending_approval" ||
+        result?.status === "pending_sync"
+      ) {
         const reason =
           result.status === "pending_approval" ? "approval" : "sync";
         setBtcSetupPendingApproval({
@@ -423,243 +435,311 @@ function BitcoinSendPage() {
     },
   });
 
+  const recovery = useSendRecovery(
+    JSON.stringify([
+      name,
+      requestAccountKey(
+        wallet.sessionSubject,
+        wallet.publicKey?.toBase58() ?? null,
+      ),
+      connection.rpcEndpoint,
+      btcNetwork,
+    ]),
+  );
   const send = useMutation({
     mutationFn: async () => {
-      if (!wallet.publicKey) throw new Error("Connect your wallet first");
-      if (!btcIntent) throw new Error("Bitcoin sends not yet enabled");
-      if (!selectedUtxo) throw new Error("No suitable UTXO available");
-      if (!sendAmountSats) throw new Error("Enter an amount");
-      if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
-      const proposerPk = wallet.pickSigner(btcIntent.proposers);
-      if (!proposerPk) {
-        throw new Error(
-          "None of your connected wallets is in this wallet's proposer list.",
-        );
-      }
-      const dest = validateBtcDestination(destination, btcNetwork);
-      if (!dest.ok) throw new Error(dest.reason);
-      const committedRecipient = pkhClearSignRecipient("btc-p2wpkh", dest.pkh);
-      const submitPolicyPlan = await resolvePolicyEnforcement(name, {
-        walletName: name,
-        chainKind: BTC_CHAIN_KIND,
-        recipient: destination.trim(),
-        ticker: "BTC",
-        amountDisplay: amountBtc,
-      });
-      assertPolicyNotDenied(submitPolicyPlan);
-      const walletPda = walletQuery.data?.pda;
-      if (!walletPda) throw new Error("Wallet is still loading. Try again.");
-      const onchainPolicy = await resolvePersistentSendPolicy(
-        connection,
-        walletPda,
-        name,
-        BTC_CHAIN_KIND,
-      );
-
-      // Bitcoin txids round-trip in TWO byte orders:
-      //   - Esplora / block explorers / `mempool.space` return them in
-      //     DISPLAY order (the human-readable BE hex you'd paste into
-      //     a search box).
-      //   - Bitcoin's internal wire format (BIP143 prev_outpoint, OP_…
-      //     anything that goes into a sighash) uses INTERNAL order
-      //     (LE. Display-reversed).
-      // The on-chain BIP143 builder
-      // (`programs/clear-wallet/src/chains/bitcoin.rs:44`) is explicit
-      // about wanting internal byte order. We reverse the Esplora hex
-      // before stuffing it into the bytes32 param so the sighash
-      // computed on chain references the same UTXO Bitcoin's
-      // mempool will look up at broadcast time.
-      const prevTxidInternal = reverseHex(selectedUtxo.txid);
-
-      const paramsDataHex = toHex(
-        encodeParams(btcIntent, {
-          prev_txid: `0x${prevTxidInternal}`,
-          prev_vout: String(selectedUtxo.vout),
-          prev_amount_sats: String(selectedUtxo.value),
-          sender_pkh: `0x${senderPkhHex}`,
-          recipient_pkh: `0x${bytesToHex(dest.pkh)}`,
-          send_amount_sats: sendAmountSats.toString(),
-          change_pkh: `0x${senderPkhHex}`,
-          fee_sats: BTC_SEND_FEE_RESERVE_SATS.toString(),
-        }),
-      );
-
-      const actionId = randomActionLabel("btc-send");
-      const actionNonce = randomActionLabel("nonce");
-      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-      const policyCommitment =
-        onchainPolicy?.commitmentHex ??
-        policyCommitmentHexForParts([
-          `wallet:${walletQuery.data?.pda.toBase58() ?? name}`,
-          `intent:${btcIntent.intentIndex}`,
-          `chain:${BTC_CHAIN_KIND}`,
-          `threshold:${btcIntent.approvalThreshold ?? ""}`,
-          `proposers:${btcIntent.proposers.join(",")}`,
-          `approvers:${btcIntent.approvers.join(",")}`,
-        ]);
-      const envelope: ClearSignIntentInput<SendPayload> = {
-        kind: "send",
-        network: clearSignBitcoinNetwork(btcNetwork),
-        walletName: name,
-        walletId: walletQuery.data?.pda.toBase58(),
-        actionId,
-        nonce: actionNonce,
-        expiresAt,
-        policyCommitment,
-        payload: {
-          recipient: committedRecipient,
-          recipientEncoding: "sha256_text",
-          amount: amountBtc.trim(),
-          asset: "BTC",
-          assetEncoding: "sha256_text",
-          note: note.trim() || undefined,
-          fiatEstimate: liveUsdEstimate(amountBtc, "BTC"),
-        },
-      };
-      const summary = await prepareClearSignV4Action(envelope, {
-        intentIndex: btcIntent.intentIndex,
-        actorPubkey: proposerPk.toBase58(),
-        policyBytesHex: onchainPolicy?.hex,
-        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
-      });
-      const dry = await backendApi.prepare.createTypedProposal(name, {
-        intent_index: btcIntent.intentIndex,
-        action_kind: summary.actionKindCode,
-        policy_commitment: summary.policyCommitment,
-        payload_hash: summary.payloadHash,
-        envelope_hash: summary.envelopeHash,
-        action_id: envelope.actionId,
-        nonce: envelope.nonce,
-        policyBytesHex: onchainPolicy?.hex,
-        signable_text: summary.signableText,
-        canonical_intent_hex: summary.canonicalIntentHex,
-        expiry: formatUnixSigningExpiry(envelope.expiresAt),
-        actor_pubkey: proposerPk.toBase58(),
-      });
-      const signed = await signTypedDescriptor(dry, {
-        preferSigner: proposerPk,
-        expectedTyped: {
-          envelopeHash: summary.envelopeHash,
-          payloadHash: summary.payloadHash,
-          signableText: summary.signableText,
-        },
-      });
-      const submitted = await backendApi.submit.createTypedProposal(name, {
-        ...signed,
-        expiry: dry.expiry,
-        intent_index: dry.intent_index,
-        action_kind: dry.action_kind,
-        policy_commitment: dry.policy_commitment_hex,
-        payload_hash: dry.payload_hash_hex,
-        envelope_hash: dry.envelope_hash_hex,
-        action_id: dry.action_id,
-        nonce: dry.nonce,
-        policyBytesHex: onchainPolicy?.hex,
-        canonical_intent_hex: dry.canonical_intent_hex,
-      });
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error("Backend didn't return a proposal address from submit");
-      }
-      const decision = await approveIfNeeded(connection, proposal, {
-        approvers: btcIntent.approvers,
-        approverPubkey: wallet.pickSigner(btcIntent.approvers)?.toBase58() ?? null,
-        approvalThreshold: btcIntent.approvalThreshold,
-      });
-      if (decision.needsApproveSignature) {
-        const approverPk = wallet.pickSigner(btcIntent.approvers);
-        if (!approverPk) {
+      const attempt = recovery.begin();
+      try {
+        if (!wallet.publicKey) throw new Error("Connect your wallet first");
+        if (!btcIntent) throw new Error("Bitcoin sends not yet enabled");
+        if (!selectedUtxo) throw new Error("No suitable UTXO available");
+        if (!sendAmountSats) throw new Error("Enter an amount");
+        if (!senderPkhHex) throw new Error("Couldn't derive sender pkh");
+        const proposerPk = wallet.pickSigner(btcIntent.proposers);
+        if (!proposerPk) {
           throw new Error(
-            "The proposal landed, but none of your connected wallets can approve it.",
+            "None of your connected wallets is in this wallet's proposer list.",
           );
         }
-        const approveDry = await backendApi.prepare.approveTypedProposal(
+        const dest = validateBtcDestination(destination, btcNetwork);
+        if (!dest.ok) throw new Error(dest.reason);
+        const committedRecipient = pkhClearSignRecipient(
+          "btc-p2wpkh",
+          dest.pkh,
+        );
+        const submitPolicyPlan = await resolvePolicyEnforcement(name, {
+          walletName: name,
+          chainKind: BTC_CHAIN_KIND,
+          recipient: destination.trim(),
+          ticker: "BTC",
+          amountDisplay: amountBtc,
+        });
+        assertPolicyNotDenied(submitPolicyPlan);
+        const walletPda = walletQuery.data?.pda;
+        if (!walletPda) throw new Error("Wallet is still loading. Try again.");
+        const onchainPolicy = await resolvePersistentSendPolicy(
+          connection,
+          walletPda,
+          name,
+          BTC_CHAIN_KIND,
+        );
+
+        // Bitcoin txids round-trip in TWO byte orders:
+        //   - Esplora / block explorers / `mempool.space` return them in
+        //     DISPLAY order (the human-readable BE hex you'd paste into
+        //     a search box).
+        //   - Bitcoin's internal wire format (BIP143 prev_outpoint, OP_…
+        //     anything that goes into a sighash) uses INTERNAL order
+        //     (LE. Display-reversed).
+        // The on-chain BIP143 builder
+        // (`programs/clear-wallet/src/chains/bitcoin.rs:44`) is explicit
+        // about wanting internal byte order. We reverse the Esplora hex
+        // before stuffing it into the bytes32 param so the sighash
+        // computed on chain references the same UTXO Bitcoin's
+        // mempool will look up at broadcast time.
+        const prevTxidInternal = reverseHex(selectedUtxo.txid);
+
+        const paramsDataHex = toHex(
+          encodeParams(btcIntent, {
+            prev_txid: `0x${prevTxidInternal}`,
+            prev_vout: String(selectedUtxo.vout),
+            prev_amount_sats: String(selectedUtxo.value),
+            sender_pkh: `0x${senderPkhHex}`,
+            recipient_pkh: `0x${bytesToHex(dest.pkh)}`,
+            send_amount_sats: sendAmountSats.toString(),
+            change_pkh: `0x${senderPkhHex}`,
+            fee_sats: BTC_SEND_FEE_RESERVE_SATS.toString(),
+          }),
+        );
+
+        const actionId = randomActionLabel("btc-send");
+        const actionNonce = randomActionLabel("nonce");
+        const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+        const policyCommitment =
+          onchainPolicy?.commitmentHex ??
+          policyCommitmentHexForParts([
+            `wallet:${walletQuery.data?.pda.toBase58() ?? name}`,
+            `intent:${btcIntent.intentIndex}`,
+            `chain:${BTC_CHAIN_KIND}`,
+            `threshold:${btcIntent.approvalThreshold ?? ""}`,
+            `proposers:${btcIntent.proposers.join(",")}`,
+            `approvers:${btcIntent.approvers.join(",")}`,
+          ]);
+        const envelope: ClearSignIntentInput<SendPayload> = {
+          kind: "send",
+          network: clearSignBitcoinNetwork(btcNetwork),
+          walletName: name,
+          walletId: walletQuery.data?.pda.toBase58(),
+          actionId,
+          nonce: actionNonce,
+          expiresAt,
+          policyCommitment,
+          payload: {
+            recipient: committedRecipient,
+            recipientEncoding: "sha256_text",
+            amount: amountBtc.trim(),
+            asset: "BTC",
+            assetEncoding: "sha256_text",
+            note: note.trim() || undefined,
+            fiatEstimate: liveUsdEstimate(amountBtc, "BTC"),
+          },
+        };
+        const summary = await prepareClearSignV4Action(envelope, {
+          intentIndex: btcIntent.intentIndex,
+          actorPubkey: proposerPk.toBase58(),
+          policyBytesHex: onchainPolicy?.hex,
+          deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
+        });
+        const dry = await backendApi.prepare.createTypedProposal(name, {
+          intent_index: btcIntent.intentIndex,
+          action_kind: summary.actionKindCode,
+          policy_commitment: summary.policyCommitment,
+          payload_hash: summary.payloadHash,
+          envelope_hash: summary.envelopeHash,
+          action_id: envelope.actionId,
+          nonce: envelope.nonce,
+          policyBytesHex: onchainPolicy?.hex,
+          signable_text: summary.signableText,
+          canonical_intent_hex: summary.canonicalIntentHex,
+          expiry: formatUnixSigningExpiry(envelope.expiresAt),
+          actor_pubkey: proposerPk.toBase58(),
+        });
+        const signed = await signTypedDescriptor(dry, {
+          preferSigner: proposerPk,
+          expectedTyped: {
+            envelopeHash: summary.envelopeHash,
+            payloadHash: summary.payloadHash,
+            signableText: summary.signableText,
+          },
+        });
+        attempt.assertCurrent();
+        attempt.submitting(reviewedCreationProposalAddress(dry, summary));
+        const submitted = await backendApi.submit.createTypedProposal(name, {
+          ...signed,
+          expiry: dry.expiry,
+          intent_index: dry.intent_index,
+          action_kind: dry.action_kind,
+          policy_commitment: dry.policy_commitment_hex,
+          payload_hash: dry.payload_hash_hex,
+          envelope_hash: dry.envelope_hash_hex,
+          action_id: dry.action_id,
+          nonce: dry.nonce,
+          policyBytesHex: onchainPolicy?.hex,
+          canonical_intent_hex: dry.canonical_intent_hex,
+        });
+        const proposal = (submitted as Record<string, unknown>)?.proposal;
+        if (typeof proposal !== "string" || proposal.length === 0) {
+          throw new Error(
+            "Backend didn't return a proposal address from submit",
+          );
+        }
+        if (proposal !== dry.proposal_pubkey)
+          throw new Error(
+            "Submission returned a different proposal address. Check the prepared request before retrying.",
+          );
+        attempt.accepted(proposal);
+        const decision = await approveIfNeeded(connection, proposal, {
+          approvers: btcIntent.approvers,
+          approverPubkey:
+            wallet.pickSigner(btcIntent.approvers)?.toBase58() ?? null,
+          approvalThreshold: btcIntent.approvalThreshold,
+        });
+        if (decision.needsApproveSignature) {
+          const approverPk = wallet.pickSigner(btcIntent.approvers);
+          if (!approverPk) {
+            throw new Error(
+              "The proposal landed, but none of your connected wallets can approve it.",
+            );
+          }
+          attempt.assertCurrent();
+          const approveDry = await backendApi.prepare.approveTypedProposal(
+            name,
+            proposal,
+            { actor_pubkey: approverPk.toBase58() },
+          );
+          attempt.assertCurrent();
+          const approveSigned = await signTypedDescriptor(
+            approveDry,
+            inlineApprovalOptions(
+              dry,
+              approveDry,
+              summary,
+              proposal,
+              approverPk,
+            ),
+          );
+          attempt.assertCurrent();
+          await backendApi.submit.approveTypedProposal(name, proposal, {
+            ...approveSigned,
+            expiry: approveDry.expiry,
+          });
+        }
+        assertPolicyNotDenied(submitPolicyPlan);
+        if (submitPolicyPlan.evaluation?.matched) {
+          if (submitPolicyPlan.rule?.action === "require-extra-approvers") {
+            const seen = new Set<string>([
+              proposerPk.toBase58(),
+              wallet.pickSigner(btcIntent.approvers)?.toBase58() ?? "",
+            ]);
+            const extraApprovers = submitPolicyPlan.extraApprovers.filter(
+              (addr) => {
+                const normalized = addr.trim();
+                if (!normalized || seen.has(normalized)) return false;
+                seen.add(normalized);
+                return true;
+              },
+            );
+            if (extraApprovers.length === 0) {
+              throw new Error(
+                `Policy "${submitPolicyPlan.rule.name}" requires extra approvers, but none were configured.`,
+              );
+            }
+            for (const extraApprover of extraApprovers) {
+              if (!btcIntent.approvers.includes(extraApprover)) {
+                throw new Error(
+                  `Policy "${submitPolicyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+                );
+              }
+              const extraSigner = wallet.pickSigner([extraApprover]);
+              if (!extraSigner) {
+                throw new Error(
+                  `Policy "${submitPolicyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+                );
+              }
+              attempt.assertCurrent();
+              const extraDry = await backendApi.prepare.approveTypedProposal(
+                name,
+                proposal,
+                { actor_pubkey: extraSigner.toBase58() },
+              );
+              attempt.assertCurrent();
+              const extraSigned = await signTypedDescriptor(
+                extraDry,
+                inlineApprovalOptions(
+                  dry,
+                  extraDry,
+                  summary,
+                  proposal,
+                  extraSigner,
+                ),
+              );
+              attempt.assertCurrent();
+              await backendApi.submit.approveTypedProposal(name, proposal, {
+                ...extraSigned,
+                expiry: extraDry.expiry,
+              });
+            }
+          } else if (
+            submitPolicyPlan.rule?.action === "require-cooldown" &&
+            submitPolicyPlan.extraCooldownSeconds > 0
+          ) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, submitPolicyPlan.extraCooldownSeconds * 1000),
+            );
+          }
+        }
+        const readyToExecute = await waitForProposalApproval(
+          connection,
+          proposal,
+        );
+        if (!readyToExecute) {
+          attempt.assertCurrent();
+          return { proposal, broadcast: null, awaitingApprovers: true };
+        }
+        attempt.assertCurrent();
+        const executed = await backendApi.executeTypedChainSend(
           name,
           proposal,
-          { actor_pubkey: approverPk.toBase58() },
+          {
+            chainKind: BTC_CHAIN_KIND,
+            amountRaw: sendAmountSats.toString(),
+            recipientHash: textCommitmentHex(committedRecipient),
+            assetIdHash: textCommitmentHex("BTC"),
+            paramsDataHex,
+            broadcast: true,
+            dwalletProgram: appConfig.preAlpha.dwalletProgramId,
+            grpcUrl: appConfig.preAlpha.grpcUrl,
+            // BTC needs a Bitcoin RPC/Esplora base, not the backend's
+            // EVM destination RPC. We pass the network-specific Bitcoin
+            // endpoint explicitly so the CLI's Bitcoin broadcast adapter
+            // can choose Alchemy JSON-RPC or Esplora as appropriate.
+            rpcUrl: bitcoinBroadcastUrl(btcNetwork),
+          },
         );
-        const approveSigned = await signTypedDescriptor(approveDry, {
-          preferSigner: approverPk,
-        });
-        await backendApi.submit.approveTypedProposal(name, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-      assertPolicyNotDenied(submitPolicyPlan);
-      if (submitPolicyPlan.evaluation?.matched) {
-        if (submitPolicyPlan.rule?.action === "require-extra-approvers") {
-          const seen = new Set<string>([
-            proposerPk.toBase58(),
-            wallet.pickSigner(btcIntent.approvers)?.toBase58() ?? "",
-          ]);
-          const extraApprovers = submitPolicyPlan.extraApprovers.filter((addr) => {
-            const normalized = addr.trim();
-            if (!normalized || seen.has(normalized)) return false;
-            seen.add(normalized);
-            return true;
-          });
-          if (extraApprovers.length === 0) {
-            throw new Error(
-              `Policy "${submitPolicyPlan.rule.name}" requires extra approvers, but none were configured.`,
-            );
-          }
-          for (const extraApprover of extraApprovers) {
-            if (!btcIntent.approvers.includes(extraApprover)) {
-              throw new Error(
-                `Policy "${submitPolicyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
-              );
-            }
-            const extraSigner = wallet.pickSigner([extraApprover]);
-            if (!extraSigner) {
-              throw new Error(
-                `Policy "${submitPolicyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
-              );
-            }
-            const extraDry = await backendApi.prepare.approveTypedProposal(
-              name,
-              proposal,
-              { actor_pubkey: extraSigner.toBase58() },
-            );
-            const extraSigned = await signTypedDescriptor(extraDry, {
-              preferSigner: extraSigner,
-            });
-            await backendApi.submit.approveTypedProposal(name, proposal, {
-              ...extraSigned,
-              expiry: extraDry.expiry,
-            });
-          }
-        } else if (
-          submitPolicyPlan.rule?.action === "require-cooldown" &&
-          submitPolicyPlan.extraCooldownSeconds > 0
-        ) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, submitPolicyPlan.extraCooldownSeconds * 1000),
+        const broadcast = (executed as { broadcast?: BroadcastResultLike })
+          ?.broadcast;
+        if (!broadcast?.tx_id?.trim())
+          throw savedProposalError(
+            proposal,
+            new Error(
+              "Execution returned no transaction ID. Sending is not confirmed.",
+            ),
           );
-        }
+        attempt.complete();
+        return { proposal, broadcast, awaitingApprovers: false };
+      } finally {
+        attempt.finish();
       }
-      const readyToExecute = await waitForProposalApproval(connection, proposal);
-      if (!readyToExecute) {
-        return { proposal, broadcast: null, awaitingApprovers: true };
-      }
-      const executed = await backendApi.executeTypedChainSend(name, proposal, {
-        chainKind: BTC_CHAIN_KIND,
-        amountRaw: sendAmountSats.toString(),
-        recipientHash: textCommitmentHex(committedRecipient),
-        assetIdHash: textCommitmentHex("BTC"),
-        paramsDataHex,
-        broadcast: true,
-        dwalletProgram: appConfig.preAlpha.dwalletProgramId,
-        grpcUrl: appConfig.preAlpha.grpcUrl,
-        // BTC needs a Bitcoin RPC/Esplora base, not the backend's
-        // EVM destination RPC. We pass the network-specific Bitcoin
-        // endpoint explicitly so the CLI's Bitcoin broadcast adapter
-        // can choose Alchemy JSON-RPC or Esplora as appropriate.
-        rpcUrl: bitcoinBroadcastUrl(btcNetwork),
-      });
-      const broadcast = (executed as { broadcast?: BroadcastResultLike })
-        ?.broadcast;
-      return { proposal, broadcast, awaitingApprovers: false };
     },
     onSuccess: ({ proposal, broadcast, awaitingApprovers }) => {
       if (awaitingApprovers) {
@@ -825,6 +905,15 @@ function BitcoinSendPage() {
     setupIntent.mutate();
   }, [autoStartSetup, autoStartedSetup, needsSetup, setupIntent]);
 
+  if (recovery.saved && !send.isPending)
+    return (
+      <SavedSendRecovery
+        onStartAnother={recovery.startSeparateRequest}
+        saved={recovery.saved}
+        walletName={name}
+      />
+    );
+
   return (
     <BtcSendScreen
       walletName={name}
@@ -904,17 +993,4 @@ function BitcoinSendPage() {
       }}
     />
   );
-}
-
-function clearSignBitcoinNetwork(network: BitcoinNetwork): ClearSignNetwork {
-  switch (network) {
-    case "testnet":
-      return "Bitcoin testnet";
-    case "signet":
-      return "Bitcoin signet";
-    default:
-      throw new Error(
-        `Bitcoin ${network} is not registered for ClearSign execution.`,
-      );
-  }
 }

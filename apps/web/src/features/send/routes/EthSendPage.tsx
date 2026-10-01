@@ -1,5 +1,14 @@
 "use client";
 
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
+import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
+import { SavedSendRecovery } from "@/features/send/ui/SavedSendRecovery";
+import {
+  inlineApprovalOptions,
+  reviewedCreationProposalAddress,
+  savedProposalError,
+} from "@/lib/clearsign/inlineApproval";
+
 // Send ETH (Sepolia) - purpose-built sibling of /send.
 //
 // The Solana send path is the original /send/page.tsx, untouched.
@@ -81,9 +90,7 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
-import {
-  policyCommitmentHexForParts,
-} from "@/lib/policies/onchain";
+import { policyCommitmentHexForParts } from "@/lib/policies/onchain";
 import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
@@ -113,16 +120,16 @@ import {
 } from "@/lib/sendFields";
 import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
 import { ComposeStage } from "@/features/send/ui/evm/EvmNativeSendStages";
-import { PreFlightCard, SentStage } from "@/features/send/ui/evm/EvmNativeSendResults";
+import {
+  PreFlightCard,
+  SentStage,
+} from "@/features/send/ui/evm/EvmNativeSendResults";
 
 type Stage = "compose" | "sending" | "sent";
 
-
 export default function SendEthPageWrapper() {
   return (
-    <Suspense
-      fallback={<div className="min-h-screen" aria-hidden="true" />}
-    >
+    <Suspense fallback={<div className="min-h-screen" aria-hidden="true" />}>
       <SendEthPage />
     </Suspense>
   );
@@ -225,8 +232,12 @@ function SendEthPage() {
   const [stage, setStage] = useState<Stage>("compose");
   // Initial values from URL params so /app/wallet/[name]'s
   // QuickAction input can route here with the form pre-filled.
-  const [amount, setAmount] = useState(() => params?.get("amount")?.trim() ?? "");
-  const [recipient, setRecipient] = useState(() => params?.get("recipient")?.trim() ?? "");
+  const [amount, setAmount] = useState(
+    () => params?.get("amount")?.trim() ?? "",
+  );
+  const [recipient, setRecipient] = useState(
+    () => params?.get("recipient")?.trim() ?? "",
+  );
   const [note, setNote] = useState(() => params?.get("note")?.trim() ?? "");
   const [sentLabel, setSentLabel] = useState<{
     amount: string;
@@ -244,8 +255,7 @@ function SendEthPage() {
   // look like a 0x address but does look like an ENS name. The
   // resolved 0x address is what we sign / broadcast against; the
   // user-typed name is preserved for display only.
-  const shouldTryEns =
-    !directlyValid && looksLikeEnsName(trimmedRecipient);
+  const shouldTryEns = !directlyValid && looksLikeEnsName(trimmedRecipient);
   const ensQuery = useQuery({
     queryKey: ["ens-resolve", trimmedRecipient.toLowerCase()],
     queryFn: () => resolveEnsName(trimmedRecipient),
@@ -253,21 +263,15 @@ function SendEthPage() {
     staleTime: 5 * 60 * 1000,
     retry: 0,
   });
-  const ensAddress =
-    shouldTryEns && ensQuery.data ? ensQuery.data : null;
+  const ensAddress = shouldTryEns && ensQuery.data ? ensQuery.data : null;
   const ensResolving =
     shouldTryEns && (ensQuery.isLoading || ensQuery.isFetching);
   const ensFailed =
-    shouldTryEns &&
-    !ensResolving &&
-    ensQuery.isFetched &&
-    !ensQuery.data;
+    shouldTryEns && !ensResolving && ensQuery.isFetched && !ensQuery.data;
 
   // The address we'll actually sign + broadcast to. Either the
   // pasted 0x address or the ENS-resolved address.
-  const effectiveRecipient = directlyValid
-    ? trimmedRecipient
-    : ensAddress;
+  const effectiveRecipient = directlyValid ? trimmedRecipient : ensAddress;
   const recipientValid = !!effectiveRecipient;
   let amountValid = false;
   let amountWei = 0n;
@@ -364,259 +368,322 @@ function SendEthPage() {
     !insufficientBalance &&
     !policyDenied;
 
+  const recovery = useSendRecovery(
+    JSON.stringify([
+      walletName,
+      requestAccountKey(wallet.sessionSubject, wallet.publicKey?.toBase58() ?? null),
+      connection.rpcEndpoint,
+      EVM_RPC_URL,
+    ]),
+  );
   const submit = useMutation({
     mutationFn: async () => {
-      if (!wallet.publicKey) throw new Error("Connect your wallet first");
-      if (!ethIntent || !ethIntent.account)
-        throw new Error(`${EVM_LABEL} sending isn't set up for this wallet`);
-      if (!walletEthAddress)
-        throw new Error(`Wallet's ${EVM_LABEL} address isn't ready yet`);
-      if (!recipientValid || !effectiveRecipient)
-        throw new Error("Recipient must be a valid 0x address or .eth name");
+      const attempt = recovery.begin();
+      try {
+        if (!wallet.publicKey) throw new Error("Connect your wallet first");
+        if (!ethIntent || !ethIntent.account)
+          throw new Error(`${EVM_LABEL} sending isn't set up for this wallet`);
+        if (!walletEthAddress)
+          throw new Error(`Wallet's ${EVM_LABEL} address isn't ready yet`);
+        if (!recipientValid || !effectiveRecipient)
+          throw new Error("Recipient must be a valid 0x address or .eth name");
 
-      const proposerPk = wallet.pickSigner(ethIntent.account.proposers);
-      if (!proposerPk) {
-        throw new Error(
-          "None of your connected wallets is in this wallet's proposer list. " +
-            "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
-        );
-      }
-      const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
-        walletName,
-        chainKind: EVM_CHAIN_KIND,
-        recipient: effectiveRecipient,
-        ticker: EVM_TICKER,
-        amountDisplay: amount,
-      });
-      assertPolicyNotDenied(submitPolicyPlan);
-      const walletPda = walletQuery.data?.pda;
-      if (!walletPda) throw new Error("Wallet is still loading. Try again.");
-      const onchainPolicy = await resolvePersistentSendPolicy(
-        connection,
-        walletPda,
-        walletName,
-        EVM_CHAIN_KIND,
-      );
-
-      // 1. Pull the live nonce. Without this the EVM tx the dWallet
-      //    signs gets rejected as a duplicate.
-      const { nonce } = await fetchEvmNonce(walletEthAddress, EVM_RPC_URL);
-
-      const recipientForClearSign = effectiveRecipient.toLowerCase();
-      const paramsDataHex = toHex(
-        encodeParams(ethIntent.account, {
-          nonce: String(nonce),
-          to: recipientForClearSign,
-          value_wei: amountWei.toString(),
-          data: "",
-        }),
-      );
-
-      // 2. Prepare a typed ClearSign proposal. The readable text and
-      //    commitment cover the recipient, amount, asset, policy, nonce,
-      //    and expiry. The raw EVM params bytes are passed later into the
-      //    typed Ika signer, where the program verifies they match this
-      //    signed ClearSign action before asking Ika to sign.
-      const actionId = randomActionLabel(
-        isHyperliquid ? "hype-send" : "eth-send",
-      );
-      const actionNonce = randomActionLabel("nonce");
-      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-      const policyCommitment =
-        onchainPolicy?.commitmentHex ??
-        policyCommitmentHexForParts([
-          `wallet:${walletQuery.data?.pda.toBase58() ?? walletName}`,
-          `intent:${ethIntent.account.intentIndex}`,
-          `chain:${EVM_CHAIN_KIND}`,
-          `threshold:${ethIntent.account.approvalThreshold ?? ""}`,
-          `proposers:${ethIntent.account.proposers.join(",")}`,
-          `approvers:${ethIntent.account.approvers.join(",")}`,
-        ]);
-      const envelope: ClearSignIntentInput<SendPayload> = {
-        kind: "send",
-        network: isHyperliquid ? "Hyperliquid testnet" : "Ethereum Sepolia",
-        walletName,
-        walletId: walletQuery.data?.pda.toBase58(),
-        actionId,
-        nonce: actionNonce,
-        expiresAt,
-        policyCommitment,
-        payload: {
-          recipient: recipientForClearSign,
-          recipientEncoding: "sha256_text",
-          amount: amount.trim(),
-          asset: EVM_TICKER,
-          assetEncoding: "sha256_text",
-          note: note.trim() || undefined,
-          fiatEstimate: liveUsdEstimate(amount, EVM_TICKER),
-        },
-      };
-      const summary = await prepareClearSignV4Action(envelope, {
-        intentIndex: ethIntent.account.intentIndex,
-        actorPubkey: proposerPk.toBase58(),
-        policyBytesHex: onchainPolicy?.hex,
-        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
-      });
-      const dry = await backendApi.prepare.createTypedProposal(walletName, {
-        intent_index: ethIntent.account.intentIndex,
-        action_kind: summary.actionKindCode,
-        policy_commitment: summary.policyCommitment,
-        payload_hash: summary.payloadHash,
-        envelope_hash: summary.envelopeHash,
-        action_id: envelope.actionId,
-        nonce: envelope.nonce,
-        policyBytesHex: onchainPolicy?.hex,
-        signable_text: summary.signableText,
-        canonical_intent_hex: summary.canonicalIntentHex,
-        expiry: formatUnixSigningExpiry(envelope.expiresAt),
-        actor_pubkey: proposerPk.toBase58(),
-      });
-
-      // 3. Sign on Solana. Proves to the program that this user is
-      //    a proposer + counts as their approval.
-      const signed = await signTypedDescriptor(dry, {
-        preferSigner: proposerPk,
-        expectedTyped: {
-          envelopeHash: summary.envelopeHash,
-          payloadHash: summary.payloadHash,
-          signableText: summary.signableText,
-        },
-      });
-
-      // 4. Submit. Lands the proposal Approved on chain (program's
-      //    auto-approve when proposer-in-approvers).
-      const submitted = await backendApi.submit.createTypedProposal(walletName, {
-        ...signed,
-        expiry: dry.expiry,
-        intent_index: dry.intent_index,
-        action_kind: dry.action_kind,
-        policy_commitment: dry.policy_commitment_hex,
-        payload_hash: dry.payload_hash_hex,
-        envelope_hash: dry.envelope_hash_hex,
-        action_id: dry.action_id,
-        nonce: dry.nonce,
-        policyBytesHex: onchainPolicy?.hex,
-        canonical_intent_hex: dry.canonical_intent_hex,
-      });
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error("Backend didn't return a proposal address from submit");
-      }
-      const intent = ethIntent.account;
-      const approverPk = wallet.pickSigner(intent.approvers);
-
-      // Old-program fallback: re-sign approve if the propose did not
-      // auto-approve. With the upgrade this branch never fires.
-      const decision = await approveIfNeeded(connection, proposal, {
-        approvers: intent.approvers,
-        approverPubkey: approverPk?.toBase58() ?? null,
-      });
-      if (decision.needsApproveSignature) {
-        if (!approverPk) {
+        const proposerPk = wallet.pickSigner(ethIntent.account.proposers);
+        if (!proposerPk) {
           throw new Error(
-            "The proposal landed, but none of your connected wallets can approve it.",
+            "None of your connected wallets is in this wallet's proposer list. " +
+              "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
           );
         }
-        const approveDry = await backendApi.prepare.approveTypedProposal(
+        const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
+          walletName,
+          chainKind: EVM_CHAIN_KIND,
+          recipient: effectiveRecipient,
+          ticker: EVM_TICKER,
+          amountDisplay: amount,
+        });
+        assertPolicyNotDenied(submitPolicyPlan);
+        const walletPda = walletQuery.data?.pda;
+        if (!walletPda) throw new Error("Wallet is still loading. Try again.");
+        const onchainPolicy = await resolvePersistentSendPolicy(
+          connection,
+          walletPda,
+          walletName,
+          EVM_CHAIN_KIND,
+        );
+
+        // 1. Pull the live nonce. Without this the EVM tx the dWallet
+        //    signs gets rejected as a duplicate.
+        const { nonce } = await fetchEvmNonce(walletEthAddress, EVM_RPC_URL);
+
+        const recipientForClearSign = effectiveRecipient.toLowerCase();
+        const paramsDataHex = toHex(
+          encodeParams(ethIntent.account, {
+            nonce: String(nonce),
+            to: recipientForClearSign,
+            value_wei: amountWei.toString(),
+            data: "",
+          }),
+        );
+
+        // 2. Prepare a typed ClearSign proposal. The readable text and
+        //    commitment cover the recipient, amount, asset, policy, nonce,
+        //    and expiry. The raw EVM params bytes are passed later into the
+        //    typed Ika signer, where the program verifies they match this
+        //    signed ClearSign action before asking Ika to sign.
+        const actionId = randomActionLabel(
+          isHyperliquid ? "hype-send" : "eth-send",
+        );
+        const actionNonce = randomActionLabel("nonce");
+        const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+        const policyCommitment =
+          onchainPolicy?.commitmentHex ??
+          policyCommitmentHexForParts([
+            `wallet:${walletQuery.data?.pda.toBase58() ?? walletName}`,
+            `intent:${ethIntent.account.intentIndex}`,
+            `chain:${EVM_CHAIN_KIND}`,
+            `threshold:${ethIntent.account.approvalThreshold ?? ""}`,
+            `proposers:${ethIntent.account.proposers.join(",")}`,
+            `approvers:${ethIntent.account.approvers.join(",")}`,
+          ]);
+        const envelope: ClearSignIntentInput<SendPayload> = {
+          kind: "send",
+          network: isHyperliquid ? "Hyperliquid testnet" : "Ethereum Sepolia",
+          walletName,
+          walletId: walletQuery.data?.pda.toBase58(),
+          actionId,
+          nonce: actionNonce,
+          expiresAt,
+          policyCommitment,
+          payload: {
+            recipient: recipientForClearSign,
+            recipientEncoding: "sha256_text",
+            amount: amount.trim(),
+            asset: EVM_TICKER,
+            assetEncoding: "sha256_text",
+            note: note.trim() || undefined,
+            fiatEstimate: liveUsdEstimate(amount, EVM_TICKER),
+          },
+        };
+        const summary = await prepareClearSignV4Action(envelope, {
+          intentIndex: ethIntent.account.intentIndex,
+          actorPubkey: proposerPk.toBase58(),
+          policyBytesHex: onchainPolicy?.hex,
+          deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
+        });
+        const dry = await backendApi.prepare.createTypedProposal(walletName, {
+          intent_index: ethIntent.account.intentIndex,
+          action_kind: summary.actionKindCode,
+          policy_commitment: summary.policyCommitment,
+          payload_hash: summary.payloadHash,
+          envelope_hash: summary.envelopeHash,
+          action_id: envelope.actionId,
+          nonce: envelope.nonce,
+          policyBytesHex: onchainPolicy?.hex,
+          signable_text: summary.signableText,
+          canonical_intent_hex: summary.canonicalIntentHex,
+          expiry: formatUnixSigningExpiry(envelope.expiresAt),
+          actor_pubkey: proposerPk.toBase58(),
+        });
+
+        // 3. Sign on Solana. Proves to the program that this user is
+        //    a proposer + counts as their approval.
+        const signed = await signTypedDescriptor(dry, {
+          preferSigner: proposerPk,
+          expectedTyped: {
+            envelopeHash: summary.envelopeHash,
+            payloadHash: summary.payloadHash,
+            signableText: summary.signableText,
+          },
+        });
+
+        // 4. Submit. Lands the proposal Approved on chain (program's
+        //    auto-approve when proposer-in-approvers).
+        attempt.assertCurrent();
+        attempt.submitting(reviewedCreationProposalAddress(dry, summary));
+        const submitted = await backendApi.submit.createTypedProposal(
+          walletName,
+          {
+            ...signed,
+            expiry: dry.expiry,
+            intent_index: dry.intent_index,
+            action_kind: dry.action_kind,
+            policy_commitment: dry.policy_commitment_hex,
+            payload_hash: dry.payload_hash_hex,
+            envelope_hash: dry.envelope_hash_hex,
+            action_id: dry.action_id,
+            nonce: dry.nonce,
+            policyBytesHex: onchainPolicy?.hex,
+            canonical_intent_hex: dry.canonical_intent_hex,
+          },
+        );
+        const proposal = (submitted as Record<string, unknown>)?.proposal;
+        if (typeof proposal !== "string" || proposal.length === 0) {
+          throw new Error(
+            "Backend didn't return a proposal address from submit",
+          );
+        }
+        if (proposal !== dry.proposal_pubkey)
+          throw new Error(
+            "Submission returned a different proposal address. Check the prepared request before retrying.",
+          );
+        attempt.accepted(proposal);
+        const intent = ethIntent.account;
+        const approverPk = wallet.pickSigner(intent.approvers);
+
+        // Old-program fallback: re-sign approve if the propose did not
+        // auto-approve. With the upgrade this branch never fires.
+        const decision = await approveIfNeeded(connection, proposal, {
+          approvers: intent.approvers,
+          approverPubkey: approverPk?.toBase58() ?? null,
+        });
+        if (decision.needsApproveSignature) {
+          if (!approverPk) {
+            throw new Error(
+              "The proposal landed, but none of your connected wallets can approve it.",
+            );
+          }
+          attempt.assertCurrent();
+          const approveDry = await backendApi.prepare.approveTypedProposal(
+            walletName,
+            proposal,
+            { actor_pubkey: approverPk.toBase58() },
+          );
+          attempt.assertCurrent();
+          const approveSigned = await signTypedDescriptor(
+            approveDry,
+            inlineApprovalOptions(
+              dry,
+              approveDry,
+              summary,
+              proposal,
+              approverPk,
+            ),
+          );
+          attempt.assertCurrent();
+          await backendApi.submit.approveTypedProposal(walletName, proposal, {
+            ...approveSigned,
+            expiry: approveDry.expiry,
+          });
+        }
+
+        const policyPlan = await resolvePolicyEnforcement(walletName, {
+          walletName,
+          chainKind: EVM_CHAIN_KIND,
+          recipient: effectiveRecipient ?? "",
+          ticker: EVM_TICKER,
+          amountDisplay: amount,
+        });
+        assertPolicyNotDenied(policyPlan);
+        if (policyPlan.evaluation?.matched) {
+          if (policyPlan.rule?.action === "require-extra-approvers") {
+            const seen = new Set<string>([
+              proposerPk.toBase58(),
+              ...(approverPk ? [approverPk.toBase58()] : []),
+            ]);
+            const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
+              const normalized = addr.trim();
+              if (!normalized || seen.has(normalized)) return false;
+              seen.add(normalized);
+              return true;
+            });
+            if (extraApprovers.length === 0) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
+              );
+            }
+            for (const extraApprover of extraApprovers) {
+              if (!intent.approvers.includes(extraApprover)) {
+                throw new Error(
+                  `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+                );
+              }
+              const extraSigner = wallet.pickSigner([extraApprover]);
+              if (!extraSigner) {
+                throw new Error(
+                  `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+                );
+              }
+              attempt.assertCurrent();
+              const extraDry = await backendApi.prepare.approveTypedProposal(
+                walletName,
+                proposal,
+                { actor_pubkey: extraSigner.toBase58() },
+              );
+              attempt.assertCurrent();
+              const extraSigned = await signTypedDescriptor(
+                extraDry,
+                inlineApprovalOptions(
+                  dry,
+                  extraDry,
+                  summary,
+                  proposal,
+                  extraSigner,
+                ),
+              );
+              attempt.assertCurrent();
+              await backendApi.submit.approveTypedProposal(
+                walletName,
+                proposal,
+                {
+                  ...extraSigned,
+                  expiry: extraDry.expiry,
+                },
+              );
+            }
+          } else if (
+            policyPlan.rule?.action === "require-cooldown" &&
+            policyPlan.extraCooldownSeconds > 0
+          ) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+            );
+          }
+        }
+
+        const readyToExecute = await waitForProposalApproval(
+          connection,
+          proposal,
+        );
+        if (!readyToExecute) {
+          attempt.assertCurrent();
+          return { proposal, broadcast: null, awaitingApprovers: true };
+        }
+
+        // 5. Execute with typed ClearSign verification + Ika broadcast.
+        attempt.assertCurrent();
+        const executed = await backendApi.executeTypedChainSend(
           walletName,
           proposal,
-          { actor_pubkey: approverPk.toBase58() },
+          {
+            chainKind: EVM_CHAIN_KIND,
+            amountRaw: amountWei.toString(),
+            recipientHash: textCommitmentHex(recipientForClearSign),
+            assetIdHash: textCommitmentHex(EVM_TICKER),
+            paramsDataHex,
+            broadcast: true,
+            dwalletProgram: appConfig.preAlpha.dwalletProgramId,
+            grpcUrl: appConfig.preAlpha.grpcUrl,
+            rpcUrl: EVM_RPC_URL,
+          },
         );
-        const approveSigned = await signTypedDescriptor(approveDry, {
-          preferSigner: approverPk,
-        });
-        await backendApi.submit.approveTypedProposal(walletName, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      const policyPlan = await resolvePolicyEnforcement(walletName, {
-        walletName,
-        chainKind: EVM_CHAIN_KIND,
-        recipient: effectiveRecipient ?? "",
-        ticker: EVM_TICKER,
-        amountDisplay: amount,
-      });
-      assertPolicyNotDenied(policyPlan);
-      if (policyPlan.evaluation?.matched) {
-        if (policyPlan.rule?.action === "require-extra-approvers") {
-          const seen = new Set<string>([
-            proposerPk.toBase58(),
-            ...(approverPk ? [approverPk.toBase58()] : []),
-          ]);
-          const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
-            const normalized = addr.trim();
-            if (!normalized || seen.has(normalized)) return false;
-            seen.add(normalized);
-            return true;
-          });
-          if (extraApprovers.length === 0) {
-            throw new Error(
-              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
-            );
-          }
-          for (const extraApprover of extraApprovers) {
-            if (!intent.approvers.includes(extraApprover)) {
-              throw new Error(
-                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
-              );
-            }
-            const extraSigner = wallet.pickSigner([extraApprover]);
-            if (!extraSigner) {
-              throw new Error(
-                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
-              );
-            }
-            const extraDry = await backendApi.prepare.approveTypedProposal(
-              walletName,
-              proposal,
-              { actor_pubkey: extraSigner.toBase58() },
-            );
-            const extraSigned = await signTypedDescriptor(extraDry, {
-              preferSigner: extraSigner,
-            });
-            await backendApi.submit.approveTypedProposal(walletName, proposal, {
-              ...extraSigned,
-              expiry: extraDry.expiry,
-            });
-          }
-        } else if (
-          policyPlan.rule?.action === "require-cooldown" &&
-          policyPlan.extraCooldownSeconds > 0
-        ) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+        const broadcast = (executed as { broadcast?: BroadcastResultLike })
+          ?.broadcast;
+        if (!broadcast?.tx_id?.trim())
+          throw savedProposalError(
+            proposal,
+            new Error(
+              "Execution returned no transaction ID. Sending is not confirmed.",
+            ),
           );
-        }
+        attempt.complete();
+        return { proposal, broadcast, awaitingApprovers: false };
+      } finally {
+        attempt.finish();
       }
-
-      const readyToExecute = await waitForProposalApproval(connection, proposal);
-      if (!readyToExecute) {
-        return { proposal, broadcast: null, awaitingApprovers: true };
-      }
-
-      // 5. Execute with typed ClearSign verification + Ika broadcast.
-      const executed = await backendApi.executeTypedChainSend(walletName, proposal, {
-        chainKind: EVM_CHAIN_KIND,
-        amountRaw: amountWei.toString(),
-        recipientHash: textCommitmentHex(recipientForClearSign),
-        assetIdHash: textCommitmentHex(EVM_TICKER),
-        paramsDataHex,
-        broadcast: true,
-        dwalletProgram: appConfig.preAlpha.dwalletProgramId,
-        grpcUrl: appConfig.preAlpha.grpcUrl,
-        rpcUrl: EVM_RPC_URL,
-      });
-      const broadcast = (executed as { broadcast?: BroadcastResultLike })
-        ?.broadcast;
-      return { proposal, broadcast, awaitingApprovers: false };
     },
     onSuccess: ({ proposal, broadcast, awaitingApprovers }) => {
-      const explorerUrl = broadcastExplorerUrl(
-        broadcast,
-        EVM_RPC_URL,
-      );
+      const explorerUrl = broadcastExplorerUrl(broadcast, EVM_RPC_URL);
       const explorerLabel = explorerLabelForChainKind(
         broadcast?.chain_kind,
         EVM_RPC_URL,
@@ -658,7 +725,9 @@ function SendEthPage() {
       // compose, /chains row, and portfolio panel all reflect the
       // new number. Multiple keys for the same data - each consumer
       // picked its own type/shape; invalidate them all.
-      queryClient.invalidateQueries({ queryKey: ["wallet-evm-native-balance"] });
+      queryClient.invalidateQueries({
+        queryKey: ["wallet-evm-native-balance"],
+      });
       queryClient.invalidateQueries({ queryKey: ["wallet-eth-balance"] });
       queryClient.invalidateQueries({ queryKey: ["chain-balance"] });
       queryClient.invalidateQueries({
@@ -674,7 +743,8 @@ function SendEthPage() {
       // the toast disappears. Keep stderr (when available from a
       // BackendApiError payload) for the "Show details" expander.
       const stderr =
-        (err as { payload?: { stderr?: string } })?.payload?.stderr ?? undefined;
+        (err as { payload?: { stderr?: string } })?.payload?.stderr ??
+        undefined;
       recordAttempt({
         walletName,
         chainKind: EVM_CHAIN_KIND,
@@ -730,6 +800,15 @@ function SendEthPage() {
     );
   }
 
+  if (recovery.saved && !submit.isPending)
+    return (
+      <SavedSendRecovery
+        onStartAnother={recovery.startSeparateRequest}
+        saved={recovery.saved}
+        walletName={walletName}
+      />
+    );
+
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
       <div className="flex flex-1 flex-col">
@@ -739,7 +818,10 @@ function SendEthPage() {
           className="w-full"
         >
           {stage === "compose" && (
-            <SendChainPicker walletName={walletName} activeKind={EVM_CHAIN_KIND} />
+            <SendChainPicker
+              walletName={walletName}
+              activeKind={EVM_CHAIN_KIND}
+            />
           )}
           {stage === "compose" && policyEvaluation?.matched && (
             <PolicyMatchBanner

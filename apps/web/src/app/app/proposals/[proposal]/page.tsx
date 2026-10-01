@@ -34,17 +34,15 @@ import {
   X,
 } from "lucide-react";
 import { addressUrl } from "@/lib/explorer";
-import { fetchProposal } from "@/lib/chain/proposals";
-import { fetchWalletByPda } from "@/lib/chain/wallets";
+import { readOwnedProposalContext } from "@/lib/clearsign/cancellationReview";
 import {
-  parseIntent,
   ProposalStatus,
   type AnyProposalAccount,
   type IntentAccount,
-  type WalletAccount,
 } from "@/lib/msig";
 import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
 import { useProposalWorkflow } from "@/lib/hooks/useProposalWorkflow";
+import { proposalVoterState } from "@/lib/retail/proposalVotes";
 import { friendlyError } from "@/lib/api/errors";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/retail/Button";
@@ -78,52 +76,33 @@ export default function RequestDetailPage() {
   // Live updates push the bitmap straight into the proposal cache.
   useProposalSubscription(proposalPda);
 
-  const proposalQuery = useQuery<AnyProposalAccount | null>({
-    queryKey: ["proposal", proposalPda],
+  const proposalQuery = useQuery({
+    queryKey: ["proposal-display", proposalPda, connection.rpcEndpoint],
     queryFn: async () => {
       try {
-        return await fetchProposal(connection, new PublicKey(proposalPda));
+        new PublicKey(proposalPda);
       } catch {
         return null;
       }
+      return readOwnedProposalContext(connection, proposalPda);
     },
     enabled: proposalPda.length > 0,
     staleTime: 10_000,
   });
-
-  const proposal = proposalQuery.data ?? null;
-
-  const contextQuery = useQuery<{
-    wallet: WalletAccount;
-    intent: IntentAccount;
-  } | null>({
-    queryKey: ["proposal-context", proposal?.wallet, proposal?.intent],
-    queryFn: async () => {
-      if (!proposal) return null;
-      const wallet = await fetchWalletByPda(
-        connection,
-        new PublicKey(proposal.wallet),
-      );
-      if (!wallet) return null;
-      const info = await connection.getAccountInfo(
-        new PublicKey(proposal.intent),
-        "confirmed",
-      );
-      if (!info) return null;
-      return { wallet, intent: parseIntent(new Uint8Array(info.data)) };
-    },
-    enabled: Boolean(proposal),
-    staleTime: 30_000,
-  });
-
-  const context = contextQuery.data ?? null;
-
-  if (proposalQuery.isLoading || (proposal && contextQuery.isLoading)) {
-    return <RequestSkeleton />;
+  const context = proposalQuery.data ?? null;
+  const proposal = context?.proposal ?? null;
+  if (proposalQuery.isError) {
+    return (
+      <LoadError
+        loading={proposalQuery.isFetching}
+        onRetry={() => {
+          void proposalQuery.refetch();
+        }}
+      />
+    );
   }
-  if (!proposal || !context) {
-    return <NotFound />;
-  }
+  if (proposalQuery.isLoading) return <RequestSkeleton />;
+  if (!proposal || !context) return <NotFound />;
 
   return (
     <Loaded
@@ -134,7 +113,6 @@ export default function RequestDetailPage() {
       reduce={!!reduce}
       onChanged={() => {
         proposalQuery.refetch();
-        contextQuery.refetch();
       }}
     />
   );
@@ -179,15 +157,19 @@ function Loaded({
   );
   const isActive = proposal.status === ProposalStatus.Active;
 
-  const myAddress = wallet.publicKey?.toBase58() ?? "";
-  const isApprover =
-    myAddress.length > 0 && intent.approvers.includes(myAddress);
-  const isProposer = myAddress.length > 0 && proposal.proposer === myAddress;
-
-  const myApproverIndex = intent.approvers.indexOf(myAddress);
-  const alreadyApproved =
-    myApproverIndex >= 0 &&
-    (proposal.approvalBitmap & (1 << myApproverIndex)) !== 0;
+  const voters = proposalVoterState(
+    intent.approvers,
+    proposal.approvalBitmap,
+    proposal.cancellationBitmap,
+    wallet.pickSigner,
+  );
+  const myAddress =
+    voters.member?.toBase58() ?? wallet.publicKey?.toBase58() ?? "";
+  const isApprover = Boolean(voters.member);
+  const isProposer = Boolean(wallet.pickSigner([proposal.proposer]));
+  const alreadyApproved = isApprover && !voters.approver;
+  const cancellationsCollected = countBits(proposal.cancellationBitmap);
+  const canVote = isActive || proposal.status === ProposalStatus.Approved;
 
   // Local-first nickname lookup. When a viewer has saved a contact
   // for a member, prefer that name in the proposer line + the
@@ -217,7 +199,7 @@ function Loaded({
       await workflow.approveMutation.mutateAsync(
         workflow.reviewQuery.data?.reviewId,
       );
-      toast.success("Approved");
+      toast.success("Approval vote recorded");
       onChanged();
     } catch (err) {
       surfaceWriteError(err, toast, "approve");
@@ -227,7 +209,7 @@ function Loaded({
   const handleDecline = async () => {
     try {
       await workflow.cancelMutation.mutateAsync();
-      toast.success("Declined");
+      toast.success("Cancellation vote recorded");
       onChanged();
     } catch (err) {
       surfaceWriteError(err, toast, "decline");
@@ -283,7 +265,9 @@ function Loaded({
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 
   const isWorking =
-    workflow.approveMutation.isPending || workflow.cancelMutation.isPending;
+    workflow.approveMutation.isPending ||
+    workflow.cancelMutation.isPending ||
+    workflow.executeMutation.isPending;
 
   return (
     <motion.div
@@ -360,6 +344,7 @@ function Loaded({
       <ApproversBreakdown
         approvers={intent.approvers}
         approvalBitmap={proposal.approvalBitmap}
+        cancellationBitmap={proposal.cancellationBitmap}
         myAddress={myAddress}
         contactByAddress={contactByAddress}
       />
@@ -385,8 +370,11 @@ function Loaded({
               },
             ]}
           />
+          <p className="break-all font-mono text-xs text-text-soft">
+            Signing member: {voters.approver?.toBase58()}
+          </p>
           <WalletPopupNarration action="approve this request" />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3">
             <Button
               size="lg"
               fullWidth
@@ -413,28 +401,6 @@ function Loaded({
                 </>
               )}
             </Button>
-            <Button
-              size="lg"
-              variant="ghost"
-              fullWidth
-              onClick={handleDecline}
-              disabled={isWorking}
-            >
-              {workflow.cancelMutation.isPending ? (
-                <>
-                  <Loader2
-                    className="h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                  Declining…
-                </>
-              ) : (
-                <>
-                  <X className="h-4 w-4" aria-hidden="true" />
-                  Decline
-                </>
-              )}
-            </Button>
           </div>
         </div>
       )}
@@ -444,12 +410,62 @@ function Loaded({
           title="You've approved this"
           body={
             approvalsRemaining === 0
-              ? "Threshold reached - about to send."
+              ? "Approval threshold reached. Execution is a separate step."
               : `Waiting on ${approvalsRemaining} more approval${
                   approvalsRemaining === 1 ? "" : "s"
                 }.`
           }
         />
+      )}
+
+      {canVote && isApprover && (
+        <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+          <h2 className="font-display text-base text-text-strong">
+            Cancellation votes
+          </h2>
+          <p className="mt-2 text-sm text-text-soft">
+            {cancellationsCollected} of {intent.cancellationThreshold} required
+            cancellation votes. A vote does not cancel the request until this
+            threshold is reached.
+          </p>
+          {voters.canceller ? (
+            <>
+              <p className="mt-2 text-sm text-text-soft">
+                Voting to cancel replaces this member’s approval, if any.
+              </p>
+              <p className="mt-2 break-all font-mono text-xs text-text-soft">
+                Signing member: {voters.canceller.toBase58()}
+              </p>
+              <Button
+                className="mt-4"
+                size="lg"
+                variant="ghost"
+                fullWidth
+                onClick={handleDecline}
+                disabled={isWorking}
+              >
+                {workflow.cancelMutation.isPending ? (
+                  <>
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                    Recording vote…
+                  </>
+                ) : (
+                  <>
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    Vote to cancel
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-text-soft">
+              Your connected members have already voted to cancel.
+            </p>
+          )}
+        </section>
       )}
 
       {isActive && !isApprover && !isProposer && (
@@ -483,14 +499,14 @@ function Loaded({
       {proposal.status === ProposalStatus.Approved && (
         <div className="flex flex-col gap-3">
           <InfoCard
-            title="Ready to send"
+            title={proposal.typed ? "Ready to execute" : "Ready to send"}
             body={
               isApprover
                 ? proposal.typed
-                  ? "Enough approvals collected. Tap below to finish."
+                  ? "Enough approvals collected. Execution is a separate action and remains subject to the request’s timelock and execution checks."
                   : "Enough approvals collected. Tap below to finish the send."
                 : proposal.typed
-                  ? "Enough approvals collected. Anyone who can approve can finish it."
+                  ? "Enough approvals collected. A connected approver can request execution after the timelock and execution checks pass."
                   : "Enough approvals collected. Anyone who can approve can finish the send."
             }
           />
@@ -499,7 +515,7 @@ function Loaded({
               size="lg"
               fullWidth
               onClick={handleExecute}
-              disabled={workflow.executeMutation.isPending}
+              disabled={isWorking}
             >
               {workflow.executeMutation.isPending ? (
                 <>
@@ -511,7 +527,7 @@ function Loaded({
                 </>
               ) : (
                 <>
-                  {proposal.typed ? "Finish" : "Send now"}
+                  {proposal.typed ? "Execute action" : "Send now"}
                   <ArrowLeft
                     className="h-4 w-4 rotate-180"
                     aria-hidden="true"
@@ -734,11 +750,13 @@ function PrintProposalButton() {
 function ApproversBreakdown({
   approvers,
   approvalBitmap,
+  cancellationBitmap,
   myAddress,
   contactByAddress,
 }: {
   approvers: string[];
   approvalBitmap: number;
+  cancellationBitmap: number;
   myAddress: string;
   contactByAddress: Map<string, string>;
 }) {
@@ -751,6 +769,7 @@ function ApproversBreakdown({
       <ul className="mt-3 flex flex-col gap-2">
         {approvers.map((address, i) => {
           const approved = (approvalBitmap & (1 << i)) !== 0;
+          const cancelled = (cancellationBitmap & (1 << i)) !== 0;
           const isYou = !!myAddress && address === myAddress;
           const nickname = contactByAddress.get(address);
           const displayName = isYou
@@ -762,9 +781,14 @@ function ApproversBreakdown({
               className="flex items-center gap-3 rounded-soft border border-border-soft bg-canvas px-3 py-2.5"
             >
               <MemberAvatar address={address} size="sm" />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-strong">
-                {displayName}
-              </span>
+              <div className="min-w-0 flex-1">
+                <span className="block break-words text-sm font-medium text-text-strong">
+                  {displayName}
+                </span>
+                <span className="block break-all font-mono text-xs text-text-soft">
+                  {address}
+                </span>
+              </div>
               <span
                 className={
                   "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium " +
@@ -782,6 +806,8 @@ function ApproversBreakdown({
                     />
                     Approved
                   </>
+                ) : cancelled ? (
+                  "Voted to cancel"
                 ) : (
                   "Waiting"
                 )}
@@ -817,6 +843,32 @@ function RequestSkeleton() {
   );
 }
 
+function LoadError({
+  loading,
+  onRetry,
+}: {
+  loading: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <section
+      role="alert"
+      className="rounded-card border border-border-soft bg-surface-raised p-8"
+    >
+      <h1 className="font-display text-display-xs text-text-strong">
+        Request could not be loaded
+      </h1>
+      <p className="mt-2 text-text-soft">
+        The network could not verify this request. This does not mean it is
+        missing or completed. Try again before taking action.
+      </p>
+      <Button className="mt-6" onClick={onRetry} disabled={loading}>
+        {loading ? "Retrying…" : "Retry"}
+      </Button>
+    </section>
+  );
+}
+
 function NotFound() {
   return (
     <div className="flex flex-col gap-6">
@@ -832,8 +884,9 @@ function NotFound() {
           We couldn&rsquo;t find that request
         </h1>
         <p className="mt-2 max-w-md text-text-soft">
-          It may have already been completed, declined, or you may not be a
-          member of the wallet it belongs to.
+          No request or wallet context was found at this address on the
+          configured network. Check the shared link and network. Completed
+          requests may remain visible until their accounts are cleaned up.
         </p>
         <Link href="/app" className="mt-6 inline-block">
           <Button size="md">Back to wallets</Button>

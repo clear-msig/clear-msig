@@ -208,15 +208,15 @@ export function useAgentDashboardActions({
       if (synced.ok) {
         setKillSwitchHandoff(synced.killSwitch ?? null);
         toast.success(
-          enabled ? "All automatic actions stopped" : "Automatic actions allowed again",
-          synced.killSwitch
-            ? { details: synced.killSwitch.message }
-            : undefined,
+          enabled ? "ClearSig automatic actions paused" : "ClearSig pause removed",
+          { details: [synced.killSwitch?.message, enabled
+            ? "External positions and orders are not confirmed closed or cancelled. Check the connected venue separately."
+            : "Other policy, approval, and venue execution gates still apply."].filter(Boolean).join(" ") },
         );
         await refreshBackendState();
       } else {
         toast.info("This change is saved on this device for now", {
-          details: synced.message,
+          details: `${synced.message} External positions and orders are not confirmed closed or cancelled.`,
         });
       }
     } catch (error) {

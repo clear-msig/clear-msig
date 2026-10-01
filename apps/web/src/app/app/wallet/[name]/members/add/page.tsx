@@ -22,6 +22,7 @@ import { friendlyError } from "@/lib/api/errors";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
 import { clearSignProfileForSigner } from "@/lib/clearsign";
 import { IntentType, ProposalStatus } from "@/lib/msig";
@@ -67,6 +68,7 @@ export default function AddFriendPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const wallet = useWallet();
+  const requestIdentity = useRequestIdentity();
   const { connection } = useConnection();
   const { signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
@@ -247,6 +249,7 @@ export default function AddFriendPage() {
 
       const voteIntent = updateIntent?.account ?? intent;
       const result = await completeTypedGovernance({
+        requestIdentity,
         connection,
         walletName: name,
         walletId: walletQuery.data?.pda.toBase58() ?? name,
@@ -268,14 +271,14 @@ export default function AddFriendPage() {
         pickApprover: (approvers) => wallet.pickSigner(approvers),
         deviceProfile: clearSignProfileForSigner(wallet, signerPk),
       });
-      if (result.kind === "awaiting_approvals") {
-        throw new Error(
-          "Member add is waiting for more approvals before it can finish.",
-        );
-      }
-      return { proposal: result.proposal };
+      return { proposal: result.proposal, awaitingApprovals: result.kind === "awaiting_approvals" };
     },
     onSuccess: async (result) => {
+      if ("awaitingApprovals" in result && result.awaitingApprovals) {
+        toast.success("Member request created; the member has not been added yet.");
+        router.push(`/app/proposals/${encodeURIComponent(result.proposal)}`);
+        return;
+      }
       // Watcher path saves to contacts inline above; chain path saves
       // here so the on-chain success is the gate.
       if (!(result as { watcher?: boolean })?.watcher) {

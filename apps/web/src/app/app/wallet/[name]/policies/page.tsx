@@ -65,12 +65,13 @@ export default function PoliciesPage() {
   const summary =
     rules.length === 0
       ? "Add extra checks only when the basic protection is not enough."
-      : `${rules.length} ${rules.length === 1 ? "rule" : "rules"} active on ${toDisplayName(name)}.`;
+      : `${rules.length} ${rules.length === 1 ? "rule" : "rules"} saved in this browser for ${toDisplayName(name)}. Verify on-chain activation before relying on them.`;
 
   const deleteRule = async (rule: PolicyRule) => {
     removePolicy(name, rule.id);
     try {
-      await persistPolicy(name);
+      const result = await persistPolicy(name);
+      if (result.waiting > 0) toast.success("Removal proposed; the existing on-chain protection may still be active.");
     } catch (error) {
       savePolicy(rule);
       toast.error(error instanceof Error ? error.message : "Couldn't delete check");

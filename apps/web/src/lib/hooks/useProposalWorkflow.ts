@@ -12,13 +12,12 @@
 // "Decline." (Earlier scaffold only called the prepare step and never
 // landed on chain - silently broken.)
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useConnection, useWallet } from "@/lib/wallet";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import type { ExecuteProposalInput } from "@/lib/api/types";
-import { fetchIntentByPda } from "@/lib/chain/intents";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import {
   fetchProposal,
@@ -30,6 +29,11 @@ import { useProposalSubscription } from "@/lib/hooks/useProposalSubscription";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 
 import { readCanonicalProposalReview } from "@/lib/clearsign/readProposalReview";
+import {
+  readCancellationContext,
+  bindCancellationDescriptor,
+} from "@/lib/clearsign/cancellationReview";
+import { unvotedMembers } from "@/lib/retail/proposalVotes";
 import { bindApprovalDescriptor } from "@/lib/clearsign/proposalReview";
 
 export function useProposalWorkflow(
@@ -39,12 +43,36 @@ export function useProposalWorkflow(
   const { connection } = useConnection();
   const wallet = useWallet();
   const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
+  const identity = [
+    connection.rpcEndpoint,
+    wallet.sessionSubject,
+    wallet.publicKey?.toBase58(),
+    wallet.dynamicPublicKey?.toBase58(),
+    wallet.ledgerPublicKey?.toBase58(),
+    selectedProposal,
+    walletName,
+  ].join("|");
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const liveIdentity = useRef(identity);
+  liveIdentity.current = identity;
+  const assertIdentity = () => {
+    if (!mounted.current || liveIdentity.current !== identity)
+      throw new Error(
+        "Account, network or request changed. Start again from the current request.",
+      );
+  };
 
   // Push live bitmap updates straight into the ["proposal", addr] cache.
   useProposalSubscription(selectedProposal);
 
   const listQuery = useQuery<ProposalWithPda[]>({
-    queryKey: ["proposals", walletName],
+    queryKey: ["proposals", walletName, connection.rpcEndpoint],
     queryFn: async () => {
       const wallet = await fetchWalletByName(connection, walletName);
       if (!wallet) return [];
@@ -55,7 +83,7 @@ export function useProposalWorkflow(
   });
 
   const detailQuery = useQuery<AnyProposalAccount | null>({
-    queryKey: ["proposal", selectedProposal],
+    queryKey: ["proposal", selectedProposal, connection.rpcEndpoint],
     queryFn: async () => {
       let pubkey: PublicKey;
       try {
@@ -110,11 +138,17 @@ export function useProposalWorkflow(
           throw new Error(
             "Request or signing authority changed. Refresh and review again.",
           );
-        const signerPk = wallet.pickSigner(review.binding.approvers);
+        const signerPk = wallet.pickSigner(
+          unvotedMembers(
+            review.binding.approvers,
+            review.binding.approvalBitmap,
+          ),
+        );
         if (!signerPk)
           throw new Error(
             "None of your connected wallets can approve this request.",
           );
+        assertIdentity();
         const actorPubkey = signerPk.toBase58();
         const dry = await backendApi.prepare.approveTypedProposal(
           walletName,
@@ -131,6 +165,7 @@ export function useProposalWorkflow(
           throw new Error(
             "Request changed during preparation. Review again before signing.",
           );
+        assertIdentity();
         const signed = await signTypedDescriptor(dry, {
           preferSigner: signerPk,
           expectedTyped: {
@@ -148,6 +183,7 @@ export function useProposalWorkflow(
           throw new Error(
             "Request changed while signing. Signature was not submitted; refresh and review again.",
           );
+        assertIdentity();
         return await backendApi.submit.approveTypedProposal(
           walletName,
           selectedProposal,
@@ -166,41 +202,73 @@ export function useProposalWorkflow(
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
-      const { proposal, signerPk } = await resolveProposalSigner({
-        connection,
-        proposalAddress: selectedProposal,
-        pickSigner: wallet.pickSigner,
-        action: "decline",
-      });
-      const actorPubkey = signerPk.toBase58();
-      if (proposal.typed) {
-        const dry = await backendApi.prepare.cancelTypedProposal(
-          walletName,
+      if (approvalInFlight.current)
+        throw new Error("A request vote is already in progress.");
+      approvalInFlight.current = true;
+      try {
+        const context = await readCancellationContext(
+          connection,
           selectedProposal,
-          { actor_pubkey: actorPubkey },
-        );
-        const signed = await signTypedDescriptor(dry, {
-          preferSigner: signerPk,
-        });
-        return backendApi.submit.cancelTypedProposal(
           walletName,
-          selectedProposal,
-          {
-            ...signed,
-            expiry: dry.expiry,
-          },
         );
-      } else {
+        assertIdentity();
+        const signerPk = wallet.pickSigner(
+          unvotedMembers(
+            context.intent.approvers,
+            context.proposal.cancellationBitmap,
+          ),
+        );
+        if (!signerPk)
+          throw new Error(
+            "No connected member can cancel this request without repeating an existing vote.",
+          );
+        const actorPubkey = signerPk.toBase58();
+        const checkCurrent = async () => {
+          const fresh = await readCancellationContext(
+            connection,
+            selectedProposal,
+            walletName,
+          );
+          assertIdentity();
+          if (fresh.fingerprint !== context.fingerprint)
+            throw new Error(
+              "Request or cancellation authority changed. Refresh before voting again.",
+            );
+        };
+        if (context.proposal.typed) {
+          const dry = await backendApi.prepare.cancelTypedProposal(
+            walletName,
+            selectedProposal,
+            { actor_pubkey: actorPubkey },
+          );
+          bindCancellationDescriptor(context, dry, actorPubkey);
+          await checkCurrent();
+          const signed = await signTypedDescriptor(dry, {
+            preferSigner: signerPk,
+          });
+          await checkCurrent();
+          return await backendApi.submit.cancelTypedProposal(
+            walletName,
+            selectedProposal,
+            { ...signed, expiry: dry.expiry },
+          );
+        }
         const dry = await backendApi.prepare.cancelProposal(
           walletName,
           selectedProposal,
           { actor_pubkey: actorPubkey },
         );
+        bindCancellationDescriptor(context, dry, actorPubkey);
+        await checkCurrent();
         const signed = await signDescriptor(dry, { preferSigner: signerPk });
-        return backendApi.submit.cancelProposal(walletName, selectedProposal, {
-          ...signed,
-          expiry: dry.expiry,
-        });
+        await checkCurrent();
+        return await backendApi.submit.cancelProposal(
+          walletName,
+          selectedProposal,
+          { ...signed, expiry: dry.expiry },
+        );
+      } finally {
+        approvalInFlight.current = false;
       }
     },
     onSuccess: async () => {
@@ -248,41 +316,4 @@ export function useProposalWorkflow(
     executeMutation,
     cleanupMutation,
   };
-}
-
-async function resolveProposalSigner({
-  connection,
-  proposalAddress,
-  pickSigner,
-  action,
-}: {
-  connection: Connection;
-  proposalAddress: string;
-  pickSigner: (approvers: readonly string[]) => PublicKey | null;
-  action: "approve" | "decline";
-}) {
-  let proposalPk: PublicKey;
-  try {
-    proposalPk = new PublicKey(proposalAddress);
-  } catch {
-    throw new Error("Invalid proposal address.");
-  }
-  const proposal = await fetchProposal(connection, proposalPk);
-  if (!proposal) {
-    throw new Error("Couldn't load this request from chain.");
-  }
-  const intent = await fetchIntentByPda(
-    connection,
-    new PublicKey(proposal.intent),
-  );
-  if (!intent) {
-    throw new Error("Couldn't load this request's signing rule from chain.");
-  }
-  const signerPk = pickSigner(intent.approvers);
-  if (!signerPk) {
-    throw new Error(
-      `None of your connected wallets can ${action} this request.`,
-    );
-  }
-  return { proposal, intent, signerPk };
 }

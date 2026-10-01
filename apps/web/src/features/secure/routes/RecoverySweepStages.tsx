@@ -215,16 +215,20 @@ export function ComposeStage(props: ComposeStageProps) {
                 : ""}
             </option>
             {(props.holdings ?? []).map((h) => {
-              const display = h.symbol ?? `${h.mint.slice(0, 4)}…${h.mint.slice(-4)}`;
+              const display =
+                h.symbol ?? `${h.mint.slice(0, 4)}…${h.mint.slice(-4)}`;
               return (
                 <option key={h.mint} value={h.mint}>
-                  {display} · {formatTokenAmount(h.amount, h.decimals)} available
+                  {display} · {formatTokenAmount(h.amount, h.decimals)}{" "}
+                  available
                 </option>
               );
             })}
           </select>
           {props.holdingsLoading && (
-            <p className="text-[10px] text-text-soft">Reading token balances…</p>
+            <p className="text-[10px] text-text-soft">
+              Reading token balances…
+            </p>
           )}
           {!props.holdingsLoading &&
             (props.holdings == null || props.holdings.length === 0) && (
@@ -360,6 +364,9 @@ export function ComposeStage(props: ComposeStageProps) {
 }
 
 interface ReviewStageProps {
+  mint?: string | null;
+  threshold?: number | null;
+  memberCount?: number | null;
   destination: string;
   amountDisplay: string;
   dwalletPubkey: string;
@@ -398,8 +405,33 @@ export function ReviewStage(props: ReviewStageProps) {
       <section className="mx-auto w-full max-w-md rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <dl className="flex flex-col gap-3">
           <Row label="Amount" value={props.amountDisplay} mono={false} />
-          <Row label="From" value={shortPub(props.dwalletPubkey)} title={props.dwalletPubkey} />
-          <Row label="To" value={shortPub(props.destination)} title={props.destination} />
+          <Row label="From" value={props.dwalletPubkey} />
+          <Row label="To" value={props.destination} />
+          <Row
+            label="Network"
+            value="Solana · cluster identity not independently verified by this review"
+            mono={false}
+          />
+          {props.isSpl && (
+            <Row
+              label="Token mint"
+              value={props.mint || "Unavailable — return to amount selection"}
+            />
+          )}
+          <Row
+            label="Approval requirement"
+            value={
+              props.threshold && props.memberCount
+                ? `${props.threshold} of ${props.memberCount} members`
+                : "Unavailable"
+            }
+            mono={false}
+          />
+          <Row
+            label="Network fee"
+            value="Unavailable in this preview; not zero. Token-account creation may also require rent."
+            mono={false}
+          />
           <Row
             label="Message bytes"
             value={`${props.messageBytesLen} B`}
@@ -513,15 +545,15 @@ function Row({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-2">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+      <dt className="shrink-0 max-w-[40%] text-xs font-semibold uppercase tracking-[0.12em] text-text-soft">
         {label}
       </dt>
       <dd
         title={title}
         className={
-          "min-w-0 flex-1 truncate text-right text-sm text-text-strong " +
-          (mono ? "font-mono" : "font-numerals tabular-nums")
+          "min-w-0 flex-1 whitespace-pre-wrap text-left text-sm text-text-strong sm:text-right " +
+          (mono ? "break-all font-mono" : "break-words")
         }
       >
         {value}
@@ -559,7 +591,9 @@ export function RunningStage({
     : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
   const RUN_STAGES =
     authMode === "passkey" ? PASSKEY_RUN_STAGES : WALLET_RUN_STAGES;
-  const activeIdx = subStage ? RUN_STAGES.findIndex((s) => s.id === subStage) : 0;
+  const activeIdx = subStage
+    ? RUN_STAGES.findIndex((s) => s.id === subStage)
+    : 0;
   const active = activeIdx >= 0 ? RUN_STAGES[activeIdx] : RUN_STAGES[0]!;
   return (
     <motion.section
@@ -578,8 +612,8 @@ export function RunningStage({
               {collect.count} of {collect.threshold} approvals
             </p>
             <p className="max-w-sm text-sm text-text-soft">
-              The proposer&rsquo;s vote is in. Add the rest of the quorum
-              by tapping a different credential for each.
+              The proposer&rsquo;s vote is in. Add the rest of the quorum by
+              tapping a different credential for each.
             </p>
           </div>
           <div className="flex w-full max-w-md flex-col gap-2">
@@ -649,10 +683,7 @@ export function RunningStage({
               {active?.detail ?? "Running through the sweep stages."}
             </p>
           </div>
-          <ol
-            className="flex items-center gap-1.5"
-            aria-label="sweep progress"
-          >
+          <ol className="flex items-center gap-1.5" aria-label="sweep progress">
             {RUN_STAGES.map((s, i) => {
               const completed = activeIdx > i;
               const current = activeIdx === i;

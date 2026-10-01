@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  inlineApprovalOptions,
+  assertSubmittedCreation,
+} from "@/lib/clearsign/inlineApproval";
+
 import { useCallback } from "react";
 import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
@@ -63,8 +68,10 @@ export function useAgentTypedClearSignApproval(walletName: string) {
           session.status === "active" &&
           session.onchain?.status === "executed" &&
           session.expiresAt > Date.now() &&
-          (!proposal.policyHash || session.policyHash === proposal.policyHash) &&
-          (session.id === proposal.sessionId || session.agentId === proposal.agentId),
+          (!proposal.policyHash ||
+            session.policyHash === proposal.policyHash) &&
+          (session.id === proposal.sessionId ||
+            session.agentId === proposal.agentId),
       );
       if (!activeSession) {
         throw new Error("This trade has no active on-chain agent session.");
@@ -110,91 +117,148 @@ export function useAgentTypedClearSignApproval(walletName: string) {
           signableText: summary.signableText,
         },
       });
-      const submitted = await backendApi.submit.createTypedProposal(walletName, {
-        ...signed,
-        expiry: dry.expiry,
-        intent_index: dry.intent_index,
-        action_kind: dry.action_kind,
-        policy_commitment: dry.policy_commitment_hex,
-        payload_hash: dry.payload_hash_hex,
-        envelope_hash: dry.envelope_hash_hex,
-        action_id: dry.action_id,
-        nonce: dry.nonce,
-        canonical_intent_hex: dry.canonical_intent_hex,
-      });
-      const proposalAddress = stringField(submitted, "proposal");
-      if (!proposalAddress) {
-        throw new Error("The on-chain agent approval was created, but no proposal address returned.");
-      }
-
-      let status: AgentTypedClearSignApprovalResult["status"] = "created";
-      const approver = wallet.pickSigner(selected.account.approvers);
-      const approverAddress = approver?.toBase58() ?? null;
-      const decision = await approveIfNeeded(connection, proposalAddress, {
-        approvers: selected.account.approvers,
-        approverPubkey: approverAddress,
-        approvalThreshold: selected.account.approvalThreshold,
-      });
-      if (approver && decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveTypedProposal(
-          walletName,
-          proposalAddress,
-          { actor_pubkey: approver.toBase58() },
-        );
-        const approveSigned = await signTypedDescriptor(approveDry, {
-          preferSigner: approver,
-        });
-        await backendApi.submit.approveTypedProposal(walletName, proposalAddress, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      const shouldTryExecute = await waitForProposalApproval(
-        connection,
-        proposalAddress,
+      const submitted = await backendApi.submit.createTypedProposal(
+        walletName,
+        {
+          ...signed,
+          expiry: dry.expiry,
+          intent_index: dry.intent_index,
+          action_kind: dry.action_kind,
+          policy_commitment: dry.policy_commitment_hex,
+          payload_hash: dry.payload_hash_hex,
+          envelope_hash: dry.envelope_hash_hex,
+          action_id: dry.action_id,
+          nonce: dry.nonce,
+          canonical_intent_hex: dry.canonical_intent_hex,
+        },
       );
-      let txid: string | undefined;
-      if (shouldTryExecute) {
-        try {
-          const executed = await backendApi.executeTypedAgentTradeApproval(
+      const proposalAddress = assertSubmittedCreation(
+        dry,
+        summary,
+        stringField(submitted, "proposal"),
+      );
+      try {
+        if (!proposalAddress) {
+          throw new Error(
+            "The on-chain agent approval was created, but no proposal address returned.",
+          );
+        }
+
+        let status: AgentTypedClearSignApprovalResult["status"] = "created";
+        const approver = wallet.pickSigner(selected.account.approvers);
+        const approverAddress = approver?.toBase58() ?? null;
+        const decision = await approveIfNeeded(connection, proposalAddress, {
+          approvers: selected.account.approvers,
+          approverPubkey: approverAddress,
+          approvalThreshold: selected.account.approvalThreshold,
+        });
+        if (approver && decision.needsApproveSignature) {
+          const approveDry = await backendApi.prepare.approveTypedProposal(
             walletName,
             proposalAddress,
-            binding.executor,
+            { actor_pubkey: approver.toBase58() },
           );
-          txid = stringField(executed, "txid");
-          status = "executed";
-        } catch {
-          status = "approved";
-        }
-      }
-
-      const now = Date.now();
-      return {
-        proposal: {
-          ...proposal,
-          clearSignV2: {
-            ...binding,
-            clearSignVersion: 4,
-            payloadHash: summary.payloadHash,
-            envelopeHash: summary.envelopeHash,
-            signableText: summary.signableText,
-            onchainProposal: {
+          const approveSigned = await signTypedDescriptor(
+            approveDry,
+            inlineApprovalOptions(
+              dry,
+              approveDry,
+              summary,
               proposalAddress,
-              proposalIndex: Number(dry.proposal_index),
-              intentIndex: selected.account.intentIndex,
-              status,
-              createdAt: now,
-              executedAt: status === "executed" ? now : undefined,
-              txid,
+              approver,
+            ),
+          );
+          await backendApi.submit.approveTypedProposal(
+            walletName,
+            proposalAddress,
+            {
+              ...approveSigned,
+              expiry: approveDry.expiry,
+            },
+          );
+        }
+
+        const shouldTryExecute = await waitForProposalApproval(
+          connection,
+          proposalAddress,
+        );
+        let txid: string | undefined;
+        if (shouldTryExecute) {
+          try {
+            const executed = await backendApi.executeTypedAgentTradeApproval(
+              walletName,
+              proposalAddress,
+              binding.executor,
+            );
+            txid = stringField(executed, "txid");
+            if (!txid)
+              throw new Error(
+                "Execution returned no transaction ID. Check the saved request before retrying.",
+              );
+            status = "executed";
+          } catch {
+            status = "approved";
+          }
+        }
+
+        const now = Date.now();
+        return {
+          proposal: {
+            ...proposal,
+            clearSignV2: {
+              ...binding,
+              clearSignVersion: 4,
+              payloadHash: summary.payloadHash,
+              envelopeHash: summary.envelopeHash,
+              signableText: summary.signableText,
+              onchainProposal: {
+                proposalAddress,
+                proposalIndex: Number(dry.proposal_index),
+                intentIndex: selected.account.intentIndex,
+                status,
+                createdAt: now,
+                executedAt: status === "executed" ? now : undefined,
+                txid,
+              },
             },
           },
-        },
-        proposalAddress,
-        proposalIndex: Number(dry.proposal_index),
-        intentIndex: selected.account.intentIndex,
-        status,
-      };
+          proposalAddress,
+          proposalIndex: Number(dry.proposal_index),
+          intentIndex: selected.account.intentIndex,
+          status,
+        };
+      } catch {
+        // The accepted proposal survives wallet cancellation or an unavailable approval/execute step.
+        // Return its identity so the caller persists it and retries the existing request.
+        const status = "created" as "created" | "approved" | "executed";
+        const txid: string | undefined = undefined;
+        const now = Date.now();
+        return {
+          proposal: {
+            ...proposal,
+            clearSignV2: {
+              ...binding,
+              clearSignVersion: 4,
+              payloadHash: summary.payloadHash,
+              envelopeHash: summary.envelopeHash,
+              signableText: summary.signableText,
+              onchainProposal: {
+                proposalAddress,
+                proposalIndex: Number(dry.proposal_index),
+                intentIndex: selected.account.intentIndex,
+                status,
+                createdAt: now,
+                executedAt: status === "executed" ? now : undefined,
+                txid,
+              },
+            },
+          },
+          proposalAddress,
+          proposalIndex: Number(dry.proposal_index),
+          intentIndex: selected.account.intentIndex,
+          status,
+        };
+      }
     },
     [connection, signTypedDescriptor, wallet, walletName],
   );

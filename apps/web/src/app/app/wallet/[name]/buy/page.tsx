@@ -24,9 +24,7 @@ import { ArrowRight, Check, Copy, ExternalLink, Loader2 } from "lucide-react";
 
 import { useWallet } from "@/lib/wallet";
 import { backendApi } from "@/lib/api/endpoints";
-import {
-  fetchOnchainMemberships,
-} from "@/lib/memberships/client";
+import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useRampIntent } from "@/lib/hooks/useRampIntent";
 import { rampApi, RampApiError } from "@/lib/ramp/client";
@@ -37,6 +35,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 import { friendlyError } from "@/lib/api/errors";
 import { syncNotificationEvents } from "@/lib/notifications/client";
 import { Button } from "@/components/retail/Button";
+import { RampStatusNotice } from "@/components/ramp/RampStatusNotice";
 import { BrandLoader } from "@/components/retail/BrandLoader";
 import { ChainBadge } from "@/components/retail/ChainBadge";
 import { useToast } from "@/components/ui/Toast";
@@ -62,7 +61,9 @@ export default function BuyPageWrapper() {
   const route = useParams<{ name: string }>();
   return (
     <Suspense fallback={<PageLoading />}>
-      <BuyPage key={`${route?.name ?? ""}:${wallet.publicKey?.toBase58() ?? ""}`} />
+      <BuyPage
+        key={`${route?.name ?? ""}:${wallet.publicKey?.toBase58() ?? ""}`}
+      />
     </Suspense>
   );
 }
@@ -95,8 +96,7 @@ function BuyPage() {
   // matches the gate every other workspace page applies.
   const memberships = useQuery({
     queryKey: ["my-organizations", wallet.publicKey?.toBase58() ?? ""],
-    queryFn: () =>
-      fetchOnchainMemberships(wallet.publicKey?.toBase58() ?? ""),
+    queryFn: () => fetchOnchainMemberships(wallet.publicKey?.toBase58() ?? ""),
     enabled: Boolean(wallet.publicKey),
     staleTime: 30_000,
   });
@@ -143,7 +143,7 @@ function BuyPage() {
   // Drive the stage forward from polled status.
   useEffect(() => {
     const status = polled.data?.status;
-    if (!status) return;
+    if (!status || polled.isError) return;
     if (status === "settlement_completed" || status === "payout_completed") {
       setStage((prev) =>
         prev.kind === "completed"
@@ -157,7 +157,7 @@ function BuyPage() {
       status === "manual_review_required"
     ) {
       setStage((prev) =>
-        prev.kind === "failed"
+        prev.kind === "failed" && prev.reason === status
           ? prev
           : {
               kind: "failed",
@@ -166,43 +166,55 @@ function BuyPage() {
             },
       );
     } else if (
-      stage.kind === "redirecting" &&
+      stage.kind !== "awaiting" &&
       (status === "payment_confirmed" ||
         status === "settlement_queued" ||
         status === "settlement_in_progress")
     ) {
       setStage({ kind: "awaiting", intentId: polled.data!.intent_id });
     }
-  }, [polled.data, stage.kind]);
+  }, [polled.data, polled.isError, stage.kind]);
 
   useEffect(() => {
-    if (!userAddress || (stage.kind !== "completed" && stage.kind !== "failed")) {
+    if (
+      !userAddress ||
+      (stage.kind !== "completed" && stage.kind !== "failed")
+    ) {
       return;
     }
+    if (stage.kind === "failed" && stage.reason === "manual_review_required")
+      return;
     const key = `${stage.kind}:${stage.intentId}`;
     if (recordedOutcomes.has(key)) return;
-    void syncNotificationEvents([{
-      sourceId: `ramp:buy:${stage.intentId}:${stage.kind}`,
-      kind: "money_movement",
-      walletName,
-      title: stage.kind === "completed" ? "Crypto bought" : "Buy did not finish",
-      body:
-        stage.kind === "completed"
-          ? `${walletDisplay} received the crypto from your bank checkout.`
-          : `${walletDisplay} did not receive crypto from that checkout.`,
-      href: `/app/wallet/${encodeURIComponent(walletName)}`,
-    }]).catch(() => undefined);
+    void syncNotificationEvents([
+      {
+        sourceId: `ramp:buy:${stage.intentId}:${stage.kind}`,
+        kind: "money_movement",
+        walletName,
+        title:
+          stage.kind === "completed" ? "Crypto bought" : "Buy did not finish",
+        body:
+          stage.kind === "completed"
+            ? `${walletDisplay} received the crypto from your bank checkout.`
+            : `${walletDisplay}: checkout did not complete. Payment or refund status needs verification before retrying.`,
+        href: `/app/wallet/${encodeURIComponent(walletName)}`,
+      },
+    ]).catch(() => undefined);
     setRecordedOutcomes((current) => new Set(current).add(key));
   }, [recordedOutcomes, stage, userAddress, walletDisplay, walletName]);
 
-  const selectedChain = selectedKind === null ? null : chainByKind(selectedKind);
+  const selectedChain =
+    selectedKind === null ? null : chainByKind(selectedKind);
   const selectedBinding = bindings.find((b) => b.chain_kind === selectedKind);
-  const destinationWallet =
-    selectedBinding ? chainAddress(selectedBinding) : null;
+  const destinationWallet = selectedBinding
+    ? chainAddress(selectedBinding)
+    : null;
 
   const usdCents = useMemo(() => {
     const cents = wholeToMinor(usdAmount, 100n, 2);
-    return cents !== null && cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
+    return cents !== null && cents <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(cents)
+      : null;
   }, [usdAmount]);
 
   const canSubmit =
@@ -214,7 +226,14 @@ function BuyPage() {
     Boolean(wallet.publicKey);
 
   async function handleSubmit() {
-    if (submitInFlight.current || !canSubmit || !wallet.publicKey || selectedKind === null || !destinationWallet || usdCents === null) {
+    if (
+      submitInFlight.current ||
+      !canSubmit ||
+      !wallet.publicKey ||
+      selectedKind === null ||
+      !destinationWallet ||
+      usdCents === null
+    ) {
       return;
     }
     const target = rampTargetForChainKind(selectedKind, "testnet");
@@ -239,11 +258,18 @@ function BuyPage() {
     };
     try {
       const created = await rampApi.createIntent(pubkey, body, idempotencyKey);
-      const checkout = await rampApi.initializePayment(pubkey, created.intent_id);
+      const checkout = await rampApi.initializePayment(
+        pubkey,
+        created.intent_id,
+      );
       // Open Paystack/Kora checkout in a new tab so the user can pay
       // without losing their place in clear-msig.
       if (typeof window !== "undefined") {
-        window.open(checkout.authorization_url, "_blank", "noopener,noreferrer");
+        window.open(
+          checkout.authorization_url,
+          "_blank",
+          "noopener,noreferrer",
+        );
       }
       setStage({ kind: "redirecting", intentId: created.intent_id, checkout });
     } catch (err) {
@@ -259,7 +285,9 @@ function BuyPage() {
   if (!wallet.connected) {
     return (
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-text-soft">Connect a wallet to buy crypto.</p>
+        <p className="text-sm text-text-soft">
+          Connect a wallet to buy crypto.
+        </p>
       </div>
     );
   }
@@ -296,7 +324,9 @@ function BuyPage() {
           </h1>
           <p className="text-xs text-text-soft sm:text-sm">
             Pay in NGN - we send crypto straight to{" "}
-            <span className="font-medium text-text-strong">{walletDisplay}</span>{" "}
+            <span className="font-medium text-text-strong">
+              {walletDisplay}
+            </span>{" "}
             on the chain you pick.
           </p>
         </header>
@@ -316,26 +346,44 @@ function BuyPage() {
           />
         ) : null}
 
-        {stage.kind === "redirecting" ? (
-          <RedirectingCard
-            checkout={stage.checkout}
-            polled={polled.data?.status ?? null}
+        {polled.isError && intentIdInFlight ? (
+          <RampStatusNotice
+            reason="status_unavailable"
+            intentId={intentIdInFlight}
+            refreshing={polled.isFetching}
+            onRefresh={() => void polled.refetch()}
           />
-        ) : null}
+        ) : (
+          <>
+            {stage.kind === "redirecting" ? (
+              <RedirectingCard
+                checkout={stage.checkout}
+                polled={polled.data?.status ?? null}
+              />
+            ) : null}
 
-        {stage.kind === "awaiting" ? (
-          <AwaitingCard status={polled.data?.status ?? null} />
-        ) : null}
+            {stage.kind === "awaiting" ? (
+              <AwaitingCard status={polled.data?.status ?? null} />
+            ) : null}
 
-        {stage.kind === "completed" ? (
-          <CompletedCard
-            walletName={walletName}
-            assetAmount={polled.data?.asset_amount_minor ?? 0}
-            assetSymbol={polled.data?.asset_symbol ?? ""}
-          />
-        ) : null}
+            {stage.kind === "completed" ? (
+              <CompletedCard
+                walletName={walletName}
+                assetAmount={polled.data?.asset_amount_minor ?? 0}
+                assetSymbol={polled.data?.asset_symbol ?? ""}
+              />
+            ) : null}
 
-        {stage.kind === "failed" ? <FailedCard reason={stage.reason} /> : null}
+            {stage.kind === "failed" && (
+              <RampStatusNotice
+                reason={stage.reason}
+                intentId={stage.intentId}
+                refreshing={polled.isFetching}
+                onRefresh={() => void polled.refetch()}
+              />
+            )}
+          </>
+        )}
       </motion.section>
     </div>
   );
@@ -446,19 +494,15 @@ function ComposeForm({
 
       {destinationWallet && selectedChainName && (
         <div className="rounded-soft border border-border-soft bg-canvas/50 p-3 text-xs text-text-soft">
-          Receiving to <strong className="text-text-strong">{selectedChainName}</strong> at{" "}
+          Receiving to{" "}
+          <strong className="text-text-strong">{selectedChainName}</strong> at{" "}
           <span className="font-mono text-text-strong">
             {destinationWallet.slice(0, 8)}…{destinationWallet.slice(-6)}
           </span>
         </div>
       )}
 
-      <Button
-        size="lg"
-        fullWidth
-        disabled={!canSubmit}
-        onClick={onSubmit}
-      >
+      <Button size="lg" fullWidth disabled={!canSubmit} onClick={onSubmit}>
         {disabled ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -556,19 +600,6 @@ function CompletedCard({
       >
         Back to wallet
       </Link>
-    </div>
-  );
-}
-
-function FailedCard({ reason }: { reason: string }) {
-  return (
-    <div className="flex flex-col gap-3 rounded-card border border-danger/30 bg-danger/5 p-5 shadow-card-rest">
-      <h2 className="font-display text-lg text-text-strong">
-        Something went wrong
-      </h2>
-      <p className="text-sm text-text-soft">
-        {humanStatus(reason)} - please try again or contact support.
-      </p>
     </div>
   );
 }

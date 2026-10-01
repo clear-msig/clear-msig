@@ -89,7 +89,7 @@ describe("transaction review contract", () => {
     "renders an under-approved remote send as pending on %s",
     (path, result) => {
       const page = sources([path, result]);
-      expect(page).toContain("waitForProposalApproval(connection, proposal)");
+      expect(page).toMatch(/waitForProposalApproval\(\s*connection,\s*proposal,?\s*\)/);
       expect(page).toContain("Waiting for remaining approvals");
       expect(page).toContain('status={pending ? "pending" : "confirmed"}');
     },

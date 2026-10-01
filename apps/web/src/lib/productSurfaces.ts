@@ -1,10 +1,5 @@
 export type ProductSurfaceId =
-  | "personal"
-  | "pro"
-  | "agent"
-  | "secure"
-  | "p2pdefi"
-  | "payments";
+  "personal" | "pro" | "agent" | "secure" | "p2pdefi" | "payments";
 
 export type ProductSurfaceStatus = "live" | "planned";
 
@@ -27,7 +22,9 @@ export interface ProductSurface {
   boundaries: string[];
 }
 
-export function isProductSurfaceId(value: string | null | undefined): value is ProductSurfaceId {
+export function isProductSurfaceId(
+  value: string | null | undefined,
+): value is ProductSurfaceId {
   return (
     value === "personal" ||
     value === "pro" ||
@@ -39,7 +36,8 @@ export function isProductSurfaceId(value: string | null | undefined): value is P
 }
 
 export function productSetupHref(id: ProductSurfaceId): string {
-  const purpose = id === "secure" ? "secure" : id === "agent" ? "agent" : "share";
+  const purpose =
+    id === "secure" ? "secure" : id === "agent" ? "agent" : "share";
   return `/app/wallet/new?surface=${id}&purpose=${purpose}`;
 }
 
@@ -57,7 +55,8 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     status: "live",
     eyebrow: "For people and families",
     headline: "A simple wallet for people you trust.",
-    summary: "Share money, add trusted people, and approve clearly before anything moves.",
+    summary:
+      "Share money, add trusted people, and approve clearly before anything moves.",
     ctaLabel: "Create personal wallet",
     ctaHref: productConnectHref("personal"),
     secondaryHref: "/security",
@@ -69,11 +68,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
       "Send together",
       "Read every receipt",
     ],
-    boundaries: [
-      "Company treasury controls",
-      "Agent trading",
-      "Key recovery",
-    ],
+    boundaries: ["Company treasury controls", "Agent trading", "Key recovery"],
   },
   {
     id: "pro",
@@ -96,11 +91,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
       "Review payouts",
       "Audit activity",
     ],
-    boundaries: [
-      "Personal recovery",
-      "Agent trading",
-      "P2P settlement",
-    ],
+    boundaries: ["Personal recovery", "Agent trading", "P2P settlement"],
   },
   {
     id: "agent",
@@ -110,8 +101,9 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     path: "/agent",
     status: "live",
     eyebrow: "For trading agents and allocators",
-    headline: "Let traders act inside your rules.",
-    summary: "Choose a trader, set a budget, approve the rules, and keep custody.",
+    headline: "Review agent permissions before execution.",
+    summary:
+      "Explore agent vaults, budgets, and approval rules. External trading execution remains gated.",
     ctaLabel: "Create agent vault",
     ctaHref: productConnectHref("agent"),
     secondaryHref: "/agents?surface=agent",
@@ -120,7 +112,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     features: [
       "Choose trader",
       "Set budget and rules",
-      "Watch trades",
+      "Review execution readiness",
     ],
     boundaries: [],
   },
@@ -133,7 +125,8 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     status: "live",
     eyebrow: "For key recovery",
     headline: "Recover with people and devices you trust.",
-    summary: "Create a recovery vault, enroll passkeys, and make recovery understandable.",
+    summary:
+      "Create a recovery vault, enroll passkeys, and make recovery understandable.",
     ctaLabel: "Open Secure",
     ctaHref: productConnectHref("secure"),
     secondaryHref: "/security",
@@ -145,11 +138,7 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
       "Enroll devices",
       "Sweep when needed",
     ],
-    boundaries: [
-      "Shared spending",
-      "Agent permissions",
-      "Treasury protection",
-    ],
+    boundaries: ["Shared spending", "Agent permissions", "Treasury protection"],
   },
   {
     id: "p2pdefi",
@@ -160,18 +149,19 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     status: "planned",
     eyebrow: "For peer-to-peer coordination",
     headline: "Peer-to-peer DeFi coordination is coming soon.",
-    summary: "Offer coordination and policy-checked settlement will open after the core flows are sharper.",
+    summary:
+      "Offer coordination and policy-checked settlement will open after the core flows are sharper.",
     ctaLabel: "Coming soon",
     ctaHref: "/p2pdefi",
     secondaryHref: "/security",
     secondaryLabel: "Review signing model",
     primitives: ["Signed intents", "Policy gates", "Settlement proofs"],
-    features: ["Offer discovery", "Counterparty approvals", "Policy-checked settlement"],
-    boundaries: [
-      "Treasury setup",
-      "Personal recovery",
-      "Agent sessions",
+    features: [
+      "Offer discovery",
+      "Counterparty approvals",
+      "Policy-checked settlement",
     ],
+    boundaries: ["Treasury setup", "Personal recovery", "Agent sessions"],
   },
   {
     id: "payments",
@@ -189,7 +179,11 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
     secondaryHref: "/personal",
     secondaryLabel: "Personal shared payments",
     primitives: ["Payment intents", "Approvals", "Treasury policy"],
-    features: ["Invoices inside Pro", "Shared payments inside Personal", "Agent funding approvals"],
+    features: [
+      "Invoices inside Pro",
+      "Shared payments inside Personal",
+      "Agent funding approvals",
+    ],
     boundaries: [
       "Payment approvals stay separate from personal recovery",
       "Recurring payment controls stay explicit",
@@ -199,7 +193,9 @@ export const PRODUCT_SURFACES: ProductSurface[] = [
 ];
 
 export function productSurfaceById(id: ProductSurfaceId): ProductSurface {
-  return PRODUCT_SURFACES.find((surface) => surface.id === id) ?? PRODUCT_SURFACES[0];
+  return (
+    PRODUCT_SURFACES.find((surface) => surface.id === id) ?? PRODUCT_SURFACES[0]
+  );
 }
 
 export function liveProductSurfaces(): ProductSurface[] {

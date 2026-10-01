@@ -12,6 +12,7 @@
 // intents land in the row stream as "Custom" without a chain, and
 // without that join the chain filter would be useless.
 
+import { HistoryReadNotice } from "@/components/activity/HistoryReadNotice";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -97,6 +98,8 @@ export default function WalletActivityPage() {
   }, [allRows, statusFilter, chainFilter, chainByIntent, search]);
 
   const handleExport = () => {
+    if (recent.loading || intents.loading || recent.error || intents.error)
+      return;
     const csv = buildActivityCsv({
       walletName: name,
       rows: filtered,
@@ -119,6 +122,11 @@ export default function WalletActivityPage() {
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const walletDisplay = toDisplayName(name);
   const loading = recent.loading || intents.loading;
+  const readError = recent.error || intents.error;
+  const refreshing = recent.refreshing || intents.refreshing;
+  const refresh = () => {
+    void Promise.all([recent.refresh(), intents.refresh()]);
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -148,7 +156,9 @@ export default function WalletActivityPage() {
           </div>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
-          {loading ? (
+          {readError ? (
+            "History incomplete"
+          ) : loading ? (
             "Loading…"
           ) : (
             <>
@@ -165,6 +175,9 @@ export default function WalletActivityPage() {
         </span>
       </motion.header>
 
+      {!!readError && (
+        <HistoryReadNotice refreshing={refreshing} onRefresh={refresh} />
+      )}
       <motion.section
         {...motionProps}
         transition={{ duration: 0.22, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
@@ -230,7 +243,7 @@ export default function WalletActivityPage() {
             <button
               type="button"
               onClick={handleExport}
-              disabled={filtered.length === 0}
+              disabled={loading || !!readError || filtered.length === 0}
               className={
                 "ml-auto inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
                 "transition-[border-color,color,transform] duration-base ease-out-soft " +
@@ -250,7 +263,8 @@ export default function WalletActivityPage() {
           <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center text-sm text-text-soft shadow-card-rest">
             Loading activity…
           </div>
-        ) : filtered.length === 0 ? (
+        ) : readError && filtered.length === 0 ? null : filtered.length ===
+          0 ? (
           <div className="rounded-card border border-border-soft bg-surface-raised p-8 text-center shadow-card-rest">
             {allRows.length === 0 ? (
               <p className="text-sm text-text-soft">
@@ -326,7 +340,6 @@ export default function WalletActivityPage() {
             })}
           </ul>
         )}
-
       </motion.section>
     </div>
   );

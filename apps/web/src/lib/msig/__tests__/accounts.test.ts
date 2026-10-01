@@ -113,9 +113,9 @@ describe("parseIntent", () => {
 });
 
 describe("parseTypedProposal", () => {
-  it("parses the v2 typed proposal account layout", () => {
-    const actionId = Array.from(new TextEncoder().encode("release-escrow-1"));
-    const nonce = Array.from(new TextEncoder().encode("nonce-1"));
+  it.each(["", "\uFEFF"])("parses typed replay identities preserving prefix %j", (prefix) => {
+    const actionId = Array.from(new TextEncoder().encode(prefix + "release-escrow-1"));
+    const nonce = Array.from(new TextEncoder().encode(prefix + "nonce-1"));
     const data = new Uint8Array([
       6,
       ...address(1),
@@ -155,8 +155,8 @@ describe("parseTypedProposal", () => {
     expect(parsed.policyCommitment).toBe("09".repeat(32));
     expect(parsed.payloadHash).toBe("0a".repeat(32));
     expect(parsed.envelopeHash).toBe("0b".repeat(32));
-    expect(parsed.actionId).toBe("release-escrow-1");
-    expect(parsed.nonce).toBe("nonce-1");
+    expect(parsed.actionId).toBe(prefix + "release-escrow-1");
+    expect(parsed.nonce).toBe(prefix + "nonce-1");
   });
 
   it("parseAnyProposal dispatches typed proposal accounts", () => {

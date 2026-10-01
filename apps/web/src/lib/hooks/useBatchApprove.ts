@@ -1,18 +1,8 @@
 "use client";
 
-// Batch approve - one decision, N signatures.
-//
-// Retail users with two or more pending requests in their inbox can
-// hit "Approve all" and walk through each wallet sign-prompt in
-// sequence instead of opening every request individually. Each sign
-// is still required (Solana wallets can't batch signMessage), but
-// the cognitive friction collapses from N decisions to one.
-//
-// State machine:
-//   idle → running ({ total, completed, currentLabel })
-//        → done ({ total, completed: total }) on success
-//        → stopped ({ total, completed: i, error }) on user cancel
-//          or backend failure mid-loop.
+// Compatibility hook retained for callers, but unreviewed bulk signing is blocked
+// by the central signer. Production inbox directs each request through canonical
+// review. Do not supply expectedTyped from a backend response to re-enable this.
 
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -126,7 +116,13 @@ export function useBatchApprove() {
       queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
       return { completed: rows.length, total: rows.length };
     },
-    [signDescriptor, signTypedDescriptor, queryClient, connection, wallet.pickSigner],
+    [
+      signDescriptor,
+      signTypedDescriptor,
+      queryClient,
+      connection,
+      wallet.pickSigner,
+    ],
   );
 
   const reset = useCallback(() => setProgress(null), []);
@@ -153,7 +149,10 @@ async function resolveBatchApprovalSigner({
   if (!proposal) {
     throw new Error("Couldn't load this request from chain.");
   }
-  const intent = await fetchIntentByPda(connection, new PublicKey(proposal.intent));
+  const intent = await fetchIntentByPda(
+    connection,
+    new PublicKey(proposal.intent),
+  );
   if (!intent) {
     throw new Error("Couldn't load this request's approval rule from chain.");
   }

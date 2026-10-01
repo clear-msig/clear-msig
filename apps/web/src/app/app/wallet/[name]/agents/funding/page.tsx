@@ -17,9 +17,20 @@ import {
   Trophy,
   Wallet,
 } from "lucide-react";
-import { type AgentFundingRecommendation, buildAgentFundingPlan, buildAgentVaultAllocationHref } from "@/features/agents/domain/runtime";
+import {
+  type AgentFundingRecommendation,
+  buildAgentFundingPlan,
+  buildAgentVaultAllocationHref,
+} from "@/features/agents/domain/runtime";
+import { AgentFundingReadStatus } from "@/features/agents/ui/AgentFundingReadStatus";
 import { useAgentVaultFunding } from "@/features/agents/controllers/useAgentVaultFunding";
-import { agentLeaderboard, getAgentVaultPolicy, listAgents, listAgentScorecards, listAgentSessions } from "@/features/agents/infrastructure/agentStore";
+import {
+  agentLeaderboard,
+  getAgentVaultPolicy,
+  listAgents,
+  listAgentScorecards,
+  listAgentSessions,
+} from "@/features/agents/infrastructure/agentStore";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
 export default function AgentFundingPage() {
@@ -27,7 +38,8 @@ export default function AgentFundingPage() {
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
   const encoded = encodeURIComponent(name);
   const display = toDisplayName(name);
-  const { vaultAddress, proSources } = useAgentVaultFunding(name);
+  const funding = useAgentVaultFunding(name);
+  const { vaultAddress, proSources } = funding;
   const policy = getAgentVaultPolicy(name);
   const plan = buildAgentFundingPlan({
     agents: listAgents(name),
@@ -60,7 +72,10 @@ export default function AgentFundingPage() {
             </h1>
           </div>
           {topAction ? (
-            <Link href={fundingHref(encoded, topAction)} className={PRIMARY_BUTTON}>
+            <Link
+              href={fundingHref(encoded, topAction)}
+              className={PRIMARY_BUTTON}
+            >
               <CircleDollarSign className="h-3.5 w-3.5" aria-hidden="true" />
               {budgetCtaLabel(topAction.ctaLabel)}
             </Link>
@@ -79,24 +94,37 @@ export default function AgentFundingPage() {
       <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-text-strong">Fund this Agent vault</p>
+            <p className="text-sm font-semibold text-text-strong">
+              Fund this Agent vault
+            </p>
             <p className="mt-1 text-xs leading-relaxed text-text-soft">
-              Allocate a bounded amount from a Pro treasury, or deposit test funds directly.
+              Allocate a bounded amount from a Pro treasury, or deposit test
+              funds directly.
             </p>
           </div>
-          <Link href={`/app/wallet/${encoded}/receive`} className={SECONDARY_BUTTON}>
+          <Link
+            href={`/app/wallet/${encoded}/receive`}
+            className={SECONDARY_BUTTON}
+          >
             <CircleDollarSign className="h-3.5 w-3.5" aria-hidden="true" />
             Deposit address
           </Link>
         </div>
-        {vaultAddress ? (
-          <p className="mt-3 break-all rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs text-text-strong">
-            {vaultAddress}
-          </p>
-        ) : (
-          <div className="mt-3 h-9 animate-pulse rounded-soft bg-border-soft" />
-        )}
-        {vaultAddress && proSources.length > 0 ? (
+        <AgentFundingReadStatus
+          address={vaultAddress}
+          loadingAddress={funding.loadingAddress}
+          addressError={!!funding.addressError}
+          loadingSources={funding.loadingSources}
+          sourcesError={!!funding.sourcesError}
+          connected={funding.connected}
+          sourceCount={proSources.length}
+          refreshing={funding.refreshing}
+          onRefresh={() => void funding.refresh()}
+        />
+        {vaultAddress &&
+        !funding.addressError &&
+        !funding.sourcesError &&
+        proSources.length > 0 ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {proSources.map((source) => (
               <Link
@@ -143,7 +171,10 @@ export default function AgentFundingPage() {
       {policy.emergencyPaused || !policy.enabled ? (
         <section className="rounded-card border border-warning/30 bg-warning/[0.08] p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <AlertTriangle
+              className="mt-0.5 h-4 w-4 shrink-0 text-warning"
+              aria-hidden="true"
+            />
             <div>
               <p className="text-sm font-semibold text-text-strong">
                 Budgets are in review mode
@@ -159,7 +190,11 @@ export default function AgentFundingPage() {
       <section className="grid gap-3">
         {plan.recommendations.length > 0 ? (
           plan.recommendations.map((item) => (
-            <FundingCard key={item.agent.id} item={item} walletEncoded={encoded} />
+            <FundingCard
+              key={item.agent.id}
+              item={item}
+              walletEncoded={encoded}
+            />
           ))
         ) : (
           <div className="rounded-card bg-surface-raised p-6">
@@ -196,7 +231,12 @@ function FundingCard({
     <article className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <span className={clsx("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", statusTone.icon)}>
+          <span
+            className={clsx(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+              statusTone.icon,
+            )}
+          >
             {item.action === "raise" ? (
               <TrendingUp className="h-4 w-4" aria-hidden="true" />
             ) : item.action === "lower" || item.action === "review" ? (
@@ -210,7 +250,12 @@ function FundingCard({
               <h2 className="text-sm font-semibold text-text-strong">
                 {item.agent.name}
               </h2>
-              <span className={clsx("rounded-full border px-2 py-0.5 text-[10px] font-medium", statusTone.badge)}>
+              <span
+                className={clsx(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  statusTone.badge,
+                )}
+              >
                 {item.headline}
               </span>
               {active ? (
@@ -225,7 +270,10 @@ function FundingCard({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={fundingHref(walletEncoded, item)} className={PRIMARY_BUTTON}>
+          <Link
+            href={fundingHref(walletEncoded, item)}
+            className={PRIMARY_BUTTON}
+          >
             {item.action === "keep" && active ? (
               <Play className="h-3.5 w-3.5" aria-hidden="true" />
             ) : (
@@ -266,29 +314,37 @@ function FundingCard({
       <details className="group mt-4 rounded-soft border border-border-soft bg-canvas p-3">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold text-text-strong">
           Why this budget?
-          <ArrowRight className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90" aria-hidden="true" />
+          <ArrowRight
+            className="h-3.5 w-3.5 text-text-soft transition-transform group-open:rotate-90"
+            aria-hidden="true"
+          />
         </summary>
         <div className="mt-3 grid gap-3 border-t border-border-soft pt-3 lg:grid-cols-[1fr_0.9fr]">
           <div>
             <ul className="mt-2 grid gap-1.5">
               {item.allocation.reasons.slice(0, 4).map((reason) => (
-                <li key={reason} className="flex items-start gap-2 text-xs leading-relaxed text-text-soft">
-                  <Check className="mt-0.5 h-3 w-3 shrink-0 text-accent" aria-hidden="true" />
+                <li
+                  key={reason}
+                  className="flex items-start gap-2 text-xs leading-relaxed text-text-soft"
+                >
+                  <Check
+                    className="mt-0.5 h-3 w-3 shrink-0 text-accent"
+                    aria-hidden="true"
+                  />
                   <span>{plainMetric(reason)}</span>
                 </li>
               ))}
             </ul>
           </div>
           <div className="rounded-soft border border-border-soft bg-canvas p-3">
-            <p className="text-xs font-semibold text-text-strong">
-              Next level
-            </p>
+            <p className="text-xs font-semibold text-text-strong">Next level</p>
             {item.allocation.nextTier ? (
               <p className="mt-1 text-xs leading-relaxed text-text-soft">
                 {item.allocation.nextTier.label} needs{" "}
                 {item.allocation.nextTierGaps.length > 0
                   ? item.allocation.nextTierGaps.slice(0, 3).join(", ")
-                  : "continued clean trading"}.
+                  : "continued clean trading"}
+                .
               </p>
             ) : (
               <p className="mt-1 text-xs leading-relaxed text-text-soft">
@@ -344,9 +400,20 @@ function Metric({
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-soft">
           {label}
         </p>
-        <Icon className={clsx("h-3.5 w-3.5", highlight ? "text-accent" : "text-text-muted")} aria-hidden="true" />
+        <Icon
+          className={clsx(
+            "h-3.5 w-3.5",
+            highlight ? "text-accent" : "text-text-muted",
+          )}
+          aria-hidden="true"
+        />
       </div>
-      <p className={clsx("mt-2 text-lg font-semibold", highlight ? "text-accent" : "text-text-strong")}>
+      <p
+        className={clsx(
+          "mt-2 text-lg font-semibold",
+          highlight ? "text-accent" : "text-text-strong",
+        )}
+      >
         {value}
       </p>
     </div>

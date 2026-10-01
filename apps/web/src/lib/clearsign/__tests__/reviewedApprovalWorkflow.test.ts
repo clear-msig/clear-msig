@@ -9,13 +9,16 @@ const mocks = vi.hoisted(() => ({
   review: {
     reviewId: "reviewed",
     status: 0,
-    binding: { approvers: [] },
+    binding: { approvers: [] as string[], approvalBitmap: 0 },
     envelopeHash: "envelope",
     payloadHash: "payload",
     document: "shown document",
   },
 }));
-vi.mock("react", () => ({ useRef: () => ({ current: false }) }));
+vi.mock("react", () => ({
+  useRef: (value: unknown) => ({ current: value }),
+  useEffect: () => {},
+}));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: mocks.review, isError: false, refetch: vi.fn() }),
   useMutation: (config: unknown) => config,
@@ -23,7 +26,8 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/lib/wallet", () => ({
   useConnection: () => ({ connection: { rpcEndpoint: "fixture" } }),
   useWallet: () => ({
-    pickSigner: () => new PublicKey(new Uint8Array(32).fill(8)),
+    pickSigner: (members: readonly string[]) =>
+      members[0] ? new PublicKey(members[0]) : null,
   }),
 }));
 vi.mock("@/lib/hooks/useProposalSubscription", () => ({
@@ -57,12 +61,32 @@ function action() {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.review.binding.approvers = [
+    new PublicKey(new Uint8Array(32).fill(8)).toBase58(),
+  ];
+  mocks.review.binding.approvalBitmap = 0;
   mocks.read.mockResolvedValue(mocks.review);
   mocks.prepare.mockResolvedValue({ expiry: 1800000000 });
   mocks.sign.mockResolvedValue({ signature: "synthetic" });
   mocks.submit.mockResolvedValue({ ok: true });
 });
 describe("production approval workflow with mocked chain/backend/wallet boundaries", () => {
+  it("selects an unvoted connected member instead of repeating the preferred member's approval", async () => {
+    const second = new PublicKey(new Uint8Array(32).fill(9)).toBase58();
+    mocks.review.binding.approvers.push(second);
+    mocks.review.binding.approvalBitmap = 1;
+    await action()("reviewed");
+    expect(mocks.prepare).toHaveBeenCalledWith("Example", "proposal", {
+      actor_pubkey: second,
+    });
+  });
+  it("does not prepare another approval when all connected members already approved", async () => {
+    mocks.review.binding.approvalBitmap = 1;
+    await expect(action()("reviewed")).rejects.toThrow(
+      /None of your connected wallets/,
+    );
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
   it("uses the displayed fingerprint and exact document, rechecking before signing and submission", async () => {
     await action()("reviewed");
     expect(mocks.read).toHaveBeenCalledTimes(3);

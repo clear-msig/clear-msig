@@ -494,7 +494,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
     try {
       const result = await persistPersonalPolicy(walletName);
       setDirty(false);
-      toast.success("Recipient policy saved on chain", {
+      toast.success(result.waiting > 0 ? "Recipient policy proposed; activation pending" : "Recipient policy saved on chain", {
         details: formatPolicySyncResult(result),
       });
     } catch (err) {
@@ -769,7 +769,7 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
     try {
       const result = await persistPersonalPolicy(walletName);
       setDirty(false);
-      toast.success("Allowed-hours policy saved on chain", {
+      toast.success(result.waiting > 0 ? "Allowed-hours policy proposed; activation pending" : "Allowed-hours policy saved on chain", {
         details: formatPolicySyncResult(result),
       });
     } catch (err) {

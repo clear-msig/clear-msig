@@ -8,6 +8,7 @@ import { backendApi } from "@/lib/api/endpoints";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
 import { listProposalsForWallet } from "@/lib/chain/proposals";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { completeTypedGovernance } from "@/lib/hooks/completeTypedGovernance";
 import { clearSignProfileForSigner } from "@/lib/clearsign";
 import {
@@ -28,6 +29,7 @@ export function useUpdateApprovalThreshold() {
   const { connection } = useConnection();
   const { signTypedDescriptor } = useSignWithWallet();
   const wallet = useWallet();
+  const requestIdentity = useRequestIdentity();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -105,6 +107,7 @@ export function useUpdateApprovalThreshold() {
       }
 
       const result = await completeTypedGovernance({
+        requestIdentity,
         connection,
         walletName,
         walletId: walletData.pda.toBase58(),

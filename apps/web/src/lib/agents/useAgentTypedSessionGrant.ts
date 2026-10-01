@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  inlineApprovalOptions,
+  assertSubmittedCreation,
+} from "@/lib/clearsign/inlineApproval";
+
 import { useCallback } from "react";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import { waitForProposalApproval } from "@/lib/chain/proposals";
@@ -28,7 +33,8 @@ export function useAgentTypedSessionGrant(walletName: string) {
       input: { venue: string; market: string; status: "active" | "revoked" },
     ): Promise<AgentSessionGrant> => {
       const walletData = await fetchWalletByName(connection, walletName);
-      if (!walletData) throw new Error("Couldn't load this shared wallet on chain.");
+      if (!walletData)
+        throw new Error("Couldn't load this shared wallet on chain.");
       const intents = await listIntents(
         connection,
         walletData.pda,
@@ -41,9 +47,11 @@ export function useAgentTypedSessionGrant(walletName: string) {
           row.account.chainKind === 5 &&
           wallet.pickSigner(row.account.proposers),
       );
-      if (!intent?.account) throw new Error("No approved intent can grant this session.");
+      if (!intent?.account)
+        throw new Error("No approved intent can grant this session.");
       const proposer = wallet.pickSigner(intent.account.proposers);
-      if (!proposer) throw new Error("Your connected wallet cannot propose this session.");
+      if (!proposer)
+        throw new Error("Your connected wallet cannot propose this session.");
 
       const binding = buildAgentSessionClearSign(session, {
         walletId: walletData.pda.toBase58(),
@@ -70,6 +78,10 @@ export function useAgentTypedSessionGrant(walletName: string) {
               binding.executor,
             );
             txid = stringField(executed, "txid");
+            if (!txid)
+              throw new Error(
+                "Execution returned no transaction ID. Check the saved request before retrying.",
+              );
             status = "executed";
           } catch {
             status = "approved";
@@ -116,71 +128,125 @@ export function useAgentTypedSessionGrant(walletName: string) {
           signableText: prepared.signableText,
         },
       });
-      const submitted = await backendApi.submit.createTypedProposal(walletName, {
-        ...signed,
-        expiry: dry.expiry,
-        intent_index: dry.intent_index,
-        action_kind: dry.action_kind,
-        policy_commitment: dry.policy_commitment_hex,
-        payload_hash: dry.payload_hash_hex,
-        envelope_hash: dry.envelope_hash_hex,
-        action_id: dry.action_id,
-        nonce: dry.nonce,
-        canonical_intent_hex: dry.canonical_intent_hex,
-      });
-      const proposalAddress = stringField(submitted, "proposal");
-      if (!proposalAddress) throw new Error("Backend did not return a session proposal.");
+      const submitted = await backendApi.submit.createTypedProposal(
+        walletName,
+        {
+          ...signed,
+          expiry: dry.expiry,
+          intent_index: dry.intent_index,
+          action_kind: dry.action_kind,
+          policy_commitment: dry.policy_commitment_hex,
+          payload_hash: dry.payload_hash_hex,
+          envelope_hash: dry.envelope_hash_hex,
+          action_id: dry.action_id,
+          nonce: dry.nonce,
+          canonical_intent_hex: dry.canonical_intent_hex,
+        },
+      );
+      const proposalAddress = assertSubmittedCreation(
+        dry,
+        prepared,
+        stringField(submitted, "proposal"),
+      );
+      try {
+        if (!proposalAddress)
+          throw new Error("Backend did not return a session proposal.");
 
-      const approver = wallet.pickSigner(intent.account.approvers);
-      const decision = await approveIfNeeded(connection, proposalAddress, {
-        approvers: intent.account.approvers,
-        approverPubkey: approver?.toBase58() ?? null,
-        approvalThreshold: intent.account.approvalThreshold,
-      });
-      if (approver && decision.needsApproveSignature) {
-        const approveDry = await backendApi.prepare.approveTypedProposal(
-          walletName,
-          proposalAddress,
-          { actor_pubkey: approver.toBase58() },
-        );
-        const approveSigned = await signTypedDescriptor(approveDry, { preferSigner: approver });
-        await backendApi.submit.approveTypedProposal(walletName, proposalAddress, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
+        const approver = wallet.pickSigner(intent.account.approvers);
+        const decision = await approveIfNeeded(connection, proposalAddress, {
+          approvers: intent.account.approvers,
+          approverPubkey: approver?.toBase58() ?? null,
+          approvalThreshold: intent.account.approvalThreshold,
         });
-      }
-
-      const ready = await waitForProposalApproval(connection, proposalAddress);
-      let status: "created" | "approved" | "executed" = ready
-        ? "approved"
-        : "created";
-      let txid: string | undefined;
-      if (ready) {
-        try {
-          const executed = await backendApi.executeTypedAgentSessionGrant(
+        if (approver && decision.needsApproveSignature) {
+          const approveDry = await backendApi.prepare.approveTypedProposal(
             walletName,
             proposalAddress,
-            binding.executor,
+            { actor_pubkey: approver.toBase58() },
           );
-          txid = stringField(executed, "txid");
-          status = "executed";
-        } catch {
-          status = "approved";
+          const approveSigned = await signTypedDescriptor(
+            approveDry,
+            inlineApprovalOptions(
+              dry,
+              approveDry,
+              prepared,
+              proposalAddress,
+              approver,
+            ),
+          );
+          await backendApi.submit.approveTypedProposal(
+            walletName,
+            proposalAddress,
+            {
+              ...approveSigned,
+              expiry: approveDry.expiry,
+            },
+          );
         }
-      }
-      return {
-        ...session,
-        status: input.status === "revoked" && status === "executed" ? "revoked" : session.status,
-        onchain: {
+
+        const ready = await waitForProposalApproval(
+          connection,
           proposalAddress,
-          proposalIndex: Number(dry.proposal_index),
-          intentIndex: intent.account.intentIndex,
-          operation: input.status,
-          status,
-          txid,
-          updatedAt: Date.now(),
-        },
-      };
+        );
+        let status: "created" | "approved" | "executed" = ready
+          ? "approved"
+          : "created";
+        let txid: string | undefined;
+        if (ready) {
+          try {
+            const executed = await backendApi.executeTypedAgentSessionGrant(
+              walletName,
+              proposalAddress,
+              binding.executor,
+            );
+            txid = stringField(executed, "txid");
+            if (!txid)
+              throw new Error(
+                "Execution returned no transaction ID. Check the saved request before retrying.",
+              );
+            status = "executed";
+          } catch {
+            status = "approved";
+          }
+        }
+        return {
+          ...session,
+          status:
+            input.status === "revoked" && status === "executed"
+              ? "revoked"
+              : session.status,
+          onchain: {
+            proposalAddress,
+            proposalIndex: Number(dry.proposal_index),
+            intentIndex: intent.account.intentIndex,
+            operation: input.status,
+            status,
+            txid,
+            updatedAt: Date.now(),
+          },
+        };
+      } catch {
+        // The accepted proposal survives wallet cancellation or an unavailable approval/execute step.
+        // Return its identity so the caller persists it and retries the existing request.
+        const status = "created" as "created" | "approved" | "executed";
+        const txid: string | undefined = undefined;
+        return {
+          ...session,
+          status:
+            input.status === "revoked" && status === "executed"
+              ? "revoked"
+              : session.status,
+          onchain: {
+            proposalAddress,
+            proposalIndex: Number(dry.proposal_index),
+            intentIndex: intent.account.intentIndex,
+            operation: input.status,
+            status,
+            txid,
+            updatedAt: Date.now(),
+          },
+        };
+      }
     },
     [connection, signTypedDescriptor, wallet, walletName],
   );

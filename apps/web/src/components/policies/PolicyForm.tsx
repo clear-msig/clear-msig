@@ -138,7 +138,12 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
       };
       savePolicy(rule);
       try {
-        await persistPolicy(name);
+        const result = await persistPolicy(name);
+        if (result.waiting > 0) {
+          toast.success("Check saved locally; on-chain activation is awaiting approvals.");
+          router.push(`/app/wallet/${encodeURIComponent(name)}/policies`);
+          return;
+        }
       } catch (error) {
         if (initial) savePolicy(initial);
         else removePolicy(name, rule.id);

@@ -36,7 +36,7 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
   const enabled = (options.enabled ?? true) && address.length > 0;
 
   const memberships = useQuery({
-    queryKey: ["my-organizations", address],
+    queryKey: ["my-organizations", address, connection.rpcEndpoint],
     queryFn: () => fetchOnchainMemberships(address),
     enabled,
     staleTime: 30_000,
@@ -46,50 +46,62 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
   });
 
   const walletQueries = useQueries({
-    queries: enabled ? (memberships.data ?? []).map((m) => ({
-      queryKey: ["wallet-account-by-pda", m.wallet],
-      queryFn: async (): Promise<{
-        membership: OnchainMembership;
-        account: WalletAccount | null;
-      }> => {
-        const account = await fetchWalletByPda(connection, new PublicKey(m.wallet));
-        return { membership: m, account };
-      },
-      staleTime: 30_000,
-    })) : [],
+    queries: enabled
+      ? (memberships.data ?? []).map((m) => ({
+          queryKey: ["wallet-account-by-pda", m.wallet, connection.rpcEndpoint],
+          queryFn: async (): Promise<{
+            membership: OnchainMembership;
+            account: WalletAccount | null;
+          }> => {
+            const account = await fetchWalletByPda(
+              connection,
+              new PublicKey(m.wallet),
+            );
+            if (!account)
+              throw new Error(
+                "A wallet account could not be read; history may be incomplete.",
+              );
+            return { membership: m, account };
+          },
+          staleTime: 30_000,
+        }))
+      : [],
   });
 
   const intentsQueries = useQueries({
-    queries: enabled ? walletQueries.map((wq) => {
-      const ready = wq.data?.account != null;
-      return {
-        queryKey: [
-          "wallet-intents-all",
-          wq.data?.membership.wallet ?? "pending",
-          wq.data?.account?.intentIndex ?? null,
-        ],
-        queryFn: async (): Promise<{
-          membership: OnchainMembership;
-          rows: IntentWithPda[];
-        }> => {
-          const m = wq.data!.membership;
-          const wAccount = wq.data!.account!;
-          const rows = await listIntents(
-            connection,
-            new PublicKey(m.wallet),
-            wAccount.intentIndex
-          );
-          return { membership: m, rows };
-        },
-        enabled: ready,
-        staleTime: 5_000,
-        // Match the proposal feed so background approval notifications
-        // can resolve both the proposal and its approver policy.
-        refetchInterval: 30_000,
-        refetchIntervalInBackground: true,
-        refetchOnWindowFocus: true,
-      };
-    }) : [],
+    queries: enabled
+      ? walletQueries.map((wq) => {
+          const ready = wq.data?.account != null;
+          return {
+            queryKey: [
+              "wallet-intents-all",
+              connection.rpcEndpoint,
+              wq.data?.membership.wallet ?? "pending",
+              wq.data?.account?.intentIndex ?? null,
+            ],
+            queryFn: async (): Promise<{
+              membership: OnchainMembership;
+              rows: IntentWithPda[];
+            }> => {
+              const m = wq.data!.membership;
+              const wAccount = wq.data!.account!;
+              const rows = await listIntents(
+                connection,
+                new PublicKey(m.wallet),
+                wAccount.intentIndex,
+              );
+              return { membership: m, rows };
+            },
+            enabled: ready,
+            staleTime: 5_000,
+            // Match the proposal feed so background approval notifications
+            // can resolve both the proposal and its approver policy.
+            refetchInterval: 30_000,
+            refetchIntervalInBackground: true,
+            refetchOnWindowFocus: true,
+          };
+        })
+      : [],
   });
 
   // useQueries returns a fresh array each render - keying the memo
@@ -98,7 +110,10 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
   // actual fetch updates. This matters because useActionNeeded ->
   // BottomNav reads downstream state on every page render.
   const intentsFingerprint = intentsQueries
-    .map((q) => `${q.data?.membership.wallet ?? "pending"}.${q.dataUpdatedAt}.${q.status}`)
+    .map(
+      (q) =>
+        `${q.data?.membership.wallet ?? "pending"}.${q.dataUpdatedAt}.${q.status}`,
+    )
     .join("|");
   const rows = useMemo<UserIntentRow[]>(() => {
     const flat: UserIntentRow[] = [];
@@ -122,12 +137,25 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
     }
     return flat;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [intentsFingerprint]);
+  }, [intentsFingerprint, connection.rpcEndpoint, address]);
 
   const loading =
     memberships.isLoading ||
     walletQueries.some((q) => q.isLoading) ||
     intentsQueries.some((q) => q.isLoading);
 
-  return { rows, loading };
+  const queries = [memberships, ...walletQueries, ...intentsQueries];
+  const error = queries.find((query) => query.error)?.error ?? null;
+  const refreshing = queries.some((query) => query.isFetching);
+  const refresh = async () => {
+    if (!enabled) return;
+    await memberships.refetch();
+    await Promise.all(walletQueries.map((query) => query.refetch()));
+    await Promise.all(
+      intentsQueries
+        .filter((query) => query.data || query.error)
+        .map((query) => query.refetch()),
+    );
+  };
+  return { rows, loading, error, refreshing, refresh };
 }

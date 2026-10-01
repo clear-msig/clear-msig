@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, FileCheck2, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  FileCheck2,
+  RotateCcw,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
+import { EscrowRecordNotice } from "./EscrowRecordNotice";
 import { Button } from "@/components/retail/Button";
 import { useToast } from "@/components/ui/Toast";
 import { backendApi } from "@/lib/api/endpoints";
@@ -10,17 +17,36 @@ import { friendlyError } from "@/lib/api/errors";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
 import { listIntents } from "@/lib/chain/intents";
 import { fetchWalletByName } from "@/lib/chain/wallets";
-import { clearSignProfileForSigner, prepareClearSignV4Action } from "@/lib/clearsign";
+import {
+  clearSignProfileForSigner,
+  prepareClearSignV4Action,
+} from "@/lib/clearsign";
 import { useSignWithWallet } from "@/lib/hooks/useSignWithWallet";
 import { IntentType } from "@/lib/msig";
-import { buildProEscrowReleaseEnvelope, buildProEscrowReturnEnvelope, buildProEscrowReturnRows, escrowFundedAmount, escrowReleasedAmount, previewProEscrowRelease, previewProEscrowReturn, recordProEscrowUnwindPrepared, type ProEscrowFunder, type ProEscrowMilestone, type ProEscrowProject } from "@/lib/pro/escrow";
+import {
+  buildProEscrowReleaseEnvelope,
+  buildProEscrowReturnEnvelope,
+  buildProEscrowReturnRows,
+  escrowFundedAmount,
+  escrowReleasedAmount,
+  previewProEscrowRelease,
+  previewProEscrowReturn,
+  recordProEscrowUnwindPrepared,
+  type ProEscrowFunder,
+  type ProEscrowMilestone,
+  type ProEscrowProject,
+} from "@/lib/pro/escrow";
 import { useConnection, useWallet } from "@/lib/wallet";
 import type { PreparedEscrowAction } from "@/features/treasury/domain/escrowTypes";
 import {
   buildReleaseExecution,
   buildReturnExecution,
 } from "@/features/treasury/domain/escrowExecution";
-import { formatSol, isPositiveAmount, randomId } from "@/features/treasury/domain/escrowUtils";
+import {
+  formatSol,
+  isPositiveAmount,
+  randomId,
+} from "@/features/treasury/domain/escrowUtils";
 
 export function EscrowProjectCard({
   walletName,
@@ -39,7 +65,8 @@ export function EscrowProjectCard({
   const wallet = useWallet();
   const { connection } = useConnection();
   const { signTypedDescriptor } = useSignWithWallet();
-  const projectAsset = project.milestones[0]?.asset ?? project.funders[0]?.asset ?? "SOL";
+  const projectAsset =
+    project.milestones[0]?.asset ?? project.funders[0]?.asset ?? "SOL";
   const funded = escrowFundedAmount(project, projectAsset);
   const released = escrowReleasedAmount(project, projectAsset);
   const remaining = Math.max(0, funded - released);
@@ -139,24 +166,31 @@ export function EscrowProjectCard({
             amountLamports: solToLamportsNumber(row.amount),
           }));
       let signingProject = project;
-      if (project.execution && project.execution.mode !== "spl" && returnRows.length !== 1) {
-        throw new Error("Cross-chain and private returns require exactly one recorded funder.");
+      if (
+        project.execution &&
+        project.execution.mode !== "spl" &&
+        returnRows.length !== 1
+      ) {
+        throw new Error(
+          "Cross-chain and private returns require exactly one recorded funder.",
+        );
       }
-      if (!project.execution) try {
-        const preview = await previewProEscrowReturn(walletName, project);
-        rows = preview.returns.map((row) => ({
-          recipient: row.recipient,
-          amount: row.amount,
-        }));
-        executeReturns = preview.returns.map((row) => ({
-          recipient: row.recipient,
-          amountLamports: rawLamportsToNumber(row.rawAmount),
-        }));
-        signingProject = { ...project, policy: preview.policy };
-      } catch {
-        // The backend may not be redeployed yet. Keep the existing local preview
-        // path alive, but prefer backend-owned math whenever it is available.
-      }
+      if (!project.execution)
+        try {
+          const preview = await previewProEscrowReturn(walletName, project);
+          rows = preview.returns.map((row) => ({
+            recipient: row.recipient,
+            amount: row.amount,
+          }));
+          executeReturns = preview.returns.map((row) => ({
+            recipient: row.recipient,
+            amountLamports: rawLamportsToNumber(row.rawAmount),
+          }));
+          signingProject = { ...project, policy: preview.policy };
+        } catch {
+          // The backend may not be redeployed yet. Keep the existing local preview
+          // path alive, but prefer backend-owned math whenever it is available.
+        }
       const { summary, dry } = await prepareTypedAction(
         buildProEscrowReturnEnvelope({
           walletName,
@@ -194,25 +228,26 @@ export function EscrowProjectCard({
       let amountLamports = project.execution
         ? 0
         : solToLamportsNumber(milestone.amount);
-      if (!project.execution) try {
-        const preview = await previewProEscrowRelease(
-          walletName,
-          project,
-          milestone,
-        );
-        signingProject = { ...project, policy: preview.policy };
-        signingMilestone = {
-          ...milestone,
-          amount: preview.amount,
-          asset: preview.asset,
-          recipient: preview.recipient,
-          recipientEntity: preview.recipientEntity,
-        };
-        amountLamports = rawLamportsToNumber(preview.rawAmount);
-      } catch {
-        // See prepareReturn: backend preview is preferred, local flow remains
-        // available for local/dev deployments that have not caught up.
-      }
+      if (!project.execution)
+        try {
+          const preview = await previewProEscrowRelease(
+            walletName,
+            project,
+            milestone,
+          );
+          signingProject = { ...project, policy: preview.policy };
+          signingMilestone = {
+            ...milestone,
+            amount: preview.amount,
+            asset: preview.asset,
+            recipient: preview.recipient,
+            recipientEntity: preview.recipientEntity,
+          };
+          amountLamports = rawLamportsToNumber(preview.rawAmount);
+        } catch {
+          // See prepareReturn: backend preview is preferred, local flow remains
+          // available for local/dev deployments that have not caught up.
+        }
       const { summary, dry } = await prepareTypedAction(
         buildProEscrowReleaseEnvelope({
           walletName,
@@ -226,7 +261,11 @@ export function EscrowProjectCard({
         dry,
         cta: "Approve release",
         execute: {
-          ...buildReleaseExecution(signingProject, signingMilestone, amountLamports),
+          ...buildReleaseExecution(
+            signingProject,
+            signingMilestone,
+            amountLamports,
+          ),
         },
       });
     } catch (err) {
@@ -273,52 +312,86 @@ export function EscrowProjectCard({
       });
       const proposalAddress = getStringField(created, "proposal");
       if (!proposalAddress) {
-        throw new Error("Approval was created, but no proposal address returned.");
+        throw new Error(
+          "Approval was created, but no proposal address returned.",
+        );
       }
       try {
         switch (prepared.execute.kind) {
           case "release":
-            await backendApi.executeTypedEscrowRelease(walletName, proposalAddress, {
-              recipient: prepared.execute.recipient,
-              amountLamports: prepared.execute.amountLamports,
-              escrowId: prepared.execute.escrowId,
-              milestoneId: prepared.execute.milestoneId,
-            });
+            await backendApi.executeTypedEscrowRelease(
+              walletName,
+              proposalAddress,
+              {
+                recipient: prepared.execute.recipient,
+                amountLamports: prepared.execute.amountLamports,
+                escrowId: prepared.execute.escrowId,
+                milestoneId: prepared.execute.milestoneId,
+              },
+            );
             onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
             toast.success("Milestone released");
             break;
           case "return":
-            await backendApi.executeTypedEscrowReturn(walletName, proposalAddress, prepared.execute);
+            await backendApi.executeTypedEscrowReturn(
+              walletName,
+              proposalAddress,
+              prepared.execute,
+            );
             onUpdate(prepared.execute.escrowId, { status: "returned" });
             toast.success("Funds returned");
             break;
           case "spl_release":
-            await backendApi.executeTypedSplEscrowRelease(walletName, proposalAddress, prepared.execute);
+            await backendApi.executeTypedSplEscrowRelease(
+              walletName,
+              proposalAddress,
+              prepared.execute,
+            );
             onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
             toast.success("Token milestone released");
             break;
           case "spl_return":
-            await backendApi.executeTypedSplEscrowReturn(walletName, proposalAddress, prepared.execute);
+            await backendApi.executeTypedSplEscrowReturn(
+              walletName,
+              proposalAddress,
+              prepared.execute,
+            );
             onUpdate(prepared.execute.escrowId, { status: "returned" });
             toast.success("Tokens returned");
             break;
           case "cross_chain_release":
-            await backendApi.executeTypedCrossChainEscrowRelease(walletName, proposalAddress, prepared.execute);
+            await backendApi.executeTypedCrossChainEscrowRelease(
+              walletName,
+              proposalAddress,
+              prepared.execute,
+            );
             onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
             toast.success("Settlement recorded");
             break;
           case "cross_chain_return":
-            await backendApi.executeTypedCrossChainEscrowReturn(walletName, proposalAddress, prepared.execute);
+            await backendApi.executeTypedCrossChainEscrowReturn(
+              walletName,
+              proposalAddress,
+              prepared.execute,
+            );
             onUpdate(prepared.execute.escrowId, { status: "returned" });
             toast.success("Return settlement recorded");
             break;
           case "private_release":
-            await backendApi.executeTypedPrivateEscrowRelease(walletName, proposalAddress, prepared.execute);
+            await backendApi.executeTypedPrivateEscrowRelease(
+              walletName,
+              proposalAddress,
+              prepared.execute,
+            );
             onRelease(prepared.execute.escrowId, prepared.execute.milestoneId);
             toast.success("Private settlement recorded");
             break;
           case "private_return":
-            await backendApi.executeTypedPrivateEscrowReturn(walletName, proposalAddress, prepared.execute);
+            await backendApi.executeTypedPrivateEscrowReturn(
+              walletName,
+              proposalAddress,
+              prepared.execute,
+            );
             onUpdate(prepared.execute.escrowId, { status: "returned" });
             toast.success("Private return recorded");
             break;
@@ -371,8 +444,16 @@ export function EscrowProjectCard({
       funders: [...project.funders, nextFunder],
       status: "active",
     });
-    setFunderDraft({ name: "", entity: "", address: "", amount: "", tokenAccount: "" });
-    toast.success("Funder added");
+    setFunderDraft({
+      name: "",
+      entity: "",
+      address: "",
+      amount: "",
+      tokenAccount: "",
+    });
+    toast.success("Funder record added", {
+      details: "No deposit was made or verified.",
+    });
   };
 
   return (
@@ -391,19 +472,30 @@ export function EscrowProjectCard({
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-semibold capitalize text-text-soft">
-            {project.status}
+            Record: {project.status}
           </span>
           <span className="rounded-full border border-accent/35 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent">
-            Approval protected
+            Separate approval required
           </span>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
-        <Metric label="Funded" value={`${formatSol(funded)} ${projectAsset}`} />
-        <Metric label="Released" value={`${formatSol(released)} ${projectAsset}`} />
-        <Metric label="Returnable" value={`${formatSol(remaining)} ${projectAsset}`} />
+        <Metric
+          label="Recorded funding"
+          value={`${formatSol(funded)} ${projectAsset}`}
+        />
+        <Metric
+          label="Recorded releases"
+          value={`${formatSol(released)} ${projectAsset}`}
+        />
+        <Metric
+          label="Recorded remainder"
+          value={`${formatSol(remaining)} ${projectAsset}`}
+        />
       </div>
+
+      <EscrowRecordNotice />
 
       {plannedMilestone ? (
         <MilestoneRow
@@ -552,8 +644,7 @@ function solToLamportsNumber(value: string): number {
   }
   const [whole, frac = ""] = normalized.split(".");
   const lamports =
-    BigInt(whole) * 1_000_000_000n +
-    BigInt((frac + "000000000").slice(0, 9));
+    BigInt(whole) * 1_000_000_000n + BigInt((frac + "000000000").slice(0, 9));
   if (lamports <= 0n || lamports > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error("Escrow amount is too large for this browser.");
   }

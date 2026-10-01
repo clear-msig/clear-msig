@@ -1,5 +1,6 @@
 "use client";
 
+import { HistoryReadNotice } from "@/components/activity/HistoryReadNotice";
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -35,6 +36,10 @@ import type { TxAttempt } from "@/lib/retail/txLog";
 import { relativeTime } from "@/lib/util/relativeTime";
 
 export interface ActivityPanelProps {
+  error?: unknown;
+  loading?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
   rows: RecentActivityRow[];
   allRows: RecentActivityRow[];
   walletName: string;
@@ -44,6 +49,10 @@ export interface ActivityPanelProps {
 }
 
 export function ActivityPanel({
+  error,
+  loading = false,
+  refreshing = false,
+  onRefresh,
   rows,
   allRows,
   walletName,
@@ -68,6 +77,17 @@ export function ActivityPanel({
     appConfig.preAlpha.zcashRpcUrl,
     8,
   );
+  const historyReads = [chains, solana, evm, btc, zcash];
+  const readError = error || historyReads.some((query) => query.error);
+  const stillLoading = loading || historyReads.some((query) => query.isLoading);
+  const refreshAll = () => {
+    onRefresh?.();
+    void Promise.all(
+      historyReads
+        .filter((query) => query.data || query.error)
+        .map((query) => query.refetch()),
+    );
+  };
   const histories = [
     { rows: solana.data ?? [], ticker: "SOL", kind: 0 },
     { rows: evm.data ?? [], ticker: "ETH", kind: 1 },
@@ -81,6 +101,19 @@ export function ActivityPanel({
       aria-labelledby="wallet-tab-activity"
       className="flex flex-col gap-4"
     >
+      {!!readError && (
+        <HistoryReadNotice
+          refreshing={
+            refreshing || historyReads.some((query) => query.isFetching)
+          }
+          onRefresh={refreshAll}
+        />
+      )}
+      {stillLoading && (
+        <p role="status" className="text-sm text-text-soft">
+          Loading activity…
+        </p>
+      )}
       {attempts.length > 0 ? (
         <SendAttempts rows={attempts} reduce={reduce} />
       ) : null}
@@ -91,10 +124,11 @@ export function ActivityPanel({
           walletName={walletName}
           attempts={attempts}
           reduce={reduce}
+          incomplete={!!readError || stillLoading}
         />
-      ) : (
+      ) : !readError && !stillLoading ? (
         <ActivityEmptyState walletName={walletName} reduce={reduce} />
-      )}
+      ) : null}
       {histories.map((history) =>
         history.rows.length > 0 ? (
           <ChainHistory
@@ -110,7 +144,13 @@ export function ActivityPanel({
   );
 }
 
-function SendAttempts({ rows, reduce }: { rows: TxAttempt[]; reduce: boolean }) {
+function SendAttempts({
+  rows,
+  reduce,
+}: {
+  rows: TxAttempt[];
+  reduce: boolean;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
   return (
     <Panel reduce={reduce}>
@@ -127,7 +167,11 @@ function SendAttempts({ rows, reduce }: { rows: TxAttempt[]; reduce: boolean }) 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-text-strong">
                     <span
-                      className={row.status === "success" ? "text-accent" : "text-warning"}
+                      className={
+                        row.status === "success"
+                          ? "text-accent"
+                          : "text-warning"
+                      }
                     >
                       {row.status === "success" ? "Confirmed" : "Failed"}
                     </span>
@@ -142,7 +186,9 @@ function SendAttempts({ rows, reduce }: { rows: TxAttempt[]; reduce: boolean }) 
                   </p>
                 </div>
                 {row.status === "success" && row.explorerUrl ? (
-                  <ExternalAction href={row.explorerUrl}>View transaction</ExternalAction>
+                  <ExternalAction href={row.explorerUrl}>
+                    View transaction
+                  </ExternalAction>
                 ) : row.status === "failed" && row.errorStderr ? (
                   <button
                     type="button"
@@ -194,9 +240,15 @@ function ChainHistory({
           const explorerUrl =
             chainKind === 0
               ? solanaExplorerTxUrl(row.txId)
-              : broadcastExplorerUrl({ chain_kind: chainKind, tx_id: row.txId });
+              : broadcastExplorerUrl({
+                  chain_kind: chainKind,
+                  tx_id: row.txId,
+                });
           return (
-            <li key={row.txId} className="flex items-center justify-between gap-3 py-3">
+            <li
+              key={row.txId}
+              className="flex items-center justify-between gap-3 py-3"
+            >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-text-strong">
                   <span className={failed ? "text-warning" : "text-accent"}>
@@ -223,12 +275,14 @@ function ChainHistory({
 }
 
 function ProposalActivity({
+  incomplete,
   rows,
   allRows,
   walletName,
   attempts,
   reduce,
 }: {
+  incomplete: boolean;
   rows: RecentActivityRow[];
   allRows: RecentActivityRow[];
   walletName: string;
@@ -254,6 +308,7 @@ function ProposalActivity({
     }
   };
   const handleExport = () => {
+    if (incomplete) return;
     const csv = buildActivityCsv({ walletName, rows: allRows, attempts });
     const slug = walletName.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
     const stamp = new Date().toISOString().slice(0, 10);
@@ -284,7 +339,7 @@ function ProposalActivity({
             Requests
           </span>
           <span className="font-numerals text-[10px] tabular-nums text-text-soft">
-            {allRows.length}
+            {incomplete ? "Incomplete" : allRows.length}
           </span>
         </button>
         {!collapsed ? (
@@ -301,6 +356,7 @@ function ProposalActivity({
             <button
               type="button"
               onClick={handleExport}
+              disabled={incomplete}
               aria-label="Export wallet activity as CSV"
               title="Export CSV"
               className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border-soft bg-surface-raised text-text-soft transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -391,7 +447,13 @@ function Panel({
   );
 }
 
-function ExternalAction({ href, children }: { href: string; children: React.ReactNode }) {
+function ExternalAction({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
   return (
     <a
       href={href}

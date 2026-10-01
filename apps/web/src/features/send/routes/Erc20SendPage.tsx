@@ -1,5 +1,14 @@
 "use client";
 
+import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
+import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
+import { SavedSendRecovery } from "@/features/send/ui/SavedSendRecovery";
+import {
+  inlineApprovalOptions,
+  reviewedCreationProposalAddress,
+  savedProposalError,
+} from "@/lib/clearsign/inlineApproval";
+
 // Send an ERC-20 token (Sepolia) - sibling of /send/eth for token
 // transfers. The wallet's same Sepolia address (chain_kind=1 binding)
 // holds ERC-20 balances; the intent that unlocks the send is
@@ -30,7 +39,13 @@ import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, List as ListIcon, Loader2, ShieldAlert } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  List as ListIcon,
+  Loader2,
+  ShieldAlert,
+} from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";
 import { friendlyError } from "@/lib/api/errors";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
@@ -106,7 +121,10 @@ import {
 import { liveUsdEstimate } from "@/lib/clearsign/fiatEstimate";
 import { ETHEREUM_SEPOLIA_USDC } from "@/lib/chain/stablecoins";
 import { ComposeStage } from "@/features/send/ui/evm/Erc20SendStages";
-import { PreFlightCard, SentStage } from "@/features/send/ui/evm/Erc20SendResults";
+import {
+  PreFlightCard,
+  SentStage,
+} from "@/features/send/ui/evm/Erc20SendResults";
 
 const ERC20_CHAIN_KIND = 4;
 const ETH_CHAIN_KIND = 1;
@@ -298,240 +316,307 @@ function SendErc20Page() {
     !insufficientBalance &&
     !policyDenied;
 
+  const recovery = useSendRecovery(
+    JSON.stringify([
+      walletName,
+      requestAccountKey(wallet.sessionSubject, wallet.publicKey?.toBase58() ?? null),
+      connection.rpcEndpoint,
+      appConfig.preAlpha.destinationRpcUrl,
+    ]),
+  );
   const submit = useMutation({
     mutationFn: async () => {
-      if (!wallet.publicKey) throw new Error("Connect your wallet first");
-      if (!erc20Intent || !erc20Intent.account)
-        throw new Error("ERC-20 sending isn't set up for this wallet");
-      if (!walletEthAddress)
-        throw new Error("Wallet's Ethereum address isn't ready yet");
-      if (!tokenContractValid)
-        throw new Error("Token contract must be a 0x… 42-character address");
-      if (!recipientValid)
-        throw new Error("Recipient must be a valid 0x address");
-      if (!meta) throw new Error("Couldn't read token metadata yet");
+      const attempt = recovery.begin();
+      try {
+        if (!wallet.publicKey) throw new Error("Connect your wallet first");
+        if (!erc20Intent || !erc20Intent.account)
+          throw new Error("ERC-20 sending isn't set up for this wallet");
+        if (!walletEthAddress)
+          throw new Error("Wallet's Ethereum address isn't ready yet");
+        if (!tokenContractValid)
+          throw new Error("Token contract must be a 0x… 42-character address");
+        if (!recipientValid)
+          throw new Error("Recipient must be a valid 0x address");
+        if (!meta) throw new Error("Couldn't read token metadata yet");
 
-      const proposerPk = wallet.pickSigner(erc20Intent.account.proposers);
-      if (!proposerPk) {
-        throw new Error(
-          "None of your connected wallets is in this wallet's proposer list. " +
-            "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
-        );
-      }
-      const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
-        walletName,
-        chainKind: 4,
-        tokenContract: trimmedToken.toLowerCase(),
-        recipient: trimmedRecipient,
-        ticker: symbol ?? "TOKEN",
-        amountDisplay: amount,
-      });
-      assertPolicyNotDenied(submitPolicyPlan);
-      const tokenForClearSign = trimmedToken.toLowerCase();
-      const recipientForClearSign = trimmedRecipient.toLowerCase();
-      const onchainPolicy = encodeTypedRemoteSendPolicy(submitPolicyPlan, {
-        assetTicker: symbol ?? "TOKEN",
-        decimals: meta.decimals,
-        normalizeRecipient: (value) => value.trim().toLowerCase(),
-      });
-
-      const { nonce } = await fetchEvmNonce(walletEthAddress);
-      const paramsDataHex = toHex(
-        encodeParams(erc20Intent.account, {
-          nonce: String(nonce),
-          token_contract: tokenForClearSign,
-          recipient: recipientForClearSign,
-          amount: amountBase.toString(),
-        }),
-      );
-      const actionId = randomActionLabel("erc20-send");
-      const actionNonce = randomActionLabel("nonce");
-      const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
-      const policyCommitment =
-        onchainPolicy?.commitmentHex ??
-        policyCommitmentHexForParts([
-          `wallet:${walletQuery.data?.pda.toBase58() ?? walletName}`,
-          `intent:${erc20Intent.account.intentIndex}`,
-          `chain:${ERC20_CHAIN_KIND}`,
-          `threshold:${erc20Intent.account.approvalThreshold ?? ""}`,
-          `proposers:${erc20Intent.account.proposers.join(",")}`,
-          `approvers:${erc20Intent.account.approvers.join(",")}`,
-        ]);
-      const envelope: ClearSignIntentInput<SendPayload> = {
-        kind: "send",
-        network: "Ethereum Sepolia",
-        walletName,
-        walletId: walletQuery.data?.pda.toBase58(),
-        actionId,
-        nonce: actionNonce,
-        expiresAt,
-        policyCommitment,
-        payload: {
-          recipient: recipientForClearSign,
-          recipientEncoding: "sha256_text",
-          amount: amount.trim(),
-          asset: tokenForClearSign,
-          assetEncoding: "sha256_text",
-          decimals: meta.decimals,
-          displayAsset: meta.symbol,
-          note: note.trim() || undefined,
-          fiatEstimate: liveUsdEstimate(amount, meta.symbol),
-        },
-      };
-      const summary = await prepareClearSignV4Action(envelope, {
-        intentIndex: erc20Intent.account.intentIndex,
-        actorPubkey: proposerPk.toBase58(),
-        policyBytesHex: onchainPolicy?.hex,
-        deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
-      });
-      const dry = await backendApi.prepare.createTypedProposal(walletName, {
-        intent_index: erc20Intent.account.intentIndex,
-        action_kind: summary.actionKindCode,
-        policy_commitment: summary.policyCommitment,
-        payload_hash: summary.payloadHash,
-        envelope_hash: summary.envelopeHash,
-        action_id: envelope.actionId,
-        nonce: envelope.nonce,
-        policyBytesHex: onchainPolicy?.hex,
-        signable_text: summary.signableText,
-        canonical_intent_hex: summary.canonicalIntentHex,
-        expiry: formatUnixSigningExpiry(envelope.expiresAt),
-        actor_pubkey: proposerPk.toBase58(),
-      });
-
-      const signed = await signTypedDescriptor(dry, {
-        preferSigner: proposerPk,
-        expectedTyped: {
-          envelopeHash: summary.envelopeHash,
-          payloadHash: summary.payloadHash,
-          signableText: summary.signableText,
-        },
-      });
-
-      const submitted = await backendApi.submit.createTypedProposal(walletName, {
-        ...signed,
-        expiry: dry.expiry,
-        intent_index: dry.intent_index,
-        action_kind: dry.action_kind,
-        policy_commitment: dry.policy_commitment_hex,
-        payload_hash: dry.payload_hash_hex,
-        envelope_hash: dry.envelope_hash_hex,
-        action_id: dry.action_id,
-        nonce: dry.nonce,
-        policyBytesHex: onchainPolicy?.hex,
-        canonical_intent_hex: dry.canonical_intent_hex,
-      });
-      const proposal = (submitted as Record<string, unknown>)?.proposal;
-      if (typeof proposal !== "string" || proposal.length === 0) {
-        throw new Error("Backend didn't return a proposal address from submit");
-      }
-      const intent = erc20Intent.account;
-      const approverPk = wallet.pickSigner(intent.approvers);
-
-      const decision = await approveIfNeeded(connection, proposal, {
-        approvers: intent.approvers,
-        approverPubkey: approverPk?.toBase58() ?? null,
-      });
-      if (decision.needsApproveSignature) {
-        if (!approverPk) {
+        const proposerPk = wallet.pickSigner(erc20Intent.account.proposers);
+        if (!proposerPk) {
           throw new Error(
-            "The proposal landed, but none of your connected wallets can approve it.",
+            "None of your connected wallets is in this wallet's proposer list. " +
+              "Disconnect the Ledger or sign in with the wallet that originally created this multisig.",
           );
         }
-        const approveDry = await backendApi.prepare.approveTypedProposal(
+        const submitPolicyPlan = await resolvePolicyEnforcement(walletName, {
+          walletName,
+          chainKind: 4,
+          tokenContract: trimmedToken.toLowerCase(),
+          recipient: trimmedRecipient,
+          ticker: symbol ?? "TOKEN",
+          amountDisplay: amount,
+        });
+        assertPolicyNotDenied(submitPolicyPlan);
+        const tokenForClearSign = trimmedToken.toLowerCase();
+        const recipientForClearSign = trimmedRecipient.toLowerCase();
+        const onchainPolicy = encodeTypedRemoteSendPolicy(submitPolicyPlan, {
+          assetTicker: symbol ?? "TOKEN",
+          decimals: meta.decimals,
+          normalizeRecipient: (value) => value.trim().toLowerCase(),
+        });
+
+        const { nonce } = await fetchEvmNonce(walletEthAddress);
+        const paramsDataHex = toHex(
+          encodeParams(erc20Intent.account, {
+            nonce: String(nonce),
+            token_contract: tokenForClearSign,
+            recipient: recipientForClearSign,
+            amount: amountBase.toString(),
+          }),
+        );
+        const actionId = randomActionLabel("erc20-send");
+        const actionNonce = randomActionLabel("nonce");
+        const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+        const policyCommitment =
+          onchainPolicy?.commitmentHex ??
+          policyCommitmentHexForParts([
+            `wallet:${walletQuery.data?.pda.toBase58() ?? walletName}`,
+            `intent:${erc20Intent.account.intentIndex}`,
+            `chain:${ERC20_CHAIN_KIND}`,
+            `threshold:${erc20Intent.account.approvalThreshold ?? ""}`,
+            `proposers:${erc20Intent.account.proposers.join(",")}`,
+            `approvers:${erc20Intent.account.approvers.join(",")}`,
+          ]);
+        const envelope: ClearSignIntentInput<SendPayload> = {
+          kind: "send",
+          network: "Ethereum Sepolia",
+          walletName,
+          walletId: walletQuery.data?.pda.toBase58(),
+          actionId,
+          nonce: actionNonce,
+          expiresAt,
+          policyCommitment,
+          payload: {
+            recipient: recipientForClearSign,
+            recipientEncoding: "sha256_text",
+            amount: amount.trim(),
+            asset: tokenForClearSign,
+            assetEncoding: "sha256_text",
+            decimals: meta.decimals,
+            displayAsset: meta.symbol,
+            note: note.trim() || undefined,
+            fiatEstimate: liveUsdEstimate(amount, meta.symbol),
+          },
+        };
+        const summary = await prepareClearSignV4Action(envelope, {
+          intentIndex: erc20Intent.account.intentIndex,
+          actorPubkey: proposerPk.toBase58(),
+          policyBytesHex: onchainPolicy?.hex,
+          deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
+        });
+        const dry = await backendApi.prepare.createTypedProposal(walletName, {
+          intent_index: erc20Intent.account.intentIndex,
+          action_kind: summary.actionKindCode,
+          policy_commitment: summary.policyCommitment,
+          payload_hash: summary.payloadHash,
+          envelope_hash: summary.envelopeHash,
+          action_id: envelope.actionId,
+          nonce: envelope.nonce,
+          policyBytesHex: onchainPolicy?.hex,
+          signable_text: summary.signableText,
+          canonical_intent_hex: summary.canonicalIntentHex,
+          expiry: formatUnixSigningExpiry(envelope.expiresAt),
+          actor_pubkey: proposerPk.toBase58(),
+        });
+
+        const signed = await signTypedDescriptor(dry, {
+          preferSigner: proposerPk,
+          expectedTyped: {
+            envelopeHash: summary.envelopeHash,
+            payloadHash: summary.payloadHash,
+            signableText: summary.signableText,
+          },
+        });
+
+        attempt.assertCurrent();
+        attempt.submitting(reviewedCreationProposalAddress(dry, summary));
+        const submitted = await backendApi.submit.createTypedProposal(
+          walletName,
+          {
+            ...signed,
+            expiry: dry.expiry,
+            intent_index: dry.intent_index,
+            action_kind: dry.action_kind,
+            policy_commitment: dry.policy_commitment_hex,
+            payload_hash: dry.payload_hash_hex,
+            envelope_hash: dry.envelope_hash_hex,
+            action_id: dry.action_id,
+            nonce: dry.nonce,
+            policyBytesHex: onchainPolicy?.hex,
+            canonical_intent_hex: dry.canonical_intent_hex,
+          },
+        );
+        const proposal = (submitted as Record<string, unknown>)?.proposal;
+        if (typeof proposal !== "string" || proposal.length === 0) {
+          throw new Error(
+            "Backend didn't return a proposal address from submit",
+          );
+        }
+        if (proposal !== dry.proposal_pubkey)
+          throw new Error(
+            "Submission returned a different proposal address. Check the prepared request before retrying.",
+          );
+        attempt.accepted(proposal);
+        const intent = erc20Intent.account;
+        const approverPk = wallet.pickSigner(intent.approvers);
+
+        const decision = await approveIfNeeded(connection, proposal, {
+          approvers: intent.approvers,
+          approverPubkey: approverPk?.toBase58() ?? null,
+        });
+        if (decision.needsApproveSignature) {
+          if (!approverPk) {
+            throw new Error(
+              "The proposal landed, but none of your connected wallets can approve it.",
+            );
+          }
+          attempt.assertCurrent();
+          const approveDry = await backendApi.prepare.approveTypedProposal(
+            walletName,
+            proposal,
+            { actor_pubkey: approverPk.toBase58() },
+          );
+          attempt.assertCurrent();
+          const approveSigned = await signTypedDescriptor(
+            approveDry,
+            inlineApprovalOptions(
+              dry,
+              approveDry,
+              summary,
+              proposal,
+              approverPk,
+            ),
+          );
+          attempt.assertCurrent();
+          await backendApi.submit.approveTypedProposal(walletName, proposal, {
+            ...approveSigned,
+            expiry: approveDry.expiry,
+          });
+        }
+
+        const policyPlan = await resolvePolicyEnforcement(walletName, {
+          walletName,
+          chainKind: 4,
+          tokenContract: trimmedToken.toLowerCase(),
+          recipient: trimmedRecipient,
+          ticker: symbol ?? "TOKEN",
+          amountDisplay: amount,
+        });
+        assertPolicyNotDenied(policyPlan);
+        if (policyPlan.evaluation?.matched) {
+          if (policyPlan.rule?.action === "require-extra-approvers") {
+            const seen = new Set<string>([
+              proposerPk.toBase58(),
+              ...(approverPk ? [approverPk.toBase58()] : []),
+            ]);
+            const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
+              const normalized = addr.trim();
+              if (!normalized || seen.has(normalized)) return false;
+              seen.add(normalized);
+              return true;
+            });
+            if (extraApprovers.length === 0) {
+              throw new Error(
+                `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
+              );
+            }
+            for (const extraApprover of extraApprovers) {
+              if (!intent.approvers.includes(extraApprover)) {
+                throw new Error(
+                  `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
+                );
+              }
+              const extraSigner = wallet.pickSigner([extraApprover]);
+              if (!extraSigner) {
+                throw new Error(
+                  `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
+                );
+              }
+              attempt.assertCurrent();
+              const extraDry = await backendApi.prepare.approveTypedProposal(
+                walletName,
+                proposal,
+                { actor_pubkey: extraSigner.toBase58() },
+              );
+              attempt.assertCurrent();
+              const extraSigned = await signTypedDescriptor(
+                extraDry,
+                inlineApprovalOptions(
+                  dry,
+                  extraDry,
+                  summary,
+                  proposal,
+                  extraSigner,
+                ),
+              );
+              attempt.assertCurrent();
+              await backendApi.submit.approveTypedProposal(
+                walletName,
+                proposal,
+                {
+                  ...extraSigned,
+                  expiry: extraDry.expiry,
+                },
+              );
+            }
+          } else if (
+            policyPlan.rule?.action === "require-cooldown" &&
+            policyPlan.extraCooldownSeconds > 0
+          ) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+            );
+          }
+        }
+
+        const readyToExecute = await waitForProposalApproval(
+          connection,
+          proposal,
+        );
+        if (!readyToExecute) {
+          attempt.assertCurrent();
+          return { proposal, broadcast: null, awaitingApprovers: true };
+        }
+
+        attempt.assertCurrent();
+
+        const executed = await backendApi.executeTypedChainSend(
           walletName,
           proposal,
-          { actor_pubkey: approverPk.toBase58() },
+          {
+            chainKind: ERC20_CHAIN_KIND,
+            amountRaw: amountBase.toString(),
+            recipientHash: textCommitmentHex(recipientForClearSign),
+            assetIdHash: textCommitmentHex(tokenForClearSign),
+            paramsDataHex,
+            broadcast: true,
+            dwalletProgram: appConfig.preAlpha.dwalletProgramId,
+            grpcUrl: appConfig.preAlpha.grpcUrl,
+            rpcUrl: appConfig.preAlpha.destinationRpcUrl,
+          },
         );
-        const approveSigned = await signTypedDescriptor(approveDry, {
-          preferSigner: approverPk,
-        });
-        await backendApi.submit.approveTypedProposal(walletName, proposal, {
-          ...approveSigned,
-          expiry: approveDry.expiry,
-        });
-      }
-
-      const policyPlan = await resolvePolicyEnforcement(walletName, {
-        walletName,
-        chainKind: 4,
-        tokenContract: trimmedToken.toLowerCase(),
-        recipient: trimmedRecipient,
-        ticker: symbol ?? "TOKEN",
-        amountDisplay: amount,
-      });
-      assertPolicyNotDenied(policyPlan);
-      if (policyPlan.evaluation?.matched) {
-        if (policyPlan.rule?.action === "require-extra-approvers") {
-          const seen = new Set<string>([
-            proposerPk.toBase58(),
-            ...(approverPk ? [approverPk.toBase58()] : []),
-          ]);
-          const extraApprovers = policyPlan.extraApprovers.filter((addr) => {
-            const normalized = addr.trim();
-            if (!normalized || seen.has(normalized)) return false;
-            seen.add(normalized);
-            return true;
-          });
-          if (extraApprovers.length === 0) {
-            throw new Error(
-              `Policy "${policyPlan.rule.name}" requires extra approvers, but none were configured.`,
-            );
-          }
-          for (const extraApprover of extraApprovers) {
-            if (!intent.approvers.includes(extraApprover)) {
-              throw new Error(
-                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but that signer is not in the wallet's approver list.`,
-              );
-            }
-            const extraSigner = wallet.pickSigner([extraApprover]);
-            if (!extraSigner) {
-              throw new Error(
-                `Policy "${policyPlan.rule.name}" requires ${extraApprover} to approve this send, but none of your connected wallets can sign as that approver.`,
-              );
-            }
-            const extraDry = await backendApi.prepare.approveTypedProposal(
-              walletName,
-              proposal,
-              { actor_pubkey: extraSigner.toBase58() },
-            );
-            const extraSigned = await signTypedDescriptor(extraDry, {
-              preferSigner: extraSigner,
-            });
-            await backendApi.submit.approveTypedProposal(walletName, proposal, {
-              ...extraSigned,
-              expiry: extraDry.expiry,
-            });
-          }
-        } else if (
-          policyPlan.rule?.action === "require-cooldown" &&
-          policyPlan.extraCooldownSeconds > 0
-        ) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, policyPlan.extraCooldownSeconds * 1000),
+        const broadcast = (executed as { broadcast?: BroadcastResultLike })
+          ?.broadcast;
+        if (!broadcast?.tx_id?.trim())
+          throw savedProposalError(
+            proposal,
+            new Error(
+              "Execution returned no transaction ID. Sending is not confirmed.",
+            ),
           );
-        }
+        attempt.complete();
+        return { proposal, broadcast, awaitingApprovers: false };
+      } finally {
+        attempt.finish();
       }
-
-      const readyToExecute = await waitForProposalApproval(connection, proposal);
-      if (!readyToExecute) {
-        return { proposal, broadcast: null, awaitingApprovers: true };
-      }
-
-      const executed = await backendApi.executeTypedChainSend(walletName, proposal, {
-        chainKind: ERC20_CHAIN_KIND,
-        amountRaw: amountBase.toString(),
-        recipientHash: textCommitmentHex(recipientForClearSign),
-        assetIdHash: textCommitmentHex(tokenForClearSign),
-        paramsDataHex,
-        broadcast: true,
-        dwalletProgram: appConfig.preAlpha.dwalletProgramId,
-        grpcUrl: appConfig.preAlpha.grpcUrl,
-        rpcUrl: appConfig.preAlpha.destinationRpcUrl,
-      });
-      const broadcast = (executed as { broadcast?: BroadcastResultLike })
-        ?.broadcast;
-      return { proposal, broadcast, awaitingApprovers: false };
     },
     onSuccess: ({ proposal, broadcast, awaitingApprovers }) => {
       const explorerUrl = broadcastExplorerUrl(
@@ -580,7 +665,8 @@ function SendErc20Page() {
       const fe = friendlyError(err, "send");
       toast.error(fe.title, { details: fe.body });
       const stderr =
-        (err as { payload?: { stderr?: string } })?.payload?.stderr ?? undefined;
+        (err as { payload?: { stderr?: string } })?.payload?.stderr ??
+        undefined;
       recordAttempt({
         walletName,
         chainKind: ERC20_CHAIN_KIND,
@@ -630,6 +716,15 @@ function SendErc20Page() {
       />
     );
   }
+
+  if (recovery.saved && !submit.isPending)
+    return (
+      <SavedSendRecovery
+        onStartAnother={recovery.startSeparateRequest}
+        saved={recovery.saved}
+        walletName={walletName}
+      />
+    );
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
