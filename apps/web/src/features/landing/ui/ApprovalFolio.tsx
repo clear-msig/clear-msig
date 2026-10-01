@@ -67,8 +67,8 @@ export function ApprovalFolio() {
               <i>A</i>
             </div>
             <span>
-              <strong>1 of 3 approvals</strong>
-              <small>2 required · awaiting review</small>
+              <strong>1 of 2 required approvals</strong>
+              <small>3 members · 1 more needed</small>
             </span>
           </div>
           <div className={s.folioReceipt}>

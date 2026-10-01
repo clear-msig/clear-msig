@@ -13,6 +13,9 @@ describe("readable approval landing experience", () => {
     expect(html).toContain("Every approval.");
     expect(html).toContain("Crystal clear.");
     expect(html).toContain("No transaction or signature.");
+    expect(html).toContain("1 of 2 required approvals");
+    expect(html).toContain("3 members · 1 more needed");
+    expect(html).not.toContain("of 3 approvals");
     expect(html).toContain("Illustrative demo");
     expect(html).toContain("External execution gated");
     expect(html).toContain("Your recovery plan");

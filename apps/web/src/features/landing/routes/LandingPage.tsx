@@ -166,11 +166,13 @@ export default function HomePage() {
                 </div>
                 <div className={s.avatar}>A</div>
                 <div className={s.signerCount} aria-live="polite">
-                  <strong>{reviewed ? "2" : "1"} of 3 approvals</strong>
+                  <strong>
+                    {reviewed ? "2" : "1"} of 2 required approvals
+                  </strong>
                   <span>
                     {reviewed
-                      ? "Example quorum reached"
-                      : "Waiting for another owner"}
+                      ? "3 members · threshold met in demo"
+                      : "3 members · 1 more needed"}
                   </span>
                 </div>
               </div>

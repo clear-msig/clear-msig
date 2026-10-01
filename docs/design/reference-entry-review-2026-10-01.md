@@ -45,9 +45,9 @@ this scope; it does not show live authenticated integration.
 
 The final first-view PNGs cover 1440×960, 390×844 and 320×844 at 2× capture scale.
 The combined board is 2480×1230, Library item
-`libfile_3034e2e1dd988191b7104f329446d9e3`, version 0, file
-`file_000000008d548210ae0bb105188d714a`. SHA256:
-`30acf5359082de5f39415bef5456bc41e3010848572949e71a10ff9dc9c26252`.
+`libfile_3034e2e1dd988191b7104f329446d9e3`, version 1, file
+`file_0000000089148210ba44923a89e7c2e5`. SHA256:
+`f8761e1920c2f0e93ba28a73fb20233f26ac6a638b1323bbc29488214785a060`.
 
 Visual iteration corrected the demo caption overlapping the card shadow on
 compact mobile, replaced a missing-font arrow glyph with SVG, and increased
@@ -75,3 +75,25 @@ horizontal overflow or browser page error in the isolated captures.
 
 This is one review direction, ready for pixel review before broader propagation.
 The pending trading execution-mode decision remains unanswered and untouched.
+
+## Independent clarity review follow-up
+
+Approval wording now reads `1 of 2 required approvals` and `3 members · 1 more
+needed`, distinguishing the threshold from membership. The interactive demo
+changes to `2 of 2 required approvals` and `3 members · threshold met in demo`,
+then restores the initial wording on reset. No execution is implied.
+
+Disclaimer and illustration quorum text use existing #ebebeb at 12px minimum.
+The caption sits above decorative shadows. On narrow screens, redundant
+decorative initials are omitted from the front illustration so complete quorum
+text remains readable; the explicit member count remains visible.
+
+Computed-color WCAG contrast checks passed in the browser fixture: caption
+16.41:1 against #0c0c0c; quorum 12.49:1 against the lightest gradient stop
+#27272a; interactive count 14.84:1 and secondary status 7.01:1 against #18181d.
+These are conservative CSS color calculations, not live auth coverage. All five
+previous browser configurations passed again, including repeated before/after
+transitions. Three targeted landing tests and production build (50 static
+pages, including lint/type validation) passed. The built CSS includes the final
+compact status layout. No unrelated full-suite rerun was needed for this text
+and CSS correction. The same review Library identity was updated to version 1.

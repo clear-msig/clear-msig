@@ -1050,6 +1050,10 @@
   gap: 20px;
   padding-bottom: 19px;
 }
+.folioApproval > span {
+  min-width: 0;
+  flex: 1;
+}
 .folioApproval > div {
   display: flex;
 }
@@ -1062,13 +1066,17 @@
 }
 .folioApproval strong {
   display: block;
+  color: var(--ink);
+  line-height: 1.4;
   font-size: 12px;
   font-weight: 500;
 }
 .folioApproval small {
   display: block;
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 3px;
 }
 .folioReceipt {
   border-top: 1px dashed #52525b;
@@ -1088,10 +1096,13 @@
   letter-spacing: -0.3px;
 }
 .folio figcaption {
+  position: relative;
+  z-index: 1;
   text-align: center;
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin-top: 16px;
 }
 .demoHeading {
   max-width: 1000px;
@@ -1246,16 +1257,13 @@
     gap: 13px;
     padding-bottom: 12px;
   }
+  .folioApproval > div {
+    display: none;
+  }
   .folioApproval i {
     width: 24px;
     height: 24px;
     font-size: 9px;
-  }
-  .folioApproval strong {
-    font-size: 11px;
-  }
-  .folioApproval small {
-    font-size: 10px;
   }
   .folioReceipt {
     padding: 9px 0 11px;
@@ -1263,10 +1271,6 @@
   }
   .folioReceipt > span:last-child {
     font-size: 9px;
-  }
-  .folio figcaption {
-    margin-top: 12px;
-    font-size: 11px;
   }
   .heroCopy {
     width: 100%;
