@@ -12,6 +12,7 @@ import {
 import { ClearCMark } from "@/components/landing/ClearCMark";
 import { LandingReveal } from "@/components/landing/LandingReveal";
 import s from "./LandingPage.module.css";
+import { ApprovalFolio } from "../ui/ApprovalFolio";
 
 export default function HomePage() {
   const [reviewed, setReviewed] = useState(false);
@@ -30,32 +31,60 @@ export default function HomePage() {
           <a href="#products">Products</a>
           <Link href="/security">Security</Link>
         </nav>
-        <Link className={s.headerAction} href="/choose">
-          Open preview <ArrowRight size={15} aria-hidden="true" />
+        <Link className={s.headerAction} href="/connect">
+          Sign in <ArrowRight size={15} aria-hidden="true" />
         </Link>
       </header>
       <main id="landing-content" tabIndex={-1}>
         <section className={s.hero} aria-labelledby="hero-title">
-          <p className={s.eyebrow}>SHARED WALLETS. CLEAR DECISIONS.</p>
-          <h1 id="hero-title">
-            Know what
-            <br className={s.mobileBreak} /> you’re signing.
-          </h1>
-          <p className={s.intro}>
-            The money. The rules. The people who approve.
-            <br className={s.desktopBreak} /> One clear view before anything
-            moves.
-          </p>
-          <div className={s.actions}>
-            <Link className={s.primary} href="/choose">
-              Open devnet preview <ArrowRight size={17} aria-hidden="true" />
-            </Link>
-            <a className={s.secondary} href="#approval">
-              See an approval <ArrowDown size={16} aria-hidden="true" />
-            </a>
+          <div className={s.heroCopy}>
+            <p className={s.eyebrow}>YOUR MONEY. YOUR PEOPLE. YOUR RULES.</p>
+            <h1 id="hero-title">
+              Every approval.
+              <br />
+              <em>Crystal clear.</em>
+            </h1>
+            <p className={s.intro}>
+              Move together. Know exactly what you’re signing.
+              <br className={s.desktopBreak} /> Shared wallets with clarity at
+              every step.
+            </p>
+            <div className={s.actions}>
+              <Link className={s.primary} href="/choose">
+                Explore ClearSig <ArrowRight size={19} aria-hidden="true" />
+              </Link>
+              <a className={s.secondary} href="#approval">
+                See an approval <ArrowDown size={16} aria-hidden="true" />
+              </a>
+            </div>
+            <p className={s.preview}>
+              <span aria-hidden="true" /> Devnet preview · Test funds only
+            </p>
           </div>
-          <p className={s.preview}>Devnet preview · Test funds only</p>
+          <ApprovalFolio />
+          <div className={s.heroFoot}>
+            <p>
+              Sign intents. <em>Not hex.</em>
+            </p>
+            <a href="#how-it-works">
+              Clarity, from the first step{" "}
+              <ArrowDown size={15} aria-hidden="true" />
+            </a>
+            <span>BUILT FOR SHARED CONTROL</span>
+          </div>
         </section>
+        <div className={s.demoHeading}>
+          <p className={s.eyebrow}>LESS GUESSWORK. MORE CONTEXT.</p>
+          <h2>
+            Know what happens.
+            <br />
+            <span>Before it happens.</span>
+          </h2>
+          <p>
+            A closer look at a request. Clear details, visible rules and an
+            explicit decision.
+          </p>
+        </div>
         <section
           id="approval"
           className={s.instrument}
@@ -165,9 +194,6 @@ export default function HomePage() {
             <span>Readable intent / Explicit rules / Shared control</span>
           </div>
         </section>
-        <p className={s.signature}>
-          Sign intents. <em>Not hex.</em>
-        </p>
         <section
           id="how-it-works"
           className={s.chapters}

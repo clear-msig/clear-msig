@@ -10,7 +10,9 @@ describe("readable approval landing experience", () => {
   it("keeps core content visible in server-rendered/no-JavaScript HTML", () => {
     const html = renderToStaticMarkup(createElement(HomePage));
     expect(html).toContain("Sign intents.");
-    expect(html).toContain("Know what");
+    expect(html).toContain("Every approval.");
+    expect(html).toContain("Crystal clear.");
+    expect(html).toContain("No transaction or signature.");
     expect(html).toContain("Illustrative demo");
     expect(html).toContain("External execution gated");
     expect(html).toContain("Your recovery plan");

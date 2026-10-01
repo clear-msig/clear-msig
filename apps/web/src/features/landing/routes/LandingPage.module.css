@@ -80,29 +80,12 @@
   font-size: 13px;
   font-weight: 550;
 }
-.hero {
-  text-align: center;
-  padding: 40px 24px 22px;
-}
 .eyebrow {
   font-size: 12px !important;
   letter-spacing: 0.16em;
   font-weight: 600;
   color: var(--accent) !important;
   margin: 0 0 18px !important;
-}
-.hero h1 {
-  font-size: 72px;
-  letter-spacing: -3.7px;
-  line-height: 1.08;
-  font-weight: 500;
-  margin: 0;
-}
-.intro {
-  color: var(--muted);
-  font-size: 18px;
-  line-height: 1.55;
-  margin: 16px 0 18px;
 }
 .actions {
   display: flex;
@@ -133,14 +116,6 @@
 .primary:hover,
 .demoButton:hover {
   background: #d8ff33;
-}
-.preview {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 14px 0 0;
-}
-.mobileBreak {
-  display: none;
 }
 
 .instrument {
@@ -389,16 +364,6 @@
   gap: 9px;
   align-items: center;
 }
-.signature {
-  text-align: center;
-  font-size: 14px;
-  color: var(--muted);
-  margin: 23px 0 0;
-  letter-spacing: -0.3px;
-}
-.signature em {
-  color: var(--accent);
-}
 
 .chapters,
 .products {
@@ -592,9 +557,6 @@
   .deviceRow > span:last-child {
     display: none;
   }
-  .hero h1 {
-    font-size: 64px;
-  }
   .footer {
     flex-wrap: wrap;
   }
@@ -619,29 +581,12 @@
     padding: 0 12px;
     gap: 10px;
   }
-  .hero {
-    padding: 38px 20px 28px;
-  }
   .eyebrow {
     letter-spacing: 0.1em;
     margin-bottom: 16px !important;
   }
-  .hero h1 {
-    font-size: 43px;
-    line-height: 1.1;
-    letter-spacing: -1.9px;
-  }
-  .mobileBreak {
-    display: block;
-  }
   .desktopBreak {
     display: none;
-  }
-  .intro {
-    font-size: 16px;
-    line-height: 1.55;
-    margin: 18px auto 22px;
-    max-width: 335px;
   }
   .actions {
     gap: 12px;
@@ -654,9 +599,6 @@
   }
   .primary {
     padding: 0 14px;
-  }
-  .preview {
-    margin-top: 12px;
   }
   .instrument {
     margin: 0 16px;
@@ -704,9 +646,6 @@
   }
   .deviceRow {
     padding: 14px 20px;
-  }
-  .signature {
-    font-size: 13px;
   }
   .chapters,
   .products {
@@ -802,14 +741,8 @@
 }
 
 @media (max-width: 350px) {
-  .hero h1 {
-    font-size: 38px;
-  }
   .actions {
     gap: 0 14px;
-  }
-  .hero {
-    padding-top: 30px;
   }
   .primary {
     min-height: 46px;
@@ -829,5 +762,623 @@
   .avatar {
     width: 28px;
     height: 28px;
+  }
+}
+
+/* Public introduction: tactile illustration, with complete review further below. */
+.hero {
+  max-width: 1280px;
+  margin: auto;
+  min-height: 720px;
+  padding: 65px 40px 0;
+  display: grid;
+  grid-template-columns: 1.08fr 1fr;
+  align-items: center;
+  column-gap: 16px;
+  text-align: left;
+}
+.heroCopy {
+  padding-bottom: 32px;
+}
+.hero .eyebrow {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.14em;
+  margin-bottom: 28px !important;
+}
+.hero h1 {
+  font-size: clamp(60px, 5.8vw, 83px);
+  line-height: 1.03;
+  letter-spacing: -0.065em;
+  font-weight: 600;
+}
+.hero h1 em {
+  font-style: italic;
+  font-weight: 450;
+  color: var(--accent);
+}
+.hero .intro {
+  font-size: 17px;
+  line-height: 1.65;
+  margin: 27px 0 32px;
+  max-width: 450px;
+}
+.hero .actions {
+  justify-content: flex-start;
+  gap: 27px;
+}
+.hero .primary {
+  min-height: 56px;
+  padding: 0 24px;
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 #ebebeb66,
+    0 4px 0 #ccff0026;
+  font-size: 15px;
+  gap: 28px;
+}
+.hero .secondary {
+  font-size: 13px;
+}
+.hero .preview {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  margin-top: 23px;
+}
+.preview > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.heroFoot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  min-height: 88px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.heroFoot p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  letter-spacing: -0.4px;
+}
+.heroFoot em {
+  color: var(--accent);
+}
+.heroFoot a {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.heroFoot > span {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+}
+.folio {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+.folioStage {
+  height: 520px;
+  position: relative;
+  isolation: isolate;
+}
+.folioLayer {
+  position: absolute;
+  width: 275px;
+  height: 308px;
+  border-radius: 23px;
+  padding: 24px;
+  box-shadow:
+    inset 0 1px 1px #ebebeb35,
+    0 25px 40px #0009;
+  border: 1px solid #52525b;
+}
+.policyLayer {
+  left: 5%;
+  top: 28px;
+  transform: rotate(-11deg);
+  background: linear-gradient(145deg, #343438, #18181d 80%);
+}
+.peopleLayer {
+  right: 1%;
+  top: 66px;
+  transform: rotate(11deg);
+  background: linear-gradient(140deg, #27272a, #131316);
+}
+.layerLabel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 550;
+}
+.layerLabel svg {
+  color: var(--accent);
+}
+.folioLayer > strong {
+  display: block;
+  margin-top: 25px;
+  font-size: 23px;
+  letter-spacing: -0.7px;
+  line-height: 1.2;
+  font-weight: 450;
+}
+.layerFoot {
+  position: absolute;
+  bottom: 22px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.layerLines {
+  margin-top: 23px;
+  display: grid;
+  gap: 9px;
+}
+.layerLines i {
+  display: block;
+  height: 4px;
+  border-radius: 3px;
+  background: #52525b;
+  width: 65%;
+}
+.layerLines i:nth-child(2) {
+  width: 80%;
+}
+.layerLines i:nth-child(3) {
+  width: 50%;
+}
+.layerPeople {
+  display: flex;
+  margin-top: 25px;
+}
+.layerPeople i,
+.folioApproval i {
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  border-radius: 50%;
+  border: 1px solid #52525b;
+  background: #27272a;
+  width: 44px;
+  height: 44px;
+  margin-right: -7px;
+  font-size: 13px;
+}
+.frontLayer {
+  position: absolute;
+  top: 137px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 340px;
+  padding: 23px 25px 0;
+  background: linear-gradient(120deg, #27272a, #18181d 50%, #131316);
+  border: 1px solid #52525b;
+  border-radius: 25px;
+  box-shadow:
+    inset 0 1px 0 #ebebeb66,
+    inset 0 -4px 0 #0006,
+    0 30px 45px #0009,
+    0 3px 0 #333336;
+}
+.folioCardTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+.folioCardTop small {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.folioGlyph {
+  width: 35px;
+  height: 35px;
+  border: 1px solid #52525b;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.folioSerial {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+.folioAmount {
+  font-size: 74px;
+  line-height: 1.1;
+  letter-spacing: -4px;
+  margin: 20px 0 14px;
+  font-weight: 500;
+}
+.folioAmount > span {
+  font-size: 26px;
+  letter-spacing: -1px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.folioDestination {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.folioDestination > span {
+  color: var(--muted);
+}
+.folioDestination strong {
+  font-weight: 500;
+}
+.folioDestination svg {
+  margin-left: auto;
+  color: var(--muted);
+}
+.folioRule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 15px 0;
+}
+.folioRule svg {
+  color: var(--accent);
+}
+.folioRule svg:last-child {
+  margin-left: auto;
+}
+.folioApproval {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding-bottom: 19px;
+}
+.folioApproval > div {
+  display: flex;
+}
+.folioApproval i {
+  width: 29px;
+  height: 29px;
+  font-size: 10px;
+  margin-right: -6px;
+  border: 2px solid #18181d;
+}
+.folioApproval strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+}
+.folioApproval small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+.folioReceipt {
+  border-top: 1px dashed #52525b;
+  display: flex;
+  justify-content: space-between;
+  padding: 13px 0 16px;
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+.folioReceipt > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: -0.3px;
+}
+.folio figcaption {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 10px;
+}
+.demoHeading {
+  max-width: 1000px;
+  margin: 95px auto 36px;
+}
+.demoHeading h2 {
+  font-size: 47px;
+  font-weight: 450;
+  line-height: 1.12;
+  letter-spacing: -1.8px;
+  margin: 0;
+}
+.demoHeading h2 span {
+  color: var(--muted);
+}
+.demoHeading > p:last-child {
+  color: var(--muted);
+  max-width: 470px;
+  font-size: 16px;
+  line-height: 1.65;
+  margin-top: 20px;
+}
+@media (max-width: 1100px) and (min-width: 701px) {
+  .hero {
+    padding: 40px 32px 0;
+    column-gap: 0;
+    min-height: 650px;
+  }
+  .hero h1 {
+    font-size: 60px;
+  }
+  .folioLayer {
+    width: 220px;
+  }
+  .frontLayer {
+    width: 290px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .hero .actions {
+    flex-wrap: wrap;
+    gap: 12px 24px;
+  }
+  .demoHeading {
+    margin-left: 32px;
+    margin-right: 32px;
+  }
+}
+@media (max-width: 700px) {
+  .header {
+    height: 64px;
+    padding: 0 24px;
+    border: 0;
+  }
+  .header nav {
+    display: none;
+  }
+  .headerAction {
+    border: 0;
+    padding: 0 4px;
+  }
+  .hero {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0 24px;
+    gap: 0;
+  }
+  .folio {
+    order: -1;
+    max-width: 390px;
+    margin: 0 auto 26px;
+  }
+  .folioStage {
+    height: 375px;
+  }
+  .folioLayer {
+    width: 200px;
+    height: 221px;
+    border-radius: 19px;
+    padding: 18px;
+  }
+  .policyLayer {
+    left: 3%;
+    top: 23px;
+  }
+  .peopleLayer {
+    right: 1%;
+    top: 48px;
+  }
+  .layerLabel {
+    font-size: 12px;
+    gap: 7px;
+  }
+  .layerLabel svg {
+    width: 16px;
+  }
+  .folioLayer > strong {
+    font-size: 19px;
+    margin-top: 18px;
+  }
+  .layerFoot {
+    font-size: 8px;
+    bottom: 16px;
+  }
+  .frontLayer {
+    top: 85px;
+    width: 248px;
+    border-radius: 20px;
+    padding: 16px 18px 0;
+  }
+  .folioCardTop {
+    font-size: 8px;
+    gap: 8px;
+  }
+  .folioCardTop small {
+    font-size: 9px;
+  }
+  .folioGlyph {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+  .folioGlyph svg {
+    width: 18px;
+  }
+  .folioSerial {
+    font-size: 10px;
+  }
+  .folioAmount {
+    font-size: 50px;
+    letter-spacing: -2.7px;
+    margin: 12px 0 10px;
+  }
+  .folioAmount > span {
+    font-size: 21px;
+  }
+  .folioDestination {
+    font-size: 12px;
+    padding-bottom: 10px;
+    gap: 6px;
+  }
+  .folioRule {
+    font-size: 12px;
+    padding: 10px 0;
+    gap: 6px;
+  }
+  .folioRule svg {
+    width: 13px;
+  }
+  .folioApproval {
+    gap: 13px;
+    padding-bottom: 12px;
+  }
+  .folioApproval i {
+    width: 24px;
+    height: 24px;
+    font-size: 9px;
+  }
+  .folioApproval strong {
+    font-size: 11px;
+  }
+  .folioApproval small {
+    font-size: 10px;
+  }
+  .folioReceipt {
+    padding: 9px 0 11px;
+    font-size: 7px;
+  }
+  .folioReceipt > span:last-child {
+    font-size: 9px;
+  }
+  .folio figcaption {
+    margin-top: 12px;
+    font-size: 11px;
+  }
+  .heroCopy {
+    width: 100%;
+    max-width: 390px;
+    padding: 0;
+  }
+  .hero .eyebrow {
+    font-size: 10px !important;
+    letter-spacing: 0.11em;
+    margin-bottom: 14px !important;
+  }
+  .hero h1 {
+    font-size: clamp(39px, 11.3vw, 55px);
+    line-height: 1.03;
+    letter-spacing: -0.06em;
+  }
+  .hero .intro {
+    font-size: 14px;
+    margin: 17px 0 22px;
+    max-width: 330px;
+    line-height: 1.6;
+  }
+  .hero .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-items: stretch;
+  }
+  .hero .primary {
+    width: 100%;
+    justify-content: space-between;
+    min-height: 54px;
+    border-radius: 13px;
+    padding: 0 20px;
+  }
+  .hero .secondary {
+    min-height: 44px;
+    justify-content: center;
+    font-size: 12px;
+  }
+  .hero .preview {
+    margin-top: 4px;
+    font-size: 11px;
+    justify-content: center;
+  }
+  .heroFoot {
+    width: 100%;
+    margin-top: 32px;
+    min-height: 75px;
+  }
+  .heroFoot p {
+    font-size: 14px;
+  }
+  .heroFoot > span {
+    display: none;
+  }
+  .heroFoot a {
+    font-size: 10px;
+    gap: 6px;
+  }
+  .demoHeading {
+    margin: 64px 24px 28px;
+  }
+  .demoHeading h2 {
+    font-size: 35px;
+    letter-spacing: -1.3px;
+  }
+  .demoHeading > p:last-child {
+    font-size: 14px;
+  }
+}
+@media (max-width: 350px) {
+  .header {
+    padding: 0 20px;
+  }
+  .hero {
+    padding: 0 20px;
+  }
+  .folioLayer {
+    width: 170px;
+  }
+  .folio {
+    margin-bottom: 23px;
+  }
+  .frontLayer {
+    width: 232px;
+  }
+  .hero h1 {
+    font-size: 38px;
+  }
+  .heroFoot a {
+    max-width: 120px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .folio {
+    animation: folio-arrive 550ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
+  }
+  @keyframes folio-arrive {
+    from {
+      opacity: 0;
+      translate: 0 12px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+}
+@media print {
+  .folio {
+    animation: none;
+    opacity: 1;
   }
 }
