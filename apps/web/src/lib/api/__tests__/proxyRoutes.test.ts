@@ -1,15 +1,22 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import * as backend from "@/app/api/backend/[...path]/route";
-import * as ramp from "@/app/api/ramp/[...path]/route";
+let ramp: typeof import("@/app/api/ramp/[...path]/route");
+beforeEach(async () => {
+  vi.resetModules();
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("RAMP_API_URL", "https://settlement.test");
+  vi.stubEnv("NEXT_PUBLIC_RAMP_API_URL", undefined);
+  ramp = await import("@/app/api/ramp/[...path]/route");
+});
 
 vi.mock("server-only", () => ({}));
 
 vi.mock("@/lib/config", () => ({ appConfig: { backendApiUrl: "https://backend.test" } }));
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
-for (const [name, route] of [["backend", backend], ["ramp", ramp]] as const) {
+for (const [name, route] of [["backend", () => backend], ["ramp", () => ramp]] as const) {
   describe(`${name} proxy`, () => {
     const context = { params: Promise.resolve({ path: ["v1", "test"] }) };
     const request = (signal?: AbortSignal) => new NextRequest(`https://clearsig.test/api/${name}/v1/test`, {
@@ -20,7 +27,7 @@ for (const [name, route] of [["backend", backend], ["ramp", ramp]] as const) {
     it("forwards JSON and request IDs with a bounded cancellable fetch", async () => {
       const fetch = vi.fn().mockResolvedValue(Response.json({ ok: true }, { headers: { "x-request-id": "upstream" } }));
       vi.stubGlobal("fetch", fetch);
-      const response = await route.POST(request(), context);
+      const response = await route().POST(request(), context);
       expect(response.status).toBe(200);
       expect(response.headers.get("x-request-id")).toBe("upstream");
       expect(await response.json()).toEqual({ ok: true });
@@ -31,7 +38,7 @@ for (const [name, route] of [["backend", backend], ["ramp", ramp]] as const) {
 
     it.each([204, 205, 304])("preserves bodyless upstream status %i", async (status) => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status })));
-      const response = await route.POST(request(), context);
+      const response = await route().POST(request(), context);
       expect(response.status).toBe(status);
       expect(await response.text()).toBe("");
     });
@@ -41,7 +48,7 @@ for (const [name, route] of [["backend", backend], ["ramp", ramp]] as const) {
       vi.stubGlobal("fetch", fetch);
       const controller = new AbortController();
       controller.abort();
-      expect((await route.POST(request(controller.signal), context)).status).toBe(499);
+      expect((await route().POST(request(controller.signal), context)).status).toBe(499);
       expect(fetch).not.toHaveBeenCalled();
     });
 
@@ -51,12 +58,12 @@ for (const [name, route] of [["backend", backend], ["ramp", ramp]] as const) {
         controller.abort();
         return Promise.reject(init.signal?.reason);
       }));
-      expect((await route.POST(request(controller.signal), context)).status).toBe(499);
+      expect((await route().POST(request(controller.signal), context)).status).toBe(499);
     });
 
     it("returns an explicit timeout without encouraging duplicate submissions", async () => {
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("Timeout", "TimeoutError")));
-      const response = await route.POST(request(), context);
+      const response = await route().POST(request(), context);
       expect(response.status).toBe(504);
       expect((await response.json()).error).toMatch(/before retrying/i);
     });

@@ -1,6 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { POST } from "@/app/api/ramp/[...path]/route";
+let POST: typeof import("@/app/api/ramp/[...path]/route").POST;
+beforeEach(async () => {
+  // Configure the mocked service before evaluating module-level production guards.
+  vi.resetModules();
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("RAMP_API_URL", "https://settlement.test");
+  vi.stubEnv("NEXT_PUBLIC_RAMP_API_URL", undefined);
+  ({ POST } = await import("@/app/api/ramp/[...path]/route"));
+});
 
 const context = { params: Promise.resolve({ path: ["v1", "ramp", "intents"] }) };
 function request(headers: Record<string, string> = {}, body = "{}") {
@@ -9,7 +17,7 @@ function request(headers: Record<string, string> = {}, body = "{}") {
     headers: { host: "clearsig.test", origin: "https://clearsig.test", "content-type": "application/json", ...headers },
   });
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("ramp authenticated proxy", () => {
   it("forwards bearer and wallet proof context but drops caller-selected identity and cookies", async () => {

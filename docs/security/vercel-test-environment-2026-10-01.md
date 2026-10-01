@@ -1,0 +1,11 @@
+# Vercel proxy test failure — 1 October 2026
+
+The reported review commit was `763c169e1b852e07c111efe9846f0d73ef405700`, not the later local correction `0c95c5c7`. An isolated checkout with that exact source and lockfile was installed using `npm ci --ignore-scripts` from the official registry. No hosted settings or secret values were read or changed. This reproduces the test failure, not the entire Vercel platform/install lifecycle.
+
+With public synthetic build conditions `NODE_ENV=production VERCEL=1 VERCEL_ENV=preview` and both ramp target variables absent, its full Vitest run reproduced **175 files, 2 failed / 173 passed; 10 failed / 1,016 passed of 1,026 tests**, exactly matching the user log. The second file is `lib/api/__tests__/proxyRoutes.test.ts` (seven failures); `lib/ramp/__tests__/proxyAuth.test.ts` has three. No additional user logs were needed.
+
+The ramp route captures `NODE_ENV` and its target URL at module evaluation. Test setup changes NODE_ENV in `beforeEach`, after static route imports. Thus the real production missing-target guard returns503 before forwarding/body parsing. That is correct fail-closed behavior, not grounds to move or remove the guard.
+
+The two forwarding test suites now explicitly set production mode and a synthetic `.test` settlement target before dynamically importing the route. All network calls remain mocked, and environment/global stubs are restored. Seven additional configuration tests assert missing-target503/no credential forwarding across preview/production, origin-first rejection, private/public target precedence and the explicit development fallback. Existing413/401/cancellation/timeout expectations are unchanged.
+
+Applying only those three test-file changes to the older checkout gives **176 files /1,033 tests passing plus14 script tests** under the same production conditions. The unchanged current route and original two test files were byte-identical to the older source before the fix; this was also reproduced on current local source. The latest consolidated suite is larger and reported separately. No production route, build command, test selection, dependency lockfile, or budget was changed by this fix. Bundle failures remain independent release gates.
