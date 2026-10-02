@@ -17,13 +17,13 @@ import {
   lamportsToSafeNumber,
   tagExecuteFailure,
 } from "@/features/send/domain/solanaSend";
-import type { ExecuteSolanaSendInput } from "@/features/send/infrastructure/executeSolanaSend";
+import type { PolicyScopedSolanaSendInput } from "@/features/send/infrastructure/executeSolanaSend";
 import type { PublicKey } from "@solana/web3.js";
 
 interface FinalizeSolanaSendInput {
   dry: import("@/lib/api/types").TypedDryRunDescriptor;
   summary: import("@/lib/clearsign/typedMessage").ExpectedTypedClearSignMessage;
-  input: ExecuteSolanaSendInput;
+  input: PolicyScopedSolanaSendInput;
   submitted: Record<string, unknown>;
   proposal: string;
   destination: string;
@@ -89,6 +89,7 @@ export async function finalizeSolanaSend({
       const approveSigned = await signTypedDescriptor(approveDry, approvalOptions);
       input.attempt.assertCurrent();
       input.assertFormCurrent();
+      await input.assertPolicyCurrent();
       await backendApi.submit.approveTypedProposal(walletName, proposal, {
         ...approveSigned,
         expiry: approveDry.expiry,
@@ -153,8 +154,9 @@ export async function finalizeSolanaSend({
         catch (error) { throw savedProposalError(proposal, error); }
         const extraSigned = await signTypedDescriptor(extraDry, extraOptions);
         input.attempt.assertCurrent();
-      input.assertFormCurrent();
-      await backendApi.submit.approveTypedProposal(walletName, proposal, {
+        input.assertFormCurrent();
+        await input.assertPolicyCurrent();
+        await backendApi.submit.approveTypedProposal(walletName, proposal, {
           ...extraSigned,
           expiry: extraDry.expiry,
         });
@@ -185,6 +187,7 @@ export async function finalizeSolanaSend({
     try {
       input.attempt.assertCurrent();
       input.assertFormCurrent();
+      await input.assertPolicyCurrent();
       executed = await backendApi.executeTypedSolSend(walletName, proposal, {
         recipient: destination,
         amountLamports: lamportsToSafeNumber(lamportsBigint),

@@ -59,6 +59,7 @@ function persistAllowlists(rows: Allowlist[]): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(ALLOWLIST_KEY, JSON.stringify(rows));
+    window.dispatchEvent(new Event("clear:personal-policy-changed"));
   } catch {
     /* localStorage full or blocked - fall through */
   }
@@ -133,6 +134,7 @@ function persistTimeWindows(rows: TimeWindow[]): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(TIME_WINDOW_KEY, JSON.stringify(rows));
+    window.dispatchEvent(new Event("clear:personal-policy-changed"));
   } catch {
     /* fall through */
   }

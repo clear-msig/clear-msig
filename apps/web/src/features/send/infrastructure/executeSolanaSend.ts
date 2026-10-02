@@ -1,3 +1,4 @@
+import { captureSolanaPolicyReview } from "./solanaPolicyReview";
 import type { Connection, PublicKey } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import { formatUnixSigningExpiry } from "@/lib/api/expiry";
@@ -39,15 +40,38 @@ export interface ExecuteSolanaSendInput {
 import { finalizeSolanaSend } from "@/features/send/infrastructure/finalizeSolanaSend";
 import { prepareSolanaSendProposal } from "@/features/send/infrastructure/prepareSolanaSendProposal";
 
-export async function executeSolanaSend(input: ExecuteSolanaSendInput) {
-  input.attempt.assertCurrent();
-  const prepared = await prepareSolanaSendProposal(input);
-  input.attempt.assertCurrent();
-  const proposal = prepared.submitted.proposal;
-  if (typeof proposal !== "string" || proposal.length === 0) {
-    throw new Error("Request identity is missing. Check the saved request before continuing.");
-  }
-  const result = await finalizeSolanaSend({ input, proposal, ...prepared });
-  input.attempt.assertCurrent();
-  return result;
+export interface PolicyScopedSolanaSendInput extends ExecuteSolanaSendInput {
+  assertPolicyCurrent: () => Promise<void>;
+  activePolicyCommitment: string;
+}
+
+export async function executeSolanaSend(original: ExecuteSolanaSendInput) {
+  original.attempt.assertCurrent();
+  if (!original.walletPda) throw new Error("Wallet is still loading. Try again.");
+  const policy = await captureSolanaPolicyReview(original.connection, original.walletPda);
+  const assertPolicyCurrent = async () => {
+    await policy.assertCurrent();
+    original.attempt.assertCurrent();
+    original.assertFormCurrent();
+  };
+  const input: PolicyScopedSolanaSendInput = {
+    ...original, assertPolicyCurrent, activePolicyCommitment: policy.commitment,
+    signTypedDescriptor: async (...args) => {
+      // The real signing hook performs no await before handing these bytes to the wallet.
+      await assertPolicyCurrent();
+      const signed = await original.signTypedDescriptor(...args);
+      await assertPolicyCurrent();
+      return signed;
+    },
+  };
+  try {
+    const prepared = await prepareSolanaSendProposal(input);
+    input.attempt.assertCurrent();
+    const proposal = prepared.submitted.proposal;
+    if (typeof proposal !== "string" || proposal.length === 0)
+      throw new Error("Request identity is missing. Check the saved request before continuing.");
+    const result = await finalizeSolanaSend({ input, proposal, ...prepared });
+    input.attempt.assertCurrent();
+    return result;
+  } finally { policy.dispose(); }
 }

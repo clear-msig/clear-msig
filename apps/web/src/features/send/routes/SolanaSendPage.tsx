@@ -16,6 +16,7 @@ import { SolanaSigningReview } from "@/features/send/ui/solana/SolanaSigningRevi
 // is lamports. For the preview demo we treat $1 ≈ 1 SOL (no oracle
 // yet) - a price feed plugs in here when the network is live.
 
+import { subscribeSendPolicyChanges } from "@/features/send/infrastructure/solanaPolicyReview";
 import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
 import { SavedSendRecovery } from "@/features/send/ui/SavedSendRecovery";
@@ -362,7 +363,7 @@ function SendPage() {
     walletName, requestAccountKey(wallet.sessionSubject, wallet.publicKey?.toBase58() ?? null),
     connection.rpcEndpoint, wallet.isLedger, walletQuery.data?.pda?.toBase58(),
     amount, note, resolved, firstIntent?.account,
-  ], (_key, value) => typeof value === "bigint" ? value.toString() : value));
+  ], (_key, value) => typeof value === "bigint" ? value.toString() : value), subscribeSendPolicyChanges);
   const submit = useMutation({
     mutationFn: async () => {
       const attempt = recovery.begin();

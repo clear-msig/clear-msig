@@ -48,8 +48,8 @@ provider/account permissions are part of this continuation.
 
 - The wallet guide is explicitly opened by the user, remains keyboard accessible,
   restores focus on close and leaves wallet actions/pending approvals unobstructed.
-- SOL compose callers retain complete contact/SNS/raw destinations, exact entered
-  amounts and nine-decimal fee reserves. The previous four-decimal presentation
+- SOL compose preview details retain complete contact/SNS/raw destinations, exact entered
+  amounts and nine-decimal fee reserves. The previous four-decimal preview presentation
   could make a one-lamport transfer or small reserve appear to be zero.
 - The SOL send flow now renders the descriptor-verified, exact prepared message
   before the first signature and before any separate approval signature. Each
@@ -79,3 +79,46 @@ the signer was a synthetic counter, with external requests blocked. This is not
 live authenticated route, hardware or financial integration coverage. No measured
 time-to-value improvement is claimed. Rust/SBF code and the approved palette are
 unchanged.
+
+
+## Policy freshness follow-up
+
+The independent review found a stale-review UX gap, not a demonstrated on-chain
+permission bypass. The SOL caller now captures local policy authoring data and
+reads the active on-chain WalletPolicy commitment before preparation. Prepared
+policy bytes must match a nonempty captured active commitment. It rereads policy
+before displaying the document, at review completion, immediately before the
+signer handoff, after the signature, and before submission/execution. Failed reads
+stop the flow. A local policy edit closes a pending review and invalidates its
+one-use session, including cross-tab events and change-then-restore events.
+
+Local snapshots cover advanced rules, budget, recipient allowlist, time window
+and member allowances. Invalidation is deliberately conservative across wallets
+on this device. Chain reads are snapshots: a change after the last RPC read can
+still race the client; program checks remain the execution authority. This is not
+a continuous finalized-state subscription or independent verification.
+
+Regression coverage includes active-policy changes during proposal and approval
+reviews, a change between accepted review and signer handoff, changed policy
+while a signature is pending, RPC failure, preparation/active-commitment mismatch,
+local edits without an event, cross-tab ABA, and retention of the existing request.
+Chromium at 1440/390/320 verifies actual review-hook cancellation and new-review
+recovery, including a policy event in the same event-loop turn as confirmation.
+The browser signer is a counter; RPC/wallet orchestration tests use synthetic
+providers, not live signing.
+
+Precision boundary: the exact prepared-message review and compose preview rows
+retain entered precision. The compose input, Use max, compose headline and receipt
+still use four-decimal input/formatting. End-to-end nine-decimal UX is **not**
+claimed. A separate bounded cleanup can use nine-decimal input and bigint-based
+Max/display formatting while keeping the existing fee reserve; it needs actual
+compose/receipt caller regressions. No financial semantics or fee reserve was
+changed by this policy repair. The public security page now correctly describes
+the full-address SOL review.
+
+Final local validation: 227 suites / 1,769 tests and 27 script tests passed (the
+six isolated Redis cases were run explicitly with the Redis binary after the
+otherwise passing final verification run). Lint, typecheck, intent, metadata and
+architecture checks, production compile and unchanged bundle gates passed.
+Runtime maxima remain 998.8/999 KiB standard, 1123.8/1124 external and
+990.7/991 legacy Turnkey. Rust/SBF source and colors are unchanged.

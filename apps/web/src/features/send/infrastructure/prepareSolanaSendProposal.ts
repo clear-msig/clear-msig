@@ -17,7 +17,7 @@ import {
   assertPolicyNotDenied,
   resolvePolicyEnforcement,
 } from "@/lib/policies/enforce";
-import { resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
+import { EMPTY_POLICY_COMMITMENT, resolvePersistentSendPolicy } from "@/lib/policies/persistentWalletPolicy";
 import {
   evaluatePolicy,
   PolicyViolationError,
@@ -26,9 +26,9 @@ import {
   policyCommitmentHex,
   randomActionLabel,
 } from "@/features/send/domain/solanaSend";
-import type { ExecuteSolanaSendInput } from "@/features/send/infrastructure/executeSolanaSend";
+import type { PolicyScopedSolanaSendInput } from "@/features/send/infrastructure/executeSolanaSend";
 
-export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
+export async function prepareSolanaSendProposal(input: PolicyScopedSolanaSendInput) {
   const {
     wallet,
     connection,
@@ -88,6 +88,11 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
     walletName,
     0,
   );
+
+  if (input.activePolicyCommitment !== EMPTY_POLICY_COMMITMENT &&
+      onchainPolicy?.commitmentHex !== input.activePolicyCommitment) {
+    throw new Error("Active wallet protection changed during preparation. Prepare a new request.");
+  }
 
   // Policy pre-flight. Block before the signing request opens so the
   // user never signs a doomed send. Sources of truth: localStorage
@@ -168,6 +173,7 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
   // server-prepared document, not an independent decoder or hardware proof.
   input.attempt.assertCurrent();
   input.assertFormCurrent();
+  await input.assertPolicyCurrent();
   const expectedTyped = Object.freeze({
     envelopeHash: summary.envelopeHash,
     payloadHash: summary.payloadHash,
@@ -193,6 +199,7 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
   // continue to be one wallet popup.
   input.attempt.assertCurrent();
   input.assertFormCurrent();
+  await input.assertPolicyCurrent();
   input.attempt.submitting(reviewedCreationProposalAddress(dry, summary));
   setPhase("submitting");
   const submitted = (await backendApi.submit.createTypedProposal(walletName, {

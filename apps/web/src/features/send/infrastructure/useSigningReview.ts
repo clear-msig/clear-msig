@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SigningReview } from "../domain/signingReview";
 
 /** A review is a one-use decision for one form revision, never authority itself. */
-export function useSigningReview(scope: string) {
+export function useSigningReview(scope: string, subscribeInvalidation?: (invalidate: () => void) => () => void) {
   const current = useRef({ scope, revision: 0, mounted: true });
   if (current.current.scope !== scope) {
     current.current.scope = scope;
@@ -22,6 +22,10 @@ export function useSigningReview(scope: string) {
     setReview(null);
     waiting?.reject(new Error("Signing review cancelled. No signing was authorized by this review."));
   }, []);
+  useEffect(() => subscribeInvalidation?.(() => {
+    current.current.revision += 1;
+    cancel();
+  }), [subscribeInvalidation, cancel]);
   useEffect(() => {
     // Includes recipient/amount/policy and account changes; never reuse an old review.
     cancel();

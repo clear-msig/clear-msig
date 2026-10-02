@@ -45,6 +45,7 @@ function persist(rows: FriendAllowance[]) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+    window.dispatchEvent(new Event("clear:personal-policy-changed"));
   } catch {
     // Storage failures aren't worth blocking on - the in-memory
     // copy still works for the current session.

@@ -13,6 +13,7 @@ import { formatTimestamp } from "@/lib/msig/datetime";
 import { ProposalStatus } from "@/lib/msig";
 
 const api = vi.hoisted(() => ({
+  policyCommitment: vi.fn(),
   prepare: vi.fn(),
   submit: vi.fn(),
   execute: vi.fn(),
@@ -54,7 +55,9 @@ vi.mock("@/lib/policies/enforce", () => ({
   assertPolicyNotDenied: () => {},
 }));
 vi.mock("@/lib/policies/persistentWalletPolicy", () => ({
+  EMPTY_POLICY_COMMITMENT: "00".repeat(32),
   resolvePersistentSendPolicy: async () => null,
+  currentWalletPolicyCommitment: api.policyCommitment,
 }));
 vi.mock("@/lib/retail/policyEvaluation", () => ({
   evaluatePolicy: () => ({ ok: true }),
@@ -127,6 +130,7 @@ function fixture() {
   return { recovery, attempt, input, sign, storage };
 }
 beforeEach(() => {
+  api.policyCommitment.mockReset().mockResolvedValue("00".repeat(32));
   vi.clearAllMocks();
   api.prepare.mockImplementation(async (_name, request) => {
     const expiry = Math.floor(
@@ -200,6 +204,60 @@ describe("native SOL orchestration (synthetic RPC/wallet; real canonical and rec
     expect((review.mock.calls[0]?.[0] as { document: string }).document).toContain("Decision: PROPOSE");
     expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
     decision.resolve(); await run; expect(f.sign).toHaveBeenCalledOnce();
+  });
+  it("rejects policy bytes resolved under a different active commitment during preparation", async () => {
+    const f = fixture();
+    api.policyCommitment.mockResolvedValue("55".repeat(32));
+    await expect(executeSolanaSend(f.input)).rejects.toThrow("changed during preparation");
+    expect(f.input.reviewBeforeSigning).not.toHaveBeenCalled();
+    expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+  });
+  it("rejects an active policy change while the proposal review is open", async () => {
+    const f = fixture(); const decision = deferred<void>();
+    f.input.reviewBeforeSigning = vi.fn(() => decision.promise);
+    const run = executeSolanaSend(f.input);
+    await vi.waitFor(() => expect(f.input.reviewBeforeSigning).toHaveBeenCalledOnce());
+    api.policyCommitment.mockResolvedValue("11".repeat(32));
+    decision.resolve();
+    await expect(run).rejects.toThrow("Active wallet protection changed");
+    expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+  });
+  it("rechecks policy between accepted review and signer handoff", async () => {
+    const f = fixture();
+    f.input.reviewBeforeSigning = vi.fn(async () => {
+      // Post-review check passes; the separate signer-handoff check sees a change.
+      api.policyCommitment.mockResolvedValueOnce("00".repeat(32)).mockResolvedValue("22".repeat(32));
+    });
+    await expect(executeSolanaSend(f.input)).rejects.toThrow("Active wallet protection changed");
+    expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+  });
+  it("fails closed when the post-review policy RPC read fails", async () => {
+    const f = fixture();
+    f.input.reviewBeforeSigning = vi.fn(async () => {
+      api.policyCommitment.mockRejectedValue(new Error("RPC unavailable"));
+    });
+    await expect(executeSolanaSend(f.input)).rejects.toThrow("RPC unavailable");
+    expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+  });
+  it("does not submit a signature obtained while policy changed", async () => {
+    const f = fixture(); const signature = deferred<Awaited<ReturnType<typeof f.input.signTypedDescriptor>>>();
+    f.sign.mockImplementation(() => signature.promise);
+    const run = executeSolanaSend(f.input);
+    await vi.waitFor(() => expect(f.sign).toHaveBeenCalledOnce());
+    api.policyCommitment.mockResolvedValue("33".repeat(32));
+    signature.resolve({} as Awaited<ReturnType<typeof f.input.signTypedDescriptor>>);
+    await expect(run).rejects.toThrow("Active wallet protection changed");
+    expect(api.submit).not.toHaveBeenCalled(); expect(api.execute).not.toHaveBeenCalled();
+  });
+  it("preserves the existing proposal when policy changes during approval review", async () => {
+    const f = fixture();
+    api.decision.mockResolvedValue({ needsApproveSignature: true, status: ProposalStatus.Active });
+    f.input.reviewBeforeSigning = vi.fn().mockResolvedValueOnce(undefined).mockImplementationOnce(async () => {
+      api.policyCommitment.mockResolvedValue("44".repeat(32));
+    });
+    await expect(executeSolanaSend(f.input)).rejects.toThrow("Active wallet protection changed");
+    expect(f.sign).toHaveBeenCalledOnce(); expect(api.submitApproval).not.toHaveBeenCalled();
+    expect(api.execute).not.toHaveBeenCalled(); expect(f.recovery.saved()?.proposal).toBe(proposal);
   });
   it("reviews a separate approval message before a second signing request", async () => {
     const f = fixture();
