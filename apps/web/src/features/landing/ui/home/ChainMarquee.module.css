@@ -1,0 +1,129 @@
+.strip {
+  max-width: 1184px;
+  margin: 0 auto 80px;
+  padding: 22px 32px;
+  border-top: 1px solid #333336;
+  border-bottom: 1px solid #333336;
+  color: #a3a3a3;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.heading p {
+  font-size: 13px;
+  margin: 0;
+}
+.pause {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 80px;
+  min-height: 44px;
+  background: transparent;
+  color: #ebebeb;
+  font-size: 12px;
+  border: 1px solid #52525b;
+  border-radius: 8px;
+}
+.pause:focus-visible {
+  outline: 2px solid #ccff00;
+  outline-offset: 4px;
+}
+.viewport {
+  overflow: hidden;
+  margin: 20px 0;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 5%,
+    #000 95%,
+    transparent
+  );
+}
+.track {
+  display: flex;
+  width: max-content;
+  animation: network-travel 30s linear infinite;
+}
+.group {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-around;
+  gap: 64px;
+  min-width: 1100px;
+  padding: 0 32px;
+  margin: 0;
+  list-style: none;
+}
+.group li {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 14px;
+  color: #ebebeb;
+  font-size: 17px;
+}
+.group img {
+  display: block;
+  object-fit: contain;
+}
+.track[data-paused="true"],
+.viewport:hover .track,
+.viewport:focus-within .track {
+  animation-play-state: paused;
+}
+.disclosure {
+  font-size: 12px;
+  margin: 0;
+}
+@keyframes network-travel {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (max-width: 640px) {
+  .strip {
+    padding: 18px 20px;
+    margin-bottom: 64px;
+  }
+  .heading p {
+    max-width: 170px;
+    line-height: 1.5;
+  }
+  .group {
+    min-width: 800px;
+    gap: 38px;
+    padding: 0 19px;
+  }
+  .group li {
+    font-size: 15px;
+    gap: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce), print {
+  .track {
+    animation: none;
+    width: 100%;
+    transform: none;
+  }
+  .group {
+    min-width: 0;
+    width: 100%;
+    padding: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px 28px;
+  }
+  .group[aria-hidden="true"],
+  .pause {
+    display: none;
+  }
+  .viewport {
+    mask-image: none;
+  }
+}

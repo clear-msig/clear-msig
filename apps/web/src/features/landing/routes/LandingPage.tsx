@@ -12,12 +12,13 @@ import {
 import { ClearCMark } from "@/components/landing/ClearCMark";
 import { LandingReveal } from "@/components/landing/LandingReveal";
 import s from "./LandingPage.module.css";
+import { ChainMarquee } from "../ui/home/ChainMarquee";
 import { ApprovalFolio } from "../ui/ApprovalFolio";
 
 export default function HomePage() {
   const [reviewed, setReviewed] = useState(false);
   return (
-    <div className={s.page}>
+    <div className={`${s.page} public-brand-surface`}>
       <a href="#landing-content" className={s.skip}>
         Skip to content
       </a>
@@ -73,143 +74,154 @@ export default function HomePage() {
             <span>BUILT FOR SHARED CONTROL</span>
           </div>
         </section>
-        <div className={s.demoHeading}>
-          <p className={s.eyebrow}>LESS GUESSWORK. MORE CONTEXT.</p>
-          <h2>
-            Know what happens.
-            <br />
-            <span>Before it happens.</span>
-          </h2>
-          <p>
-            A closer look at a request. Clear details, visible rules and an
-            explicit decision.
-          </p>
-        </div>
-        <section
-          id="approval"
-          className={s.instrument}
-          aria-labelledby="approval-title"
-        >
-          <div className={s.instrumentBar}>
-            <span>
-              <i aria-hidden="true" />
-              OPERATIONS WALLET
-            </span>
-            <span>Illustrative demo · no transaction</span>
+        <ChainMarquee />
+        <LandingReveal>
+          <div className={s.demoHeading}>
+            <p className={s.eyebrow}>LESS GUESSWORK. MORE CONTEXT.</p>
+            <h2>
+              Know what happens.
+              <br />
+              <span>Before it happens.</span>
+            </h2>
+            <p>
+              A closer look at a request. Clear details, visible rules and an
+              explicit decision.
+            </p>
           </div>
-          <div className={s.workspace}>
-            <div className={s.actionPane}>
-              <div className={s.paneTitle}>
-                <span>01 / THE ACTION</span>
-                <span className={s.network}>Solana devnet</span>
-              </div>
-              <h2 id="approval-title">Send to Operations vault</h2>
-              <p className={s.amount}>
-                5<span>SOL</span>
-              </p>
-              <div className={s.destination}>
-                <span className={s.destinationIcon}>
-                  <ArrowRight size={20} aria-hidden="true" />
-                </span>
-                <div>
-                  <strong>Operations vault</strong>
-                  <span>Saved destination · example</span>
-                </div>
-                <span className={s.destinationTag}>Transfer</span>
-              </div>
-              <div className={s.actionNote}>
-                <LockKeyhole size={15} aria-hidden="true" />
-                <span>These are the details owners review before signing.</span>
-              </div>
+        </LandingReveal>
+        <LandingReveal>
+          <section
+            id="approval"
+            className={s.instrument}
+            aria-labelledby="approval-title"
+          >
+            <div className={s.instrumentBar}>
+              <span>
+                <i aria-hidden="true" />
+                OPERATIONS WALLET
+              </span>
+              <span>Illustrative demo · no transaction</span>
             </div>
-            <div className={s.reviewPane}>
-              <div className={s.paneTitle}>
-                <span>02 / THE RULES</span>
-                <ShieldCheck size={17} aria-hidden="true" />
-              </div>
-              <div className={s.ruleStatus}>
-                <Check size={15} aria-hidden="true" /> Policy checks passed
-              </div>
-              <div className={s.ruleLine}>
-                <span>Transfer limit</span>
-                <strong>5 of 10 SOL</strong>
-              </div>
-              <div
-                className={s.meter}
-                role="img"
-                aria-label="This transfer uses 5 of the 10 SOL limit"
-              >
-                <span />
-              </div>
-              <div className={s.ruleLine}>
-                <span>Destination</span>
-                <strong>Allowed</strong>
-              </div>
-              <div className={s.signerHeader}>
-                <span>03 / THE PEOPLE</span>
-                <span>2 required</span>
-              </div>
-              <div className={s.signers}>
-                <div className={s.avatar}>
-                  S
-                  <span aria-label="Approved">
-                    <Check size={10} />
+            <div className={s.workspace}>
+              <div className={s.actionPane}>
+                <div className={s.paneTitle}>
+                  <span>01 / THE ACTION</span>
+                  <span className={s.network}>Solana devnet</span>
+                </div>
+                <h2 id="approval-title">Send to Operations vault</h2>
+                <p className={s.amount}>
+                  5<span>SOL</span>
+                </p>
+                <div className={s.destination}>
+                  <span className={s.destinationIcon}>
+                    <ArrowRight size={20} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <strong>Operations vault</strong>
+                    <span>Saved destination · example</span>
+                  </div>
+                  <span className={s.destinationTag}>Transfer</span>
+                </div>
+                <div className={s.actionNote}>
+                  <LockKeyhole size={15} aria-hidden="true" />
+                  <span>
+                    These are the details owners review before signing.
                   </span>
                 </div>
-                <div className={s.avatar}>
-                  M
-                  {reviewed && (
-                    <span aria-label="Demo approval">
+              </div>
+              <div className={s.reviewPane}>
+                <div className={s.paneTitle}>
+                  <span>02 / THE RULES</span>
+                  <ShieldCheck size={17} aria-hidden="true" />
+                </div>
+                <div className={s.ruleStatus}>
+                  <Check size={15} aria-hidden="true" /> Policy checks passed
+                </div>
+                <div className={s.ruleLine}>
+                  <span>Transfer limit</span>
+                  <strong>5 of 10 SOL</strong>
+                </div>
+                <div
+                  className={s.meter}
+                  role="img"
+                  aria-label="This transfer uses 5 of the 10 SOL limit"
+                >
+                  <span />
+                </div>
+                <div className={s.ruleLine}>
+                  <span>Destination</span>
+                  <strong>Allowed</strong>
+                </div>
+                <div className={s.signerHeader}>
+                  <span>03 / THE PEOPLE</span>
+                  <span>2 required</span>
+                </div>
+                <div className={s.signers}>
+                  <div className={s.avatar}>
+                    S
+                    <span aria-label="Approved">
                       <Check size={10} />
                     </span>
-                  )}
+                  </div>
+                  <div className={s.avatar}>
+                    M
+                    {reviewed && (
+                      <span aria-label="Demo approval">
+                        <Check size={10} />
+                      </span>
+                    )}
+                  </div>
+                  <div className={s.avatar}>A</div>
+                  <div className={s.signerCount} aria-live="polite">
+                    <strong>
+                      {reviewed ? "2" : "1"} of 2 required approvals
+                    </strong>
+                    <span>
+                      {reviewed
+                        ? "3 members · threshold met in demo"
+                        : "3 members · 1 more needed"}
+                    </span>
+                  </div>
                 </div>
-                <div className={s.avatar}>A</div>
-                <div className={s.signerCount} aria-live="polite">
-                  <strong>
-                    {reviewed ? "2" : "1"} of 2 required approvals
-                  </strong>
-                  <span>
-                    {reviewed
-                      ? "3 members · threshold met in demo"
-                      : "3 members · 1 more needed"}
-                  </span>
-                </div>
+                <button
+                  className={s.demoButton}
+                  onClick={() => setReviewed(!reviewed)}
+                >
+                  {reviewed ? "Reset demonstration" : "Try the approval demo"}
+                  <ArrowRight size={16} aria-hidden="true" />
+                </button>
+                <p className={s.demoNote}>
+                  Local demonstration. No wallet or signature requested.
+                </p>
               </div>
-              <button
-                className={s.demoButton}
-                onClick={() => setReviewed(!reviewed)}
-              >
-                {reviewed ? "Reset demonstration" : "Try the approval demo"}
-                <ArrowRight size={16} aria-hidden="true" />
-              </button>
-              <p className={s.demoNote}>
-                Local demonstration. No wallet or signature requested.
-              </p>
             </div>
-          </div>
-          <div className={s.deviceRow}>
-            <span>
-              <Fingerprint size={17} aria-hidden="true" /> Your device. Your
-              approval.
-            </span>
-            <span>Readable intent / Explicit rules / Shared control</span>
-          </div>
-        </section>
+            <div className={s.deviceRow}>
+              <span>
+                <Fingerprint size={17} aria-hidden="true" /> Your device. Your
+                approval.
+              </span>
+              <span>Readable intent / Explicit rules / Shared control</span>
+            </div>
+          </section>
+        </LandingReveal>
         <section
           id="how-it-works"
           className={s.chapters}
           aria-labelledby="chapters-title"
         >
-          <div className={s.sectionHeading}>
-            <p className={s.eyebrow}>FROM REQUEST TO DECISION</p>
-            <h2 id="chapters-title">
-              Every detail.
-              <br />
-              <span>Before the decision.</span>
-            </h2>
-            <p>Follow the same 5 SOL request through the checks that matter.</p>
-          </div>
+          <LandingReveal>
+            <div className={s.sectionHeading}>
+              <p className={s.eyebrow}>FROM REQUEST TO DECISION</p>
+              <h2 id="chapters-title">
+                Every detail.
+                <br />
+                <span>Before the decision.</span>
+              </h2>
+              <p>
+                Follow the same 5 SOL request through the checks that matter.
+              </p>
+            </div>
+          </LandingReveal>
           <div className={s.chapterRows}>
             <LandingReveal>
               <article className={s.chapter}>
@@ -284,14 +296,16 @@ export default function HomePage() {
           className={s.products}
           aria-labelledby="products-title"
         >
-          <div className={s.sectionHeading}>
-            <p className={s.eyebrow}>ONE CLEAR FOUNDATION</p>
-            <h2 id="products-title">
-              Shared control.
-              <br />
-              <span>Different reasons.</span>
-            </h2>
-          </div>
+          <LandingReveal>
+            <div className={s.sectionHeading}>
+              <p className={s.eyebrow}>ONE CLEAR FOUNDATION</p>
+              <h2 id="products-title">
+                Shared control.
+                <br />
+                <span>Different reasons.</span>
+              </h2>
+            </div>
+          </LandingReveal>
           <div className={s.productList}>
             {[
               {
@@ -319,30 +333,34 @@ export default function HomePage() {
                 state: "External execution gated",
               },
             ].map((p) => (
-              <Link key={p.n} href={p.href}>
-                <span className={s.productIndex}>{p.n}</span>
-                <div>
-                  <h3>{p.title}</h3>
-                  <p>{p.description}</p>
-                </div>
-                <span className={s.productState}>{p.state}</span>
-                <ArrowRight aria-hidden="true" />
-              </Link>
+              <LandingReveal key={p.n}>
+                <Link href={p.href}>
+                  <span className={s.productIndex}>{p.n}</span>
+                  <div>
+                    <h3>{p.title}</h3>
+                    <p>{p.description}</p>
+                  </div>
+                  <span className={s.productState}>{p.state}</span>
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              </LandingReveal>
             ))}
           </div>
         </section>
-        <section className={s.closing}>
-          <ShieldCheck size={26} aria-hidden="true" />
-          <h2>Clarity is part of control.</h2>
-          <p>
-            Explore the security model, supported paths and current limitations
-            before you start.
-          </p>
-          <Link className={s.secondary} href="/security">
-            Read the security overview{" "}
-            <ArrowRight size={16} aria-hidden="true" />
-          </Link>
-        </section>
+        <LandingReveal>
+          <section className={s.closing}>
+            <ShieldCheck size={26} aria-hidden="true" />
+            <h2>Clarity is part of control.</h2>
+            <p>
+              Explore the security model, supported paths and current
+              limitations before you start.
+            </p>
+            <Link className={s.secondary} href="/security">
+              Read the security overview{" "}
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </section>
+        </LandingReveal>
       </main>
       <footer className={s.footer}>
         <Link href="/" className={s.brand}>

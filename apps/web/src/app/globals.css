@@ -12,10 +12,11 @@
  * applies the right theme before paint to avoid FOUC + the SSR /
  * hydration mismatch that grounded the previous attempt.
  *
- * The user's theme preference applies everywhere, including landing
- * and onboarding.
+ * The user's theme preference applies to app surfaces. Public brand
+ * surfaces scope the original dark palette without changing that preference.
  */
-:root {
+:root,
+.public-brand-surface {
   color-scheme: dark;
 
   /* Build-stable font tokens. These intentionally use local system
@@ -472,9 +473,9 @@ select:focus-visible {
 .landing-reveal {
   opacity: 1;
   transform: none;
-  transition: opacity 350ms ease-out, transform 350ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 500ms ease-out, transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.landing-reveal[data-reveal="pending"] { opacity: 0; transform: translateY(10px); }
+.landing-reveal[data-reveal="pending"] { opacity: 0; transform: translateY(16px); }
 .landing-reveal:focus-within { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .landing-reveal, .landing-reveal[data-reveal="pending"] {

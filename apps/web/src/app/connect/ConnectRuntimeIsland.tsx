@@ -155,7 +155,7 @@ function SignedInWaiting({
             };
 
   return (
-    <div className="landing-shell fixed inset-0 z-[100] bg-canvas text-text-strong">
+    <div className="public-brand-surface landing-shell fixed inset-0 z-[100] bg-canvas text-text-strong">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <LandingAtmospherics />
       </div>

@@ -49,7 +49,7 @@ export default function PrivacyPage() {
         };
 
   return (
-    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+    <div className="public-brand-surface landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
       <LandingScrollProgress />
       <LandingBackToTop />
 

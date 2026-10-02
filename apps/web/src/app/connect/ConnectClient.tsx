@@ -98,7 +98,7 @@ function ConnectPage() {
     // Bleed-to-edge shell - same flat structure as `/` and `/welcome`.
     // Atmospherics live in their own absolute overflow-hidden wrapper
     // so the fixed nav can layer above without being clipped.
-    <div className="landing-shell relative min-h-screen bg-canvas text-text-strong">
+    <div className="public-brand-surface landing-shell relative min-h-screen bg-canvas text-text-strong">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -206,7 +206,7 @@ function ConnectPage() {
                   <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-text-soft">
                     {selectedSurface
                       ? selectedSurface.summary
-                      : "Use your email, your phone, or a wallet you already have. We will set the rest up for you."}
+                      : "Choose from the sign-in methods available in the next step, or connect a supported wallet."}
                   </p>
 
                   <div className="mt-7 w-full">

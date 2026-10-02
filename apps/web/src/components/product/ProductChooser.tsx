@@ -9,7 +9,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { BrandMark } from "@/components/retail/BrandMark";
+import { LandingNav } from "@/components/landing/LandingChrome";
 import {
   liveProductSurfaces,
   type ProductSurfaceId,
@@ -29,16 +29,8 @@ export function ProductChooser() {
   const products = liveProductSurfaces();
 
   return (
-    <main className="min-h-screen bg-canvas text-text-strong">
-      <header className="mx-auto flex min-h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
-        <Link href="/" className="flex items-center gap-2" aria-label="ClearSig home">
-          <BrandMark size={30} />
-          <span className="text-sm font-semibold">ClearSig</span>
-        </Link>
-        <Link href="/connect" className="inline-flex min-h-11 items-center text-sm font-medium text-text-soft hover:text-text-strong">
-          Sign in
-        </Link>
-      </header>
+    <main className="public-brand-surface min-h-screen bg-canvas text-text-strong">
+      <LandingNav cta={{ href: "/connect", label: "Sign in" }} />
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-16 pt-10 sm:px-8 sm:pt-16">
         <div className="max-w-2xl">

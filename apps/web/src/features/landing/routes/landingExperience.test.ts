@@ -23,6 +23,10 @@ describe("readable approval landing experience", () => {
     expect(html).not.toContain('data-reveal="pending"');
     expect(html).not.toContain("opacity:0");
     expect(html.match(/<h1\b/g)).toHaveLength(1);
+    expect(html.match(/class="landing-reveal"/g)?.length).toBeGreaterThanOrEqual(10);
+    expect(html).toContain("Pause network animation");
+    for (const name of ["Bitcoin", "Ethereum", "Hyperliquid", "Solana", "Zcash"]) expect(html).toContain(name);
+    expect(html).toContain("Availability varies by product.");
   });
 
   it("uses neutral receipt surfaces rather than a full-color green panel", () => {

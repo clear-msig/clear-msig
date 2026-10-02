@@ -460,7 +460,7 @@
 .productList {
   margin-top: 35px;
 }
-.productList > a {
+.productList > div > a {
   display: grid;
   grid-template-columns: 35px 1fr auto 24px;
   align-items: center;
@@ -468,10 +468,10 @@
   border-top: 1px solid var(--line);
   padding: 25px 0;
 }
-.productList > a:last-child {
+.productList > div:last-child > a {
   border-bottom: 1px solid var(--line);
 }
-.productList > a:hover h3 {
+.productList > div > a:hover h3 {
   color: var(--accent);
 }
 .productIndex {
@@ -682,7 +682,7 @@
     font-size: 27px;
     margin: 4px 0;
   }
-  .productList > a {
+  .productList > div > a {
     grid-template-columns: 22px 1fr 18px;
     gap: 12px;
     padding: 24px 0;
@@ -697,7 +697,7 @@
     grid-column: 2;
     justify-self: start;
   }
-  .productList > a > svg {
+  .productList > div > a > svg {
     grid-column: 3;
     grid-row: 1;
   }

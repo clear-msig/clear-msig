@@ -27,7 +27,7 @@ import {
   LandingAtmospherics,
   LandingNav,
 } from "@/components/landing/LandingChrome";
-import { BrandMark } from "@/components/retail/BrandMark";
+import { ClearCMark } from "@/components/landing/ClearCMark";
 
 const ICONS: Record<ProductSurfaceId, LucideIcon> = {
   personal: Users,
@@ -166,7 +166,7 @@ function ProductShell({
   cta?: { href: string; label: string } | null;
 }) {
   return (
-    <main className="landing-shell product-experience relative min-h-screen overflow-hidden bg-[#0c0c0c] text-[#ebebeb]">
+    <main className="public-brand-surface landing-shell product-experience relative min-h-screen overflow-hidden bg-[#0c0c0c] text-[#ebebeb]">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -180,7 +180,7 @@ function ProductShell({
           href="/"
           className="flex items-center gap-2 transition-colors hover:text-white"
         >
-          <BrandMark size={28} />
+          <ClearCMark size={28} variant="on-dark" alt="" />
           <span className="font-mono-tech uppercase tracking-[0.24em]">
             clearsig
           </span>
