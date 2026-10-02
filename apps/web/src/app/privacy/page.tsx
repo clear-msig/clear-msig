@@ -70,20 +70,20 @@ export default function PrivacyPage() {
         >
           <div className="flex items-center">
             <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/60">
-              Privacy · how Clear keeps your rules private
+              Privacy · current visibility and limits
             </span>
           </div>
 
           <h1 className="mt-6 text-[clamp(2.25rem,7vw,5rem)] font-medium leading-[0.92] tracking-[-0.04em] text-white sm:mt-8">
-            Your rules are
+            Know what is
             <br />
-            <span className="italic-skew text-[#ccff00]">yours alone</span>.
+            <span className="italic-skew text-[#ccff00]">public today</span>.
           </h1>
 
           <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 sm:text-base">
-            Clear&rsquo;s shared wallets are private by design. Who can spend,
-            how many friends need to approve, the limits you set, none of it
-            is readable by anyone else.
+            This is a devnet pre-alpha. Membership, approval thresholds and
+            policy data recorded on a public chain can be read by others.
+            Do not store secrets or use real funds.
           </p>
         </motion.section>
 
@@ -96,14 +96,14 @@ export default function PrivacyPage() {
             <Tile
               Icon={EyeOff}
               tone="hidden"
-              title="What stays hidden"
-              body="Member list, approval thresholds, allowances per friend, recipient lists you set up. The wallet works the same; the rules aren't visible to outsiders."
+              title="No policy confidentiality guarantee"
+              body="The current Encrypt integration is a pre-alpha pass-through, not production encryption. A policy routed through that interface is not proof that its values are private."
             />
             <Tile
               Icon={Eye}
               tone="public"
               title="What's still public"
-              body="Whether the wallet exists. Whether it has approved transactions. The bytes a friend signs. Anything that was always public on a blockchain stays that way."
+              body="Wallet and proposal accounts, membership and approval data, and public transaction activity can be inspected. Recipient and policy details may also appear in signing documents and stored records."
             />
           </div>
         </motion.section>
@@ -125,21 +125,19 @@ export default function PrivacyPage() {
             </div>
             <div className="p-6 sm:p-8">
               <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
-                Verified, not just trusted
+                Planned protection
               </p>
               <h2 className="mt-3 font-display text-2xl leading-tight tracking-[-0.01em] text-white sm:text-3xl">
-                Checked without being seen
+                Encrypted checks are not live
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-white/60 sm:text-base">
-                Clear uses encryption that lets the on-chain program check
-                approvals against your rules{" "}
-                <em className="text-white/85">without ever decrypting them</em>
-                . The network enforces what you set up, but only your
-                wallet&rsquo;s members can see what those rules are.
+                The intended FHE design would evaluate supported rules without
+                exposing their plaintext. That is planned capability, not a
+                guarantee of this deployment. Current supported Solana checks
+                enforce readable policy and approval data.
               </p>
               <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.03] px-3 py-1 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60">
-                Powered by <span className="text-white">Encrypt</span> · FHE
-                primitives
+                <span className="text-white">Encrypt</span> · pre-alpha interface
               </p>
             </div>
           </div>
@@ -162,17 +160,18 @@ export default function PrivacyPage() {
                 (status.live ? "text-[#ccff00]" : "text-white/60")
               }
             >
-              {status.live ? "Encryption active" : "Preview note"}
+              Encrypt interface status
             </span>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-white/75">
-            {status.description}
+            {status.networkConfigured
+              ? "A pre-alpha input service is configured. Sending inputs to it does not make on-chain policy checks confidential."
+              : "This preview uses a local pass-through for policy inputs. It does not encrypt policy data or provide private on-chain enforcement."}
           </p>
           {ctCount !== null && ctCount > 0 && (
             <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.03] px-3 py-1 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60">
               <span className="font-numerals text-white">{ctCount}</span>{" "}
-              polic{ctCount === 1 ? "y" : "ies"} routed through Encrypt on this
-              device
+              local policy record{ctCount === 1 ? "" : "s"} · not proof of encryption
             </p>
           )}
         </motion.section>
@@ -183,8 +182,9 @@ export default function PrivacyPage() {
           className="mt-16 flex flex-col items-start gap-4 sm:mt-20 sm:flex-row sm:items-center sm:justify-between"
         >
           <p className="max-w-md text-sm text-white/60">
-            Policy values route through the Encrypt surface today. On-chain FHE
-            enforcement switches on when the Encrypt network support lands.
+            Production encrypted enforcement requires implementation, review and
+            deployment verification. It does not activate automatically when an
+            external network becomes available.
           </p>
           <Link
             href="/choose"

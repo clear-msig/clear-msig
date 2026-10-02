@@ -1,23 +1,6 @@
 "use client";
 
-// Tier-6 onboarding tour. 3-step pop-in on the wallet detail page
-// for users who haven't seen it. Hand-curated to highlight the
-// least-discoverable affordances rather than walking through every
-// button.
-//
-// State: a single localStorage flag ("clear.wallet-tour.seen.v1").
-// Skip / finish both flip it. Power-users on a fresh device get
-// re-prompted; we don't pretend the flag follows them across
-// devices.
-//
-// Layout - three-region modal that always fits the viewport:
-//   • Header  - close button + sparkles badge + step counter + title
-//   • Body    - scrollable description + optional CTA. Scrolls when
-//               the card would otherwise exceed `max-h-[calc(100dvh-6rem)]`,
-//               so landscape phones / tiny viewports never clip
-//               content off-screen.
-//   • Footer  - sticky action bar (Skip · Back · Next) - always
-//               reachable regardless of body length.
+// Optional wallet guide. Never interrupts the first visit or blocks wallet actions.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
@@ -26,8 +9,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ArrowRight, Check, Sparkles, X } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
-
-const SEEN_KEY = "clear.wallet-tour.seen.v1";
 
 interface Step {
   title: string;
@@ -49,7 +30,7 @@ const STEPS: Step[] = [
       "Anything waiting for your approval appears on the dashboard, the Home badge, and optional browser notifications. You can also share a request link in your team's chat; the recipient lands on the approve page.",
   },
   {
-    title: "Activity + audit trail",
+    title: "Activity and exports",
     body:
       "Recent activity here shows this wallet only. The All-activity page in the dashboard aggregates every wallet you belong to and exports to CSV for accounting.",
     cta: { label: "Open all activity", href: "/app/activity" },
@@ -63,31 +44,7 @@ export function WalletTourModal() {
   const reduce = useReducedMotion();
   useFocusTrap(dialogRef, open);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    let seen = false;
-    try {
-      seen = window.localStorage.getItem(SEEN_KEY) === "1";
-    } catch {
-      seen = true; // localStorage blocked - don't loop the tour
-    }
-    if (!seen) {
-      // Tiny delay so the underlying page is laid out before the
-      // overlay arrives - matters more for reduced-motion users
-      // who otherwise see content jump.
-      const t = setTimeout(() => setOpen(true), 250);
-      return () => clearTimeout(t);
-    }
-  }, []);
-
-  const dismiss = useCallback(() => {
-    setOpen(false);
-    try {
-      window.localStorage.setItem(SEEN_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const dismiss = useCallback(() => setOpen(false), []);
 
   // Standard modal expectation - Escape dismisses. The HeaderBar
   // drawer + CommandPalette already close on Escape; this was the
@@ -118,6 +75,18 @@ export function WalletTourModal() {
   const current = STEPS[step];
 
   return (
+    <>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => { setStep(0); setOpen(true); }}
+          className="inline-flex min-h-11 items-center gap-2 rounded-soft px-3 text-sm text-text-soft hover:text-text-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <Sparkles size={16} aria-hidden="true" />
+          Wallet guide
+        </button>
+      </div>
     <AnimatePresence>
       {open && (
         <>
@@ -201,14 +170,14 @@ export function WalletTourModal() {
                     ))}
                   </div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-                    Quick tour
+                    Wallet guide
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={dismiss}
-                aria-label="Skip the tour"
+                aria-label="Close wallet guide"
                 className={clsx(
                   "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-soft",
                   "transition-colors duration-base ease-out-soft hover:bg-canvas hover:text-text-strong",
@@ -251,7 +220,7 @@ export function WalletTourModal() {
                 onClick={dismiss}
                 className="min-h-tap rounded-soft px-3 py-2 text-xs font-medium text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                Skip
+                Close
               </button>
               <div className="flex items-center gap-2">
                 {step > 0 && (
@@ -295,5 +264,6 @@ export function WalletTourModal() {
         </>
       )}
     </AnimatePresence>
+    </>
   );
 }

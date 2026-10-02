@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Check, ShieldAlert, UserPlus } from "lucide-react";
 import { FormField, TextInput } from "@/components/retail/FormField";
-import { shortAddress } from "@/lib/retail/contacts";
 import type { ResolvedSolanaRecipient } from "@/features/send/domain/solanaSend";
 
 // ─── Recipient status row ──────────────────────────────────────────
@@ -42,22 +41,22 @@ export function RecipientStatus({
   }
   if (resolved.kind === "contact") {
     return (
-      <p className="-mt-1 inline-flex items-center gap-1.5 text-xs text-accent">
+      <p className="-mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-accent">
         <Check className="h-3.5 w-3.5" strokeWidth={3} />
         Sending to {resolved.contact.name} ·{" "}
-        <span className="font-mono text-text-soft">
-          {shortAddress(resolved.contact.address)}
+        <span className="block min-w-0 break-all font-mono text-text-soft">
+          {resolved.contact.address}
         </span>
       </p>
     );
   }
   if (resolved.kind === "sns") {
     return (
-      <p className="-mt-1 inline-flex items-center gap-1.5 text-xs text-accent">
+      <p className="-mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-accent">
         <Check className="h-3.5 w-3.5" strokeWidth={3} />
         Resolved {resolved.name} ·{" "}
-        <span className="font-mono text-text-soft">
-          {shortAddress(resolved.address)}
+        <span className="block min-w-0 break-all font-mono text-text-soft">
+          {resolved.address}
         </span>
       </p>
     );
@@ -93,8 +92,8 @@ function PastedAddressNotice({
         />
         <span>
           New address.{" "}
-          <span className="font-mono text-text-soft">
-            {shortAddress(address)}
+          <span className="block min-w-0 break-all font-mono text-text-soft">
+            {address}
           </span>
           . Make sure this is correct. Money sent to the wrong address
           can&rsquo;t be reversed.
@@ -106,7 +105,7 @@ function PastedAddressNotice({
             <button
               type="button"
               onClick={() => setShowSave(true)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
+              className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-accent transition-colors duration-base ease-out-soft hover:text-accent-hover"
             >
               <UserPlus className="h-3 w-3" aria-hidden="true" />
               Save as contact

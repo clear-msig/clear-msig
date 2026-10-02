@@ -240,12 +240,6 @@ export default function WalletDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* One-time onboarding tour. Self-gates on its own
-          localStorage flag so it doesn't fire for users who've
-          already seen it; renders nothing otherwise. Intentionally
-          first in the tree so the overlay snaps in over a stable
-          layout. */}
-      <WalletTourModal />
       {/* Back navigation lives in the global DashboardHeader (desktop)
           and the BottomNav Home tab (mobile) - no per-page chrome
           needed here anymore. */}
@@ -269,6 +263,7 @@ export default function WalletDetailPage() {
       {walletAction.length > 0 && (
         <WalletApprovalPanel rows={walletAction} reduce={!!reduce} />
       )}
+      <WalletTourModal />
       <WalletDetailTabs
         allActivity={allActivity}
         tab={detailTab}

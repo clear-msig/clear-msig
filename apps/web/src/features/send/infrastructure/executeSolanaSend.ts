@@ -31,6 +31,8 @@ export interface ExecuteSolanaSendInput {
   note: string;
   resolved: ResolvedSolanaRecipient;
   budgetUsage: ReturnType<typeof useWalletBudgetUsage>;
+  reviewBeforeSigning: (review: import("../domain/signingReview").SigningReview) => Promise<void>;
+  assertFormCurrent: () => void;
   setPhase: (phase: SolanaSendingPhase) => void;
 }
 

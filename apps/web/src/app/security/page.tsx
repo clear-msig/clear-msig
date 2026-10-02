@@ -149,9 +149,11 @@ export default function SecurityPage() {
             Pre-alpha
           </span>
           <p className="text-sm leading-relaxed text-white/60">
-            Some encryption protections in the UI ride on the Encrypt network
-            going live. Until then, they show a pre-alpha chip. Read the full
-            attack model and current gaps in{" "}
+            Devnet only; do not use real funds. Ika currently uses a single mock
+            signer, not production distributed MPC. The Encrypt integration does
+            not provide production policy confidentiality or on-chain FHE
+            enforcement. An app preview or hash is not independent signing
+            verification. Read the current attack model and gaps in{" "}
             <a
               href="https://github.com/clear-msig/clear-msig/blob/main/SECURITY.md"
               target="_blank"

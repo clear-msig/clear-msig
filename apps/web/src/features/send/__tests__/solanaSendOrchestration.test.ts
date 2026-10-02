@@ -1,3 +1,4 @@
+import { sha256 } from "@/lib/msig/hash";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
@@ -17,6 +18,8 @@ const api = vi.hoisted(() => ({
   execute: vi.fn(),
   status: vi.fn(),
   decision: vi.fn(),
+  prepareApproval: vi.fn(),
+  submitApproval: vi.fn(),
 }));
 // Synthetic backend summary boundary; client validation and descriptor verification stay real.
 vi.mock("@/lib/api/client", () => ({
@@ -41,8 +44,8 @@ vi.mock("@/lib/api/client", () => ({
 }));
 vi.mock("@/lib/api/endpoints", () => ({
   backendApi: {
-    prepare: { createTypedProposal: api.prepare },
-    submit: { createTypedProposal: api.submit },
+    prepare: { createTypedProposal: api.prepare, approveTypedProposal: api.prepareApproval },
+    submit: { createTypedProposal: api.submit, approveTypedProposal: api.submitApproval },
     executeTypedSolSend: api.execute,
   },
 }));
@@ -117,6 +120,8 @@ function fixture() {
     note: "",
     resolved: { kind: "address", address: destination },
     budgetUsage: { spentUsd: 0, perChain: [] },
+    reviewBeforeSigning: vi.fn().mockResolvedValue(undefined),
+    assertFormCurrent: vi.fn(),
     setPhase: vi.fn(),
   } as unknown as ExecuteSolanaSendInput;
   return { recovery, attempt, input, sign, storage };
@@ -165,6 +170,12 @@ beforeEach(() => {
     ].join("\n");
     return { ...descriptor, message_hex: Buffer.from(text).toString("hex") };
   });
+  api.prepareApproval.mockImplementation(async () => {
+    const creation = await api.prepare.mock.results[0].value;
+    const text = Buffer.from(creation.message_hex, "hex").toString("utf8").replace("Decision: PROPOSE", "Decision: APPROVE");
+    return { ...creation, action_id: new TextDecoder("utf-8", { ignoreBOM: true }).decode(sha256(new TextEncoder().encode(creation.action_id))), nonce: new TextDecoder("utf-8", { ignoreBOM: true }).decode(sha256(new TextEncoder().encode(creation.nonce))), action: "proposal_typed_approve", message_hex: Buffer.from(text).toString("hex") };
+  });
+  api.submitApproval.mockResolvedValue({ proposal });
   api.submit.mockResolvedValue({ proposal });
   api.decision.mockResolvedValue({
     needsApproveSignature: false,
@@ -180,6 +191,61 @@ beforeEach(() => {
   });
 });
 describe("native SOL orchestration (synthetic RPC/wallet; real canonical and recovery helpers)", () => {
+  it("does not open the signer until the exact prepared message is explicitly reviewed", async () => {
+    const f = fixture(); const decision = deferred<void>();
+    const review = vi.fn((_details: import("../domain/signingReview").SigningReview) => decision.promise); f.input.reviewBeforeSigning = review;
+    const run = executeSolanaSend(f.input);
+    await vi.waitFor(() => expect(review).toHaveBeenCalledOnce());
+    expect(review.mock.calls[0]?.[0]).toMatchObject({ destination, amount: "1" });
+    expect((review.mock.calls[0]?.[0] as { document: string }).document).toContain("Decision: PROPOSE");
+    expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+    decision.resolve(); await run; expect(f.sign).toHaveBeenCalledOnce();
+  });
+  it("reviews a separate approval message before a second signing request", async () => {
+    const f = fixture();
+    api.decision.mockResolvedValue({ needsApproveSignature: true, status: ProposalStatus.Active });
+    const second = deferred<void>();
+    const review = vi.fn().mockResolvedValueOnce(undefined).mockImplementationOnce(() => second.promise);
+    f.input.reviewBeforeSigning = review;
+    const run = executeSolanaSend(f.input);
+    await vi.waitFor(() => expect(review).toHaveBeenCalledTimes(2));
+    expect(review.mock.calls[1][0].document).toContain("Decision: APPROVE");
+    expect(f.sign).toHaveBeenCalledOnce(); expect(api.submitApproval).not.toHaveBeenCalled();
+    second.resolve(); await run; expect(f.sign).toHaveBeenCalledTimes(2);
+  });
+  it("cancelling an approval review preserves the created request and does not execute", async () => {
+    const f = fixture();
+    api.decision.mockResolvedValue({ needsApproveSignature: true, status: ProposalStatus.Active });
+    f.input.reviewBeforeSigning = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("Review cancelled"));
+    await expect(executeSolanaSend(f.input)).rejects.toThrow("Review cancelled");
+    expect(f.sign).toHaveBeenCalledOnce(); expect(api.submitApproval).not.toHaveBeenCalled();
+    expect(api.execute).not.toHaveBeenCalled(); expect(f.recovery.saved()?.proposal).toBe(proposal);
+  });
+  it("cancelled review never signs or submits", async () => {
+    const f = fixture(); f.input.reviewBeforeSigning = vi.fn().mockRejectedValue(new Error("Review cancelled"));
+    await expect(executeSolanaSend(f.input)).rejects.toThrow("Review cancelled");
+    expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+  });
+  it.each(["recipient", "amount", "wallet", "network"])("rejects stale %s state after review", async () => {
+    const f = fixture(); const decision = deferred<void>();
+    f.input.reviewBeforeSigning = vi.fn(() => decision.promise);
+    const run = executeSolanaSend(f.input);
+    await vi.waitFor(() => expect(f.input.reviewBeforeSigning).toHaveBeenCalledOnce());
+    f.input.assertFormCurrent = () => { throw new Error("Send details changed"); };
+    decision.resolve(); await expect(run).rejects.toThrow("Send details changed");
+    expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+  });
+  it("rejects an expired review before opening the signer", async () => {
+    const f = fixture(); const decision = deferred<void>();
+    f.input.reviewBeforeSigning = vi.fn(() => decision.promise);
+    const run = executeSolanaSend(f.input);
+    await vi.waitFor(() => expect(f.input.reviewBeforeSigning).toHaveBeenCalledOnce());
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 16 * 60 * 1000);
+    try { decision.resolve(); await expect(run).rejects.toThrow("review expired"); }
+    finally { clock.mockRestore(); }
+    expect(f.sign).not.toHaveBeenCalled(); expect(api.submit).not.toHaveBeenCalled();
+  });
+
   it.each(["unmount", "wallet ABA"])(
     "prevents writes when deferred signature resolves after %s",
     async (change) => {

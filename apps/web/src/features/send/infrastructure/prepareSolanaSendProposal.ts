@@ -1,3 +1,4 @@
+import { reviewSolanaSigningMessage } from "./reviewSolanaSigningMessage";
 import { parseBatchAmountToLamports } from "@/features/send/domain/batch";
 import {
   assertSubmittedCreation,
@@ -148,7 +149,7 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
     policyBytesHex: onchainPolicy?.hex,
     deviceProfile: clearSignProfileForSigner(wallet, proposerPk),
   });
-  const dry = await backendApi.prepare.createTypedProposal(walletName, {
+  const dry = Object.freeze(await backendApi.prepare.createTypedProposal(walletName, {
     intent_index: firstIntent.account.intentIndex,
     action_kind: summary.actionKindCode,
     policy_commitment: summary.policyCommitment,
@@ -161,9 +162,21 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
     canonical_intent_hex: summary.canonicalIntentHex,
     expiry: formatUnixSigningExpiry(envelope.expiresAt),
     actor_pubkey: proposerPk.toBase58(),
-  });
+  }));
 
-  // 2. Sign with the user's wallet.
+  // 2. Show the exact message before opening a signing prompt. This is a
+  // server-prepared document, not an independent decoder or hardware proof.
+  input.attempt.assertCurrent();
+  input.assertFormCurrent();
+  const expectedTyped = Object.freeze({
+    envelopeHash: summary.envelopeHash,
+    payloadHash: summary.payloadHash,
+    signableText: summary.signableText,
+  });
+  reviewedCreationProposalAddress(dry, summary);
+  await reviewSolanaSigningMessage(input, dry, expectedTyped, destination);
+
+  // Sign only after that exact review was explicitly accepted.
   input.attempt.assertCurrent();
   setPhase("signing");
   const signed = await signTypedDescriptor(dry, {
@@ -179,6 +192,7 @@ export async function prepareSolanaSendProposal(input: ExecuteSolanaSendInput) {
   // the proposer is also an approver, so common 1-of-1 sends
   // continue to be one wallet popup.
   input.attempt.assertCurrent();
+  input.assertFormCurrent();
   input.attempt.submitting(reviewedCreationProposalAddress(dry, summary));
   setPhase("submitting");
   const submitted = (await backendApi.submit.createTypedProposal(walletName, {

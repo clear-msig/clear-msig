@@ -1,10 +1,9 @@
 import type { SignPayloadDetail } from "@/components/retail/SignPayloadPreview";
 import {
-  formatAmount,
+  formatLamports,
   type ResolvedSolanaRecipient,
 } from "@/features/send/domain/solanaSend";
 import { useWalletBudgetUsage } from "@/lib/hooks/useWalletBudgetUsage";
-import { shortAddress } from "@/lib/retail/contacts";
 import { formatUsd } from "@/lib/retail/priceConversion";
 import { toDisplayName } from "@/lib/retail/walletNames";
 
@@ -39,14 +38,14 @@ export function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetai
     },
     {
       label: "Network fee",
-      value: `${formatAmount(String(Number(args.feeReserveLamports) / 1_000_000_000))} SOL reserved`,
+      value: `${formatLamports(args.feeReserveLamports, 9)} SOL reserved`,
     },
   ];
   // Always surface the destination address - even for contact-resolved
   // sends. Without this, an attacker who tampers localStorage to swap
   // a contact's address (XSS, malicious extension, shared device) can
   // trick the user into signing "Send 5 SOL to Sarah" while the bytes
-  // route to attacker. Showing the abbreviated address gives the user
+  // route to attacker. Showing the complete address gives the user
   // a chance to spot the mismatch before signing.
   if (
     resolved.kind === "address" ||
@@ -59,7 +58,7 @@ export function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetai
         : resolved.address;
     details.push({
       label: "Recipient address",
-      value: shortAddress(addr),
+      value: addr,
       emphasis: "mono",
     });
     if (resolved.kind === "sns") {
@@ -69,7 +68,7 @@ export function buildSendPreviewDetails(args: SendPreviewArgs): SignPayloadDetai
   if (amountValid) {
     details.push({
       label: "Amount",
-      value: `${formatAmount(amount)} SOL`,
+      value: `${amount} SOL`,
       emphasis: "amount",
     });
   }

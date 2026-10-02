@@ -1,5 +1,6 @@
+import { reviewSolanaSigningMessage } from "./reviewSolanaSigningMessage";
 import { solanaSubmissionTxid } from "@/lib/chain/executionEvidence";
-import { inlineApprovalOptions } from "@/lib/clearsign/inlineApproval";
+import { inlineApprovalOptions, savedProposalError } from "@/lib/clearsign/inlineApproval";
 import { backendApi } from "@/lib/api/endpoints";
 import { approveIfNeeded } from "@/lib/chain/approveIfNeeded";
 import type { IntentAccount } from "@/lib/msig";
@@ -76,18 +77,18 @@ export async function finalizeSolanaSend({
       );
     }
     setPhase("approving");
-    try {
-      const approveDry = await backendApi.prepare.approveTypedProposal(
+    const approveDry = Object.freeze(await backendApi.prepare.approveTypedProposal(
         walletName,
         proposal,
         { actor_pubkey: approver },
-      );
+      ));
+    const approvalOptions = inlineApprovalOptions(dry, approveDry, summary, proposal, approverPk);
+    try { await reviewSolanaSigningMessage(input, approveDry, approvalOptions.expectedTyped, destination); }
+    catch (error) { throw savedProposalError(proposal, error); }
+    try {
+      const approveSigned = await signTypedDescriptor(approveDry, approvalOptions);
       input.attempt.assertCurrent();
-      const approveSigned = await signTypedDescriptor(
-        approveDry,
-        inlineApprovalOptions(dry, approveDry, summary, proposal, approverPk),
-      );
-      input.attempt.assertCurrent();
+      input.assertFormCurrent();
       await backendApi.submit.approveTypedProposal(walletName, proposal, {
         ...approveSigned,
         expiry: approveDry.expiry,
@@ -142,17 +143,17 @@ export async function finalizeSolanaSend({
         }
 
         setPhase("approving");
-        const extraDry = await backendApi.prepare.approveTypedProposal(
+        const extraDry = Object.freeze(await backendApi.prepare.approveTypedProposal(
           walletName,
           proposal,
           { actor_pubkey: extraSigner.toBase58() },
-        );
+        ));
+        const extraOptions = inlineApprovalOptions(dry, extraDry, summary, proposal, extraSigner);
+        try { await reviewSolanaSigningMessage(input, extraDry, extraOptions.expectedTyped, destination); }
+        catch (error) { throw savedProposalError(proposal, error); }
+        const extraSigned = await signTypedDescriptor(extraDry, extraOptions);
         input.attempt.assertCurrent();
-        const extraSigned = await signTypedDescriptor(
-          extraDry,
-          inlineApprovalOptions(dry, extraDry, summary, proposal, extraSigner),
-        );
-        input.attempt.assertCurrent();
+      input.assertFormCurrent();
       await backendApi.submit.approveTypedProposal(walletName, proposal, {
           ...extraSigned,
           expiry: extraDry.expiry,
@@ -183,6 +184,7 @@ export async function finalizeSolanaSend({
     let executed: unknown;
     try {
       input.attempt.assertCurrent();
+      input.assertFormCurrent();
       executed = await backendApi.executeTypedSolSend(walletName, proposal, {
         recipient: destination,
         amountLamports: lamportsToSafeNumber(lamportsBigint),

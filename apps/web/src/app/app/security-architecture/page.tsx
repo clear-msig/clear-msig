@@ -5,22 +5,22 @@ import { ArrowRight, Database, Eye, FileCheck2, Server, ShieldCheck } from "luci
 const LAYERS = [
   {
     title: "Browser proposes",
-    body: "The app displays state, builds readable intents, and asks the owner to sign.",
+    body: "The browser shows and checks signing details and local risk hints. These checks aid review; a compromised browser can mislead the display. An in-app hash is not independent verification.",
     Icon: Eye,
   },
   {
     title: "Backend verifies",
-    body: "Railway validates policy, simulates, rate-limits, logs, and prepares transactions.",
+    body: "The backend prepares canonical documents and transactions and applies server checks. Availability and server-provided information remain trust dependencies; a successful response is not proof of execution.",
     Icon: Server,
   },
   {
     title: "Chain enforces",
-    body: "The Solana program is the final authority for membership, approvals, replay protection, and execution.",
+    body: "Supported Solana actions enforce membership, approvals, committed payloads, timelocks and replay protection. RPC state and deployed program identity must match the pinned configuration.",
     Icon: ShieldCheck,
   },
   {
-    title: "Redis is temporary",
-    body: "Queues, sessions, nonces, and cache live here. It is not the source of truth for vault control.",
+    title: "Durable state matters",
+    body: "Redis also holds durable idempotency and handoff records. Losing them can impair safe recovery. These records do not replace on-chain approval authority.",
     Icon: Database,
   },
 ] as const;
@@ -30,8 +30,8 @@ const CHECKS = [
   "who may propose, approve, and execute",
   "nonce and replay protection",
   "policy commitment",
-  "agent allowance and venue limits",
-  "transaction simulation and audit log",
+  "exact supported action payload",
+  "timelock and expiry",
 ];
 
 export default function SecurityArchitecturePage() {
@@ -42,10 +42,10 @@ export default function SecurityArchitecturePage() {
           Security architecture
         </p>
         <h1 className="font-display text-2xl leading-tight text-text-strong md:text-display-xs">
-          ClearSig does not trust the browser
+          Where each check happens
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-text-soft">
-          Infrastructure only matters when enforcement lives in the right place.
+          Devnet pre-alpha only. Do not use real funds. Local, server and chain checks have different roles.
         </p>
       </header>
 
@@ -68,12 +68,20 @@ export default function SecurityArchitecturePage() {
         ))}
       </section>
 
+      <section className="rounded-card border border-warning/30 bg-surface-raised p-4 text-sm text-text-soft">
+        <h2 className="font-semibold text-text-strong">Current control and privacy limits</h2>
+        <p className="mt-2">Ika currently uses a single mock signer, not production distributed MPC. Do not treat remote-chain assets as protected by a qualified distributed custody system.</p>
+        <p className="mt-2">The Encrypt integration is a pre-alpha interface; policy confidentiality and on-chain FHE enforcement are not live. Public chain data remains public.</p>
+        <p className="mt-2">The program is upgradeable. Upgrade authority and configured RPC, relayer and provider services remain trust and availability dependencies. External agent execution remains gated.</p>
+        <p className="mt-2">Physical hardware display behavior is not qualified here. Verify what your signer actually presents; cancel if you cannot verify the action. An independently usable verification workflow remains a gap.</p>
+      </section>
+
       <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
         <div className="flex items-start gap-3">
           <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
           <div>
             <h2 className="text-sm font-semibold text-text-strong">
-              What must never be client-only
+              Checks enforced for supported Solana actions
             </h2>
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">
               {CHECKS.map((check) => (

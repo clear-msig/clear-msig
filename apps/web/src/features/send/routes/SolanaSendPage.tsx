@@ -1,5 +1,8 @@
 "use client";
 
+import { useSigningReview } from "@/features/send/infrastructure/useSigningReview";
+import { SolanaSigningReview } from "@/features/send/ui/solana/SolanaSigningReview";
+
 // Send a request - third beat of the retail story, now real.
 //
 // Composes a SolTransfer proposal against the wallet's first spending
@@ -355,11 +358,19 @@ function SendPage() {
   const budgetUsage = useWalletBudgetUsage(walletName);
 
   const recovery = useSendRecovery(JSON.stringify([walletName, requestAccountKey(wallet.sessionSubject, wallet.publicKey?.toBase58() ?? null), connection.rpcEndpoint]));
+  const signingReview = useSigningReview(JSON.stringify([
+    walletName, requestAccountKey(wallet.sessionSubject, wallet.publicKey?.toBase58() ?? null),
+    connection.rpcEndpoint, wallet.isLedger, walletQuery.data?.pda?.toBase58(),
+    amount, note, resolved, firstIntent?.account,
+  ], (_key, value) => typeof value === "bigint" ? value.toString() : value));
   const submit = useMutation({
     mutationFn: async () => {
       const attempt = recovery.begin();
+      const reviewSession = signingReview.begin();
       try { return await executeSolanaSend({
         attempt,
+        reviewBeforeSigning: reviewSession.request,
+        assertFormCurrent: reviewSession.assertCurrent,
         wallet,
         connection,
         signTypedDescriptor,
@@ -508,7 +519,7 @@ function SendPage() {
   });
 
   const handleSubmit = () => {
-    if (!canSubmit) return;
+    if (!canSubmit || submit.isPending) return;
     setPhase("preparing");
     setStage("sending");
     submit.mutate();
@@ -611,7 +622,10 @@ function SendPage() {
               timelockSeconds={firstIntent?.account?.timelockSeconds ?? 0}
             />
           )}
-          {stage === "sending" && (
+          {stage === "sending" && signingReview.review && (
+            <SolanaSigningReview review={signingReview.review} onConfirm={signingReview.confirm} onCancel={signingReview.cancel} />
+          )}
+          {stage === "sending" && !signingReview.review && (
             <SendProgressStage
               primary={`${SOLANA_SEND_PHASE_LABEL[phase].primary}...`}
               hint={SOLANA_SEND_PHASE_LABEL[phase].hint}
