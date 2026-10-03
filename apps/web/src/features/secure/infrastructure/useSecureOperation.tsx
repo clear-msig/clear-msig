@@ -5,6 +5,8 @@ import { useWallet, useConnection } from "@/lib/wallet";
 import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { createSecureOperation, SecureOperationError, type SecureReceipt, type ReceiptStore } from "@/lib/ikavery/transactionOperation";
 
+import { checkSecureReceipts } from "@/lib/ikavery/receiptReconciliation";
+
 const STORAGE_KEY = "clear:secure-transaction-recovery:v1";
 const CHANGED = "clear:secure-recovery-changed";
 const store: ReceiptStore = {
@@ -78,13 +80,7 @@ export function useSecureOperation(scope: string) {
     checkBusy.current = true; setChecking(true);
     try {
       const request = identity.capture();
-      const genesis = await connection.getGenesisHash(); request.assertCurrent();
-      const current = store.read();
-      const matching = current.filter(r => r.signer === wallet.publicKey?.toBase58() && r.genesis === genesis);
-      if (!matching.length) throw new Error("These transactions belong to another network. Switch to the original network to check them.");
-      const { value } = await connection.getSignatureStatuses(matching.map(r => r.signature), {searchTransactionHistory: true}); request.assertCurrent();
-      const statuses = new Map(matching.map((r, i) => [r.signature, value[i]?.confirmationStatus === "confirmed" || value[i]?.confirmationStatus === "finalized" ? value[i]?.err ? "failed" as const : "confirmed" as const : "unknown" as const]));
-      store.write(current.map(r => statuses.has(r.signature) ? {...r, status: statuses.get(r.signature)!} : r));
+      await checkSecureReceipts(connection, wallet.publicKey?.toBase58(), store, request.assertCurrent);
     } catch(e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { checkBusy.current = false; setChecking(false); }
   }

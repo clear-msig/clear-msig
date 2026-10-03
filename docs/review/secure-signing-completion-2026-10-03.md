@@ -58,10 +58,10 @@ reconciliation, not a speculative retry.
 
 ## Verification
 
-- Full frontend verification passes: **238 suites / 1,862 tests and 27 script
+- Full frontend verification passes: **239 suites / 1,868 tests and 27 script
   tests**, plus intent/metadata/architecture, ESLint and TypeScript. Isolated
   Redis is explicitly enabled through the existing test-only binary settings.
-  Log: `/workspace/scratch/secure-lifecycle-final-verify.log`.
+  Log: `/workspace/scratch/secure-recovery-race-verify.log`.
 - Production compilation passes. Existing main-devnet bundle gate passes:
   external-wallet runtime **1123.7/1124 KiB**, legacy Turnkey **979.6/991 KiB**.
   No dependency versions, budget limits or gate selection rules changed.
@@ -81,3 +81,16 @@ The existing dependency Security gate remains red; see
 passkey, RPC/Ika and authenticated account qualification remains outstanding.
 Ledger and embedded-wallet Secure transaction limitations are preserved. Agent
 venue policy/capability questions are unchanged. No dependency fork is introduced.
+
+## Delayed status response correction
+
+A subsequent independent review found that the status checker could overwrite
+receipts added while its RPC request was pending. It now reconciles results into
+a fresh store read after the response, matching the full transaction/network/
+signer/operation identity. New receipts and current metadata remain intact;
+already-known outcomes are not overwritten by stale results, and removed records
+are not resurrected. Six delayed-response regressions cover concurrent insertion,
+confirmed/failed updates, completion metadata, removal and replacement operations.
+The existing Chromium Secure lifecycle/reload/reconciliation fixture passes again.
+This is a same-browser asynchronous race correction, not a claim of cross-device
+storage coordination.
