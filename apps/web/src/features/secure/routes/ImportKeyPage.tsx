@@ -1,5 +1,7 @@
 "use client";
 
+import { SecureRecoveryNotice, useSecureOperation } from "@/features/secure/infrastructure/useSecureOperation";
+
 // /app/secure/import. Bring an existing Solana keypair under
 // quorum protection.
 //
@@ -286,6 +288,8 @@ function SecureImportPage() {
     setStage("review");
   };
 
+  const secure = useSecureOperation(JSON.stringify([derivedAddress, amountSol]));
+
   const handleRun = async () => {
     if (inFlight.current) return;
     if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
@@ -299,7 +303,6 @@ function SecureImportPage() {
     setStage("creating");
 
     const creator = wallet.publicKey;
-    const signTransaction = wallet.signTransaction;
     const importKeypair = parsedRef.current.keypair;
     const wipeFn = parsedRef.current.wipe;
 
@@ -307,12 +310,12 @@ function SecureImportPage() {
       const attempt = await runImportAttempt({
         wipe: wipeFn,
         onProgress: (s) => setCreateSubStage(s),
-        run: (onProgress) => createSoloVault({
-          connection,
+        run: (onProgress) => secure.run(`Import ${lamports.toString()} lamports from ${derivedAddress} into a new solo vault`, operation => createSoloVault({
+          connection: operation.connection,
           creator,
           threshold: 1,
-          signTransaction,
-          onProgress,
+          signTransaction: operation.signTransaction,
+          onProgress: operation.progress(onProgress),
           importFunds: {
             keypair: importKeypair,
             lamports,
@@ -321,7 +324,7 @@ function SecureImportPage() {
             // popup. Page-level wipe below is the redundant safety net.
             wipe: wipeFn,
           },
-        }),
+        })),
       });
       if (!attempt.ok) {
         const copy = secureActionErrorCopy(attempt.error, "Couldn't import the wallet");
@@ -397,6 +400,7 @@ function SecureImportPage() {
       {...fadeIn(0)}
       className="mx-auto flex w-full max-w-2xl flex-col gap-8"
     >
+      <SecureRecoveryNotice recovery={secure} />
       <div className="px-gutter md:hidden">
         <BackToWallets label="Vaults" />
       </div>

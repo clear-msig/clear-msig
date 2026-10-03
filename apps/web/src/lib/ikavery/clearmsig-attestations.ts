@@ -142,6 +142,16 @@ export function encodeAttestationBackup(
   return JSON.stringify(backup, null, 2);
 }
 
+/** Preserve DKG recovery material before a potentially ambiguous submission.
+ * Kept separate from confirmed-vault storage; on-chain validation is still required. */
+export function savePendingAttestation(recovery: string, bundle: AttestationBundle): void {
+  if (typeof window === "undefined") throw new Error("Secure creation requires browser recovery storage.");
+  const value = encodeAttestationBackup(recovery, bundle);
+  window.localStorage.setItem(`${STORAGE_KEY}.pending:${recovery}`, value);
+  if (window.localStorage.getItem(`${STORAGE_KEY}.pending:${recovery}`) !== value)
+    throw new Error("Could not preserve pending vault recovery material. Nothing has been submitted.");
+}
+
 export function downloadAttestationBackup(
   recoveryPdaBase58: string,
   bundle: AttestationBundle,
@@ -164,7 +174,14 @@ export function loadAttestation(
 ): AttestationBundle | null {
   const all = readAll();
   const stored = all[recoveryPdaBase58];
-  if (!stored) return null;
+  if (!stored) {
+    try {
+      const pending = typeof window !== "undefined" ? window.localStorage.getItem(`${STORAGE_KEY}.pending:${recoveryPdaBase58}`) : null;
+      if (!pending) return null;
+      const parsed = decodeAttestationBackup(pending);
+      return parsed.recoveryPda === recoveryPdaBase58 ? parsed.bundle : null;
+    } catch { return null; }
+  }
   try {
     return {
       attestationData: hexToBytes(stored.attestationData),

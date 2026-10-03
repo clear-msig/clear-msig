@@ -53,6 +53,12 @@ These corrections are local; no publication or live financial interaction.
   `review-regressions-main-bundles.log`, and `review-regressions-bundles.log`.
   All started build/test processes terminated; none is pending.
 
+## Subsequent Secure completion
+
+The later `secure-signing-completion-2026-10-03.md` supersedes the initial Secure
+coverage gap above with dedicated guards, recovery storage and synthetic tests.
+Live provider qualification remains separate.
+
 ## Still separate
 
 Dependency advisory remediation is not included in this correction. No package

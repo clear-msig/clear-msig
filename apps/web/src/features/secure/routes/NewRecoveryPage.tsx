@@ -1,5 +1,7 @@
 "use client";
 
+import { SecureRecoveryNotice, useSecureOperation } from "@/features/secure/infrastructure/useSecureOperation";
+
 // /app/secure/new - wizard for creating a new ikavery vault.
 // (Route is /new, not /build, because the frontend's .gitignore
 // has `build/` from a Next.js convention and would have hidden the
@@ -134,6 +136,8 @@ function SecureBuildPage() {
     setStage("confirm");
   };
 
+  const secure = useSecureOperation(JSON.stringify([shape.members, shape.threshold]));
+
   const handleBuild = async () => {
     if (buildInFlight.current) return;
     if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
@@ -172,24 +176,24 @@ function SecureBuildPage() {
     setPasskeyProgress(null);
     setStage("creating");
     try {
-      const result =
+      const result = await secure.run(`Create vault: ${shape.threshold} of ${shape.members} approvals`, async operation =>
         shape.members === 1
           ? await createSoloVault({
-              connection,
-              creator: wallet.publicKey,
+              connection: operation.connection,
+              creator: wallet.publicKey!,
               threshold: shape.threshold,
-              signTransaction: wallet.signTransaction,
-              onProgress: (s) => setCreateSubStage(s),
+              signTransaction: operation.signTransaction,
+              onProgress: operation.progress((s) => setCreateSubStage(s)),
             })
           : await createMultiMemberVault({
-              connection,
-              creator: wallet.publicKey,
+              connection: operation.connection,
+              creator: wallet.publicKey!,
               threshold: shape.threshold,
               memberCount: shape.members,
-              signTransaction: wallet.signTransaction,
-              onProgress: (s) => setCreateSubStage(s),
-              onPasskeyProgress: (p) => setPasskeyProgress(p),
-            });
+              signTransaction: operation.signTransaction,
+              onProgress: operation.progress((s) => setCreateSubStage(s)),
+              onPasskeyProgress: operation.progress((p) => setPasskeyProgress(p)),
+            }));
       setResultRecovery(result.recovery.toBase58());
       setResultTxSig(result.txSignature);
       setCreateSubStage(null);
@@ -248,6 +252,7 @@ function SecureBuildPage() {
       {...fadeIn(0)}
       className="mx-auto flex w-full max-w-2xl flex-col gap-8"
     >
+      <SecureRecoveryNotice recovery={secure} />
       {/* Stage progress strip - hidden when blocked / on done. The
           done state has its own resolution; the blocked states are
           terminal screens that don't need the strip. */}

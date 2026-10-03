@@ -1,5 +1,7 @@
 "use client";
 
+import { SecureRecoveryNotice, useSecureOperation } from "@/features/secure/infrastructure/useSecureOperation";
+
 // /app/secure/[recovery]/sweep. Full in-app sweep wizard.
 //
 // Three stages:
@@ -419,6 +421,8 @@ function SweepPage() {
     setStage("review");
   };
 
+  const secure = useSecureOperation(JSON.stringify([recoveryStr, destination, amountInput, assetMint, authMode]));
+
   const handleRun = async () => {
     if (runBusyRef.current) return;
     if (!destinationPk || !baseUnits || !recoveryPk) return;
@@ -454,15 +458,15 @@ function SweepPage() {
           decimals: selectedHolding.decimals,
         });
       }
-      const result = await runInAppSweep({
+      const result = await secure.run(`Sweep ${baseUnits.toString()} base units of ${assetMint ?? "SOL"} from vault ${recoveryStr} to ${destination}; authentication ${authMode}`, operation => runInAppSweep({
         authMode,
-        connection,
+        connection: operation.connection,
         recovery: recoveryPk,
         recoveryId: vaultQuery.data.account.recoveryId,
-        creator: wallet.publicKey,
+        creator: wallet.publicKey!,
         target,
-        signTransaction: wallet.signTransaction,
-        onProgress: (s) => setRunStage(s),
+        signTransaction: operation.signTransaction,
+        onProgress: operation.progress((s) => setRunStage(s)),
         collectAdditionalApprovals: async (req) => {
           setCollectInfo(req);
           setCollectCount(req.currentCount);
@@ -474,7 +478,7 @@ function SweepPage() {
           // Clear the picker state once the action layer continues.
           setCollectInfo(null);
         },
-      });
+      }));
       setProposeSig(result.proposeSig);
       setExecuteSig(result.executeSig);
       setBroadcastSig(result.broadcastSig);
@@ -519,15 +523,15 @@ function SweepPage() {
     setCollectBusy(true);
     setCollectError(null);
     try {
-      await addSweepApproval({
-        connection,
+      await secure.run(`Add ${mode} approval to ${collectInfo.proposal.toBase58()}`, operation => addSweepApproval({
+        connection: operation.connection,
         recovery: recoveryPk,
         proposal: collectInfo.proposal,
-        payer: wallet.publicKey,
+        payer: wallet.publicKey!,
         authMode: mode,
-        walletPubkey: mode === "wallet" ? wallet.publicKey : undefined,
-        signTransaction: wallet.signTransaction,
-      });
+        walletPubkey: mode === "wallet" ? wallet.publicKey! : undefined,
+        signTransaction: operation.signTransaction,
+      }), true);
       // Re-read the on-chain count instead of trusting `collectCount + 1`.
       // If a different approver landed an approval concurrently (other
       // browser, other device), the chain may already be at threshold ,
@@ -576,6 +580,7 @@ function SweepPage() {
 
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
+      <SecureRecoveryNotice recovery={secure} />
       <div className="px-gutter">
         <Link
           href={`/app/secure/${encodeURIComponent(recoveryStr)}`}

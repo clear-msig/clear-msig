@@ -23,9 +23,11 @@ The reviewed message-signing families route through `useSignWithWallet`;
 injected/Dynamic message transport remains below that boundary. Secure vault
 creation/import, enrollment, threshold changes and sweeps use a separate
 `wallet.signTransaction` path (including `NewRecoveryPage` and the Dynamic
-runtime adapter). These transaction-signing lifecycle paths were omitted from
-this continuation's verification and remain an explicit coverage gap; the shared
-message review and lock do not protect them. Source inventory includes the send
+runtime adapter). These transaction-signing lifecycle paths were omitted from the initial
+continuation. The subsequent `secure-signing-completion-2026-10-03.md` records
+their separate captured-operation boundary, exact transaction review/signature
+verification and durable interrupted-submission recovery. Message-signing
+coverage alone must not be used as evidence for these transaction paths. Source inventory includes the send
 routes and setup helpers; `useBatchSend`, `useBatchApprove`,
 `useProposalWorkflow`, `completeTypedGovernance`, member/threshold/timelock and
 persistent-policy hooks; wallet creation/intent setup; treasury controllers;

@@ -126,3 +126,19 @@ describe("attestation backups", () => {
     }
   });
 });
+
+it("retains pending recovery material without marking a vault confirmed", async () => {
+  const localStorage = makeLocalStorageStub();
+  vi.stubGlobal("window", {localStorage});
+  try {
+    const {savePendingAttestation,loadAttestation,hasAttestation}=await import("../clearmsig-attestations");
+    const bundle={attestationData:bytes([1]),networkSignature:bytes([2]),networkPubkey:bytes([3]),publicKey:new Uint8Array(32).fill(7)};
+    savePendingAttestation("pending-recovery",bundle);
+    expect(hasAttestation("pending-recovery")).toBe(false);
+    expect(loadAttestation("pending-recovery")).toEqual({...bundle,dwalletAddr:undefined});
+  } finally {vi.unstubAllGlobals();}
+});
+it("fails before submission if pending attestation storage is unavailable", async()=>{
+  vi.stubGlobal("window",{localStorage:{setItem(){throw new Error("storage full");}}});
+  try {const {savePendingAttestation}=await import("../clearmsig-attestations");expect(()=>savePendingAttestation("pending",{attestationData:bytes([1]),networkSignature:bytes([2]),networkPubkey:bytes([3]),publicKey:bytes([4])})).toThrow("storage full");}finally{vi.unstubAllGlobals();}
+});

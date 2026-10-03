@@ -1,5 +1,7 @@
 "use client";
 
+import { SecureRecoveryNotice, useSecureOperation } from "@/features/secure/infrastructure/useSecureOperation";
+
 // /app/secure/[recovery]/threshold. Bump the vault's approval threshold.
 //
 // Two auth modes:
@@ -177,6 +179,8 @@ function ThresholdPage() {
     return () => approvalCollection.close();
   }, [approvalCollection]);
 
+  const secure = useSecureOperation(JSON.stringify([recoveryStr, newThreshold, authMode]));
+
   const handleRun = async () => {
     if (runBusyRef.current) return;
     if (!recoveryPk || !vaultQuery.data) return;
@@ -201,15 +205,15 @@ function ThresholdPage() {
     setCollectBusy(false);
     setCollectError(null);
     try {
-      const result = await bumpThresholdSimple({
-        connection,
+      const result = await secure.run(`Change vault ${recoveryStr} threshold to ${newThreshold}; authentication ${authMode}`, operation => bumpThresholdSimple({
+        connection: operation.connection,
         recovery: recoveryPk,
         recoveryId: vaultQuery.data.account.recoveryId,
-        creator: wallet.publicKey,
+        creator: wallet.publicKey!,
         newThreshold,
         authMode,
-        signTransaction: wallet.signTransaction,
-        onProgress: (s) => setRunStage(s),
+        signTransaction: operation.signTransaction,
+        onProgress: operation.progress((s) => setRunStage(s)),
         collectAdditionalApprovals: async (req) => {
           setCollectInfo(req);
           setCollectCount(req.currentCount);
@@ -217,7 +221,7 @@ function ThresholdPage() {
           await approvalCollection.wait(req.proposal.toBase58());
           setCollectInfo(null);
         },
-      });
+      }));
       setTxSig(result.txSignature);
       setRunStage(null);
       setStage("done");
@@ -256,17 +260,17 @@ function ThresholdPage() {
     setCollectBusy(true);
     setCollectError(null);
     try {
-      await addRosterChangeApproval({
-        connection,
+      await secure.run(`Add ${mode} approval to ${collectInfo.proposal.toBase58()}`, operation => addRosterChangeApproval({
+        connection: operation.connection,
         recovery: recoveryPk,
         rosterChange: collectInfo.proposal,
-        payer: wallet.publicKey,
+        payer: wallet.publicKey!,
         authMode: mode,
-        walletPubkey: mode === "wallet" ? wallet.publicKey : undefined,
+        walletPubkey: mode === "wallet" ? wallet.publicKey! : undefined,
         rpId:
           typeof window !== "undefined" ? window.location.hostname : undefined,
-        signTransaction: wallet.signTransaction,
-      });
+        signTransaction: operation.signTransaction,
+      }), true);
       const liveCount = await readRosterChangeApprovalCount(
         connection,
         collectInfo.proposal,
@@ -324,6 +328,7 @@ function ThresholdPage() {
 
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
+      <SecureRecoveryNotice recovery={secure} />
       <div className="px-gutter md:hidden">
         <BackToWallets label="Wallets" />
       </div>

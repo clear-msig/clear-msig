@@ -1,5 +1,7 @@
 "use client";
 
+import { SecureRecoveryNotice, useSecureOperation } from "@/features/secure/infrastructure/useSecureOperation";
+
 // /app/secure/[recovery]/enroll - passkey enrollment wizard.
 //
 // Adds a new passkey to an existing Recovery's roster. Three
@@ -196,7 +198,7 @@ function EnrollDevicePage() {
   // recovery / "borrowed gas wallet" case.
   const walletIsMember = useMemo(() => {
     if (!wallet.publicKey || !vaultQuery.data) return false;
-    const myBytes = wallet.publicKey.toBytes();
+    const myBytes = wallet.publicKey!.toBytes();
     return vaultQuery.data.account.members.some((slot) => {
       if (slot[0] !== SCHEME_SOLANA_ADDRESS) return false;
       if (slot.length < 33) return false;
@@ -256,6 +258,8 @@ function EnrollDevicePage() {
           },
         };
 
+  const secure = useSecureOperation(JSON.stringify([recoveryStr, authMode]));
+
   const handleEnroll = async () => {
     if (!recoveryPk || !vaultQuery.data) return;
     if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
@@ -273,13 +277,14 @@ function EnrollDevicePage() {
     setSubStage("create-passkey");
 
     try {
+      const {result, reg} = await secure.run(`Enroll a passkey in vault ${recoveryStr}; authentication ${authMode}`, async operation => {
       const challenge = crypto.getRandomValues(new Uint8Array(32));
-      const userIdSrc = wallet.publicKey.toBytes();
+      const userIdSrc = wallet.publicKey!.toBytes();
 
       const reg = await registerPasskey({
         rpName: "Clear · Secure",
         userId: userIdSrc,
-        userName: shortAddress(wallet.publicKey.toBase58()),
+        userName: shortAddress(wallet.publicKey!.toBase58()),
         userDisplayName: `Passkey for vault ${shortAddress(recoveryStr)}`,
         challenge,
         // No `authenticatorAttachment`. The OS picks. Forcing
@@ -291,6 +296,8 @@ function EnrollDevicePage() {
         // on non-Touch-ID Macs can still enroll via their phone.
       });
 
+      operation.assertCurrent();
+
       // Encryption-key address. The pre-alpha program stores it but
       // doesn't enforce it - re-encrypt CPI lands at mainnet. Using the
       // saved DKG dwallet pubkey keeps the field meaningful for the
@@ -301,16 +308,18 @@ function EnrollDevicePage() {
 
       const result = await enrollPasskeyForVault({
         authMode,
-        connection,
-        recovery: recoveryPk,
-        recoveryId: vaultQuery.data.account.recoveryId,
-        creator: wallet.publicKey,
+        connection: operation.connection,
+        recovery: recoveryPk!,
+        recoveryId: vaultQuery.data!.account.recoveryId,
+        creator: wallet.publicKey!,
         newPasskeyPubkey: reg.publicKey,
         encryptionKeyAddress,
-        signTransaction: wallet.signTransaction,
-        onProgress: (s) => setSubStage(s),
+        signTransaction: operation.signTransaction,
+        onProgress: operation.progress((s) => setSubStage(s)),
       });
 
+      return {result, reg};
+      });
       setCredentialIdHex(bytesToHex(reg.credentialId));
       setTxSig(result.txSignature);
       setSubStage(null);
@@ -340,6 +349,7 @@ function EnrollDevicePage() {
   const blockedByDisconnect = !wallet.connected;
   return (
     <motion.div {...fadeIn(0)} className="flex flex-col gap-8">
+      <SecureRecoveryNotice recovery={secure} />
       {stage !== "done" && (
         <div className="px-gutter">
           <Link

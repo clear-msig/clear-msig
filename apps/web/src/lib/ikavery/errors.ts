@@ -1,3 +1,4 @@
+import { SecureOperationError } from "./transactionOperation";
 export interface SecureActionErrorCopy {
   title: string;
   details: string;
@@ -7,6 +8,7 @@ export function secureActionErrorCopy(
   error: unknown,
   fallbackTitle: string,
 ): SecureActionErrorCopy {
+  if (error instanceof SecureOperationError) return { title: "Secure operation paused", details: error.message };
   const details = error instanceof Error ? error.message : String(error);
   const message = details.toLowerCase();
 
@@ -40,6 +42,6 @@ export function secureActionErrorCopy(
   return {
     title: fallbackTitle,
     details:
-      "Nothing changed. Try again, or switch to a Solana wallet and retry.",
+      "The operation did not finish. Check the vault and any transaction IDs before retrying.",
   };
 }

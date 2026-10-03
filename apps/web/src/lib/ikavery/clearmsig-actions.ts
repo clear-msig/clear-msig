@@ -43,6 +43,7 @@ import { ikaDkgWeb, type IkaDkgResult } from "./ika-web";
 import {
   downloadAttestationBackup,
   saveAttestation,
+  savePendingAttestation,
 } from "./clearmsig-attestations";
 import {
   cpiAuthorityPda,
@@ -278,6 +279,10 @@ export async function createSoloVault(
   assertSignedBy(signedTx, creator, "Secure create vault");
 
   // Stage 4: submit + wait for confirmation.
+  savePendingAttestation(recovery.toBase58(), {
+    attestationData: dkg.attestationData, networkSignature: dkg.networkSignature,
+    networkPubkey: dkg.networkPubkey, publicKey: dkg.publicKey, dwalletAddr: dkg.dwalletAddr,
+  });
   progress("submit");
   const sig = await connection.sendRawTransaction(signedTx.serialize(), {
     skipPreflight: false,
@@ -469,6 +474,10 @@ export async function createMultiMemberVault(
   const signedTx = await signTransaction(tx);
   assertSignedBy(signedTx, creator, "Secure create vault");
 
+  savePendingAttestation(recovery.toBase58(), {
+    attestationData: dkg.attestationData, networkSignature: dkg.networkSignature,
+    networkPubkey: dkg.networkPubkey, publicKey: dkg.publicKey, dwalletAddr: dkg.dwalletAddr,
+  });
   progress("submit");
   const sig = await connection.sendRawTransaction(signedTx.serialize(), {
     skipPreflight: false,
