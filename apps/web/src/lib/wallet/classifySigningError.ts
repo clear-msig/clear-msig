@@ -11,7 +11,7 @@ export function classifySignError(err: unknown): WalletSignError {
   if (err instanceof WalletSignatureTimeoutError) {
     return new WalletSignError(
       "timeout",
-      "Your wallet did not open the signing request. Return to the app and try again, or reconnect the wallet.",
+      "The wallet has not responded. The request may still be open. Finish or cancel it in your wallet before trying again. A late signature will not be submitted.",
     );
   }
   if (err instanceof LedgerError) {

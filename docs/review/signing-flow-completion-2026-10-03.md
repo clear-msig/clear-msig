@@ -10,7 +10,7 @@ integration qualification.
 
 | Item | Implementation and local evidence | Remaining boundary |
 |---|---|---|
-| Signing-family inventory | Audited SOL, native EVM, ERC20, BTC, Zcash, batch, inbox approve/cancel, membership/threshold/timelock/policy, wallet/intent setup, recurring/escrow and agent policy/session/settlement/local permissions. Shared signing now requires exact prepared-document review; decoded legacy setup includes complete permission definitions and exact bytes. Unsupported opaque legacy approval remains blocked. A global handoff lock, expiry, route/account/secondary-signer/form/policy revisions and caller cancellation guards prevent stale or overlapping handoffs. Typed review rereads owned PDA/governance/policy/proposal state and vote count. | Supplementary RPC snapshots use confirmed state and are not independent finalized/genesis verification; canonical approval readers and program authorization remain authoritative. Independent device display and live providers are unqualified. |
+| Signing-family inventory | Audited SOL, native EVM, ERC20, BTC, Zcash, batch, inbox approve/cancel, membership/threshold/timelock/policy, wallet/intent setup, recurring/escrow and agent policy/session/settlement/local permissions. Shared signing now requires exact prepared-document review; decoded legacy setup includes complete permission definitions and exact bytes. Unsupported opaque legacy approval remains blocked. A shared message-signing handoff lock, expiry, route/account/secondary-signer/form/policy revisions and caller cancellation guards prevent stale or overlapping handoffs. Typed review rereads owned PDA/governance/policy/proposal state and vote count. | Supplementary RPC snapshots use confirmed state and are not independent finalized/genesis verification; canonical approval readers and program authorization remain authoritative. Independent device display and live providers are unqualified. |
 | Exact precision | SOL input, max, headlines and receipts retain nine decimals; native EVM max retains eighteen; ERC20 presentation uses token decimals. SOL balance validation uses exact raw units. BTC keeps satoshis and Zcash keeps its existing raw-unit path. Full destinations/contracts remain visible. Invalid exponent/separator text is rejected instead of stripped into another amount. | Existing reserves/economics unchanged. Rendered SOL/EVM tests are synthetic, not submitted funds. |
 | Simultaneous risks | SOL and batch surface all applicable chain-cap, wallet-cap and velocity warnings; raw-address warning remains alongside them. Enforcement still blocks denied transactions. | This combines existing known findings; it does not claim exhaustive fraud detection or permit approval to override hard policy. |
 | Mobile journeys | Actual tour, review and precision components pass Chromium at 320/390/1440: opt-in tour, focus trap/return, Escape, repeat visits, cancel, stale preparation, form/policy changes, account ABA/unmount, secondary signer change, disconnect/reconnect, rejection/retry, duplicate confirmation, back/forward and caller cancellation. Recurring/escrow controllers retain recovery IDs while blocking stale continuations. | Real onboarding/account creation, provider redirect, physical hardware, live submission and provider outages require configured integration tests. Treasury lifecycle coverage is controller regression, not mounted authenticated browser coverage. |
@@ -19,8 +19,13 @@ integration qualification.
 
 ## Signing entry-point inventory
 
-All application signatures route through `useSignWithWallet`; injected/Dynamic
-wallet transport remains below that boundary. Source inventory includes the send
+The reviewed message-signing families route through `useSignWithWallet`;
+injected/Dynamic message transport remains below that boundary. Secure vault
+creation/import, enrollment, threshold changes and sweeps use a separate
+`wallet.signTransaction` path (including `NewRecoveryPage` and the Dynamic
+runtime adapter). These transaction-signing lifecycle paths were omitted from
+this continuation's verification and remain an explicit coverage gap; the shared
+message review and lock do not protect them. Source inventory includes the send
 routes and setup helpers; `useBatchSend`, `useBatchApprove`,
 `useProposalWorkflow`, `completeTypedGovernance`, member/threshold/timelock and
 persistent-policy hooks; wallet creation/intent setup; treasury controllers;

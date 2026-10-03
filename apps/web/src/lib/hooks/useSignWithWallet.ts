@@ -13,7 +13,7 @@
 import { WalletSignError, ensureDescriptorFresh } from "@/lib/wallet/signingError";
 import { affectsSigningReview } from "@/lib/clearsign/reviewEvents";
 import { usePathname } from "next/navigation";
-import { withSigningLock } from "@/lib/clearsign/signingLock";
+import { trackProviderSigning, withSigningLock } from "@/lib/clearsign/signingLock";
 import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { useWallet, useConnection } from "@/lib/wallet";
 import { useCallback, useEffect, useReducer, useRef } from "react";
@@ -141,7 +141,7 @@ export function useSignWithWallet(config?: { reviewHandledBySolanaSend?: boolean
       let sig: Uint8Array;
       try {
         sig = await withWalletSignatureTimeout(
-          signMessage(messageBytes, options?.preferSigner),
+          trackProviderSigning(signMessage(messageBytes, options?.preferSigner)),
         );
       } catch (err) {
         // Distinguish real user rejections from device/transport

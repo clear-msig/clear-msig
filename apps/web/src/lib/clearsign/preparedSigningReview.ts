@@ -13,7 +13,9 @@ export async function requestPreparedSigningReview(review: PreparedSigningReview
   if (active) throw new Error("Finish or cancel the open signing review first.");
   review.assertCurrent();
   active = true;
-  const previous = document.activeElement;
+  const previous = document.activeElement === document.body
+    ? Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"] [data-dialog-initial-focus]')).at(-1) ?? document.activeElement
+    : document.activeElement;
   const dialog = document.createElement("dialog");
   dialog.className = "m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-2xl overflow-y-auto rounded-card border border-border-soft bg-surface-raised p-5 text-text-strong shadow-card-rest backdrop:bg-black/60";
   dialog.setAttribute("aria-labelledby", "prepared-signing-title");
@@ -36,10 +38,13 @@ export async function requestPreparedSigningReview(review: PreparedSigningReview
   confirm.className = "min-h-11 rounded-soft bg-accent px-4 font-semibold text-text-on-accent";
   dialog.onkeydown = (event) => {
     if (event.key !== "Tab") return;
+    // This native modal owns focus while background React dialogs are inert.
+    // Do not let their document-level traps consume the same key event.
+    event.stopPropagation();
     const focused = document.activeElement;
     if (event.shiftKey && (focused === cancel || focused === heading)) {
       event.preventDefault(); confirm.focus();
-    } else if (!event.shiftKey && focused === confirm) {
+    } else if (!event.shiftKey && (focused === confirm || focused === heading)) {
       event.preventDefault(); cancel.focus();
     }
   };
@@ -77,6 +82,12 @@ export async function requestPreparedSigningReview(review: PreparedSigningReview
     review.assertCurrent();
   } finally {
     dialog.remove(); active = false;
-    if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+    if (previous instanceof HTMLElement && previous.isConnected) {
+      // The invoking button can remain disabled while its async approval unwinds.
+      const restore = previous.hasAttribute("disabled")
+        ? previous.closest('[role="dialog"]')?.querySelector<HTMLElement>("[data-dialog-initial-focus]")
+        : previous;
+      restore?.focus();
+    }
   }
 }

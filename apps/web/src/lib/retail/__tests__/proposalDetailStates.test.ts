@@ -11,6 +11,7 @@ const fixtures = vi.hoisted(() => ({
   status: 0,
   actionKind: 1,
   typed: true, chainKind: 0, intentType: 3, nativeReview: false,
+  reordered: false,
   approvals: 0,
   cancellations: 0,
   executionPending: false,
@@ -63,7 +64,7 @@ vi.mock("@tanstack/react-query", () => ({
           wallet: { name: "Fixture wallet" },
           intent: {
             template: "Synthetic request",
-            approvers: [member, "11111111111111111111111111111111"],
+            approvers: fixtures.reordered ? ["11111111111111111111111111111111", member] : [member, "11111111111111111111111111111111"],
             approvalThreshold: 2,
             cancellationThreshold: 2,
             chainKind: fixtures.chainKind, intentType: fixtures.intentType,
@@ -112,6 +113,7 @@ function render() {
 }
 beforeEach(() =>
   Object.assign(fixtures, {
+    reordered: false,
     historyState: "idle",
     queryIndex: 0,
     proposalError: false,
@@ -248,4 +250,16 @@ describe("production proposal detail with synthetic account and provider boundar
     expect(html).not.toContain("Vote to cancel");
     expect(html).not.toContain(">Approve</button>");
   });
+});
+
+
+it.each([false, true])("does not assign closed-proposal bits to the current roster (reordered=%s)", (reordered) => {
+  fixtures.status = 2;
+  fixtures.approvals = 1;
+  fixtures.cancellations = 2;
+  fixtures.reordered = reordered;
+  const html = render();
+  expect(html).toContain("Historical approver state unavailable");
+  expect(html).not.toContain("Current approver state");
+  expect(html).not.toContain("Voted to cancel");
 });

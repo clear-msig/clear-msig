@@ -402,6 +402,7 @@ function Loaded({
       />
 
       <ApproversBreakdown
+        rosterBound={canVote}
         thresholdReachedAt={proposal.approvedAt}
         approvers={intent.approvers}
         approvalBitmap={proposal.approvalBitmap}
@@ -728,6 +729,7 @@ function PrintProposalButton() {
 // can see at a glance who's already approved and who's blocking.
 // Each row shows avatar + name + an Approved / Waiting pill.
 function ApproversBreakdown({
+  rosterBound,
   thresholdReachedAt,
   approvers,
   approvalBitmap,
@@ -735,6 +737,7 @@ function ApproversBreakdown({
   myAddress,
   contactByAddress,
 }: {
+  rosterBound: boolean;
   thresholdReachedAt: bigint;
   approvers: string[];
   approvalBitmap: number;
@@ -742,6 +745,12 @@ function ApproversBreakdown({
   myAddress: string;
   contactByAddress: Map<string, string>;
 }) {
+  if (!rosterBound) return (
+    <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
+      <h2 className="text-sm font-semibold text-text-strong">Historical approver state unavailable</h2>
+      <p className="mt-2 text-sm text-text-soft">This proposal is closed. Its vote positions cannot be attributed to current members because the roster may have changed. Use verified signature history below where available.</p>
+    </section>
+  );
   if (approvers.length === 0) return null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
