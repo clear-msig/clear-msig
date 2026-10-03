@@ -1,11 +1,15 @@
 "use client";
+import {
+  selectSpendingIntent,
+  ruleAuthorityCopy,
+} from "@/lib/retail/setupChecklist";
+import { templateFileForChainKind } from "@/lib/hooks/useUpdateTimelock";
 import { savedProposalError } from "@/lib/clearsign/inlineApproval";
 
 // Add a friend - real signed flow that grows the wallet's approver
 // list. The user types a friend's name + Solana address; we save the
 // pair locally to contacts AND run the on-chain update-intent flow
-// (prepare → sign → submit) so the friend can sign requests on this
-// wallet from then on.
+// (prepare → sign → submit) so the friend can sign requests under the selected spending rule. Governance is unchanged.
 //
 // Threshold isn't bumped automatically here - adding a friend keeps
 // the existing X-of-Y count, just expands the Y. Changing approval
@@ -61,7 +65,6 @@ import { useToast } from "@/components/ui/Toast";
 // Same template the setup flow used. We're updating an existing
 // intent's approvers, not changing the template, but the API needs
 // the file path to round-trip the definition cleanly.
-const TEMPLATE_FILE = "examples/intents/solana_transfer.json";
 
 export default function AddFriendPage() {
   const params = useParams<{ name: string }>();
@@ -78,7 +81,9 @@ export default function AddFriendPage() {
   const wallet = useWallet();
   const requestIdentity = useRequestIdentity();
   const { connection } = useConnection();
-  const { signTypedDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet({
+    scope: searchParams?.toString(),
+  });
   const toast = useToast();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
@@ -102,17 +107,15 @@ export default function AddFriendPage() {
     staleTime: 30_000,
   });
 
-  const firstIntent = useMemo(() => {
-    if (!intentsQuery.data) return null;
-    // Skip bootstrap intents (slots 0/1/2 are AddIntent/RemoveIntent/
-    // UpdateIntent). The user's spending rule is the first Custom.
-    return (
-      intentsQuery.data.find(
-        (it) =>
-          it.account !== null && it.account.intentType === IntentType.Custom,
-      ) ?? null
-    );
-  }, [intentsQuery.data]);
+  const requestedIntent = searchParams?.get("intent") ?? null;
+  const firstIntent = useMemo(
+    () => selectSpendingIntent(intentsQuery.data ?? [], requestedIntent),
+    [intentsQuery.data, requestedIntent],
+  );
+  const governance = (intentsQuery.data ?? []).find(
+    (it) =>
+      it.account?.approved && it.account.intentType === IntentType.UpdateIntent,
+  )?.account;
 
   // We used to silently router.replace() to /setup when no spending
   // rule existed yet - that yanked the user mid-flow with no context.
@@ -132,6 +135,10 @@ export default function AddFriendPage() {
   const [friendAddress, setFriendAddress] = useState(
     () => searchParams?.get("address")?.trim() ?? "",
   );
+  const requestedAddress = searchParams?.get("address")?.trim() ?? "";
+  useEffect(() => {
+    setFriendAddress(requestedAddress);
+  }, [requestedAddress, requestedIntent]);
   const [friendEmail, setFriendEmail] = useState(
     () => searchParams?.get("email")?.trim() ?? "",
   );
@@ -168,7 +175,7 @@ export default function AddFriendPage() {
     nameValid &&
     addressValid &&
     emailValid &&
-    (role === "watcher" || !alreadyMember) &&
+    (role === "watcher" || (!alreadyMember && !!governance)) &&
     !!firstIntent?.account;
 
   const addFriend = useMutation({
@@ -185,8 +192,12 @@ export default function AddFriendPage() {
       // watcher branch below skips the chain entirely so we only
       // need to gate when role !== "watcher".
       const updateIntent = (intentsQuery.data ?? []).find(
-        (it) => it.account?.intentType === IntentType.UpdateIntent,
+        (it) =>
+          it.account?.approved &&
+          it.account.intentType === IntentType.UpdateIntent,
       );
+      if (role !== "watcher" && !updateIntent?.account)
+        throw new Error("UpdateIntent governance authority is unavailable.");
       const signerPk =
         role !== "watcher" && updateIntent?.account
           ? wallet.pickSigner(updateIntent.account.approvers)
@@ -263,12 +274,13 @@ export default function AddFriendPage() {
         voteApprovers: voteIntent.approvers,
         voteApprovalThreshold: voteIntent.approvalThreshold,
         targetIntentIndex: intent.intentIndex,
+        expectedIntent: intent,
         proposers: newProposers,
         approvers: newApprovers,
         approvalThreshold: intent.approvalThreshold,
         cancellationThreshold: intent.cancellationThreshold,
         timelockSeconds: intent.timelockSeconds,
-        templateFile: TEMPLATE_FILE,
+        templateFile: templateFileForChainKind(intent.chainKind),
         kind: "add_member",
         member: trimmedAddress,
         role: wantProposer ? "full" : "approver",
@@ -399,7 +411,11 @@ export default function AddFriendPage() {
       {justAddedName && (
         <NextStepCard
           title={`${justAddedName} is in. What now?`}
-          subtitle={`They can start ${role === "watcher" ? "watching" : "approving"} ${toDisplayName(name)} requests immediately.`}
+          subtitle={
+            role === "watcher"
+              ? "Saved as a local watcher; no signing authority was added."
+              : `They can approve requests under spending rule #${firstIntent?.account?.intentIndex}. Other rules and governance are unchanged.`
+          }
           options={[
             {
               label: isPro ? "Add another team member" : "Add another person",
@@ -433,26 +449,47 @@ export default function AddFriendPage() {
           spending rule, which doesn't exist until setup-spending has
           run. Surface this explicitly with a clear next-step instead
           of silently kicking the user to /setup. */}
+      {firstIntent?.account && (
+        <div className="rounded-card border border-border-soft p-4 text-sm text-text-soft">
+          <p className="font-medium text-text-strong">
+            Spending rule #{firstIntent.account.intentIndex}
+          </p>
+          <p>
+            This adds authority only to the selected rule. Other spending rules
+            and governance stay unchanged.
+          </p>
+          <p className="mt-2">
+            {governance
+              ? ruleAuthorityCopy(
+                  governance,
+                  walletQuery.data?.account.creator ?? "",
+                )
+              : "UpdateIntent authority unavailable; no change can be authorized."}
+          </p>
+        </div>
+      )}
       {needsSetup && (
         <div className="rounded-card border border-warning/30 bg-warning/5 p-4 shadow-card-rest">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-warning">
-            Set up sending first
+            {requestedIntent !== null
+              ? "Selected rule unavailable"
+              : "Set up sending first"}
           </p>
           <p className="mt-2 text-sm text-text-strong">
-            Adding {isPro ? "team members" : "people"} changes{" "}
-            <strong>{toDisplayName(name)}</strong>&rsquo;s protection. Turn on
-            sending first.
+            {requestedIntent !== null
+              ? "The selected spending rule is not active or could not be found. Review the rules before adding anyone."
+              : "Adding people requires an active spending rule. Set up sending first."}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
-              href={`/app/wallet/${encodeURIComponent(name)}/setup`}
+              href={`/app/wallet/${encodeURIComponent(name)}/${requestedIntent !== null ? "rules" : "setup"}`}
               className={
                 "inline-flex items-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-accent-hover active:scale-[0.98]"
               }
             >
-              Enable sending
+              {requestedIntent !== null ? "Review rules" : "Enable sending"}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
             <Link
@@ -585,13 +622,26 @@ export default function AddFriendPage() {
             details={[
               { label: "Wallet", value: toDisplayName(name) },
               {
+                label: "Spending rule",
+                value: `#${firstIntent?.account?.intentIndex ?? "unavailable"}`,
+              },
+              {
+                label: "Change authority",
+                value: governance
+                  ? ruleAuthorityCopy(
+                      governance,
+                      walletQuery.data?.account.creator ?? "",
+                    )
+                  : "UpdateIntent authority unavailable; no change can be authorized.",
+              },
+              {
                 label: "Their role",
                 value:
                   role === "full" ? "Can spend & approve" : "Approves only",
               },
               {
                 label: "Address",
-                value: shortAddress(trimmedAddress),
+                value: trimmedAddress,
                 emphasis: "mono",
               },
               ...(trimmedEmail
@@ -624,7 +674,7 @@ export default function AddFriendPage() {
       <p className="text-center text-xs text-text-soft">
         {role === "watcher"
           ? "Watchers are saved on this device. No on-chain signature needed."
-          : `The change is signed and applied to ${toDisplayName(name)}'s protection.`}
+          : `Changes apply to spending rule #${firstIntent?.account?.intentIndex ?? "unavailable"} only, after governance approval and execution.`}
       </p>
     </div>
   );

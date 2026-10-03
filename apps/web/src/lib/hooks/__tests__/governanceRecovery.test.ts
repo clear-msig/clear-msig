@@ -1,3 +1,4 @@
+import { parseIntent, type IntentAccount } from "@/lib/msig/accounts";
 import bs58 from "bs58";
 import { findIntentAddress } from "@/lib/msig/pda";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
@@ -47,6 +48,13 @@ vi.mock("@/lib/clearsign/inlineApproval", async (importOriginal) => ({
   reviewedCreationProposalAddress: () => "11111111111111111111111111111111",
   assertSubmittedCreation: (_c: unknown, _e: unknown, p: string) => p,
 }));
+vi.mock("@/lib/intents/generatedRegistry", () => ({
+  INTENT_TEMPLATES: [
+    { chainKind: 0, template: "", file: "send-sol" },
+    { chainKind: 0, template: "", file: "send-sol-alternate" },
+  ],
+}));
+let expectedIntent: IntentAccount;
 const pk = new PublicKey("11111111111111111111111111111111");
 function input(): TypedGovernanceInput {
   return {
@@ -68,6 +76,7 @@ function input(): TypedGovernanceInput {
     voteApprovers: [pk.toBase58()],
     voteApprovalThreshold: 1,
     targetIntentIndex: 1,
+    expectedIntent,
     proposers: [pk.toBase58()],
     approvers: [pk.toBase58()],
     approvalThreshold: 1,
@@ -101,6 +110,7 @@ beforeEach(() => {
     pk.toBuffer(),
     Buffer.alloc(28),
   ]);
+  expectedIntent = parseIntent(Buffer.concat([Buffer.from([2]), body]));
   mocks.update.mockResolvedValue({
     params_data_hex: "01" + body.toString("hex"),
   });
@@ -190,4 +200,26 @@ describe("actual governance orchestrator with mocked providers", () => {
     expect(mocks.submit).not.toHaveBeenCalled();
     expect(requestRecovery.snapshot()).toEqual([]);
   });
+});
+
+it("blocks unsupported custom definitions before preparation or signing", async () => {
+  await expect(
+    completeTypedGovernance({
+      ...input(),
+      expectedIntent: {
+        ...expectedIntent,
+        template: "unregistered custom rule",
+      },
+    }),
+  ).rejects.toThrow("no compatible registered template");
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.sign).not.toHaveBeenCalled();
+});
+it("checks alternate registered definitions when identical display text has different executable bytes", async () => {
+  mocks.update.mockResolvedValueOnce({ params_data_hex: "00" });
+  await expect(completeTypedGovernance(input())).resolves.toMatchObject({
+    kind: "awaiting_approvals",
+  });
+  expect(mocks.update).toHaveBeenCalledTimes(2);
+  expect(mocks.update.mock.calls[1][1].file).toBe("send-sol-alternate");
 });

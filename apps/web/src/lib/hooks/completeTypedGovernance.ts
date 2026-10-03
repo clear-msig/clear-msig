@@ -1,3 +1,5 @@
+import type { IntentAccount } from "@/lib/msig/accounts";
+import { INTENT_TEMPLATES } from "@/lib/intents/generatedRegistry";
 import {
   assertGovernanceReplacement,
   executeAndVerifyTypedGovernance,
@@ -50,6 +52,7 @@ export interface TypedGovernanceInput {
   voteApprovalThreshold: number;
   /** Custom intent being rewritten. */
   targetIntentIndex: number;
+  expectedIntent: IntentAccount;
   proposers: string[];
   approvers: string[];
   approvalThreshold: number;
@@ -75,6 +78,22 @@ export async function completeTypedGovernance(
   input: TypedGovernanceInput,
 ): Promise<TypedGovernanceResult> {
   input.requestIdentity.assertCurrent();
+  // Match the actual rule, never a chain default. The compiled body is then
+  // compared field-for-field before any signature; text alone proves nothing.
+  const candidates = INTENT_TEMPLATES.filter(
+    (template) =>
+      template.chainKind === input.expectedIntent.chainKind &&
+      template.template === input.expectedIntent.template,
+  );
+  candidates.sort(
+    (a, b) =>
+      Number(b.file === input.templateFile) -
+      Number(a.file === input.templateFile),
+  );
+  if (!candidates.length)
+    throw new Error(
+      "This custom rule has no compatible registered template. No authority change was signed.",
+    );
   const recovery = requestRecovery.begin({
     walletName: input.walletName,
     endpoint: input.connection.rpcEndpoint,
@@ -101,24 +120,41 @@ export async function completeTypedGovernance(
     // Build and commit the exact replacement body before anyone signs. Keeping
     // it in the typed proposal makes delayed multi-approver execution resumable
     // without trusting browser-local state or a backend database.
-    const bodyDry = await backendApi.prepare.updateIntent(input.walletName, {
-      index: input.targetIntentIndex,
-      file: input.templateFile,
-      proposers: input.proposers,
-      approvers: input.approvers,
-      threshold: input.approvalThreshold,
-      cancellation_threshold: input.cancellationThreshold,
-      timelock: input.timelockSeconds,
-      policy_ciphertexts: [],
-    });
-    const paramsHex = String(
-      (bodyDry as { params_data_hex?: string }).params_data_hex ?? "",
-    ).replace(/^0x/i, "");
-    if (paramsHex.length < 4) {
-      throw new Error("Could not build intent body for governance update.");
+    let paramsHex = "";
+    let incompatibility: unknown;
+    for (const template of candidates) {
+      input.requestIdentity.assertCurrent();
+      const bodyDry = await backendApi.prepare.updateIntent(input.walletName, {
+        index: input.targetIntentIndex,
+        file: template.file,
+        proposers: input.proposers,
+        approvers: input.approvers,
+        threshold: input.approvalThreshold,
+        cancellation_threshold: input.cancellationThreshold,
+        timelock: input.timelockSeconds,
+        policy_ciphertexts: [],
+      });
+      input.requestIdentity.assertCurrent();
+      const candidate = String(
+        (bodyDry as { params_data_hex?: string }).params_data_hex ?? "",
+      ).replace(/^0x/i, "");
+      try {
+        if (candidate.length < 4)
+          throw new Error("Could not build intent body for governance update.");
+        // Same display text may have multiple network/legacy definitions.
+        // Accept only an exact executable definition match, never a default.
+        assertGovernanceReplacement(input, candidate);
+        paramsHex = candidate;
+        break;
+      } catch (error) {
+        incompatibility = error;
+      }
     }
-    // params_data = [target_index byte][intent body]
-    assertGovernanceReplacement(input, paramsHex);
+    if (!paramsHex)
+      throw (
+        incompatibility ??
+        new Error("No exact compatible rule definition was found.")
+      );
     const newIntentBodyHex = paramsHex.slice(2);
     const committedPayload = encodeTypedGovernancePayload(
       input.targetIntentIndex,
@@ -197,7 +233,7 @@ export async function completeTypedGovernance(
     });
     input.requestIdentity.assertCurrent();
     const signed = await input.signTypedDescriptor(dry, {
-            assertCurrent: input.requestIdentity.assertCurrent,
+      assertCurrent: input.requestIdentity.assertCurrent,
       preferSigner: input.proposerPk,
       expectedTyped: {
         envelopeHash: summary.envelopeHash,
@@ -248,10 +284,16 @@ export async function completeTypedGovernance(
           { actor_pubkey: approverPk.toBase58() },
         );
         input.requestIdentity.assertCurrent();
-        const approveSigned = await input.signTypedDescriptor(
-          approveDry,
-          { ...inlineApprovalOptions(dry, approveDry, summary, proposal, approverPk), assertCurrent: input.requestIdentity.assertCurrent },
-        );
+        const approveSigned = await input.signTypedDescriptor(approveDry, {
+          ...inlineApprovalOptions(
+            dry,
+            approveDry,
+            summary,
+            proposal,
+            approverPk,
+          ),
+          assertCurrent: input.requestIdentity.assertCurrent,
+        });
         input.requestIdentity.assertCurrent();
         await backendApi.submit.approveTypedProposal(
           input.walletName,

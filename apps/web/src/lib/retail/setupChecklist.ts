@@ -1,3 +1,6 @@
+import { IntentType } from "@/lib/msig";
+import type { IntentWithPda } from "@/lib/chain/intents";
+
 // Post-creation setup checklist.
 //
 // New wallets are created by one signer with a 1-of-1 approval rule and no
@@ -20,6 +23,7 @@ export interface SetupStep {
 
 export interface SetupChecklistInput {
   walletPath: string;
+  intentIndex: number;
   memberCount: number;
   approvalThreshold: number;
   timelockSeconds: number;
@@ -28,6 +32,7 @@ export interface SetupChecklistInput {
 
 export function buildSetupChecklist(input: SetupChecklistInput): SetupStep[] {
   const base = input.walletPath;
+  const rule = `intent=${input.intentIndex}`;
   const hasTeam = input.memberCount >= 2;
   const teammateDetail =
     input.pendingTeammates > 0
@@ -38,7 +43,7 @@ export function buildSetupChecklist(input: SetupChecklistInput): SetupStep[] {
       id: "teammates",
       title: "Add teammates",
       detail: teammateDetail,
-      href: `${base}/members/add`,
+      href: `${base}/members/add?${rule}`,
       done: hasTeam && input.pendingTeammates === 0,
     },
     {
@@ -47,24 +52,24 @@ export function buildSetupChecklist(input: SetupChecklistInput): SetupStep[] {
       detail: hasTeam
         ? `Currently ${input.approvalThreshold} of ${input.memberCount} must approve.`
         : "Available once a second approver has joined.",
-      href: `${base}/policy`,
+      href: `${base}/policy?${rule}`,
       done: hasTeam && input.approvalThreshold >= 2,
     },
     {
       id: "delay",
-      title: "Add a cooling-off delay",
+      title: "Cooling-off delay (optional)",
       detail:
         input.timelockSeconds > 0
           ? "Approved requests wait before they can run."
           : "Optional. Approved requests currently run immediately.",
-      href: `${base}/policy`,
+      href: `${base}/rules#rule-${input.intentIndex}`,
       done: input.timelockSeconds > 0,
     },
   ];
 }
 
 export function checklistComplete(steps: readonly SetupStep[]): boolean {
-  return steps.every((step) => step.done);
+  return steps.every((step) => step.done || step.id === "delay");
 }
 
 const PENDING_KEY = "clear.pending-team.v1:";
@@ -114,8 +119,46 @@ export function isChecklistDismissed(walletName: string): boolean {
 export function dismissChecklist(walletName: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(DISMISS_KEY + walletName, JSON.stringify(["1"]));
+    window.localStorage.setItem(
+      DISMISS_KEY + walletName,
+      JSON.stringify(["1"]),
+    );
   } catch {
     /* ignore */
   }
+}
+
+/** An explicit missing/invalid rule never silently redirects an authority edit. */
+export function selectSpendingIntent(
+  intents: readonly IntentWithPda[],
+  requested: string | null,
+) {
+  const rules = intents.filter(
+    (it) => it.account?.approved && it.account.intentType === IntentType.Custom,
+  );
+  if (requested === null) return rules[0] ?? null;
+  if (!/^(0|[1-9]\d*)$/.test(requested)) return null;
+  return (
+    rules.find((it) => it.account?.intentIndex === Number(requested)) ?? null
+  );
+}
+
+export function importedMemberHref(
+  walletName: string,
+  intentIndex: number,
+  address: string,
+): string {
+  return `/app/wallet/${encodeURIComponent(walletName)}/members/add?intent=${intentIndex}&address=${encodeURIComponent(address)}&role=approver`;
+}
+
+export function ruleAuthorityCopy(
+  rule: { approvalThreshold: number; approvers: readonly string[] },
+  creator: string,
+): string {
+  const count = rule.approvers.length;
+  const creatorOnly =
+    count === 1 &&
+    rule.approvalThreshold === 1 &&
+    rule.approvers[0] === creator;
+  return `${rule.approvalThreshold} of ${count} governance approvals required${creatorOnly ? " (creator only)" : ""}. Payment approvers do not automatically have this authority.`;
 }

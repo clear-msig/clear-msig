@@ -195,16 +195,6 @@ export default function WalletDetailPage() {
     return Array.from(seen);
   }, [intentsQuery.data]);
   const memberCount = intentsQuery.data ? memberAddresses.length : null;
-  // Governing rule for the setup checklist: the first live custom intent,
-  // falling back to the AddIntent meta-intent on wallets with no sends yet.
-  const governing = useMemo(() => {
-    const live = (intentsQuery.data ?? []).filter((it) => it.account !== null);
-    return (
-      live.find((it) => it.account && it.account.intentIndex >= 3)?.account ??
-      live[0]?.account ??
-      null
-    );
-  }, [intentsQuery.data]);
 
   // Whether the wallet has any active intents - gates the "Send money"
   // CTA. With zero intents, the program can't accept a proposal, so we
@@ -274,13 +264,8 @@ export default function WalletDetailPage() {
       {walletAction.length > 0 && (
         <WalletApprovalPanel rows={walletAction} reduce={!!reduce} />
       )}
-      {governing && (
-        <TeamSetupChecklist
-          walletName={name}
-          memberAddresses={memberAddresses}
-          approvalThreshold={governing.approvalThreshold}
-          timelockSeconds={governing.timelockSeconds}
-        />
+      {intentsQuery.data && walletQuery.data && (
+        <TeamSetupChecklist walletName={name} intents={intentsQuery.data} creator={walletQuery.data.account.creator} />
       )}
       <WalletTourModal />
       <WalletDetailTabs

@@ -3,7 +3,11 @@ import { PublicKey, type Connection, type AccountInfo } from "@solana/web3.js";
 import { backendApi } from "@/lib/api/endpoints";
 import { requestRecovery } from "@/lib/clearsign/requestRecovery";
 import { savedProposalError } from "@/lib/clearsign/inlineApproval";
-import { parseIntent, parseTypedProposal } from "@/lib/msig/accounts";
+import {
+  parseIntent,
+  parseTypedProposal,
+  type IntentAccount,
+} from "@/lib/msig/accounts";
 import { findIntentAddress, findTypedProposalAddress } from "@/lib/msig/pda";
 import { fromHex } from "@/lib/msig/hash";
 import { ProposalStatus } from "@/lib/msig";
@@ -199,6 +203,7 @@ export async function executeAndVerifyTypedGovernance(
 /** Independently compare requested authority to the backend's compiled replacement before signing. */
 export function assertGovernanceReplacement(
   input: {
+    expectedIntent: IntentAccount;
     walletId: string;
     targetIntentIndex: number;
     proposers: string[];
@@ -216,6 +221,7 @@ export function assertGovernanceReplacement(
   definition[0] = 2;
   definition.set(params.subarray(1), 1);
   const body = parseIntent(definition);
+  assertUnchangedRuleDefinition(input.expectedIntent, body);
   const [, bump] = findIntentAddress(
     new PublicKey(input.walletId),
     input.targetIntentIndex,
@@ -235,4 +241,38 @@ export function assertGovernanceReplacement(
     throw new Error(
       "Governance preparation changed the reviewed authority settings.",
     );
+}
+
+/** Authority-only edits must preserve the complete executable rule, including ciphertexts. */
+export function assertUnchangedRuleDefinition(
+  before: IntentAccount,
+  after: IntentAccount,
+): void {
+  const mutable = new Set([
+    "proposers",
+    "approvers",
+    "approvalThreshold",
+    "cancellationThreshold",
+    "timelockSeconds",
+    "activeProposalCount",
+  ]);
+  for (const key of Object.keys(before) as (keyof IntentAccount)[]) {
+    if (
+      !mutable.has(key) &&
+      JSON.stringify(
+        before[key] instanceof Uint8Array
+          ? Array.from(before[key] as Uint8Array)
+          : before[key],
+      ) !==
+        JSON.stringify(
+          after[key] instanceof Uint8Array
+            ? Array.from(after[key] as Uint8Array)
+            : after[key],
+        )
+    ) {
+      throw new Error(
+        "The compiled replacement changes the existing rule definition. No authority update was signed. This custom rule needs an exact compatible template.",
+      );
+    }
+  }
 }

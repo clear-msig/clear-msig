@@ -1,9 +1,11 @@
+import { parseIntent } from "@/lib/msig/accounts";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import bs58 from "bs58";
 import { PublicKey, type Connection } from "@solana/web3.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  assertUnchangedRuleDefinition,
   executeAndVerifyTypedGovernance,
   typedGovernanceIsFinalized,
 } from "../typedGovernanceExecution";
@@ -273,5 +275,51 @@ describe("pinned network identity boundary", () => {
       "differs",
     );
     expect(api.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe("authority edits preserve executable definitions", () => {
+  it("allows only the reviewed authority fields and proposal counter to differ", () => {
+    const original = parseIntent(fixture().installed);
+    expect(() =>
+      assertUnchangedRuleDefinition(original, {
+        ...original,
+        approvers: [key(8).toBase58()],
+        approvalThreshold: 2,
+        timelockSeconds: 60,
+        activeProposalCount: 1,
+      }),
+    ).not.toThrow();
+  });
+  it.each([
+    "chainKind",
+    "intentType",
+    "template",
+    "templateOffset",
+    "templateLen",
+    "txTemplateOffset",
+    "txTemplateLen",
+    "params",
+    "accounts",
+    "instructions",
+    "dataSegments",
+    "seeds",
+    "bytePool",
+    "policyCiphertexts",
+    "policyCiphertextIds",
+  ] as const)("rejects an implicit change to %s", (field) => {
+    const original = parseIntent(fixture().installed);
+    const altered = {
+      ...original,
+      [field]:
+        field === "template"
+          ? "different rule"
+          : typeof original[field] === "number"
+            ? 999
+            : [1],
+    };
+    expect(() =>
+      assertUnchangedRuleDefinition(original, altered as typeof original),
+    ).toThrow("existing rule definition");
   });
 });

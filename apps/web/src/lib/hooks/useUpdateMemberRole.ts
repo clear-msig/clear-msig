@@ -154,6 +154,7 @@ export function useUpdateMemberRole() {
         voteApprovers: voteIntent.approvers,
         voteApprovalThreshold: voteIntent.approvalThreshold,
         targetIntentIndex: intent.intentIndex,
+        expectedIntent: intent,
         proposers: newProposers,
         approvers: newApprovers,
         approvalThreshold: intent.approvalThreshold,

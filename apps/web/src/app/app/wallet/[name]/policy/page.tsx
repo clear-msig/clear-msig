@@ -10,13 +10,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { selectSpendingIntent } from "@/lib/retail/setupChecklist";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useConnection } from "@/lib/wallet";
 import { useQuery } from "@tanstack/react-query";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { IntentType, type IntentAccount } from "@/lib/msig";
+import { type IntentAccount } from "@/lib/msig";
 import {
   ArrowRight,
   Bell,
@@ -48,9 +49,7 @@ import {
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { getWalletAppearance } from "@/lib/retail/walletAppearance";
 import { walletProductSurface } from "@/lib/productWorkspace";
-import {
-  templateFileForChainKind,
-} from "@/lib/hooks/useUpdateTimelock";
+import { templateFileForChainKind } from "@/lib/hooks/useUpdateTimelock";
 import { useUpdateApprovalThreshold } from "@/lib/hooks/useUpdateApprovalThreshold";
 import { usePersistPersonalWalletPolicy } from "@/lib/hooks/usePersistWalletPolicy";
 import {
@@ -61,7 +60,11 @@ import {
   normalizeAllowlistAddress,
 } from "@/features/policies/domain/personalPolicy";
 
-import { HourPicker, NavCard, ToggleButton } from "@/features/policies/ui/PolicyControls";
+import {
+  HourPicker,
+  NavCard,
+  ToggleButton,
+} from "@/features/policies/ui/PolicyControls";
 
 export default function PolicyPage() {
   const params = useParams<{ name: string }>();
@@ -93,12 +96,13 @@ export default function PolicyPage() {
     enabled: !!walletQuery.data,
     staleTime: 30_000,
   });
+  const search = useSearchParams();
+  const requestedIntent = search?.get("intent") ?? null;
   const customIntent = useMemo(
     () =>
-      (intentsQuery.data ?? []).find(
-        (it) => it.account !== null && it.account.intentType === IntentType.Custom,
-      )?.account ?? null,
-    [intentsQuery.data],
+      selectSpendingIntent(intentsQuery.data ?? [], requestedIntent)?.account ??
+      null,
+    [intentsQuery.data, requestedIntent],
   );
 
   const motionProps = reduce
@@ -142,13 +146,23 @@ export default function PolicyPage() {
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-0">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas/70 px-3 py-1.5 text-xs font-medium text-text-soft">
-            <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+            <ShieldCheck
+              className="h-3 w-3"
+              aria-hidden="true"
+              strokeWidth={2}
+            />
             Read before signing
           </span>
         </div>
       </motion.header>
 
+      <p className="text-sm text-text-soft">
+        {customIntent
+          ? `Spending rule #${customIntent.intentIndex}. The approval threshold below applies to this rule only, not governance authority or other spending rules.`
+          : "The selected spending rule is unavailable. No other rule has been selected for editing."}
+      </p>
       <ThresholdCard
+        key={customIntent?.intentIndex ?? "unavailable"}
         walletName={name}
         intent={customIntent}
         loading={walletQuery.isLoading || intentsQuery.isLoading}
@@ -172,7 +186,10 @@ export default function PolicyPage() {
 function ProtectionCoreLinks({ walletName }: { walletName: string }) {
   const encoded = encodeURIComponent(walletName);
   return (
-    <section className="grid gap-3 sm:grid-cols-2" aria-label="Core protection controls">
+    <section
+      className="grid gap-3 sm:grid-cols-2"
+      aria-label="Core protection controls"
+    >
       <NavCard
         href={`/app/wallet/${encoded}/budget`}
         icon={Gauge}
@@ -221,14 +238,18 @@ function PeopleCard({
           </div>
         </div>
         <Link
-          href={`/app/wallet/${encoded}/members/add`}
+          href={
+            intent
+              ? `/app/wallet/${encoded}/members/add?intent=${intent.intentIndex}`
+              : `/app/wallet/${encoded}/rules`
+          }
           className={
             "inline-flex min-h-tap items-center justify-center gap-1.5 rounded-soft bg-accent px-3.5 py-2 text-sm font-medium text-text-on-accent shadow-accent-rest " +
             "transition-[background-color,transform] duration-base ease-out-soft hover:bg-accent-hover active:scale-[0.98] " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
           }
         >
-          Add person
+          {intent ? "Add person" : "Review rules"}
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </header>
@@ -348,7 +369,9 @@ function ThresholdCard({
 }) {
   const toast = useToast();
   const update = useUpdateApprovalThreshold();
-  const motionProps = reduce ? {} : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+  const motionProps = reduce
+    ? {}
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   const [draft, setDraft] = useState<number>(intent?.approvalThreshold ?? 1);
 
   useEffect(() => {
@@ -384,7 +407,9 @@ function ThresholdCard({
           : `Approval quorum set to ${draft} of ${memberCount}`,
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't change quorum");
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't change quorum",
+      );
     }
   };
 
@@ -442,8 +467,8 @@ function ThresholdCard({
       </div>
 
       <p className="mt-3 text-xs text-text-soft">
-        This changes the on-chain approval threshold only. It does not
-        remove members or change the timelock.
+        This changes the on-chain approval threshold only. It does not remove
+        members or change the timelock.
       </p>
     </motion.section>
   );
@@ -494,9 +519,14 @@ function AllowlistCard({ walletName }: { walletName: string }) {
     try {
       const result = await persistPersonalPolicy(walletName);
       setDirty(false);
-      toast.success(result.waiting > 0 ? "Recipient policy proposed; activation pending" : "Recipient policy saved on chain", {
-        details: formatPolicySyncResult(result),
-      });
+      toast.success(
+        result.waiting > 0
+          ? "Recipient policy proposed; activation pending"
+          : "Recipient policy saved on chain",
+        {
+          details: formatPolicySyncResult(result),
+        },
+      );
     } catch (err) {
       toast.error("Recipient policy saved locally, but not on chain", {
         details:
@@ -517,7 +547,9 @@ function AllowlistCard({ walletName }: { walletName: string }) {
     const trimmed = address.trim();
     if (!trimmed) return;
     if (!isValidAllowlistAddress(draft.chainKind, trimmed)) {
-      toast.error(`That doesn't look like a valid ${allowlistChain(draft.chainKind).label} address`);
+      toast.error(
+        `That doesn't look like a valid ${allowlistChain(draft.chainKind).label} address`,
+      );
       return;
     }
     const normalized = normalizeAllowlistAddress(draft.chainKind, trimmed);
@@ -547,13 +579,17 @@ function AllowlistCard({ walletName }: { walletName: string }) {
     persistLocal(next);
   };
 
-  const contactsNotOnList = draft.chainKind === 0
-    ? contacts.contacts.filter((c) => !draft.addresses.includes(c.address))
-    : [];
+  const contactsNotOnList =
+    draft.chainKind === 0
+      ? contacts.contacts.filter((c) => !draft.addresses.includes(c.address))
+      : [];
   const selectedChain = allowlistChain(draft.chainKind);
 
   return (
-    <section id="recipients" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
+    <section
+      id="recipients"
+      className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5"
+    >
       <header className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
           <UserCheck className="h-5 w-5" strokeWidth={1.75} />
@@ -585,10 +621,16 @@ function AllowlistCard({ walletName }: { walletName: string }) {
       </label>
 
       <div className="mt-5 inline-flex rounded-full bg-canvas p-1 text-xs font-medium">
-        <ToggleButton active={draft.mode === "off"} onClick={() => setMode("off")}>
+        <ToggleButton
+          active={draft.mode === "off"}
+          onClick={() => setMode("off")}
+        >
           Off
         </ToggleButton>
-        <ToggleButton active={draft.mode === "on"} onClick={() => setMode("on")}>
+        <ToggleButton
+          active={draft.mode === "on"}
+          onClick={() => setMode("on")}
+        >
           On
         </ToggleButton>
       </div>
@@ -601,7 +643,10 @@ function AllowlistCard({ walletName }: { walletName: string }) {
         >
           {syncing ? (
             <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              <Loader2
+                className="h-3.5 w-3.5 animate-spin"
+                aria-hidden="true"
+              />
               Saving on chain...
             </>
           ) : dirty ? (
@@ -611,14 +656,16 @@ function AllowlistCard({ walletName }: { walletName: string }) {
           )}
         </Button>
         <span className="text-xs text-text-soft">
-          {dirty ? "Local changes need approval." : "Ready to sync when needed."}
+          {dirty
+            ? "Local changes need approval."
+            : "Ready to sync when needed."}
         </span>
       </div>
 
       {hydrated && draft.mode === "on" && draft.addresses.length === 0 ? (
         <p className="mt-4 rounded-card bg-warning/10 p-3 text-xs text-text-strong">
-          The allowlist is empty. Until you add a recipient, every send
-          will be blocked.
+          The allowlist is empty. Until you add a recipient, every send will be
+          blocked.
         </p>
       ) : null}
 
@@ -769,9 +816,14 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
     try {
       const result = await persistPersonalPolicy(walletName);
       setDirty(false);
-      toast.success(result.waiting > 0 ? "Allowed-hours policy proposed; activation pending" : "Allowed-hours policy saved on chain", {
-        details: formatPolicySyncResult(result),
-      });
+      toast.success(
+        result.waiting > 0
+          ? "Allowed-hours policy proposed; activation pending"
+          : "Allowed-hours policy saved on chain",
+        {
+          details: formatPolicySyncResult(result),
+        },
+      );
     } catch (err) {
       toast.error("Allowed hours saved locally, but not on chain", {
         details:
@@ -796,7 +848,10 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
   };
 
   return (
-    <section id="time-window" className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
+    <section
+      id="time-window"
+      className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5"
+    >
       <header className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
           <CalendarClock className="h-5 w-5" strokeWidth={1.75} />
@@ -829,7 +884,10 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
         >
           {syncing ? (
             <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              <Loader2
+                className="h-3.5 w-3.5 animate-spin"
+                aria-hidden="true"
+              />
               Saving on chain...
             </>
           ) : dirty ? (
@@ -839,14 +897,20 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
           )}
         </Button>
         <span className="text-xs text-text-soft">
-          {dirty ? "Local changes need approval." : "Ready to sync when needed."}
+          {dirty
+            ? "Local changes need approval."
+            : "Ready to sync when needed."}
         </span>
       </div>
 
       {hydrated && draft.enabled ? (
         <>
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <HourPicker label="Start" value={draft.startHour} onChange={setStart} />
+            <HourPicker
+              label="Start"
+              value={draft.startHour}
+              onChange={setStart}
+            />
             <HourPicker label="End" value={draft.endHour} onChange={setEnd} />
           </div>
           <p className="mt-2 text-xs text-text-soft">

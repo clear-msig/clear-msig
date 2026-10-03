@@ -208,6 +208,7 @@ function RuleCard({ intent, delay, reduce, walletName }: RuleCardProps) {
 
   return (
     <motion.li
+      id={`rule-${intent.intentIndex}`}
       {...motionProps}
       transition={{ duration: 0.3, delay, ease: [0.22, 1, 0.36, 1] }}
       className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"

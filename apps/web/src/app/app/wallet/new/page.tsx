@@ -670,8 +670,7 @@ function NewWalletContent() {
                   <p className="mt-1 text-xs text-text-soft">
                     Paste addresses exported from {proRuntime.importSources.join(" / ")}.
                     The wallet is created with you as the only approver; each
-                    teammate is then added with its own approval, so nothing
-                    changes until your team signs.
+                    address stays a local draft until you review an add-member request. The creator alone initially controls UpdateIntent, which authorizes these changes. Imported teammates do not gain authority until an approved change executes.
                   </p>
                 </div>
               </div>

@@ -109,6 +109,7 @@ export function useUpdateApprovalThreshold() {
         voteApprovers: voteIntent.approvers,
         voteApprovalThreshold: voteIntent.approvalThreshold,
         targetIntentIndex: intent.intentIndex,
+        expectedIntent: intent,
         proposers: intent.proposers,
         approvers: intent.approvers,
         approvalThreshold: newThreshold,
