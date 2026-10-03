@@ -55,6 +55,7 @@ vi.mock("@/lib/intents/generatedRegistry", () => ({
   ],
 }));
 let expectedIntent: IntentAccount;
+let compiledParamsHex: string;
 const pk = new PublicKey("11111111111111111111111111111111");
 function input(): TypedGovernanceInput {
   return {
@@ -100,6 +101,10 @@ beforeEach(() => {
   }
   const [, bump] = findIntentAddress(pk, 1, CLEAR_WALLET_PROGRAM_ID);
   const one = Buffer.from([1, 0, 0, 0]);
+  const param = Buffer.alloc(14);
+  param[0] = 1; // U64
+  param[5] = 1; // LessThanU64
+  param.writeBigUInt64LE(9007199254740993n, 6);
   const body = Buffer.concat([
     pk.toBuffer(),
     Buffer.from([bump, 1, 3, 0, 1, 1, 1]),
@@ -108,12 +113,13 @@ beforeEach(() => {
     pk.toBuffer(),
     one,
     pk.toBuffer(),
-    Buffer.alloc(28),
+    one,
+    param,
+    Buffer.alloc(24),
   ]);
   expectedIntent = parseIntent(Buffer.concat([Buffer.from([2]), body]));
-  mocks.update.mockResolvedValue({
-    params_data_hex: "01" + body.toString("hex"),
-  });
+  compiledParamsHex = "01" + body.toString("hex");
+  mocks.update.mockResolvedValue({ params_data_hex: compiledParamsHex });
   mocks.prepare.mockResolvedValue({
     proposal_pubkey: pk.toBase58(),
     expiry: 1900000000,
@@ -223,3 +229,60 @@ it("checks alternate registered definitions when identical display text has diff
   expect(mocks.update).toHaveBeenCalledTimes(2);
   expect(mocks.update.mock.calls[1][1].file).toBe("send-sol-alternate");
 });
+
+it("rejects a changed parsed bigint constraint before signing", async () => {
+  const changed = {
+    ...input(),
+    expectedIntent: {
+      ...expectedIntent,
+      params: expectedIntent.params.map((param) => ({
+        ...param,
+        constraintValue: 9007199254740992n,
+      })),
+    },
+  };
+  await expect(completeTypedGovernance(changed)).rejects.toThrow(
+    "existing rule definition",
+  );
+  expect(mocks.sign).not.toHaveBeenCalled();
+  expect(mocks.submit).not.toHaveBeenCalled();
+});
+
+it.each(["member", "quorum", "delay"] as const)(
+  "allows a reviewed %s edit with unchanged parsed bigint constraints",
+  async (edit) => {
+    const request = input();
+    let compiled = Buffer.from(compiledParamsHex, "hex");
+    if (edit === "delay") {
+      request.timelockSeconds = 60;
+      compiled.writeUInt32LE(60, 40);
+    } else {
+      const member = new PublicKey(new Uint8Array(32).fill(8));
+      request.approvers = [...request.approvers, member.toBase58()];
+      // Header + one proposer ends at 90; replace only the approver vector.
+      compiled = Buffer.concat([
+        compiled.subarray(0, 90),
+        Buffer.from([2, 0, 0, 0]),
+        pk.toBuffer(),
+        member.toBuffer(),
+        compiled.subarray(126),
+      ]);
+      if (edit === "quorum") {
+        request.approvalThreshold = 2;
+        compiled[38] = 2;
+      } else {
+        request.kind = "add_member";
+        request.member = member.toBase58();
+        request.role = "approver";
+      }
+    }
+    mocks.update.mockResolvedValue({
+      params_data_hex: compiled.toString("hex"),
+    });
+    expect(expectedIntent.params[0].constraintValue).toBe(9007199254740993n);
+    await expect(completeTypedGovernance(request)).resolves.toMatchObject({
+      kind: "awaiting_approvals",
+    });
+    expect(mocks.sign).toHaveBeenCalledTimes(1);
+  },
+);

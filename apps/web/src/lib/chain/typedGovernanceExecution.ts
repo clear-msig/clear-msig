@@ -257,22 +257,45 @@ export function assertUnchangedRuleDefinition(
     "activeProposalCount",
   ]);
   for (const key of Object.keys(before) as (keyof IntentAccount)[]) {
-    if (
-      !mutable.has(key) &&
-      JSON.stringify(
-        before[key] instanceof Uint8Array
-          ? Array.from(before[key] as Uint8Array)
-          : before[key],
-      ) !==
-        JSON.stringify(
-          after[key] instanceof Uint8Array
-            ? Array.from(after[key] as Uint8Array)
-            : after[key],
-        )
-    ) {
+    if (!mutable.has(key) && !equalRuleValue(before[key], after[key])) {
       throw new Error(
         "The compiled replacement changes the existing rule definition. No authority update was signed. This custom rule needs an exact compatible template.",
       );
     }
   }
+}
+
+/** Parsed accounts are acyclic records; compare values without JSON or numeric coercion. */
+function equalRuleValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (left instanceof Uint8Array || right instanceof Uint8Array) {
+    return (
+      left instanceof Uint8Array &&
+      right instanceof Uint8Array &&
+      left.length === right.length &&
+      left.every((byte, index) => byte === right[index])
+    );
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => equalRuleValue(value, right[index]))
+    );
+  }
+  if (
+    left === null ||
+    right === null ||
+    typeof left !== "object" ||
+    typeof right !== "object"
+  )
+    return false;
+  const a = left as Record<string, unknown>,
+    b = right as Record<string, unknown>;
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.hasOwn(b, key) && equalRuleValue(a[key], b[key]))
+  );
 }

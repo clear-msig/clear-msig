@@ -23,7 +23,11 @@ const n = (value: number, size: number) => {
   b.writeUIntLE(value, 0, size);
   return b;
 };
-function fixture() {
+function fixture(constraintValue = 9007199254740993n) {
+  const param = Buffer.alloc(14);
+  param[0] = 1; // U64
+  param[5] = 1; // LessThanU64
+  param.writeBigUInt64LE(constraintValue, 6);
   const wallet = key(4),
     signer = key(5);
   const [, intentBump] = findIntentAddress(wallet, 3, CLEAR_WALLET_PROGRAM_ID);
@@ -42,7 +46,9 @@ function fixture() {
     signer.toBuffer(),
     n(1, 4),
     signer.toBuffer(),
-    Buffer.alloc(7 * 4),
+    n(1, 4),
+    param,
+    Buffer.alloc(6 * 4),
   ]);
   const payload = Buffer.concat([Buffer.from([3]), installed.subarray(1)]);
   const proposalBytes = Buffer.concat([
@@ -323,3 +329,40 @@ describe("authority edits preserve executable definitions", () => {
     ).toThrow("existing rule definition");
   });
 });
+
+describe("parsed bigint rule constraints", () => {
+  it.each([0n, 9007199254740993n, 18446744073709551615n])(
+    "preserves the exact parsed u64 value %s",
+    (value) => {
+      const before = parseIntent(new Uint8Array(fixture(value).installed));
+      const after = parseIntent(fixture(value).installed);
+      expect(before.params).toHaveLength(1);
+      expect(before.params[0].constraintValue).toBe(value);
+      expect(() => assertUnchangedRuleDefinition(before, after)).not.toThrow();
+    },
+  );
+  it("rejects distinct adjacent constraints above Number's exact range", () => {
+    const before = parseIntent(fixture(9007199254740992n).installed);
+    const after = parseIntent(fixture(9007199254740993n).installed);
+    expect(() => assertUnchangedRuleDefinition(before, after)).toThrow(
+      "existing rule definition",
+    );
+  });
+});
+
+it.each(["9007199254740993", 9007199254740992])(
+  "does not coerce constraint type %s into bigint",
+  (value) => {
+    const before = parseIntent(fixture().installed);
+    const after = {
+      ...before,
+      params: before.params.map((param) => ({
+        ...param,
+        constraintValue: value,
+      })),
+    };
+    expect(() =>
+      assertUnchangedRuleDefinition(before, after as unknown as typeof before),
+    ).toThrow("existing rule definition");
+  },
+);

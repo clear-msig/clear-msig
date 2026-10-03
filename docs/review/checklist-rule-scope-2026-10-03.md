@@ -39,3 +39,20 @@ This correction preserves the external main changes through `f59552cd`.
   email or payment testing. Root Rust/SBF code was not changed or rerun locally.
 - No dependency or bundle-budget edits in this correction. The pre-existing
   dependency security gate is tracked separately and is not waived here.
+
+## Bigint guard correction
+
+Closure review found a regression in the initial guard: `parseIntent()` returns
+`ParamEntry.constraintValue` as `bigint`, so JSON serialization threw on normal
+nonempty parameter vectors. The original empty-parameter fixtures missed this.
+Expanded binary fixtures reproduced the failure before the correction.
+
+The guard now compares parsed records structurally, preserving primitive types,
+exact bigint values, ordered arrays and byte contents without JSON serialization
+or conversion to Number. Matching definitions pass; a one-unit constraint change
+above the safe-integer boundary fails before signing. Tests exercise 0, values
+above 2^53, maximum u64, bigint/string/number mismatches, and the actual governance
+caller for member, quorum and delay edits with parsed nonempty parameters.
+
+The updated full suite passes 241 suites / 1,913 tests, plus 27 script tests;
+focused guard/caller coverage is 50 tests. UI and Rust/SBF source are unchanged.
