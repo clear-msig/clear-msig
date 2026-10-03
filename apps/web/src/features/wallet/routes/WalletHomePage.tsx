@@ -652,9 +652,14 @@ function BalanceHeroCard({
   primaryWallet: OnchainMembership | null;
   onOpenWalletSwitcher?: () => void;
 }) {
+  const hasPortfolioTotal = aggregate.chains.length > 0;
+  // Without a multi-chain portfolio the headline is the SOL vault balance
+  // only, so it must not be labelled as a total.
   const label = selectedSurface
     ? productWorkspaceLabel(selectedSurface)
-    : "Total balance";
+    : hasPortfolioTotal
+      ? "Total balance"
+      : "SOL balance";
   const surfaceCopy = productDashboardCopy(selectedSurface);
   const SurfaceIcon = selectedSurface
     ? PRODUCT_SURFACE_ICON[selectedSurface]
@@ -662,7 +667,6 @@ function BalanceHeroCard({
   const { hidden, toggle } = useBalancePrivacy();
   const fiat = useDisplayCurrency();
   const hiddenClass = hidden ? "blur-sm select-none" : "";
-  const hasPortfolioTotal = aggregate.chains.length > 0;
   const headline = hasPortfolioTotal ? fiat.format(aggregate.totalUsd) : amount;
   const primaryWalletName = primaryWallet?.wallet_name ?? null;
   const primaryWalletSurface = primaryWalletName
