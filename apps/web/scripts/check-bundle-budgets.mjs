@@ -31,20 +31,24 @@ const EXTERNAL_APP_RUNTIME_RULES = [
   },
 ];
 
-// Rebaselined on 2026-07-16 after the security-mandated Next 15.5.20 and
-// Dynamic 4.92.3 upgrades. The previous 960/930/480 limits reject the patched
-// dependency graph (967.6/951.0/504.2 kB respectively). These remain tight
-// regression ratchets; the final product targets below are unchanged.
-const CURRENT_APP_TOTAL_BUDGET_KB = 971;
-const CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB = 954;
+// Rebaselined on 2026-10-03 at the owner's instruction. The default profile now
+// matches the limits already approved for the devnet channel (review preview and
+// main), because Vercel builds that do not match the approved owner/slug/ref/env
+// selection were failing at the stricter 2026-07-16 limits (external 1100,
+// Turnkey 954) with pages measured at 1117.8 / 979.7 kB. Public, connect and
+// route-owned budgets are unchanged. Re-tighten before any mainnet channel.
+const CURRENT_APP_TOTAL_BUDGET_KB = 999;
+const CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB = 991;
+// Also the /connect page ceiling; deliberately NOT raised.
 const CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB = 1_100;
-const CURRENT_MAX_CHUNK_BUDGET_KB = 506;
+const DEVNET_EXTERNAL_APP_TOTAL_BUDGET_KB = 1_124;
+const CURRENT_MAX_CHUNK_BUDGET_KB = 518;
 // The opt-in scope is fixed in source, not a caller-supplied numeric override.
 // Evidence and approval: docs/security/preview-bundle-baseline-2026-10-01.md.
 export const DEFAULT_BUNDLE_BUDGETS = Object.freeze({
-  id: "production-ratchet-2026-07-16",
+  id: "devnet-default-2026-10-03",
   app: CURRENT_APP_TOTAL_BUDGET_KB,
-  external: CURRENT_EXTERNAL_APP_TOTAL_BUDGET_KB,
+  external: DEVNET_EXTERNAL_APP_TOTAL_BUDGET_KB,
   turnkey: CURRENT_TURNKEY_APP_TOTAL_BUDGET_KB,
   chunk: CURRENT_MAX_CHUNK_BUDGET_KB,
 });

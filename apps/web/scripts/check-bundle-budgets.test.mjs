@@ -108,7 +108,7 @@ test("selects the named baseline only for the approved review preview", () => {
   assert.equal(selectBundleBudgets({ ...approvedPreview, VERCEL_TARGET_ENV: "preview" }), REVIEW_PREVIEW_BUDGETS);
   assert.equal(REVIEW_PREVIEW_BUDGETS.id, "review-preview-2026-10-01-v1");
   assert.deepEqual(DEFAULT_BUNDLE_BUDGETS, {
-    id: "production-ratchet-2026-07-16", app: 971, external: 1100, turnkey: 954, chunk: 506,
+    id: "devnet-default-2026-10-03", app: 999, external: 1124, turnkey: 991, chunk: 518,
   });
 });
 
@@ -140,7 +140,7 @@ function row(route, totalBytes, routeBytes = 0) {
   return { route, totalBytes, routeBytes };
 }
 
-test("the exact measured secured runtime passes preview and fails default budgets", () => {
+test("the exact measured secured runtime passes preview and the raised default budgets", () => {
   const actual = {
     routeSizes: [row("/app/wallet/[name]/agents/page", 1022438)],
     externalAppSizes: [row("/app/wallet/[name]/agents/page", 1150377)],
@@ -148,7 +148,7 @@ test("the exact measured secured runtime passes preview and fails default budget
     chunks: new Map([["sdk.js", 530226]]),
   };
   assert.deepEqual(evaluateBundleBudgets(actual, selectBundleBudgets(approvedPreview)), []);
-  assert.equal(evaluateBundleBudgets(actual).length, 4);
+  assert.deepEqual(evaluateBundleBudgets(actual), []);
 });
 
 test("each preview ceiling permits the boundary and rejects one extra byte", () => {

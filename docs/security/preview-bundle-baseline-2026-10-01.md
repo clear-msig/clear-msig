@@ -63,3 +63,15 @@ checks, production compilation and 50 generated pages, followed by the selected
 preview bundle gate. The same compiled output checked without preview metadata
 exited 1 under `production-ratchet-2026-07-16`, retaining the original failures.
 Synthetic provider tests are not live wallet/authentication validation.
+
+## Default profile raised, 2026-10-03
+
+The owner instructed that the default profile be raised to the approved devnet
+limits (app 999, external 1124, Turnkey 991, chunk 518 KiB; id
+`devnet-default-2026-10-03`). Trigger: a Vercel build of commit `567e2df` failed
+at the previous defaults (external 1100, Turnkey 954) with measured routes up to
+1117.8 kB external and 979.7 kB Turnkey, i.e. inside the approved limits. The
+cause of the profile mismatch (repo owner, slug, ref or environment on Vercel)
+was not confirmed. Public, connect and route-owned budgets are unchanged. This
+removes the stricter ratchet for non-approved builds; restore it before any
+mainnet channel.
