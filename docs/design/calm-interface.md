@@ -3,13 +3,18 @@
 ## Direction
 
 Keep ClearSig recognizable while making the interface easier to read for longer
-periods. Use a neutral canvas, one clear decision at a time, modest depth, and a
-muted sage accent. Color emphasizes actions and status; it is not the background
-for an entire receipt or permission diagram.
+periods. Use a neutral canvas, one clear decision at a time, modest depth, and
+the ClearSig lime accent ("Obsidian & Lime"). Color emphasizes actions and
+status; it is not the background for an entire receipt or permission diagram.
 
-The user-supplied mobile reference showed a large neon-green signing receipt and
-repeated oversized green badges. The landing now uses neutral receipt surfaces,
-smaller contextual details, and clear vertical spacing instead.
+**Decision, 3 October 2026:** the neon lime accent is kept. An earlier pass
+recolored the product to a muted sage (`#a3be8c` / `#47663c`); the 30 September
+landing review reverted that on the owner's direction, and this document
+previously still described the sage palette. Do not reintroduce sage. The calm
+principles below apply through restraint in how much lime is used, not through
+a different hue: a large neon receipt or repeated oversized lime badges are
+still to be avoided, so the landing uses neutral receipt surfaces, smaller
+contextual details, and clear vertical spacing.
 
 ## Design references
 
@@ -28,9 +33,13 @@ name, product structure, and readable-approval concept remain its own.
 
 ## Applied changes
 
-- Dark accent: `#a3be8c`; light accent: `#47663c`. Primary-button text keeps AA
-  contrast in both themes. Shared app tokens and legacy onboarding/public accent
-  treatments use the same quieter color family
+- Accent (source of truth: `--clear-accent*` in `apps/web/src/app/globals.css`):
+  - Dark theme: `#ccff00`, hover `#d8ff33`, bright `#e0ff66`, text on accent
+    `#000000` (contrast 17.9:1 on the accent; accent on the `#0c0c0c` canvas is
+    16.6:1)
+  - Light theme: `#4d7c0f`, hover `#3f6212`, bright `#65a30d`, text on accent
+    `#ffffff` (contrast 5.0:1 either way, AA for normal text)
+  - Shared app tokens and the public/onboarding surfaces use this one family
 - Alpha-compatible RGB token channels ensure Tailwind actually emits tinted
   surfaces, translucent navigation and border/text opacity variants
 - Browser chrome and manifest theme color use neutral `#0c0c0c`

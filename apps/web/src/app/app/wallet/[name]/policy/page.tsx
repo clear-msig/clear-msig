@@ -34,6 +34,7 @@ import {
   Wallet as WalletIcon,
 } from "lucide-react";
 import { Button } from "@/components/retail/Button";
+import { EnforcementLegend } from "@/components/policies/EnforcementLegend";
 import { useToast } from "@/components/ui/Toast";
 import { useContacts } from "@/lib/hooks/useContacts";
 import { shortAddress } from "@/lib/retail/contacts";
@@ -174,6 +175,7 @@ export default function PolicyPage() {
         loading={walletQuery.isLoading || intentsQuery.isLoading}
       />
       <ProtectionCoreLinks walletName={name} />
+      <EnforcementLegend />
 
       <AdvancedProtectionPanel
         walletName={name}

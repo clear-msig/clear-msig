@@ -69,10 +69,12 @@ existing Axum API (`apps/api`) is the natural home.
 
 Goal: one understandable place for "who must approve what".
 
-1. **Single Rules hub.** Merge `policy`, `policies`, `rules`, `allowances`,
-   `budget` and `settings` into one page with three clearly named layers:
-   what the program enforces, what this app checks before signing, and what
-   is only a reminder. Show which layer blocked a send.
+1. **Rules hub: mostly exists; legend shipped.** `/policy` is already the hub
+   (threshold, people, spending limits, send delay, recipients, hours, with
+   `settings` redirecting to it). The remaining gap was saying where each rule
+   is enforced; the "What stops a payment, and where" legend now covers that
+   (`lib/retail/enforcementLegend.ts`). Still open: showing which layer blocked
+   a specific send.
 2. **Choose approvals at setup, safely.** Since threshold cannot be set at
    creation, make the checklist's threshold and delay steps one-tap flows
    that prepare the governance request, instead of links to a settings page.
@@ -126,12 +128,16 @@ These need a product decision, not engineering time.
    Payments) share one app; four are marked live on a devnet pre-alpha. The
    agents code is about 52k of 170k lines. Recommend leading with Pro or
    Personal and moving the others behind an explicit "labs" entry.
-2. **Accent colour.** `docs/design/calm-interface.md` specifies a muted sage
-   accent. The rendered landing and chooser use neon lime on black. Either
-   update the doc or the palette; do not leave both.
-3. **Asset-first send.** Send is split into per-chain routes, each needing a
-   chain binding first. Decide whether bindings are created automatically the
-   first time an asset is used.
+2. **Accent colour: decided.** Keep the neon lime (`#ccff00` dark, `#4d7c0f`
+   light). `docs/design/calm-interface.md` has been corrected; the sage palette
+   it used to describe is retired.
+3. **Asset-first send: already largely in place.** `/send` is the single asset
+   chooser (`SendChainPicker`, `HeldAssetPicker`): ready assets open the send
+   form, missing ones start the same "turn on sending" path. The per-chain
+   routes remain behind it because each chain has its own signing and review
+   contract. Merging those into one form would touch signing-sensitive code for
+   little user-visible gain, so it is not planned. The earlier review overstated
+   this gap.
 
 ## Out of scope for the browser
 
