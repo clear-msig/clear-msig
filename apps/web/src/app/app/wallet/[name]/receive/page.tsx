@@ -304,7 +304,7 @@ export default function ReceivePage() {
           <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
             <div className="flex items-center gap-2">
               <ChainBadge chain={selected.chain} size="sm" />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                 {selected.chain.name} address
               </p>
             </div>

@@ -56,7 +56,7 @@ export default function AccountPage() {
           Mobile shows the title in the top bar (HeaderBar's centered
           title) so the eyebrow stands alone here without doubling up. */}
       <header className="px-gutter">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Your account
         </p>
         <h1 className="mt-2 hidden font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong md:block">
@@ -111,7 +111,7 @@ function Section({
   return (
     <section className="flex flex-col gap-3">
       <header className="flex flex-col gap-0.5 px-gutter">
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <h2 className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           {label}
         </h2>
         {description && (

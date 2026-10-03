@@ -222,7 +222,7 @@ export default function AgentAdminPage() {
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Beta Admin · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -352,7 +352,7 @@ function AdminPanel({
     <section className="rounded-card bg-surface-raised p-4 shadow-card-rest">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-text-strong">{title}</h2>
-        <span className="rounded-full border border-border-soft bg-canvas px-2 py-1 text-[11px] font-medium text-text-soft">
+        <span className="rounded-full border border-border-soft bg-canvas px-2 py-1 text-xs font-medium text-text-soft">
           {count}
         </span>
       </div>
@@ -373,7 +373,7 @@ function Metric({
   return (
     <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium text-text-soft">{label}</span>
+        <span className="text-xs font-medium text-text-soft">{label}</span>
         <Icon className="h-4 w-4 text-accent" aria-hidden="true" />
       </div>
       <p className="mt-2 font-mono text-xl font-semibold text-text-strong">{value}</p>
@@ -384,7 +384,7 @@ function Metric({
 function SmallMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-canvas px-2 py-1.5">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">{label}</p>
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">{label}</p>
       <p className="mt-1 text-xs font-semibold text-text-strong">{value}</p>
     </div>
   );
@@ -431,8 +431,8 @@ function Badge({
     <span
       className={
         tone === "success"
-          ? "rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent"
-          : "rounded-full border border-warning/30 bg-warning/[0.08] px-2.5 py-1 text-[11px] font-medium text-warning"
+          ? "rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-xs font-medium text-accent"
+          : "rounded-full border border-warning/30 bg-warning/[0.08] px-2.5 py-1 text-xs font-medium text-warning"
       }
     >
       {children}

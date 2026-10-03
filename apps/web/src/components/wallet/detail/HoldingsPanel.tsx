@@ -154,7 +154,7 @@ function NativeHoldings({
                     <p className="truncate text-sm font-medium text-text-strong">
                       {row.name}
                     </p>
-                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
+                    <span className="shrink-0 font-mono text-xs uppercase tracking-[0.16em] text-text-soft">
                       {row.ticker}
                     </span>
                   </div>
@@ -244,7 +244,7 @@ function Erc20Holdings({
               key={holding.contractAddress}
               className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[11px] font-semibold uppercase text-accent">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold uppercase text-accent">
                 {holding.symbol.slice(0, 3)}
               </div>
               <div className="min-w-0 flex-1">
@@ -296,7 +296,7 @@ function AssetAction({
       href={href}
       aria-label={label}
       title={label}
-      className="inline-flex min-h-11 items-center justify-center rounded-full border border-border-soft bg-surface-raised px-3 text-[11px] font-medium text-text-strong transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+      className="inline-flex min-h-11 items-center justify-center rounded-full border border-border-soft bg-surface-raised px-3 text-xs font-medium text-text-strong transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
     >
       {children}
     </Link>

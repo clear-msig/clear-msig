@@ -38,7 +38,7 @@ export function WalletApprovalPanel({
           <span className="font-mono text-xs uppercase tracking-[0.12em] text-accent">
             Needs your approval
           </span>
-          <span className="font-numerals text-[11px] font-semibold tabular-nums text-text-strong">
+          <span className="font-numerals text-xs font-semibold tabular-nums text-text-strong">
             {rows.length}
           </span>
         </span>

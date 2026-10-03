@@ -49,7 +49,7 @@ export function HeldAssetPicker({
 
   return (
     <section className="mt-2" aria-label="Assets held on this network">
-      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
         Held on this network
       </p>
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -67,7 +67,7 @@ export function HeldAssetPicker({
               <span className="block truncate text-xs font-semibold text-text-strong">
                 {holding.symbol}
               </span>
-              <span className="block truncate text-[10px] text-text-soft">
+              <span className="block truncate text-xs text-text-soft">
                 {tokenAmountToString(holding.rawBalance, holding.decimals, 6)} held
               </span>
             </span>
@@ -92,7 +92,7 @@ function SolanaHeldAsset({ holding }: { holding: SolanaTokenHolding }) {
         <span className="block truncate text-xs font-semibold text-text-strong">
           {holding.symbol}
         </span>
-        <span className="block truncate text-[10px] text-text-soft">
+        <span className="block truncate text-xs text-text-soft">
           {tokenAmountToString(holding.rawBalance, holding.decimals, 6)} held
         </span>
       </span>
@@ -102,7 +102,7 @@ function SolanaHeldAsset({ holding }: { holding: SolanaTokenHolding }) {
 
 function AssetSymbol({ symbol }: { symbol: string }) {
   return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[9px] font-bold uppercase text-accent">
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold uppercase text-accent">
       {symbol.slice(0, 4)}
     </span>
   );

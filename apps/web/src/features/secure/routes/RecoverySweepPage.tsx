@@ -625,7 +625,7 @@ function SweepPage() {
           <button
             type="button"
             onClick={() => vaultQuery.refetch()}
-            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
           >
             Retry
           </button>

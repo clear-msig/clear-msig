@@ -198,7 +198,7 @@ function PersonalSafetyPanel({ walletName }: { walletName: string }) {
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-      <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+      <p className="font-mono text-xs uppercase tracking-[0.24em] text-accent">
         Protection
       </p>
 

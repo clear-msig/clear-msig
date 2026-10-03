@@ -43,7 +43,7 @@ export function UnsupportedSignerBanner({
         />
         <div className="min-w-0 flex-1">
           <p className="font-medium">{title ?? defaultTitle}</p>
-          <p className={"mt-1 text-text-soft " + (compact ? "text-[11px]" : "text-xs")}>
+          <p className={"mt-1 text-text-soft " + (compact ? "text-xs" : "text-xs")}>
             This signer failed ClearSign&rsquo;s byte-preservation safety
             check. Use Solflare, Backpack, Phantom, Coinbase Wallet, or
             try again with a fresh Dynamic embedded wallet. For
@@ -61,7 +61,7 @@ export function UnsupportedSignerBanner({
               href="https://docs.dynamic.xyz/embedded-wallets/embedded-wallets-providers/solana"
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-text-soft hover:text-text-strong"
+              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-text-soft hover:text-text-strong"
             >
               About Dynamic&rsquo;s Solana embedded wallet
               <ExternalLink className="h-3 w-3" aria-hidden="true" />

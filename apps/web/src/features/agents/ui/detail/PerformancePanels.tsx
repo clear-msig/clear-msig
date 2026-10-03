@@ -95,7 +95,7 @@ export function NextAllowancePanel({
         <p className="mt-3 text-xs leading-relaxed text-text-soft">
           Latest stopped idea: {blockedProposals[0].market} {blockedProposals[0].side}
           {blockedProposals[0].policyViolations?.[0]?.message
-            ? ` â€” ${blockedProposals[0].policyViolations[0].message}`
+            ? ` — ${blockedProposals[0].policyViolations[0].message}`
             : ""}
         </p>
       ) : null}

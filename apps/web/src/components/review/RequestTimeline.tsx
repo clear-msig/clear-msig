@@ -55,7 +55,7 @@ export function RequestTimeline({
 
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
         Request timeline
       </h2>
       <ol className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -66,7 +66,7 @@ export function RequestTimeline({
           >
             <span
               className={
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-numerals text-[11px] font-semibold tabular-nums " +
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-numerals text-xs font-semibold tabular-nums " +
                 (step.state === "done"
                   ? "bg-accent/15 text-accent"
                   : step.state === "current"

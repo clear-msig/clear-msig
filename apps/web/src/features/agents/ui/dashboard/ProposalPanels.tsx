@@ -17,7 +17,7 @@ export function AgentClearSignProof({ proposal }: { proposal: AgentTradeProposal
     return null;
   }
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-soft border border-accent/20 bg-accent/[0.05] px-2 py-1.5 text-[10px] font-medium text-text-soft">
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-soft border border-accent/20 bg-accent/[0.05] px-2 py-1.5 text-xs font-medium text-text-soft">
       <span className="inline-flex items-center gap-1 text-accent">
         <ShieldCheck className="h-3 w-3" aria-hidden="true" />
         ClearSign v4
@@ -43,8 +43,8 @@ export function TradeLifecycleStrip({ lifecycle }: { lifecycle: AgentTradeLifecy
           >
             <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <div className="min-w-0">
-              <p className="truncate text-[11px] font-semibold">{step.label}</p>
-              <p className="truncate text-[10px] opacity-75">{step.detail}</p>
+              <p className="truncate text-xs font-semibold">{step.label}</p>
+              <p className="truncate text-xs opacity-75">{step.detail}</p>
             </div>
           </div>
         );
@@ -58,7 +58,7 @@ export function DecisionJournalSummary({ proposal }: { proposal: AgentTradePropo
   return (
     <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold text-text-strong">
+        <p className="text-xs font-semibold text-text-strong">
           Why this trade
         </p>
         <details className="group">
@@ -76,7 +76,7 @@ export function DecisionJournalSummary({ proposal }: { proposal: AgentTradePropo
               {journal.evidence.slice(0, 4).map((item) => (
                 <span
                   key={item.id}
-                  className="rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-text-soft"
+                  className="rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-xs font-medium text-text-soft"
                 >
                   {evidenceLabel(item.kind)}
                 </span>
@@ -136,10 +136,10 @@ export function lifecycleStepIcon(
 export function MiniReason({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-text-strong">
+      <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-text-strong">
         {value}
       </p>
     </div>
@@ -177,7 +177,7 @@ export function ProposalActions({
   }
   if (proposal.status === "executed") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-soft border border-accent/30 bg-accent/[0.08] px-2 py-1 text-[11px] font-medium text-accent">
+      <span className="inline-flex items-center gap-1 rounded-soft border border-accent/30 bg-accent/[0.08] px-2 py-1 text-xs font-medium text-accent">
         <Check className="h-3 w-3" aria-hidden="true" />
         Opened
       </span>
@@ -245,7 +245,7 @@ export function ActionButton({
       onClick={onClick}
       title={title}
       className={clsx(
-        "inline-flex min-h-11 items-center justify-center gap-1 rounded-soft border px-2 py-1 text-[11px] font-medium",
+        "inline-flex min-h-11 items-center justify-center gap-1 rounded-soft border px-2 py-1 text-xs font-medium",
         "transition-colors duration-base ease-out-soft",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
         "disabled:cursor-not-allowed disabled:opacity-60",
@@ -285,7 +285,7 @@ export function ExecutionCard({
             <p className="truncate text-sm font-semibold text-text-strong">
               {execution.market} · {execution.side}
             </p>
-            <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/[0.08] px-1.5 py-0.5 text-[10px] font-medium capitalize text-accent">
+            <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/[0.08] px-1.5 py-0.5 text-xs font-medium capitalize text-accent">
               {isOpen ? "Open" : "Closed"}
             </span>
           </div>
@@ -310,7 +310,7 @@ export function ExecutionCard({
               />
             </div>
           ) : null}
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-soft">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-soft">
             <span>Opened {new Date(execution.openedAt).toLocaleString()}</span>
             {!isOpen ? (
               <span
@@ -347,7 +347,7 @@ export function ExecutionCard({
                   onClose(execution.id, pnlUsd || performance?.unrealizedPnlUsd || "0")
                 }
                 className={clsx(
-                  "inline-flex min-h-11 items-center justify-center rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
+                  "inline-flex min-h-11 items-center justify-center rounded-soft border border-border-soft px-2 py-1 text-xs font-medium text-text-strong",
                   "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                   "disabled:cursor-not-allowed disabled:opacity-60",

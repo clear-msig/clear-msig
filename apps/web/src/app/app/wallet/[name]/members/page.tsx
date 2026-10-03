@@ -183,7 +183,7 @@ export default function MembersPage() {
           and the divider hierarchy reads as one list rather than a
           stack of identical containers. */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           {teamLabel}
         </h2>
         {intentsQuery.isLoading ? (
@@ -373,7 +373,7 @@ function MemberRow({
             <span className="truncate">{displayName}</span>
             {isCreator && (
               <span
-                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-accent"
                 title="Created this wallet - can't be removed"
               >
                 <Crown className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
@@ -443,10 +443,10 @@ function MemberRow({
       </div>
       {editingNickname && (
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             {hasNickname ? "Rename" : "Give a nickname"}
           </p>
-          <p className="mt-1 text-[11px] text-text-soft">
+          <p className="mt-1 text-xs text-text-soft">
             This name is only for you.
           </p>
           <div className="mt-2 flex items-center gap-2">
@@ -477,7 +477,7 @@ function MemberRow({
             <button
               type="button"
               onClick={() => setEditingNickname(false)}
-              className="text-[11px] text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+              className="text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
             >
               Cancel
             </button>
@@ -486,7 +486,7 @@ function MemberRow({
       )}
       {editingRole && (
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             Change role · {displayName}
           </p>
           <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
@@ -509,19 +509,19 @@ function MemberRow({
                   <span className="text-xs font-medium text-text-strong">
                     {ROLE_LABEL[r]}
                     {selected && (
-                      <span className="ml-1 text-[10px] text-text-soft">
+                      <span className="ml-1 text-xs text-text-soft">
                         (current)
                       </span>
                     )}
                   </span>
-                  <span className="text-[10px] leading-snug text-text-soft">
+                  <span className="text-xs leading-snug text-text-soft">
                     {ROLE_HINT[r]}
                   </span>
                 </button>
               );
             })}
           </div>
-          <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+          <div className="mt-2 flex items-center justify-between gap-2 text-xs">
             <span className="text-text-soft">
               {updateRole.isPending
                 ? "Updating…"
@@ -559,7 +559,7 @@ function MemberRow({
               onClick={handleConfirmRemove}
               disabled={remove.isPending}
               className={
-                "inline-flex min-h-tap items-center justify-center gap-1 rounded-full bg-danger px-4 py-2 text-[11px] font-medium text-white " +
+                "inline-flex min-h-tap items-center justify-center gap-1 rounded-full bg-danger px-4 py-2 text-xs font-medium text-white " +
                 "transition-[background-color,transform] duration-base ease-out-soft " +
                 "hover:bg-danger/90 active:scale-[0.98] " +
                 "disabled:cursor-not-allowed disabled:opacity-60"
@@ -602,7 +602,7 @@ function RoleChip({ role }: { role: Role | "unknown" }) {
   return (
     <span
       className={
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium " +
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium " +
         styles
       }
     >

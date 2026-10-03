@@ -16,7 +16,7 @@ export function ActionGroup({
     <section className="flex flex-col gap-2.5">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-        <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.26em] text-text-soft">
           {label}
         </h3>
         {description ? (

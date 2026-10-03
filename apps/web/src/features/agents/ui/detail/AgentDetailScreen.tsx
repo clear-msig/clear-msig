@@ -78,7 +78,7 @@ export function AgentDetailScreen({ controller }: { controller: ReturnType<typeo
           </Link>
           <Link
             href="/privacy"
-            className="inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft transition-colors hover:text-accent"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft transition-colors hover:text-accent"
           >
             <Lock className="h-3 w-3" aria-hidden="true" />
             {encrypt.live ? "Privacy on" : "Privacy ready"}
@@ -87,7 +87,7 @@ export function AgentDetailScreen({ controller }: { controller: ReturnType<typeo
 
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Agent Trading · {display}
             </p>
             <h1 className="mt-1 truncate font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -495,7 +495,7 @@ export function AgentDetailScreen({ controller }: { controller: ReturnType<typeo
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-medium text-text-strong">{event.message}</p>
-                <span className="text-[11px] text-text-soft">
+                <span className="text-xs text-text-soft">
                   {new Date(event.createdAt).toLocaleString()}
                 </span>
               </div>

@@ -151,7 +151,7 @@ export default function HyperliquidSetupPage() {
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Venue · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -287,7 +287,7 @@ export default function HyperliquidSetupPage() {
           </div>
           <span
             className={clsx(
-              "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              "rounded-full border px-2.5 py-1 text-xs font-medium",
               settings.delegationStatus === "active"
                 ? "border-accent/30 bg-accent/[0.08] text-accent"
                 : settings.delegationStatus === "revoked"
@@ -428,7 +428,7 @@ export default function HyperliquidSetupPage() {
             </div>
             <span
               className={clsx(
-                "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                "rounded-full border px-2.5 py-1 text-xs font-medium",
                 executor?.state === "ready"
                   ? "border-accent/30 bg-accent/[0.08] text-accent"
                   : "border-warning/30 bg-warning/[0.08] text-warning",
@@ -504,7 +504,7 @@ function SetupStepRow({ step }: { step: AgentHyperliquidSetupStep }) {
         <div className="min-w-0">
           <p className="text-xs font-semibold text-text-strong">{step.label}</p>
           <details className="group mt-1">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-text-soft transition-colors hover:text-accent">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent">
               Info
               <ArrowRight
                 className="h-3 w-3 transition-transform group-open:rotate-90"
@@ -559,7 +559,7 @@ function Metric({
 }) {
   return (
     <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-soft">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>
       <p className={clsx("mt-1 break-words text-sm font-semibold", highlight ? "text-accent" : "text-text-strong")}>
@@ -572,7 +572,7 @@ function Metric({
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-surface-raised px-3 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
       <p className="mt-1 break-words text-xs font-semibold text-text-strong">

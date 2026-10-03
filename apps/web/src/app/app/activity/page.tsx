@@ -386,7 +386,7 @@ function StatusStatsRow({
                   aria-hidden="true"
                 />
               </span>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft">
                 {tile.label}
               </span>
             </div>
@@ -617,7 +617,7 @@ function FilterDropdown({
             : "border-border-soft hover:border-border-strong",
         )}
       >
-        <span className="text-[11px] text-text-soft">{label}:</span>
+        <span className="text-xs text-text-soft">{label}:</span>
         <span
           className={clsx(
             "max-w-[10rem] truncate text-xs font-medium",
@@ -823,7 +823,7 @@ function ActivityRowItem({
                 </>
               )}
             </p>
-            <p className="mt-0.5 truncate font-mono text-[10px] text-text-soft/80">
+            <p className="mt-0.5 truncate font-mono text-xs text-text-soft/80">
               On-chain proposal {proposal}
             </p>
           </div>

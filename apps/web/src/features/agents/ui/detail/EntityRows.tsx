@@ -18,7 +18,7 @@ export function EntitySection({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
         {title}
       </h2>
       <div className="grid gap-2">{children}</div>
@@ -68,7 +68,7 @@ export function SessionRow({
             {session.allowedMarkets?.join(", ") || "Allowed markets"} · ${session.maxNotionalUsd ?? "limit"} ·{" "}
             {session.maxLeverage ?? "limit"}x
           </p>
-          <p className="mt-2 text-[11px] text-text-soft">
+          <p className="mt-2 text-xs text-text-soft">
             {stale
               ? "Risk limits changed after this session was issued."
               : `Expires ${new Date(session.expiresAt).toLocaleString()}`}
@@ -225,7 +225,7 @@ export function ExecutionRow({
               />
             </div>
           ) : null}
-          <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-text-soft">
+          <div className="mt-2 flex flex-wrap gap-3 text-xs text-text-soft">
             <span>Opened {new Date(execution.openedAt).toLocaleString()}</span>
             {!open ? (
               <span className={clsx("font-medium", pnl > 0 ? "text-accent" : pnl < 0 ? "text-rose-300" : "text-text-soft")}>
@@ -297,7 +297,7 @@ export function ActionButton({
       onClick={onClick}
       title={title}
       className={clsx(
-        "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border px-2 py-1 text-[11px] font-medium",
+        "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border px-2 py-1 text-xs font-medium",
         "transition-colors duration-base ease-out-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised disabled:cursor-not-allowed disabled:opacity-60",
         tone === "danger"
           ? "border-rose-500/30 text-rose-300 hover:bg-rose-500/[0.08]"
@@ -319,7 +319,7 @@ export function Badge({
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize",
+        "inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium capitalize",
         tone === "success"
           ? "border-accent/30 bg-accent/[0.08] text-accent"
           : tone === "warning"

@@ -205,7 +205,7 @@ function SecureRecoveryPage() {
           back button handles back-navigation; no inline back link
           here. */}
       <header className="px-gutter">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Secure vault
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong">
@@ -218,7 +218,7 @@ function SecureRecoveryPage() {
             target="_blank"
             rel="noreferrer"
             className={
-              "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft " +
+              "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-soft " +
               "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             }
@@ -297,11 +297,11 @@ function SecureRecoveryPage() {
                   strokeWidth={1.75}
                   aria-hidden="true"
                 />
-                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+                <span className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
                   Members
                 </span>
               </span>
-              <span className="font-numerals text-[11px] font-semibold tabular-nums text-text-strong">
+              <span className="font-numerals text-xs font-semibold tabular-nums text-text-strong">
                 {vault.account.members.length}
               </span>
             </header>
@@ -326,7 +326,7 @@ function SecureRecoveryPage() {
               nothing. Shows up to 5 newest, with a status pill. */}
           {proposalCount > 0 && (
             <section>
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                 Recent sweeps · {proposalCount}
               </p>
               {proposalsQuery.isLoading && (
@@ -388,7 +388,7 @@ function SecureRecoveryPage() {
           <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+                <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
                   Recovery backup
                 </p>
                 <p className="mt-1 text-sm text-text-soft">
@@ -399,12 +399,12 @@ function SecureRecoveryPage() {
                 <button
                   type="button"
                   onClick={handleDownloadBackup}
-                  className="inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className="inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <Download className="h-3.5 w-3.5" aria-hidden="true" />
                   Download backup
                 </button>
-                <label className="inline-flex min-h-tap cursor-pointer items-center gap-2 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                <label className="inline-flex min-h-tap cursor-pointer items-center gap-2 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                   Import backup
                   <input
                     type="file"
@@ -502,17 +502,17 @@ function BalancePanel({
     <section className="rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
       <div className="flex flex-wrap items-end justify-between gap-3 p-5">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             Vault balance
           </p>
-          <p className="font-mono text-[11px] text-text-soft">
+          <p className="font-mono text-xs text-text-soft">
             {`${address.slice(0, 4)}…${address.slice(-4)}`}
           </p>
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-baseline gap-1.5 font-numerals text-2xl font-semibold tabular-nums text-text-strong">
             {loading ? "…" : balanceSol != null ? balanceSol : ","}
-            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
               SOL
             </span>
             <button
@@ -540,7 +540,7 @@ function BalancePanel({
               smallestPerWhole={1_000_000_000n}
               ticker="SOL"
               variant="plain"
-              className="font-numerals text-[11px] tabular-nums text-text-soft"
+              className="font-numerals text-xs tabular-nums text-text-soft"
             />
           )}
         </div>
@@ -575,7 +575,7 @@ function BalancePanel({
 
       {showReceive && (
         <div className="flex flex-col items-center gap-3 border-t border-border-soft p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             Receive SOL
           </p>
           <div className="rounded-soft bg-white p-3 shadow-card-rest">
@@ -587,14 +587,14 @@ function BalancePanel({
               aria-label="QR code for the vault address"
             />
           </div>
-          <p className="break-all rounded-soft border border-border-soft bg-canvas px-3 py-2 text-center font-mono text-[11px] leading-relaxed text-text-strong">
+          <p className="break-all rounded-soft border border-border-soft bg-canvas px-3 py-2 text-center font-mono text-xs leading-relaxed text-text-strong">
             {address}
           </p>
           <button
             type="button"
             onClick={handleCopy}
             className={
-              "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft " +
+              "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft " +
               "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             }
@@ -611,7 +611,7 @@ function BalancePanel({
               </>
             )}
           </button>
-          <p className="text-center text-[11px] text-text-soft">
+          <p className="text-center text-xs text-text-soft">
             Test funds only.
           </p>
         </div>
@@ -654,10 +654,10 @@ function ProposalRow({ entry }: { entry: ProposalEntry }) {
           #{account.proposalIndex}
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate font-mono text-[11px] text-text-strong">
+          <span className="truncate font-mono text-xs text-text-strong">
             {proposalShort}
           </span>
-          <span className="text-[10px] text-text-soft">
+          <span className="text-xs text-text-soft">
             {account.intentDigests.length} tx ·{" "}
             <span className="font-numerals tabular-nums">
               {account.approvalCount}
@@ -667,7 +667,7 @@ function ProposalRow({ entry }: { entry: ProposalEntry }) {
         </span>
         <span
           className={
-            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider " +
+            "shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold uppercase tracking-wider " +
             pillCls
           }
         >
@@ -698,7 +698,7 @@ function Stat({
         (accent ? "border-accent/40" : "border-border-soft")
       }
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+      <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
         {label}
       </p>
       <p
@@ -774,12 +774,12 @@ function MemberRow({ index, slot, isUser }: MemberRowProps) {
             {short}
           </span>
           {isUser && (
-            <span className="rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-accent">
+            <span className="rounded-full bg-accent/10 px-2 py-0.5 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-accent">
               You
             </span>
           )}
         </span>
-        <span className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
+        <span className="mt-0.5 font-mono text-xs uppercase tracking-[0.16em] text-text-soft">
           {label} · slot{" "}
           <span className="font-numerals tabular-nums">{index}</span>
         </span>
@@ -838,7 +838,7 @@ function ActionCard({
       >
         <Icon className="h-5 w-5" strokeWidth={1.75} />
       </span>
-      <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
+      <p className="mt-4 font-mono text-xs uppercase tracking-[0.22em] text-text-soft">
         {eyebrow}
       </p>
       <h3 className="mt-1.5 font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
@@ -847,7 +847,7 @@ function ActionCard({
       <p className="mt-2 text-[13.5px] leading-relaxed text-text-soft text-pretty">
         {body}
       </p>
-      <span className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+      <span className="mt-4 inline-flex items-center gap-1.5 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-accent">
         {cta}
         <ArrowRight
           className="h-3 w-3 transition-transform duration-base ease-out-soft group-hover:translate-x-0.5"
@@ -882,14 +882,14 @@ function DisabledActionCard({
       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-text-soft/10 text-text-soft">
         <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
       </span>
-      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+      <p className="mt-3 font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
         {eyebrow}
       </p>
       <h3 className="mt-1 font-display text-base font-semibold text-text-soft">
         {title}
       </h3>
       <p className="mt-1.5 text-sm text-text-soft text-pretty">{body}</p>
-      <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-text-soft">
+      <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-text-soft">
         {cta}
       </span>
     </div>
@@ -921,7 +921,7 @@ function CopyAddressPill({ address }: { address: string }) {
       onClick={handleCopy}
       title={`Copy ${address}`}
       className={
-        "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-[11px] text-text-soft " +
+        "inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-xs text-text-soft " +
         "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       }

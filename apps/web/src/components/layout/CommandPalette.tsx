@@ -110,7 +110,7 @@ export function CommandPalette() {
             placeholder="Search your wallets and requests…"
             className="w-full bg-transparent text-sm text-text-strong outline-none placeholder:text-text-soft"
           />
-          <kbd className="hidden rounded border border-border-soft bg-glass-soft px-1.5 py-0.5 font-mono text-[10px] text-text-soft sm:inline">
+          <kbd className="hidden rounded border border-border-soft bg-glass-soft px-1.5 py-0.5 font-mono text-xs text-text-soft sm:inline">
             esc
           </kbd>
         </div>
@@ -129,7 +129,7 @@ export function CommandPalette() {
           {wallets.length > 0 && (
             <Command.Group
               heading="Workspaces"
-              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
+              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
             >
               {wallets.map((m) => {
                 const onChainName = m.wallet_name ?? "";
@@ -158,7 +158,7 @@ export function CommandPalette() {
           {allProposals.rows.length > 0 && (
             <Command.Group
               heading="Requests"
-              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
+              className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
             >
               {allProposals.rows.slice(0, 30).map((p) => {
                 const StatusIcon =
@@ -191,7 +191,7 @@ export function CommandPalette() {
                     <span className="min-w-0 flex-1 truncate font-medium">
                       {toDisplayName(p.walletName)}
                     </span>
-                    <span className="ml-auto truncate text-[10px] text-text-soft">
+                    <span className="ml-auto truncate text-xs text-text-soft">
                       {friendly}
                     </span>
                   </Command.Item>
@@ -202,7 +202,7 @@ export function CommandPalette() {
 
           <Command.Group
             heading="Actions"
-            className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
+            className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-text-soft"
           >
             <Command.Item
               value="action:new-wallet"
@@ -228,7 +228,7 @@ export function CommandPalette() {
           </Command.Group>
         </Command.List>
 
-        <div className="flex items-center justify-between border-t border-border-soft px-3 py-2 text-[10px] text-text-soft">
+        <div className="flex items-center justify-between border-t border-border-soft px-3 py-2 text-xs text-text-soft">
           <span className="flex items-center gap-1">
             <kbd className="rounded border border-border-soft bg-glass-soft px-1 py-0.5 font-mono">↑↓</kbd>
             <kbd className="rounded border border-border-soft bg-glass-soft px-1 py-0.5 font-mono">↵</kbd>

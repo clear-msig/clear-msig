@@ -100,7 +100,7 @@ export function LaunchRiskPanel({
         </div>
         <span
           className={clsx(
-            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            "rounded-full border px-2.5 py-1 text-xs font-medium",
             notices.some((notice) => notice.tone === "danger")
               ? "border-danger/30 bg-danger/[0.06] text-danger"
               : notices.length > 0

@@ -56,7 +56,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
     <ProductShell>
       <section className="relative z-10 mx-auto grid min-h-[calc(100vh-96px)] w-full max-w-6xl gap-8 px-5 pb-14 pt-10 sm:px-8 lg:grid-cols-[minmax(0,1fr)_390px] lg:px-10">
         <div className="flex flex-col justify-center">
-          <p className="flex flex-wrap items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+          <p className="flex flex-wrap items-center gap-2 font-mono-tech text-xs uppercase tracking-[0.28em] text-[#ccff00]">
             <span>{surface.host}</span>
             {planned ? (
               <span className="rounded-full border border-white/[0.12] px-2 py-0.5 tracking-[0.18em] text-white/46">
@@ -138,14 +138,14 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
           ) : null}
 
           <div className="mt-6">
-            <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/42">
+            <p className="font-mono-tech text-xs uppercase tracking-[0.24em] text-white/42">
               Simple model
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {surface.primitives.map((item) => (
                 <span
                   key={item}
-                  className="rounded-full border border-white/[0.1] px-2.5 py-1 text-[11px] font-medium text-white/64"
+                  className="rounded-full border border-white/[0.1] px-2.5 py-1 text-xs font-medium text-white/64"
                 >
                   {item}
                 </span>
@@ -237,13 +237,13 @@ function PersonalPreview() {
             />
           ))}
         </div>
-        <span className="rounded-full bg-emerald-300/14 px-2.5 py-1 text-[10px] font-semibold text-emerald-100">
+        <span className="rounded-full bg-emerald-300/14 px-2.5 py-1 text-xs font-semibold text-emerald-100">
           Family
         </span>
       </div>
       <div>
         <div className="text-2xl font-semibold text-white">$2,480</div>
-        <div className="mt-1 text-[11px] text-emerald-100/55">
+        <div className="mt-1 text-xs text-emerald-100/55">
           Shared wallet
         </div>
       </div>
@@ -251,7 +251,7 @@ function PersonalPreview() {
         {["Send", "Receive", "Protect"].map((label) => (
           <span
             key={label}
-            className="rounded-xl border border-white/[0.08] bg-white/[0.06] px-2 py-2 text-center text-[10px] font-medium text-white/72"
+            className="rounded-xl border border-white/[0.08] bg-white/[0.06] px-2 py-2 text-center text-xs font-medium text-white/72"
           >
             {label}
           </span>
@@ -265,10 +265,10 @@ function ProPreview() {
   return (
     <div className="flex h-full flex-col justify-between gap-4">
       <div className="flex items-center justify-between">
-        <span className="rounded-full bg-sky-300/12 px-2.5 py-1 text-[10px] font-semibold text-sky-100">
+        <span className="rounded-full bg-sky-300/12 px-2.5 py-1 text-xs font-semibold text-sky-100">
           Treasury
         </span>
-        <span className="text-[10px] text-white/45">3 approvals</span>
+        <span className="text-xs text-white/45">3 approvals</span>
       </div>
       <div className="space-y-2">
         {[
@@ -280,7 +280,7 @@ function ProPreview() {
             key={label}
             className="rounded-xl border border-white/[0.08] bg-white/[0.055] p-2.5"
           >
-            <div className="flex items-center justify-between text-[10px] text-white/62">
+            <div className="flex items-center justify-between text-xs text-white/62">
               <span>{label}</span>
               <span>Queued</span>
             </div>
@@ -298,7 +298,7 @@ function AgentPreview() {
   return (
     <div className="flex h-full flex-col justify-between gap-4">
       <div className="flex items-center justify-between">
-        <span className="rounded-full bg-[#ccff00]/12 px-2.5 py-1 text-[10px] font-semibold text-[#ccff00]">
+        <span className="rounded-full bg-[#ccff00]/12 px-2.5 py-1 text-xs font-semibold text-[#ccff00]">
           Illustrative agent view
         </span>
         <span className="h-2 w-2 rounded-full bg-[#ccff00]" />
@@ -312,7 +312,7 @@ function AgentPreview() {
           />
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-2 text-[10px]">
+      <div className="grid grid-cols-2 gap-2 text-xs">
         <span className="rounded-xl border border-[#ccff00]/15 bg-[#ccff00]/[0.08] px-2 py-2 text-[#ccff00]">
           Rules
         </span>
@@ -336,7 +336,7 @@ function SecurePreview() {
         {["Passkey", "Trusted device", "Recovery sweep"].map((label) => (
           <div
             key={label}
-            className="flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.055] px-3 py-2 text-[10px] text-white/68"
+            className="flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.055] px-3 py-2 text-xs text-white/68"
           >
             <span>{label}</span>
             <Check className="h-3.5 w-3.5 text-fuchsia-100" />
@@ -373,7 +373,7 @@ function ProductSupportLink({ surface }: { surface: ProductSurface }) {
           <span className="text-sm font-semibold text-white">
             {surface.shortName}
           </span>
-          <span className="rounded-full border border-white/[0.1] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/46">
+          <span className="rounded-full border border-white/[0.1] px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/46">
             {planned ? "Coming soon" : "Capability"}
           </span>
         </span>
@@ -400,7 +400,7 @@ function SurfaceIconList({
 }) {
   return (
     <div className="mt-6">
-      <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/42">
+      <p className="font-mono-tech text-xs uppercase tracking-[0.24em] text-white/42">
         {title}
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">

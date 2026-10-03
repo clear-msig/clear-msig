@@ -189,7 +189,7 @@ function SignedInWaiting({
             </motion.div>
 
             <div className="mt-6 flex items-center gap-2">
-              <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-text-soft">
+              <span className="font-mono-tech text-xs uppercase tracking-[0.28em] text-text-soft">
                 session ready
               </span>
             </div>
@@ -204,7 +204,7 @@ function SignedInWaiting({
                 className="h-3.5 w-3.5 animate-spin text-accent"
                 aria-hidden="true"
               />
-              <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-strong/70">
+              <span className="font-mono-tech text-xs uppercase tracking-[0.24em] text-text-strong/70">
                 {copy.label}
               </span>
             </div>

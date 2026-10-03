@@ -318,7 +318,7 @@ export default function NewAgentSessionPage() {
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           Agent Library
         </Link>
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Practice budget · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -462,7 +462,7 @@ export default function NewAgentSessionPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-4">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-soft">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text-soft">
               <Lock className="h-3 w-3" aria-hidden="true" />
               {encrypt.live ? "Privacy on" : "Privacy ready"}
             </span>

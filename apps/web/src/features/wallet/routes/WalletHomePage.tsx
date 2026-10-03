@@ -381,7 +381,7 @@ function Hero({
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2 }}
-      className="hidden flex-wrap items-end justify-between gap-x-4 gap-y-3 md:flex"
+      className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3"
     >
       <div className="min-w-0">
         <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
@@ -393,7 +393,7 @@ function Hero({
   );
 }
 
-// â”€â”€â”€ Stats row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Stats row ─────────────────────────────────────────────────────
 //
 // Three at-a-glance metrics: total balance (sum of Solana vault
 // lamports across all member wallets), wallet count, and pending
@@ -589,7 +589,7 @@ function NextActionStrip({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-text-soft">
             Next step
           </p>
           <p className="mt-1 truncate text-sm font-medium text-text-strong">
@@ -616,14 +616,14 @@ function NextActionStrip({
   );
 }
 
-// â”€â”€â”€ Balance hero card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Balance hero card ─────────────────────────────────────────────
 //
 // Lead card on Home - total value across every visible wallet the
 // member belongs to. Treated like a premium debit-card surface:
-//   â€¢ A subtle accent gradient washes the panel (top-left â†’ bottom-right)
-//   â€¢ A small visible BrandMark badge in the top-left anchors the
+//   • A subtle accent gradient washes the panel (top-left → bottom-right)
+//   • A small visible BrandMark badge in the top-left anchors the
 //     "this is yours, on Clear" cue
-//   â€¢ Numerals are oversized (text-4xl / sm:text-5xl) so the balance
+//   • Numerals are oversized (text-4xl / sm:text-5xl) so the balance
 //     reads as the page's primary number
 //
 // All decoration is `pointer-events-none` so taps and selections
@@ -701,7 +701,7 @@ function BalanceHeroCard({
                 <BrandMark size={12} />
               )}
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <span className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               {label}
             </span>
           </div>
@@ -712,7 +712,7 @@ function BalanceHeroCard({
               {walletCountLoading ? (
                 <Shimmer className="h-3.5 w-16 rounded-full" />
               ) : (
-                <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-text-soft/70">
+                <span className="text-xs font-medium uppercase tracking-[0.2em] text-text-soft/70">
                   {walletCount === 0
                     ? "-"
                     : selectedSurface
@@ -728,7 +728,7 @@ function BalanceHeroCard({
                 <button
                   type="button"
                   onClick={onOpenWalletSwitcher}
-                  className="inline-flex h-8 items-center justify-center rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                  className="inline-flex h-8 items-center justify-center rounded-full bg-accent px-3 text-xs font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                 >
                   Switch
                 </button>
@@ -812,7 +812,7 @@ function BalanceHeroCard({
             {walletCountLoading ? (
               <Shimmer className="h-8 w-24 rounded-full" />
             ) : (
-              <span className="inline-flex h-8 items-center rounded-full bg-canvas/70 px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              <span className="inline-flex h-8 items-center rounded-full bg-canvas/70 px-3 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
                 {walletCount === 0
                   ? "No wallets"
                   : walletCount === 1
@@ -824,7 +824,7 @@ function BalanceHeroCard({
               <button
                 type="button"
                 onClick={onOpenWalletSwitcher}
-                className="inline-flex h-9 items-center justify-center rounded-full bg-accent px-4 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                className="inline-flex h-9 items-center justify-center rounded-full bg-accent px-4 text-xs font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
               >
                 Switch
               </button>
@@ -834,7 +834,7 @@ function BalanceHeroCard({
 
         {selectedSurface ? (
           <div className="mt-4 flex items-center justify-between gap-3 sm:mt-5">
-          <p className="min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-[11px]">
+          <p className="min-w-0 truncate font-mono text-xs font-semibold uppercase tracking-[0.24em] text-text-soft sm:text-xs">
             {surfaceCopy.footer}
           </p>
           <div className="flex shrink-0 items-center gap-2">
@@ -842,14 +842,14 @@ function BalanceHeroCard({
               <button
                 type="button"
                 onClick={onOpenWalletSwitcher}
-                className="inline-flex min-h-9 items-center rounded-full border border-border-soft bg-canvas/70 px-3 text-[11px] font-semibold text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:hidden"
+                className="inline-flex min-h-9 items-center rounded-full border border-border-soft bg-canvas/70 px-3 text-xs font-semibold text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:hidden"
               >
                 Switch
               </button>
             ) : null}
             <Link
               href={primaryWorkspaceHref}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3 text-[11px] font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3 text-xs font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
             >
               {primaryWalletName ? (
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

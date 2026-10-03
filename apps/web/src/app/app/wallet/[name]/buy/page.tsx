@@ -430,7 +430,7 @@ function ComposeForm({
   return (
     <div className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <div className="flex flex-col gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           Chain
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -456,7 +456,7 @@ function ComposeForm({
                 <ChainBadge chain={chain} size="md" />
                 <span className="text-xs font-medium">{chain.ticker}</span>
                 {!ready && (
-                  <span className="text-[10px] text-text-soft">not bound</span>
+                  <span className="text-xs text-text-soft">not bound</span>
                 )}
               </button>
             );
@@ -467,7 +467,7 @@ function ComposeForm({
       <div className="flex flex-col gap-2">
         <label
           htmlFor="usd-amount"
-          className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
+          className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft"
         >
           Amount (USD)
         </label>
@@ -487,7 +487,7 @@ function ComposeForm({
             className="w-full rounded-soft border border-border-soft bg-canvas/50 py-3 pl-7 pr-3 text-base text-text-strong placeholder:text-text-soft focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
           />
         </div>
-        <p className="text-[11px] text-text-soft">
+        <p className="text-xs text-text-soft">
           Pay in NGN at checkout. We convert at the live rate.
         </p>
       </div>
@@ -547,7 +547,7 @@ function RedirectingCard({
         Reopen checkout
         <ExternalLink className="h-4 w-4" />
       </a>
-      <p className="text-[11px] text-text-soft">
+      <p className="text-xs text-text-soft">
         Status: {humanStatus(polled ?? "awaiting_payment")}
       </p>
     </div>
@@ -564,7 +564,7 @@ function AwaitingCard({ status }: { status: string | null }) {
       <p className="text-sm text-text-soft">
         Sending crypto from the operator treasury to your wallet.
       </p>
-      <p className="text-[11px] text-text-soft">
+      <p className="text-xs text-text-soft">
         Status: {humanStatus(status ?? "settlement_queued")}
       </p>
     </div>

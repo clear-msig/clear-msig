@@ -156,7 +156,7 @@ function StatusPill({ on }: { on: boolean }) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
         on
           ? "border-accent/30 bg-accent/[0.08] text-accent"
           : "border-border-soft bg-canvas text-text-soft",
@@ -238,7 +238,7 @@ function PinForm({
       }}
       className="flex flex-col gap-4 p-5"
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft">
         {heading}
       </p>
 
@@ -303,7 +303,7 @@ function PinInput({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft">
         {label}
       </span>
       <input

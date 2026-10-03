@@ -111,7 +111,7 @@ export function FeatureAccessCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-semibold text-text-strong">{title}</p>
-            <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
+            <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-xs font-medium text-text-soft">
               {status}
             </span>
           </div>

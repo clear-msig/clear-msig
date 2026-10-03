@@ -395,7 +395,7 @@ function EnrollDevicePage() {
           <button
             type="button"
             onClick={() => vaultQuery.refetch()}
-            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+            className="mt-3 inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
           >
             Retry
           </button>
@@ -532,7 +532,7 @@ function IntroStage({
           wallet is the only option. */}
       {walletIsMember && vaultHasPasskey && (
         <section className="mx-auto w-full max-w-md flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
             Authorise as
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -552,7 +552,7 @@ function IntroStage({
         </section>
       )}
       {!walletIsMember && authMode === "passkey" && (
-        <p className="mx-auto max-w-md text-center text-[11px] text-text-soft">
+        <p className="mx-auto max-w-md text-center text-xs text-text-soft">
           Connected wallet isn&rsquo;t on this vault&rsquo;s roster. Enrolling
           via an existing passkey.
         </p>
@@ -597,7 +597,7 @@ function IntroStage({
             </>
           )}
         </Button>
-        <p className="text-[11px] text-text-soft">
+        <p className="text-xs text-text-soft">
           Your browser will ask you to create a passkey.
         </p>
       </div>
@@ -637,7 +637,7 @@ function AuthOption({
       >
         {label}
       </span>
-      <span className="text-[11px] text-text-soft">{detail}</span>
+      <span className="text-xs text-text-soft">{detail}</span>
     </button>
   );
 }
@@ -742,7 +742,7 @@ function DoneStage({ credentialIdHex, txSig, onContinue, reduce }: DoneStageProp
           href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`}
           target="_blank"
           rel="noreferrer"
-          className="mx-auto inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+          className="mx-auto inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
         >
           View on Solana Explorer
         </a>

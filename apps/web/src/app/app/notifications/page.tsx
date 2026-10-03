@@ -127,14 +127,14 @@ export default function NotificationsPage() {
                       <p className="mt-0.5 text-xs text-text-soft">
                         {row.body}
                       </p>
-                      <p className="mt-1 text-[11px] text-text-soft">
+                      <p className="mt-1 text-xs text-text-soft">
                         {walletLabel} · {relativeTime(row.createdAt)}
                       </p>
                     </div>
                     {!seen && (
                       <span
                         className={
-                          "mt-1 rounded-full bg-accent px-2 py-0.5 text-[10px] " +
+                          "mt-1 rounded-full bg-accent px-2 py-0.5 text-xs " +
                           "font-semibold uppercase tracking-[0.16em] text-text-on-accent"
                         }
                       >

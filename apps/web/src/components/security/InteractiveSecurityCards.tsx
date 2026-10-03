@@ -106,7 +106,7 @@ function PasskeyCard() {
           )}
         </div>
         {hasPasskey && (
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+          <span className="font-mono-tech text-xs uppercase tracking-[0.28em] text-[#ccff00]">
             Active
           </span>
         )}
@@ -142,7 +142,7 @@ function PasskeyCard() {
         </button>
       ) : null}
       {!supportsPasskey && !isLoggedIn ? (
-        <p className="mt-4 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/40">
+        <p className="mt-4 font-mono-tech text-xs uppercase tracking-[0.24em] text-white/40">
           Sign in to manage passkeys
         </p>
       ) : null}
@@ -190,7 +190,7 @@ function LedgerCard() {
           )}
         </div>
         {connected && (
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+          <span className="font-mono-tech text-xs uppercase tracking-[0.28em] text-[#ccff00]">
             Connected
           </span>
         )}
@@ -239,7 +239,7 @@ function LedgerCard() {
           )}
         </button>
       ) : (
-        <p className="mt-4 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/40">
+        <p className="mt-4 font-mono-tech text-xs uppercase tracking-[0.24em] text-white/40">
           WebHID needed · use Chrome, Edge, or Brave
         </p>
       )}

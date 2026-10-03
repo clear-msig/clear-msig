@@ -127,7 +127,7 @@ export function IntroStage({
             Anyone with this key drains the wallet.
           </span>{" "}
           Check the URL is{" "}
-          <span className="font-mono text-[11px] text-text-strong">
+          <span className="font-mono text-xs text-text-strong">
             {expectedHost}
           </span>{" "}
           before you paste.
@@ -202,7 +202,7 @@ export function ComposeStage(props: ComposeStageProps) {
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor="secret-key"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
+            className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft"
           >
             Secret key
           </label>
@@ -232,10 +232,10 @@ export function ComposeStage(props: ComposeStageProps) {
             className="rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-sm text-text-strong placeholder:text-text-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           />
           {props.parseError && (
-            <p className="text-[11px] text-warning">{props.parseError}</p>
+            <p className="text-xs text-warning">{props.parseError}</p>
           )}
           {props.derivedAddress && (
-            <div className="mt-2 flex flex-col gap-1.5 rounded-soft border border-accent/30 bg-accent/[0.04] p-3 text-[11px] text-text-soft">
+            <div className="mt-2 flex flex-col gap-1.5 rounded-soft border border-accent/30 bg-accent/[0.04] p-3 text-xs text-text-soft">
               <span className="inline-flex items-center gap-1.5 font-medium text-accent">
                 <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
                 Verified · {props.parseFormat === "json" ? "JSON" : "base58"}
@@ -264,7 +264,7 @@ export function ComposeStage(props: ComposeStageProps) {
             </div>
           )}
           {props.isSelfImport && (
-            <p className="text-[11px] text-warning">
+            <p className="text-xs text-warning">
               That key matches your connected wallet. Use{" "}
               <Link href="/app/secure/new" className="underline">
                 Build a vault
@@ -279,12 +279,12 @@ export function ComposeStage(props: ComposeStageProps) {
             <div className="flex items-end justify-between gap-2">
               <label
                 htmlFor="amount-sol"
-                className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
+                className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft"
               >
                 Amount (SOL)
               </label>
               {props.balanceLamports != null && (
-                <span className="font-numerals text-[10px] tabular-nums text-text-soft">
+                <span className="font-numerals text-xs tabular-nums text-text-soft">
                   Balance: {formatLamportsToSol(props.balanceLamports)} SOL
                   <UsdHint
                     amount={props.balanceLamports}
@@ -312,7 +312,7 @@ export function ComposeStage(props: ComposeStageProps) {
                 onClick={props.onMax}
                 disabled={props.balanceLamports == null}
                 className={
-                  "shrink-0 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft " +
+                  "shrink-0 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-soft " +
                   "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
                   "disabled:cursor-not-allowed disabled:opacity-50 " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -323,9 +323,9 @@ export function ComposeStage(props: ComposeStageProps) {
               </button>
             </div>
             {props.amountError && (
-              <p className="text-[11px] text-warning">{props.amountError}</p>
+              <p className="text-xs text-warning">{props.amountError}</p>
             )}
-            <p className="text-[10px] text-text-soft">
+            <p className="text-xs text-text-soft">
               Tx fees ({Number(TX_FEE_RESERVE_LAMPORTS) / 1e9} SOL) are paid
               by your connected wallet, not the imported key.
             </p>
@@ -406,7 +406,7 @@ export function ReviewStage(props: ReviewStageProps) {
         </dl>
       </section>
 
-      <aside className="mx-auto flex max-w-md items-start gap-3 rounded-card border border-border-soft bg-canvas p-4 text-[11px] text-text-soft">
+      <aside className="mx-auto flex max-w-md items-start gap-3 rounded-card border border-border-soft bg-canvas p-4 text-xs text-text-soft">
         <ShieldCheck
           className="mt-0.5 h-4 w-4 shrink-0 text-text-soft"
           strokeWidth={2}
@@ -530,7 +530,7 @@ export function DoneStage(props: DoneStageProps) {
           href={`https://explorer.solana.com/tx/${props.txSignature}?cluster=devnet`}
           target="_blank"
           rel="noreferrer"
-          className="mx-auto inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft hover:border-accent hover:text-accent"
+          className="mx-auto inline-flex min-h-tap items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-soft hover:border-accent hover:text-accent"
         >
           View on Solana Explorer
         </a>
@@ -611,7 +611,7 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+      <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
         {label}
       </dt>
       <dd

@@ -435,7 +435,7 @@ export default function AddFriendPage() {
           of silently kicking the user to /setup. */}
       {needsSetup && (
         <div className="rounded-card border border-warning/30 bg-warning/5 p-4 shadow-card-rest">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-warning">
             Set up sending first
           </p>
           <p className="mt-2 text-sm text-text-strong">
@@ -559,7 +559,7 @@ export default function AddFriendPage() {
             })}
           </div>
         </div>
-        <p className="text-[11px] leading-snug text-text-soft sm:ml-[4.5rem]">
+        <p className="text-xs leading-snug text-text-soft sm:ml-[4.5rem]">
           {ROLE_HINT[role]}
         </p>
       </form>
@@ -698,7 +698,7 @@ function ConfirmCard({
       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
       className="rounded-card border border-accent/30 bg-accent/5 p-4"
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
         About to add
       </p>
       <div className="mt-3 flex items-center gap-3">
@@ -711,7 +711,7 @@ function ConfirmCard({
             {shortAddress(address)}
           </p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">
           <Check className="h-3 w-3" strokeWidth={3} />
           {ROLE_LABEL[role]}
         </span>

@@ -88,7 +88,7 @@ export default function AgentFeedbackPage() {
           Agent Trading
         </Link>
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Beta Feedback · {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -198,18 +198,18 @@ function FeedbackRow({ item }: { item: AgentBetaFeedbackItem }) {
     <article className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Badge>{kindLabel(item.kind)}</Badge>
-        <span className="text-[11px] text-text-soft">
+        <span className="text-xs text-text-soft">
           {new Date(item.createdAt).toLocaleString()}
         </span>
       </div>
       <p className="mt-2 text-xs leading-relaxed text-text-strong">
         {item.message}
       </p>
-      <p className="mt-1 break-words text-[11px] text-text-soft">
+      <p className="mt-1 break-words text-xs text-text-soft">
         {item.route}
       </p>
       {item.contact ? (
-        <p className="mt-1 text-[11px] text-text-soft">{item.contact}</p>
+        <p className="mt-1 text-xs text-text-soft">{item.contact}</p>
       ) : null}
     </article>
   );
@@ -217,7 +217,7 @@ function FeedbackRow({ item }: { item: AgentBetaFeedbackItem }) {
 
 function Badge({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
+    <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-1.5 py-0.5 text-xs font-medium text-text-soft">
       {children}
     </span>
   );

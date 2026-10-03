@@ -73,7 +73,7 @@ export function AgentLibraryScreen({ controller }: { controller: ReturnType<type
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Agent Library · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -240,14 +240,14 @@ function AgentRecipePanel({
     <section className="rounded-card bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-accent">
             Trader recipes
           </p>
           <h2 className="mt-1 text-base font-semibold text-text-strong">
             Pick an outcome
           </h2>
         </div>
-        <span className="rounded-full border border-accent/25 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
+        <span className="rounded-full border border-accent/25 bg-accent/[0.08] px-2.5 py-1 text-xs font-medium text-accent">
           Risk limits included
         </span>
       </div>
@@ -282,7 +282,7 @@ function AgentRecipePanel({
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
                   <RecipeIcon template={template} />
                 </span>
-                <span className={clsx("rounded-full border px-2 py-1 text-[10px] font-medium", riskTone(template.risk))}>
+                <span className={clsx("rounded-full border px-2 py-1 text-xs font-medium", riskTone(template.risk))}>
                   {template.risk}
                 </span>
               </span>
@@ -344,14 +344,14 @@ function TraderCard({
         </span>
         <span
           className={clsx(
-            "rounded-full border px-2 py-1 text-[10px] font-medium",
+            "rounded-full border px-2 py-1 text-xs font-medium",
             riskTone(trader.risk),
           )}
         >
           {riskLabel(trader.risk)}
         </span>
       </div>
-      <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
         {trader.category}
       </p>
       <h2 className="mt-1 text-base font-semibold text-text-strong">{trader.name}</h2>
@@ -421,7 +421,7 @@ function LibraryFilters({
               type="button"
               onClick={() => onTrackSourceChange(source)}
               className={clsx(
-                "min-h-8 rounded-[6px] px-2.5 text-[11px] font-medium transition-colors",
+                "min-h-8 rounded-[6px] px-2.5 text-xs font-medium transition-colors",
                 trackSource === source
                   ? "bg-surface-raised text-text-strong shadow-card-rest"
                   : "text-text-soft hover:text-text-strong",
@@ -439,7 +439,7 @@ function LibraryFilters({
             type="button"
             onClick={() => onWindowChange(item)}
             className={clsx(
-              "min-h-8 rounded-[6px] px-2.5 text-[11px] font-medium transition-colors",
+              "min-h-8 rounded-[6px] px-2.5 text-xs font-medium transition-colors",
               window === item
                 ? "bg-surface-raised text-text-strong shadow-card-rest"
                 : "text-text-soft hover:text-text-strong",
@@ -462,10 +462,10 @@ function LibraryFilters({
           </option>
         ))}
       </NativeSelect>
-      <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+      <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-medium text-text-soft">
         {trackedCount}/{totalCount} tracked
       </span>
-      <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+      <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-medium text-text-soft">
         {trackRecordBook.lanes.find((lane) => lane.source === trackSource)?.tradeCount ?? 0}{" "}
         trades
       </span>
@@ -535,13 +535,13 @@ function TrackedAgentCard({
             <h3 className="truncate text-base font-semibold text-text-strong">
               {agent.name}
             </h3>
-            <span className={clsx("rounded-full border px-2 py-1 text-[10px] font-medium", agentStatusTone(agent.status))}>
+            <span className={clsx("rounded-full border px-2 py-1 text-xs font-medium", agentStatusTone(agent.status))}>
               {agent.status}
             </span>
             {published ? (
               <span
                 className={clsx(
-                  "rounded-full border px-2 py-1 text-[10px] font-medium",
+                  "rounded-full border px-2 py-1 text-xs font-medium",
                   moderationStatus === "approved"
                     ? "border-accent/30 bg-accent/[0.08] text-accent"
                     : moderationStatus === "delisted"
@@ -563,7 +563,7 @@ function TrackedAgentCard({
             {agent.libraryTraderId ? "Prepared ClearSig agent" : "Custom agent"}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-1 text-[11px] font-medium text-text-soft">
+        <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-1 text-xs font-medium text-text-soft">
           <Trophy className="h-3 w-3" aria-hidden="true" />
           {rank > 0 ? `Rank #${rank}` : "Unranked"}
         </span>
@@ -622,21 +622,21 @@ function TrackedAgentCard({
               {allocation.summary}
             </p>
           </div>
-          <span className={clsx("rounded-full border px-2 py-1 text-[10px] font-medium", allowanceTone(allocation.action))}>
+          <span className={clsx("rounded-full border px-2 py-1 text-xs font-medium", allowanceTone(allocation.action))}>
             {allocation.action} · {allocation.tier.label}
           </span>
         </div>
         {allocation.nextTier && allocation.nextTierGaps.length > 0 ? (
-          <p className="mt-2 text-[11px] leading-relaxed text-text-soft">
+          <p className="mt-2 text-xs leading-relaxed text-text-soft">
             To reach {allocation.nextTier.label}:{" "}
             {allocation.nextTierGaps.slice(0, 3).join(", ")}.
           </p>
         ) : null}
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
-          <p className="text-[11px] font-semibold text-text-strong">
+          <p className="text-xs font-semibold text-text-strong">
             Why this budget?
           </p>
-          <ul className="mt-1 grid gap-1 text-[11px] leading-relaxed text-text-soft">
+          <ul className="mt-1 grid gap-1 text-xs leading-relaxed text-text-soft">
             {allocation.reasons.slice(0, 4).map((reason) => (
               <li key={reason}>{reason}</li>
             ))}
@@ -650,7 +650,7 @@ function TrackedAgentCard({
             <TrendingUp className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
             Trade tape
           </span>
-          <span className="text-[11px] font-medium text-text-soft">
+          <span className="text-xs font-medium text-text-soft">
             {latestExecutions.length} recent · {latestStops.length} stopped
           </span>
         </summary>
@@ -670,7 +670,7 @@ function TrackedAgentCard({
           )}
           {latestStops.length > 0 ? (
             <div className="mt-1 grid gap-1.5">
-              <p className="text-[11px] font-semibold text-text-strong">
+              <p className="text-xs font-semibold text-text-strong">
                 Stopped ideas
               </p>
               {latestStops.map((proposal) => (
@@ -717,13 +717,13 @@ function LibraryTradeRow({
           <p className="break-words text-xs font-semibold text-text-strong">
             {execution.market} · {execution.side}
           </p>
-          <p className="mt-0.5 text-[11px] text-text-soft">
+          <p className="mt-0.5 text-xs text-text-soft">
             {formatUsd(execution.notionalUsd)} · {execution.leverage}x · {venueLabel(execution.venue)}
           </p>
         </div>
         <span
           className={clsx(
-            "rounded-full border px-2 py-1 text-[10px] font-medium",
+            "rounded-full border px-2 py-1 text-xs font-medium",
             isOpen && performance
               ? Number(performance.unrealizedPnlUsd) > 0
                 ? "border-accent/30 bg-accent/[0.08] text-accent"
@@ -747,12 +747,12 @@ function LibraryTradeRow({
         </span>
       </div>
       {isOpen ? (
-        <p className="mt-1 text-[11px] text-text-soft">
+        <p className="mt-1 text-xs text-text-soft">
           Entry {formatUsd(execution.entryPrice ?? "0")} · Mark{" "}
           {performance ? formatUsd(performance.markPriceUsd) : "waiting"}
         </p>
       ) : null}
-      <p className="mt-1 text-[11px] text-text-muted">
+      <p className="mt-1 text-xs text-text-muted">
         {isOpen ? "Opened" : "Closed"}{" "}
         {new Date((execution.closedAt ?? execution.openedAt)).toLocaleString()}
       </p>
@@ -767,11 +767,11 @@ function LibraryStopRow({ proposal }: { proposal: AgentTradeProposal }) {
         <p className="break-words text-xs font-semibold text-text-strong">
           {proposal.market} · {proposal.side}
         </p>
-        <span className="rounded-full border border-warning/30 px-2 py-1 text-[10px] font-medium text-warning">
+        <span className="rounded-full border border-warning/30 px-2 py-1 text-xs font-medium text-warning">
           Stopped
         </span>
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-text-soft">
+      <p className="mt-1 text-xs leading-relaxed text-text-soft">
         {proposal.policyViolations?.[0]?.message ?? "Stopped by safety rules."}
       </p>
     </div>
@@ -781,7 +781,7 @@ function LibraryStopRow({ proposal }: { proposal: AgentTradeProposal }) {
 function LibraryStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <dt className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </dt>
       <dd className="mt-0.5 text-xs leading-relaxed text-text-strong">{value}</dd>
@@ -800,7 +800,7 @@ function MetricBox({
 }) {
   return (
     <div className="rounded-soft border border-border-soft bg-canvas px-2.5 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
       <p className={clsx("mt-0.5 truncate text-xs font-semibold", muted ? "text-text-soft" : "text-text-strong")}>

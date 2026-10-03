@@ -123,7 +123,7 @@ export default function RulesPage() {
             <ShieldCheck className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
           </span>
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Protection · {display}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
@@ -264,7 +264,7 @@ function Fact({
 }) {
   return (
     <div>
-      <dt className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-text-soft">
+      <dt className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.16em] text-text-soft">
         <Icon className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
         {label}
       </dt>
@@ -490,7 +490,7 @@ function TimelockEditModal({
                   }
                 >
                   <span className="font-medium">{p.label}</span>
-                  <span className="ml-2 text-[10px] tabular-nums text-text-soft">
+                  <span className="ml-2 text-xs tabular-nums text-text-soft">
                     {p.seconds}s
                   </span>
                 </button>
@@ -523,7 +523,7 @@ function TimelockEditModal({
               <button
                 type="button"
                 onClick={() => setCustomMode(false)}
-                className="self-start text-[11px] text-text-soft hover:text-text-strong"
+                className="self-start text-xs text-text-soft hover:text-text-strong"
               >
                 Use a preset instead
               </button>
@@ -536,7 +536,7 @@ function TimelockEditModal({
             type="button"
             onClick={onClose}
             disabled={update.isPending}
-            className="text-[11px] text-text-soft hover:text-text-strong disabled:opacity-50"
+            className="text-xs text-text-soft hover:text-text-strong disabled:opacity-50"
           >
             Cancel
           </button>

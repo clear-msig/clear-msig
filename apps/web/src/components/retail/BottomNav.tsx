@@ -212,7 +212,7 @@ function WalletScopedBottomNav({
                   strokeWidth={active ? 2.25 : 2}
                   aria-hidden="true"
                 />
-                <span className="max-w-full truncate text-[10px] font-medium leading-none">
+                <span className="max-w-full truncate text-xs font-medium leading-none">
                   {item.label}
                 </span>
               </Link>
@@ -249,7 +249,7 @@ function WalletScopedBottomNav({
                   strokeWidth={active ? 2.25 : 2}
                   aria-hidden="true"
                 />
-                <span className="max-w-full truncate text-[10px] font-medium leading-none">
+                <span className="max-w-full truncate text-xs font-medium leading-none">
                   {item.label}
                 </span>
               </Link>
@@ -312,7 +312,7 @@ function NavTab({
               aria-hidden="true"
               className={clsx(
                 "absolute -right-1.5 -top-1 inline-flex h-4 min-w-[1rem] items-center justify-center",
-                "rounded-full bg-warning px-1 text-[10px] font-semibold leading-none text-white",
+                "rounded-full bg-warning px-1 text-xs font-semibold leading-none text-white",
                 "ring-2 ring-surface-raised",
               )}
             >
@@ -320,7 +320,7 @@ function NavTab({
             </span>
           )}
         </span>
-        <span className="text-[11px] font-medium leading-none">
+        <span className="text-xs font-medium leading-none">
           {item.label}
         </span>
       </Link>

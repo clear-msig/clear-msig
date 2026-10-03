@@ -402,7 +402,7 @@ function PickStage({
       className="mx-auto flex w-full max-w-xl flex-col gap-4"
     >
       <header>
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Turn on asset · {walletDisplay}
         </p>
         <h1 className="mt-1.5 font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
@@ -432,7 +432,7 @@ function PickStage({
                   <p className="truncate text-sm font-semibold text-text-strong">
                     {chain.name}
                   </p>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+                  <span className="font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
                     {chain.ticker}
                   </span>
                 </div>
@@ -479,7 +479,7 @@ function ConfirmStage({
         <div className="flex min-w-0 items-center gap-3">
           <ChainBadge chain={chain} size="md" />
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Add chain · {chain.ticker}
             </p>
             <h1 className="mt-1 font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
@@ -495,7 +495,7 @@ function ConfirmStage({
       {/* Action checklist. Keep the user oriented without turning this into docs. */}
       <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         <header className="border-b border-border-soft px-4 py-3 sm:px-5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Next
           </p>
         </header>
@@ -614,7 +614,7 @@ function BindingStage({
             />
           </div>
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Setting up · {chain.ticker}
             </p>
             <h1 className="mt-1 font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
@@ -642,7 +642,7 @@ function BindingStage({
       {/* Progress steps card. Each step lights up as the DKG advances. */}
       <section className="overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         <header className="border-b border-border-soft px-4 py-3 sm:px-5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Progress
           </p>
         </header>
@@ -675,7 +675,7 @@ function BindingStage({
                     <span className="h-2 w-2 rounded-full bg-border-soft" />
                   )}
                 </span>
-                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft tabular-nums">
+                <span className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-text-soft tabular-nums">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span className="flex-1 leading-relaxed">{label}</span>
@@ -726,7 +726,7 @@ function DoneStage({
             <Check className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2.5} />
           </motion.div>
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-accent">
               Done · {chain.ticker}
             </p>
             <h1 className="mt-1 font-display text-2xl leading-tight text-text-strong sm:text-display-xs">
@@ -767,7 +767,7 @@ function AllChainsBoundStage({
   return (
     <motion.section {...motionProps} className="mx-auto flex w-full max-w-xl flex-col gap-4">
       <header className="flex flex-col gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           Nothing left to add
         </p>
         <h1 className="font-display text-2xl leading-tight text-text-strong sm:text-display-xs">

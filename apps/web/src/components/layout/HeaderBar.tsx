@@ -301,7 +301,7 @@ export function HeaderBar() {
                             <p className="text-xs font-semibold text-text-strong">
                               Connected wallet
                             </p>
-                            <p className="truncate font-mono text-[11px] text-text-muted">
+                            <p className="truncate font-mono text-xs text-text-muted">
                               {address}
                             </p>
                           </div>
@@ -310,7 +310,7 @@ export function HeaderBar() {
 
                       <div className="grid grid-cols-2 gap-px bg-border-soft">
                         <div className="bg-surface-elevated px-3 py-2.5">
-                          <p className="text-[10px] font-semibold uppercase text-text-muted">
+                          <p className="text-xs font-semibold uppercase text-text-muted">
                             Balance
                           </p>
                           <p className="mt-1 truncate text-sm font-semibold text-text-strong">
@@ -318,7 +318,7 @@ export function HeaderBar() {
                           </p>
                         </div>
                         <div className="bg-surface-elevated px-3 py-2.5">
-                          <p className="text-[10px] font-semibold uppercase text-text-muted">
+                          <p className="text-xs font-semibold uppercase text-text-muted">
                             Signer
                           </p>
                           <p className="mt-1 truncate text-sm font-semibold text-text-strong">
@@ -365,7 +365,7 @@ export function HeaderBar() {
                           <Bell size={14} aria-hidden="true" />
                           Notifications
                           {notifications.unreadCount > 0 && (
-                            <span className="ml-auto rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-text-on-accent">
+                            <span className="ml-auto rounded-full bg-accent px-1.5 py-0.5 text-xs font-semibold text-text-on-accent">
                               {notifications.unreadCount > 99
                                 ? "99+"
                                 : notifications.unreadCount}

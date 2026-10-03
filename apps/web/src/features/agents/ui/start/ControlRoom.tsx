@@ -78,7 +78,7 @@ export function TradingControlRoom({
             </h2>
             <span
               className={clsx(
-                "rounded-full border px-2 py-1 text-[10px] font-medium",
+                "rounded-full border px-2 py-1 text-xs font-medium",
                 live
                   ? "border-accent/30 bg-accent/[0.08] text-accent"
                   : "border-warning/30 bg-warning/[0.08] text-warning",
@@ -179,7 +179,7 @@ export function TradingControlRoom({
             </div>
             <span
               className={clsx(
-                "rounded-full border px-2 py-1 text-[10px] font-medium",
+                "rounded-full border px-2 py-1 text-xs font-medium",
                 accountSnapshot?.state === "funded"
                   ? "border-accent/30 bg-accent/[0.08] text-accent"
                   : "border-warning/30 bg-warning/[0.08] text-warning",
@@ -255,7 +255,7 @@ export function TradingControlRoom({
           <div className="mt-4 border-t border-border-soft pt-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold text-text-strong">Practice activity</p>
-              <span className="text-[11px] text-text-soft">
+              <span className="text-xs text-text-soft">
                 {venueRequests.length} request{venueRequests.length === 1 ? "" : "s"}
               </span>
             </div>
@@ -292,7 +292,7 @@ export function TradingControlRoom({
             </p>
           </div>
           {marketSnapshot ? (
-            <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2 py-1 text-[10px] font-medium text-accent">
+            <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2 py-1 text-xs font-medium text-accent">
               {marketSnapshot.source === "live" ? "Real market" : "Practice market"}
             </span>
           ) : null}
@@ -358,7 +358,7 @@ export function TradingControlRoom({
                   className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-2"
                 >
                   <p className="break-words text-xs font-medium text-text-strong">{event.message}</p>
-                  <p className="mt-1 text-[11px] text-text-soft">
+                  <p className="mt-1 text-xs text-text-soft">
                     {new Date(event.createdAt).toLocaleString()}
                   </p>
                 </div>
@@ -390,7 +390,7 @@ export function CollapsibleControlPanel({
     >
       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 text-xs font-semibold text-text-strong marker:hidden">
         <span>{title}</span>
-        <span className="max-w-full break-words text-right text-[11px] font-medium text-text-soft">
+        <span className="max-w-full break-words text-right text-xs font-medium text-text-soft">
           {summary}
         </span>
       </summary>

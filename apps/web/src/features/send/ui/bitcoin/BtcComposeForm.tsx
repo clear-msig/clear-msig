@@ -77,7 +77,7 @@ export function ComposeForm(props: {
                     e.preventDefault();
                     props.setAmountBtc(formatSats(props.maxSpendableSats));
                   }}
-                  className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+                  className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
                 >
                   Use max
                 </button>
@@ -105,7 +105,7 @@ export function ComposeForm(props: {
                   <span className="ml-1.5 text-warning">{props.amountError}</span>
                 )}
                 {props.selectedUtxo && props.effectiveFeeSats !== null && (
-                  <span className="block pt-1 text-[11px]">
+                  <span className="block pt-1 text-xs">
                     Fee {formatSats(props.effectiveFeeSats)} BTC
                     {props.changeSats !== null && props.changeSats > 0n ? (
                       <> · change {formatSats(props.changeSats)} BTC</>

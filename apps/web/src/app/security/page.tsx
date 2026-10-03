@@ -74,7 +74,7 @@ export default function SecurityPage() {
           className="border-b border-white/[0.08] pb-12 sm:pb-16"
         >
           <div className="flex items-center">
-            <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/60">
+            <span className="font-mono-tech text-xs uppercase tracking-[0.32em] text-white/60">
               Security · how Clear protects you
             </span>
           </div>
@@ -104,7 +104,7 @@ export default function SecurityPage() {
 
         {/* ─── Watchlist ──────────────────────────────────── */}
         <motion.section {...fadeIn(0.05)} className="mt-12 sm:mt-16">
-          <p className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/50">
+          <p className="font-mono-tech text-xs uppercase tracking-[0.32em] text-white/50">
             Watchlist · the basics
           </p>
           <div className="mt-5 grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
@@ -123,7 +123,7 @@ export default function SecurityPage() {
 
         {/* ─── Account hardening ──────────────────────────── */}
         <motion.section {...fadeIn(0.1)} className="mt-12 sm:mt-16">
-          <p className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/50">
+          <p className="font-mono-tech text-xs uppercase tracking-[0.32em] text-white/50">
             Harden your account
           </p>
           {securityControlsRequested ? (
@@ -145,7 +145,7 @@ export default function SecurityPage() {
           {...fadeIn(0.15)}
           className="mt-12 flex items-start gap-3 rounded-[1.25rem] border border-white/[0.08] bg-white/[0.02] p-5 backdrop-blur-md sm:p-6"
         >
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+          <span className="font-mono-tech text-xs uppercase tracking-[0.28em] text-[#ccff00]">
             Pre-alpha
           </span>
           <p className="text-sm leading-relaxed text-white/60">

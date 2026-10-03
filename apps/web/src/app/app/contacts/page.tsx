@@ -356,7 +356,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft">
         {label}
       </span>
       {children}

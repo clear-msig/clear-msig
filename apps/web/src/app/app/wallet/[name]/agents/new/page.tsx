@@ -101,7 +101,7 @@ export default function NewAgentPage() {
           Agent Library
         </Link>
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Trader Profile · {display}
           </p>
           <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -178,7 +178,7 @@ export default function NewAgentPage() {
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-4">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-soft">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text-soft">
               <Lock className="h-3 w-3" aria-hidden="true" />
               {encrypt.live ? "Privacy on" : "Privacy ready"}
             </span>

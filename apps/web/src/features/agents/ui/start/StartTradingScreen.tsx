@@ -178,7 +178,7 @@ export function StartTradingScreen({ controller }: { controller: ReturnType<type
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Trading Desk · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -292,7 +292,7 @@ export function StartTradingScreen({ controller }: { controller: ReturnType<type
           </div>
           <span
             className={clsx(
-              "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              "rounded-full border px-2.5 py-1 text-xs font-medium",
               complete
                 ? "border-accent/30 bg-accent/[0.08] text-accent"
                 : "border-warning/30 bg-warning/[0.08] text-warning",

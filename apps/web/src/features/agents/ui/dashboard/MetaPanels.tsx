@@ -10,7 +10,7 @@ export function AuditEventRow({ event }: { event: AgentAuditEvent }) {
     <li className="rounded-soft border border-border-soft bg-surface-raised px-3 py-2 shadow-card-rest">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium text-text-strong">{event.message}</p>
-        <span className="text-[11px] text-text-soft">
+        <span className="text-xs text-text-soft">
           {new Date(event.createdAt).toLocaleString()}
         </span>
       </div>
@@ -158,7 +158,7 @@ export function SessionCard({
             </p>
             <span
               className={clsx(
-                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium",
                 active
                   ? "border-accent/30 bg-accent/[0.08] text-accent"
                   : stale
@@ -173,7 +173,7 @@ export function SessionCard({
             {session.allowedMarkets?.join(", ") || "Allowed markets"} ·{" "}
             ${session.maxNotionalUsd ?? "limit"} · {session.maxLeverage ?? "limit"}x
           </p>
-          <p className="mt-2 text-[11px] text-text-soft">
+          <p className="mt-2 text-xs text-text-soft">
             {stale
               ? "Your safety rules changed after this budget was set."
               : `Expires ${new Date(session.expiresAt).toLocaleString()}`}

@@ -62,7 +62,7 @@ export default function ErrorBoundary({
           </div>
 
           {error.digest && (
-            <p className="mt-6 font-mono text-[11px] text-text-soft/60">
+            <p className="mt-6 font-mono text-xs text-text-soft/60">
               ref: {error.digest}
             </p>
           )}

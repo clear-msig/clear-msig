@@ -56,7 +56,7 @@ export function OpenTradeMonitor({
         </div>
         <span
           className={clsx(
-            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            "rounded-full border px-2.5 py-1 text-xs font-medium",
             estimatedPnl > 0
               ? "border-accent/30 bg-accent/[0.08] text-accent"
               : estimatedPnl < 0
@@ -81,7 +81,7 @@ export function OpenTradeMonitor({
             type="button"
             disabled={pending}
             onClick={onCloseAutomaticExits}
-            className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft bg-accent px-2.5 py-1.5 text-[11px] font-medium text-text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft bg-accent px-2.5 py-1.5 text-xs font-medium text-text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Check className="h-3.5 w-3.5" aria-hidden="true" />
             Close automatically

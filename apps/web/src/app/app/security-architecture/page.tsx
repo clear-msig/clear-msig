@@ -38,7 +38,7 @@ export default function SecurityArchitecturePage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <header className="flex flex-col gap-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Security architecture
         </p>
         <h1 className="font-display text-2xl leading-tight text-text-strong md:text-display-xs">

@@ -147,7 +147,7 @@ export default function WalletActivityPage() {
             <Inbox className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
           </span>
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               History · {walletDisplay || "Wallet"}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
@@ -155,7 +155,7 @@ export default function WalletActivityPage() {
             </h1>
           </div>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           {readError ? (
             "History incomplete"
           ) : loading ? (
@@ -206,7 +206,7 @@ export default function WalletActivityPage() {
           </label>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              <span className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
                 Status
               </span>
               <BrandSelect
@@ -223,7 +223,7 @@ export default function WalletActivityPage() {
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+              <span className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
                 Chain
               </span>
               <BrandSelect
@@ -245,7 +245,7 @@ export default function WalletActivityPage() {
               onClick={handleExport}
               disabled={loading || !!readError || filtered.length === 0}
               className={
-                "ml-auto inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
+                "ml-auto inline-flex min-h-tap items-center justify-center gap-1.5 rounded-full border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-soft " +
                 "transition-[border-color,color,transform] duration-base ease-out-soft " +
                 "hover:-translate-y-0.5 hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +

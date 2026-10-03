@@ -79,7 +79,7 @@ export function SignPayloadPreview({
           <Eye className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
             Review transaction
           </p>
           <div className="mt-1 flex items-start gap-1.5">
@@ -104,7 +104,7 @@ export function SignPayloadPreview({
               // unpredictable parent.
               className="clear-receipt-row flex flex-col gap-0.5 rounded-soft bg-canvas px-2.5 py-1.5"
             >
-              <dt className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
+              <dt className="text-xs font-medium uppercase tracking-[0.14em] text-text-soft">
                 {reviewLabel(d.label)}
               </dt>
               <dd
@@ -125,13 +125,13 @@ export function SignPayloadPreview({
       )}
 
       {warning && (
-        <p className="mt-3 whitespace-pre-line rounded-soft bg-warning/10 px-2.5 py-1.5 text-[11px] leading-snug text-text-strong">
+        <p className="mt-3 whitespace-pre-line rounded-soft bg-warning/10 px-2.5 py-1.5 text-xs leading-snug text-text-strong">
           <span className="font-medium text-warning">Heads up.</span> {warning}
         </p>
       )}
 
       {technicalNote && (
-        <p className="mt-3 rounded-soft border border-border-soft bg-canvas px-2.5 py-1.5 text-[11px] leading-snug text-text-soft">
+        <p className="mt-3 rounded-soft border border-border-soft bg-canvas px-2.5 py-1.5 text-xs leading-snug text-text-soft">
           <span className="font-medium text-text-strong">ClearSign check.</span>{" "}
           {technicalNote}
         </p>

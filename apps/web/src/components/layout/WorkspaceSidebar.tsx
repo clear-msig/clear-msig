@@ -159,7 +159,7 @@ export function WorkspaceSidebar({ onNavigate, forceExpanded }: Props) {
           >
             {memberships.length === 0 && !myOrganizationsQuery.isLoading ? (
               expanded ? (
-                <p className="px-2 text-[11px] text-text-soft">
+                <p className="px-2 text-xs text-text-soft">
                   {wallet.connected
                     ? "No wallets yet. Create one above."
                     : "Connect to see your wallets."}
@@ -255,7 +255,7 @@ function PrimaryNav({
             {showBadge && expanded && (
               <span
                 aria-label={`${pendingCount} pending`}
-                className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-accent/15 px-1 text-[10px] font-semibold leading-none text-accent"
+                className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-accent/15 px-1 text-xs font-semibold leading-none text-accent"
               >
                 {badgeLabel}
               </span>
@@ -340,7 +340,7 @@ function WorkspaceActions({
       >
         <Search size={13} aria-hidden="true" />
         <span className="flex-1 text-left">Search</span>
-        <kbd className="rounded border border-border-soft bg-glass-soft px-1.5 py-0.5 font-mono text-[10px] text-text-soft">
+        <kbd className="rounded border border-border-soft bg-glass-soft px-1.5 py-0.5 font-mono text-xs text-text-soft">
           ⌘K
         </kbd>
       </button>
@@ -469,7 +469,7 @@ function WalletScopedSidebar({
         href="/app/wallet"
         onClick={onNavigate}
         className={clsx(
-          "inline-flex items-center gap-1.5 self-start rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft",
+          "inline-flex items-center gap-1.5 self-start rounded-md px-2 py-1 font-mono text-xs uppercase tracking-[0.2em] text-text-soft",
           "transition-colors duration-base ease-out-soft hover:text-text-strong",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
         )}
@@ -499,7 +499,7 @@ function WalletScopedSidebar({
           <ProductIcon size={15} aria-hidden="true" />
         </div>
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
+          <span className="font-mono text-xs uppercase tracking-[0.2em] text-text-soft">
             Wallet
           </span>
           <span className="mt-0.5 truncate font-display text-[13px] font-semibold tracking-[-0.01em] text-text-strong">
@@ -513,7 +513,7 @@ function WalletScopedSidebar({
         aria-label="Wallet"
         className="flex flex-col gap-0.5"
       >
-        <p className="mb-1 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
+        <p className="mb-1 px-3 font-mono text-xs uppercase tracking-[0.22em] text-text-soft">
           Wallet
         </p>
         {navItems.map(({ sub, label, Icon }) => {
@@ -614,11 +614,11 @@ function SidebarSection({
     <section className="flex flex-col gap-2">
       {expanded && (
         <div className="flex items-center justify-between px-2">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             {label}
           </span>
           {!loading && typeof count === "number" && count > 0 && (
-            <span className="rounded-full border border-border-soft bg-glass-soft px-2 py-0.5 font-mono text-[10px] text-text-soft">
+            <span className="rounded-full border border-border-soft bg-glass-soft px-2 py-0.5 font-mono text-xs text-text-soft">
               {count}
             </span>
           )}
@@ -759,7 +759,7 @@ function SidebarOrgLink({
         {pendingCount > 0 && (
           <span
             aria-label={`${pendingCount} need${pendingCount === 1 ? "s" : ""} approval`}
-            className="ml-auto inline-flex items-center rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent"
+            className="ml-auto inline-flex items-center rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent"
           >
             {pendingCount}
           </span>

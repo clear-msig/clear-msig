@@ -54,7 +54,7 @@ export default function AgentApprovalsPage() {
           Agent Trading
         </Link>
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Owner Approvals · {display}
           </p>
           <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -92,7 +92,7 @@ export default function AgentApprovalsPage() {
                 type="button"
                 onClick={() => setFilter(item)}
                 className={clsx(
-                  "min-h-8 rounded-[6px] px-2.5 text-[11px] font-medium transition-colors",
+                  "min-h-8 rounded-[6px] px-2.5 text-xs font-medium transition-colors",
                   filter === item
                     ? "bg-surface-raised text-text-strong shadow-card-rest"
                     : "text-text-soft hover:text-text-strong",
@@ -149,7 +149,7 @@ function ApprovalRow({
             {agent?.name ?? approval.agentId ?? "Vault"} · {new Date(approval.createdAt).toLocaleString()}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-1 text-[11px] font-medium text-text-soft">
+        <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-1 text-xs font-medium text-text-soft">
           {signed ? <KeyRound className="h-3 w-3" aria-hidden="true" /> : <ClipboardList className="h-3 w-3" aria-hidden="true" />}
           {approval.approvalHash.slice(0, 12)}
         </span>
@@ -174,7 +174,7 @@ function ApprovalRow({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>
       <p className="mt-1 truncate text-sm font-semibold text-text-strong">{value}</p>
@@ -185,7 +185,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
       <p className="mt-1 break-words text-xs font-semibold text-text-strong">{value}</p>
@@ -203,7 +203,7 @@ function Badge({
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+        "inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium",
         tone === "success"
           ? "border-accent/30 bg-accent/[0.08] text-accent"
           : "border-border-soft bg-canvas text-text-soft",

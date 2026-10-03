@@ -29,7 +29,7 @@ export function VenueRequestRow({
           <p className="break-words text-xs font-semibold text-text-strong">
             {market} {request.request.side ?? ""}
           </p>
-          <p className="mt-1 break-words text-[11px] text-text-soft">
+          <p className="mt-1 break-words text-xs text-text-soft">
             {size}
             {typeof request.request.leverage === "number" ? ` · ${request.request.leverage}x` : ""}
             {request.artifact?.orderId ? ` · Order ${request.artifact.orderId}` : ""}
@@ -37,7 +37,7 @@ export function VenueRequestRow({
         </div>
         <span
           className={clsx(
-            "rounded-full border px-2 py-1 text-[10px] font-medium",
+            "rounded-full border px-2 py-1 text-xs font-medium",
             submitted
               ? "border-accent/30 bg-accent/[0.08] text-accent"
               : rejected
@@ -70,7 +70,7 @@ export function VenueRequestRow({
         </p>
       ) : null}
       {request.updatedAt ? (
-        <p className="mt-1 text-[11px] text-text-muted">
+        <p className="mt-1 text-xs text-text-muted">
           {new Date(request.updatedAt).toLocaleString()}
         </p>
       ) : null}
@@ -104,7 +104,7 @@ export function ControlStat({
 }) {
   return (
     <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
       <p className={clsx("mt-1 break-words text-xs font-semibold", highlight ? "text-accent" : "text-text-strong")}>
@@ -123,7 +123,7 @@ export function EmptyControlLine({ text }: { text: string }) {
 export function CheckStat({ label, value, ready }: { label: string; value: string; ready: boolean }) {
   return (
     <div className="min-w-0 rounded-soft border border-border-soft bg-canvas px-3 py-2">
-      <p className="text-[11px] font-medium text-text-soft">{label}</p>
+      <p className="text-xs font-medium text-text-soft">{label}</p>
       <p className={clsx("mt-1 break-words text-xs font-semibold", ready ? "text-accent" : "text-warning")}>
         {value}
       </p>

@@ -169,7 +169,7 @@ export function WalletTourModal() {
                       />
                     ))}
                   </div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                     Wallet guide
                   </p>
                 </div>

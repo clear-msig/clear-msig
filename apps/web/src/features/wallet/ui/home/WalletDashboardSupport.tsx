@@ -33,7 +33,7 @@ export function WalletDashboardShell() {
   );
 }
 
-// â”€â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Hero ──────────────────────────────────────────────────────────
 //
 // Compact left-aligned page header. Replaces the previous centered
 // "Welcome back" block - same identity cue (small kicker + title)

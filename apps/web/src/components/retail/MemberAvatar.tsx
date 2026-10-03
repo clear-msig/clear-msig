@@ -21,8 +21,8 @@ interface MemberAvatarProps {
 }
 
 const SIZE_CLASS: Record<NonNullable<MemberAvatarProps["size"]>, string> = {
-  sm: "h-6 w-6 text-[9px]",
-  md: "h-8 w-8 text-[11px]",
+  sm: "h-6 w-6 text-xs",
+  md: "h-8 w-8 text-xs",
   lg: "h-12 w-12 text-base",
 };
 

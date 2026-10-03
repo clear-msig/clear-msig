@@ -86,7 +86,7 @@ export function StageStrip({ stage }: { stage: Stage }) {
           >
             <span
               className={
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums " +
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums " +
                 (isActive
                   ? "bg-accent text-text-on-accent shadow-card-rest"
                   : isDone
@@ -102,7 +102,7 @@ export function StageStrip({ stage }: { stage: Stage }) {
             </span>
             <span
               className={
-                "hidden font-mono text-[10px] uppercase tracking-[0.2em] sm:inline-block " +
+                "hidden font-mono text-xs uppercase tracking-[0.2em] sm:inline-block " +
                 (isActive || isDone ? "text-text-strong" : "text-text-soft")
               }
             >
@@ -155,7 +155,7 @@ export function ShapeStage({
       className="flex flex-col gap-7"
     >
       <header className="px-gutter text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Step 1 · Choose
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
@@ -208,7 +208,7 @@ export function ShapeStage({
                   </span>
 
                   <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft">
+                    <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-soft">
                       {s.threshold} of {s.members} needed
                     </p>
                     <p className="mt-1.5 font-display text-lg font-semibold tracking-[-0.015em] text-text-strong">
@@ -227,7 +227,7 @@ export function ShapeStage({
                         reads as a spec line rather than a stray
                         graphic. */}
                     <div className="mt-4 inline-flex items-center gap-2">
-                      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+                      <span className="font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
                         Needed
                       </span>
                       <ThresholdDots
@@ -332,7 +332,7 @@ export function ConfirmStage({
       className="flex flex-col gap-7"
     >
       <header className="px-gutter text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Step 2 · Confirm
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
@@ -345,10 +345,10 @@ export function ConfirmStage({
           confirmation visualisation, and a clean key-value spec list. */}
       <article className="mx-gutter overflow-hidden rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
         <header className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6">
-          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <span className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Vault summary
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2 py-0.5 font-numerals text-[11px] font-semibold tabular-nums text-accent">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2 py-0.5 font-numerals text-xs font-semibold tabular-nums text-accent">
             {shape.threshold}/{shape.members}
           </span>
         </header>
@@ -371,7 +371,7 @@ export function ConfirmStage({
           {/* Confirmation visualisation - mirrors the shape card so the
               user sees the same dots they tapped, now confirmed. */}
           <div className="mt-5 flex items-center gap-3 rounded-xl border border-border-soft bg-canvas px-3.5 py-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+            <span className="font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
               Needed
             </span>
             <ThresholdDots
@@ -438,7 +438,7 @@ function PreviewRow({
 }) {
   return (
     <li className="flex items-baseline justify-between gap-3 py-2.5">
-      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+      <span className="font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
         {label}
       </span>
       <span
@@ -520,7 +520,7 @@ export function CreatingStage({
       className="flex flex-col gap-7 px-gutter"
     >
       <header className="text-center">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Building your vault
         </p>
         <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong text-balance sm:mt-3">
@@ -633,7 +633,7 @@ export function DoneStage({
             <Check className="h-7 w-7" strokeWidth={2.5} aria-hidden="true" />
           </span>
           <div className="mt-4 sm:mt-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-accent">
               Vault is live
             </p>
             <h1 className="mt-2 font-display text-display-sm leading-[1.05] tracking-[-0.02em] text-text-strong">
@@ -713,7 +713,7 @@ function ResultRow({
   return (
     <div className="flex items-center gap-3 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <div className="flex min-w-0 flex-1 flex-col leading-tight">
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+        <span className="font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
           {label}
         </span>
         <span className="mt-1 truncate font-mono text-[12px] text-text-strong">
@@ -741,7 +741,7 @@ export function BlockedDisconnect() {
     <section className="mx-gutter rounded-card border border-border-soft bg-surface-raised p-6 shadow-card-rest sm:p-8">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8">
         <div className="text-center sm:text-left">
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Sign in to continue
           </p>
           <h1 className="mt-2 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">

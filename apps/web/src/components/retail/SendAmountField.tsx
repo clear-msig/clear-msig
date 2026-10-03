@@ -39,7 +39,7 @@ export function SendAmountField({
       <div className="flex items-center justify-between gap-3">
         <label
           htmlFor={id}
-          className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
+          className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft"
         >
           {label}
         </label>

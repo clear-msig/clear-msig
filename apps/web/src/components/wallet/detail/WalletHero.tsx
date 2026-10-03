@@ -86,7 +86,7 @@ export function WalletHero({
             icon={profile.avatarIcon}
           />
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               {profile.eyebrow}
             </p>
             <h1 className="mt-0.5 truncate font-display text-xl leading-tight text-text-strong sm:mt-1 sm:text-display-xs">
@@ -98,7 +98,7 @@ export function WalletHero({
           <Link
             href={`/app/wallet/${encoded}/members`}
             aria-label="View members"
-            className="group inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-[11px] font-medium text-text-soft transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            className="group inline-flex min-h-tap items-center gap-2 rounded-full border border-border-soft bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-soft transition-[border-color,color,transform] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/40 hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           >
             {loadingMembers ? (
               <>
@@ -131,7 +131,7 @@ export function WalletHero({
           {pendingApprovalCount > 0 ? (
             <a
               href="#action-needed"
-              className="inline-flex min-h-tap items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-[11px] font-semibold text-accent transition-[background-color,transform,border-color] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/60 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              className="inline-flex min-h-tap items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent transition-[background-color,transform,border-color] duration-base ease-out-soft hover:-translate-y-0.5 hover:border-accent/60 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             >
               <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/70 opacity-75" />
@@ -180,7 +180,7 @@ export function WalletHero({
                     key={stat.label}
                     className="min-w-0 rounded-soft border border-border-soft bg-canvas/70 px-2 py-1.5 sm:px-3 sm:py-2"
                   >
-                    <p className="truncate font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
+                    <p className="truncate font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
                       {stat.label}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-text-strong">
@@ -398,7 +398,7 @@ function HeroAction({
       <span className="text-center text-xs font-semibold leading-tight text-text-strong sm:text-[13px]">
         {label}
       </span>
-      <span className="hidden text-[10px] font-medium uppercase tracking-[0.16em] text-text-soft sm:inline">
+      <span className="hidden text-xs font-medium uppercase tracking-[0.16em] text-text-soft sm:inline">
         {hint}
       </span>
     </Link>
@@ -442,7 +442,7 @@ function PortfolioValue({
   return (
     <div className="flex flex-col items-start gap-1.5 sm:gap-2">
       <div className="flex items-center gap-1">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           {label}
         </p>
         {help}

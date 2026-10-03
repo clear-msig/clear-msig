@@ -327,7 +327,7 @@ export default function SetupEthPage() {
                   <Check className="h-5 w-5" strokeWidth={2.5} />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                     {EVM_LABEL} sending enabled
                   </p>
                   <p className="mt-0.5 truncate text-xs text-text-soft">
@@ -379,7 +379,7 @@ export default function SetupEthPage() {
               <div className="flex items-center gap-3">
                 {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
                 <div className="flex flex-col gap-0.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                     Setup · {EVM_LABEL}
                   </p>
                   <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-3xl">
@@ -397,7 +397,7 @@ export default function SetupEthPage() {
 
             {needsBinding && (
               <div className="rounded-card border border-warning/30 bg-warning/5 p-5 shadow-card-rest">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-warning">
                   Bind {EVM_LABEL} first
                 </p>
                 <Link

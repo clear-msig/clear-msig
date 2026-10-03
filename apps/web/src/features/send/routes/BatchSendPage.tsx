@@ -293,7 +293,7 @@ function BatchSendPage() {
       >
           {needsSetup && (
             <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-5 shadow-card-rest">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-warning">
                 Turn on sending
               </p>
               <p className="mt-2 text-sm text-text-strong">
@@ -432,7 +432,7 @@ function ComposeStage({
             <Users className="h-5 w-5" strokeWidth={1.75} />
           </span>
           <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               {eyebrow}
             </p>
             <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
@@ -462,7 +462,7 @@ function ComposeStage({
           />
         </summary>
         <div className="mt-3 grid gap-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
             {csvColumns.join(", ")}
           </p>
           <TextArea
@@ -537,7 +537,7 @@ function ComposeStage({
           send surfaces feel like the same family. */}
       <section className="flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
         <div className="flex items-baseline justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             Batch total
           </span>
           <span className="text-xs text-text-soft">
@@ -597,7 +597,7 @@ function RecipientRow({
             already have for spreadsheets / payroll lists. */}
         <span
           aria-hidden="true"
-          className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-canvas font-numerals text-[11px] font-semibold tabular-nums text-text-soft ring-1 ring-border-soft"
+          className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-canvas font-numerals text-xs font-semibold tabular-nums text-text-soft ring-1 ring-border-soft"
         >
           {index}
         </span>
@@ -664,7 +664,7 @@ function RecipientRow({
               </p>
             )}
           {isValid && (
-            <p className="font-mono text-[11px] text-text-soft">
+            <p className="font-mono text-xs text-text-soft">
               Resolves to{" "}
               <span className="text-text-strong">
                 {shortAddress(status.destination)}
@@ -725,7 +725,7 @@ function ReviewStage({
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           Review batch
         </p>
         <h1 className="hidden md:block font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl">
@@ -752,7 +752,7 @@ function ReviewStage({
             <div className="flex min-w-0 items-center gap-3">
               <span
                 aria-hidden="true"
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-canvas font-numerals text-[11px] font-semibold tabular-nums text-text-soft ring-1 ring-border-soft"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-canvas font-numerals text-xs font-semibold tabular-nums text-text-soft ring-1 ring-border-soft"
               >
                 {i + 1}
               </span>
@@ -760,7 +760,7 @@ function ReviewStage({
                 <p className="truncate text-sm font-medium text-text-strong">
                   {r.label}
                 </p>
-                <p className="truncate font-mono text-[11px] text-text-soft">
+                <p className="truncate font-mono text-xs text-text-soft">
                   {shortAddress(r.destination)}
                 </p>
               </div>
@@ -769,7 +769,7 @@ function ReviewStage({
               <span className="font-numerals text-base font-semibold text-text-strong tabular-nums">
                 {formatBatchLamports(r.lamports)}
               </span>
-              <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+              <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-text-soft">
                 SOL
               </span>
             </span>
@@ -778,7 +778,7 @@ function ReviewStage({
       </ul>
 
       <section className="flex items-center justify-between rounded-card border border-accent/30 bg-accent/[0.06] p-5 shadow-card-rest">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-accent">
+        <span className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
           Total
         </span>
         <span className="inline-flex items-baseline gap-2">

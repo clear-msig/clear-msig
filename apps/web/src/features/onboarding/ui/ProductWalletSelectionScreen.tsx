@@ -59,7 +59,7 @@ export function ProductWalletSelectionScreen({
                 <Icon className="h-6 w-6" strokeWidth={2.25} aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+                <p className="font-mono-tech text-xs uppercase tracking-[0.28em] text-[#ccff00]">
                   {surface.shortName} wallets
                 </p>
                 <h1 className="landing-section-heading mt-2 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-white">
@@ -91,7 +91,7 @@ export function ProductWalletSelectionScreen({
                         <span className="block truncate text-base font-semibold text-white">
                           {toDisplayName(wallet.walletName)}
                         </span>
-                        <span className="mt-1 block font-mono-tech text-[10px] uppercase tracking-[0.22em] text-white/45">
+                        <span className="mt-1 block font-mono-tech text-xs uppercase tracking-[0.22em] text-white/45">
                           {surface.shortName}
                         </span>
                       </span>

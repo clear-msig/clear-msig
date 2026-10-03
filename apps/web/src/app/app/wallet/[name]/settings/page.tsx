@@ -120,7 +120,7 @@ export default function WalletSettingsPage() {
             <WalletIcon className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
           </span>
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Settings · {display}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">

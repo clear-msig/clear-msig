@@ -68,7 +68,7 @@ export function WalletPopupNarration({
       role="note"
       className={
         "flex items-start gap-2.5 rounded-card border border-accent/30 bg-accent/5 text-left text-text-soft " +
-        (compact ? "p-2.5 text-[11px]" : "p-3 text-xs")
+        (compact ? "p-2.5 text-xs" : "p-3 text-xs")
       }
     >
       <ShieldCheck

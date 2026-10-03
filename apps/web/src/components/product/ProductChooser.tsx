@@ -34,7 +34,7 @@ export function ProductChooser() {
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-16 pt-10 sm:px-8 sm:pt-16">
         <div className="max-w-2xl">
-          <p className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-accent">
+          <p className="font-mono-tech text-xs uppercase tracking-[0.24em] text-accent">
             Choose a product
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">

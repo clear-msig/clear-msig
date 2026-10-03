@@ -47,7 +47,7 @@ export function OpenTradeRow({
               highlight={Boolean(performance && Number(performance.unrealizedPnlUsd) !== 0)}
             />
           </div>
-          <p className="mt-1 break-words text-[11px] text-text-soft">
+          <p className="mt-1 break-words text-xs text-text-soft">
             Opened {new Date(execution.openedAt).toLocaleString()}
           </p>
         </div>
@@ -98,7 +98,7 @@ export function TradeLifecycleRow({ lifecycle }: { lifecycle: AgentTradeLifecycl
         </div>
         <span
           className={clsx(
-            "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+            "rounded-full border px-2 py-0.5 text-xs font-medium",
             lifecycleToneClass(lifecycle.tone),
           )}
         >
@@ -120,8 +120,8 @@ export function TradeLifecycleRow({ lifecycle }: { lifecycle: AgentTradeLifecycl
             >
               <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
               <div className="min-w-0">
-                <p className="truncate text-[10px] font-semibold">{step.label}</p>
-                <p className="truncate text-[10px] opacity-75">{step.detail}</p>
+                <p className="truncate text-xs font-semibold">{step.label}</p>
+                <p className="truncate text-xs opacity-75">{step.detail}</p>
               </div>
             </div>
           );
@@ -201,7 +201,7 @@ export function VenuePositionRow({
           >
             {formatSignedUsd(position.unrealizedPnlUsd ?? "0")}
           </p>
-          <p className="mt-1 break-words text-[11px] text-text-soft">
+          <p className="mt-1 break-words text-xs text-text-soft">
             Value {formatUsd(position.positionValueUsd)}
           </p>
         </div>

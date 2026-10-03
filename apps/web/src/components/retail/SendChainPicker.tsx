@@ -51,7 +51,7 @@ export function SendChainPicker({
                   <span className="truncate text-xs font-medium text-text-strong">
                     Solana
                   </span>
-                  <span className="truncate text-[10px] text-text-soft">
+                  <span className="truncate text-xs text-text-soft">
                     Available now
                   </span>
                 </span>
@@ -98,7 +98,7 @@ export function SendChainPicker({
                 <span className="truncate text-xs font-medium text-text-strong">
                   {opt.chain.name}
                 </span>
-                <span className="truncate text-[10px] text-text-soft">
+                <span className="truncate text-xs text-text-soft">
                   {isActive ? "Selected" : chainSendSubtitle(opt.status)}
                 </span>
               </span>

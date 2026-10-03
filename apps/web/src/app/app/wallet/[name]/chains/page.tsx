@@ -140,7 +140,7 @@ export default function ChainsPage() {
       <header className="rounded-card bg-surface-raised p-4 shadow-card-rest">
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               Advanced networks
             </p>
             <h1 className="mt-1 truncate font-display text-xl leading-tight text-text-strong md:text-display-xs">
@@ -197,10 +197,10 @@ export default function ChainsPage() {
       {/* Already bound */}
       <section>
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             Active
           </h2>
-          <span className="rounded-full bg-canvas px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
+          <span className="rounded-full bg-canvas px-2.5 py-1 font-mono text-xs uppercase tracking-[0.16em] text-text-soft">
             {bound.length} enabled
           </span>
         </div>
@@ -240,10 +240,10 @@ export default function ChainsPage() {
       {available.length > 0 && (
         <section>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               Add support
             </h2>
-            <span className="rounded-full bg-canvas px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft">
+            <span className="rounded-full bg-canvas px-2.5 py-1 font-mono text-xs uppercase tracking-[0.16em] text-text-soft">
               {available.length} chains
             </span>
           </div>
@@ -374,7 +374,7 @@ function ActiveChainRow({
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+          <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
             {isImplicit ? "Built in" : "Active"}
           </span>
           {address && (
@@ -410,12 +410,12 @@ function ActiveChainRow({
                   smallestPerWhole={chain.smallestPerWhole}
                   ticker={chain.ticker}
                   variant="plain"
-                  className="text-[11px] tabular-nums text-text-soft"
+                  className="text-xs tabular-nums text-text-soft"
                 />
               )}
               {isLowBalance && (
                 <span
-                  className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning"
+                  className="inline-flex items-center gap-0.5 text-xs font-semibold uppercase tracking-wide text-warning"
                   title="Top up this chain to enable sends"
                 >
                   Low
@@ -447,7 +447,7 @@ function ActiveChainRow({
             </span>
             <span
               className={
-                "flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide transition-colors duration-base ease-out-soft " +
+                "flex shrink-0 items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors duration-base ease-out-soft " +
                 (copied ? "text-accent" : "text-text-soft group-hover:text-accent")
               }
             >
@@ -471,7 +471,7 @@ function ActiveChainRow({
             href={`/app/wallet/${encodeURIComponent(walletName)}/receive?chain=${chain.apiName}`}
             aria-label={`Show ${chain.name} address as QR code`}
             className={
-              "flex shrink-0 items-center gap-1 rounded-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
+              "flex shrink-0 items-center gap-1 rounded-soft bg-canvas px-3 text-xs font-semibold uppercase tracking-wide text-text-soft " +
               "transition-[transform,background-color,box-shadow,color] duration-base ease-out-soft " +
               "hover:-translate-y-0.5 hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
@@ -494,7 +494,7 @@ function ActiveChainRow({
                 aria-label={`Open ${chain.name} address on the block explorer`}
                 title="View on block explorer"
                 className={
-                  "flex shrink-0 items-center gap-1 rounded-soft bg-canvas px-3 text-[11px] font-semibold uppercase tracking-wide text-text-soft " +
+                  "flex shrink-0 items-center gap-1 rounded-soft bg-canvas px-3 text-xs font-semibold uppercase tracking-wide text-text-soft " +
                   "transition-[transform,background-color,box-shadow,color] duration-base ease-out-soft " +
                   "hover:-translate-y-0.5 hover:text-accent hover:shadow-card-rest active:scale-[0.98] " +
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"

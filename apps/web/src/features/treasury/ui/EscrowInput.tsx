@@ -17,7 +17,7 @@ export function EscrowInput({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-soft">
+      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-text-soft">
         {label}
       </span>
       <span className="flex min-h-tap items-center rounded-soft border border-border-soft bg-canvas px-3 transition focus-within:border-accent/50">

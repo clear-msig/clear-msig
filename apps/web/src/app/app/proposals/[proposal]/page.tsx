@@ -754,7 +754,7 @@ function ApproversBreakdown({
   if (approvers.length === 0) return null;
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
         Current approver state
       </h2>
       <p className="mt-2 text-sm text-text-soft">Current on-chain vote state, not a complete historical log. An opposite vote can replace an earlier vote.</p>
@@ -784,7 +784,7 @@ function ApproversBreakdown({
               </div>
               <span
                 className={
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium " +
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium " +
                   (approved
                     ? "border-accent/30 bg-accent/10 text-accent"
                     : "border-border-soft bg-surface-raised text-text-soft")

@@ -54,6 +54,8 @@ const HEADER = [
   "Recipient",
   "Amount",
   "Ticker",
+  // Appended (not inserted) so saved Excel templates keep their mapping.
+  "Tx match",
 ];
 
 // Match window: how close (ms) a successful txAttempt's timestamp
@@ -106,7 +108,9 @@ export function buildActivityCsv(opts: ActivityCsvOptions): string {
       }
     }
 
-    const recipient = bestMatch?.recipientShort ?? "";
+    // Full address: a shortened one cannot be reconciled against a ledger.
+    const recipient =
+      bestMatch?.recipientFull ?? bestMatch?.recipientShort ?? "";
     const amount = bestMatch?.amountDisplay ?? "";
     const ticker = bestMatch?.ticker ?? "";
     const txHash = bestMatch?.txId ?? "";
@@ -128,6 +132,10 @@ export function buildActivityCsv(opts: ActivityCsvOptions): string {
         recipient,
         amount,
         ticker,
+        // The tx hash comes from this device's send log, joined to the
+        // proposal by time proximity. Say so, rather than imply the chain
+        // linked them.
+        bestMatch ? "approximate: device log, time-matched" : "",
       ]
         .map(csvEscape)
         .join(","),

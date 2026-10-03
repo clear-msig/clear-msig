@@ -31,7 +31,7 @@ export function PreFlightCard({
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col lg:max-w-3xl">
       <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           Zcash send
         </p>
         <h1 className="mt-2 font-display text-2xl font-semibold leading-tight text-text-strong">
@@ -146,7 +146,7 @@ export function ZcashCompose({
         <div className="flex items-center gap-3">
           {zecMeta ? <ChainBadge chain={zecMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               Send
             </p>
             <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
@@ -181,7 +181,7 @@ export function ZcashCompose({
                   />
                 ) : null}
                 {selectedUtxo ? (
-                  <span className="block pt-1 text-[11px]">
+                  <span className="block pt-1 text-xs">
                     Using input {selectedUtxo.txid.slice(0, 10)}…:
                     {selectedUtxo.vout}
                     {impliedFeeZats !== null ? (

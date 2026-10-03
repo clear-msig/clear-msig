@@ -355,7 +355,7 @@ export default function SetupSpendingPage() {
                 <Send className="h-7 w-7" strokeWidth={1.75} />
               </div>
               <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                 First-time setup
               </p>
               <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">

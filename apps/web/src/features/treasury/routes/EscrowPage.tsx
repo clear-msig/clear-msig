@@ -253,7 +253,7 @@ export default function ProEscrowPage() {
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               {walletDisplay}
             </p>
             <h1 className="mt-1 font-display text-2xl font-semibold leading-tight text-text-strong">
@@ -286,7 +286,7 @@ export default function ProEscrowPage() {
       <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               New escrow
             </p>
             <h2 className="mt-1 text-lg font-semibold text-text-strong">

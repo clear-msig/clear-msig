@@ -565,7 +565,7 @@ function SendPage() {
       <div className="flex flex-1 flex-col">
           {needsSetup && showSolanaForm && (
             <div className="mb-4 rounded-card border border-warning/30 bg-warning/5 p-4 text-center shadow-card-rest">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-warning">
                 Turn on sending
               </p>
               <p className="mt-2 text-sm text-text-strong">

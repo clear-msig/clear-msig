@@ -220,7 +220,7 @@ export default function AgentTradesPage() {
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Trade Performance · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -279,7 +279,7 @@ export default function AgentTradesPage() {
               type="button"
               onClick={() => setFilter(item)}
               className={clsx(
-                "min-h-8 rounded-[6px] px-2.5 text-[11px] font-medium capitalize transition-colors",
+                "min-h-8 rounded-[6px] px-2.5 text-xs font-medium capitalize transition-colors",
                 filter === item
                   ? "bg-surface-raised text-text-strong shadow-card-rest"
                   : "text-text-soft hover:text-text-strong",
@@ -385,11 +385,11 @@ function TradeRow({
       {proposal?.decisionJournal ? (
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] font-semibold text-text-strong">
+            <p className="text-xs font-semibold text-text-strong">
               Why it entered
             </p>
             <details className="group">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[11px] font-medium text-text-soft hover:text-accent">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-text-soft hover:text-accent">
                 Details
                 <ArrowLeft
                   className="h-3 w-3 rotate-180 transition-transform group-open:rotate-90"
@@ -415,7 +415,7 @@ function TradeRow({
         <PostTradeReview review={execution.postTradeReview} />
       ) : null}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-3">
-        <div className="flex flex-wrap gap-3 text-[11px] text-text-soft">
+        <div className="flex flex-wrap gap-3 text-xs text-text-soft">
           <span>Opened {new Date(execution.openedAt).toLocaleString()}</span>
           {execution.closedAt ? (
             <span>Closed {new Date(execution.closedAt).toLocaleString()}</span>
@@ -435,14 +435,14 @@ function TradeRow({
               size="sm"
               disabled={pending}
               onClick={() => onClose(execution.id, closeValue)}
-              className="min-h-8 px-2 py-1 text-[11px]"
+              className="min-h-8 px-2 py-1 text-xs"
             >
               <Check className="h-3 w-3" aria-hidden="true" />
               Close
             </Button>
           </div>
         ) : (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-text-soft">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-text-soft">
             <Clock className="h-3 w-3" aria-hidden="true" />
             Closed
           </span>
@@ -460,7 +460,7 @@ function PostTradeReview({
   return (
     <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold text-text-strong">
+        <p className="text-xs font-semibold text-text-strong">
           Post-trade review
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -497,8 +497,8 @@ function TradeLifecycleStrip({ lifecycle }: { lifecycle: AgentTradeLifecycle }) 
           >
             <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
             <div className="min-w-0">
-              <p className="truncate text-[10px] font-semibold">{step.label}</p>
-              <p className="truncate text-[10px] opacity-75">{step.detail}</p>
+              <p className="truncate text-xs font-semibold">{step.label}</p>
+              <p className="truncate text-xs opacity-75">{step.detail}</p>
             </div>
           </div>
         );
@@ -510,10 +510,10 @@ function TradeLifecycleStrip({ lifecycle }: { lifecycle: AgentTradeLifecycle }) 
 function MiniReason({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-text-strong">
+      <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-text-strong">
         {value}
       </p>
     </div>
@@ -531,7 +531,7 @@ function Metric({
 }) {
   return (
     <div className={clsx("rounded-card bg-surface-raised shadow-card-rest", compact ? "px-2 py-1.5" : "p-3")}>
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>
       <p className="mt-1 truncate text-sm font-semibold text-text-strong">{value}</p>
@@ -549,7 +549,7 @@ function Badge({
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+        "inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium",
         tone === "success" && "border-accent/30 bg-accent/[0.08] text-accent",
         tone === "danger" && "border-danger/30 bg-danger/[0.06] text-danger",
         tone === "warning" && "border-warning/30 bg-warning/[0.08] text-warning",

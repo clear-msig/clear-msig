@@ -33,6 +33,7 @@ import { Button } from "@/components/retail/Button";
 import { HoldingsPanel } from "@/components/wallet/detail/HoldingsPanel";
 import { WalletApprovalPanel } from "@/components/wallet/detail/WalletApprovalPanel";
 import { WalletHero } from "@/components/wallet/detail/WalletHero";
+import { TeamSetupChecklist } from "@/components/wallet/detail/TeamSetupChecklist";
 import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
 import { listIntents } from "@/lib/chain/intents";
 import { fetchWalletByName } from "@/lib/chain/wallets";
@@ -194,6 +195,16 @@ export default function WalletDetailPage() {
     return Array.from(seen);
   }, [intentsQuery.data]);
   const memberCount = intentsQuery.data ? memberAddresses.length : null;
+  // Governing rule for the setup checklist: the first live custom intent,
+  // falling back to the AddIntent meta-intent on wallets with no sends yet.
+  const governing = useMemo(() => {
+    const live = (intentsQuery.data ?? []).filter((it) => it.account !== null);
+    return (
+      live.find((it) => it.account && it.account.intentIndex >= 3)?.account ??
+      live[0]?.account ??
+      null
+    );
+  }, [intentsQuery.data]);
 
   // Whether the wallet has any active intents - gates the "Send money"
   // CTA. With zero intents, the program can't accept a proposal, so we
@@ -262,6 +273,14 @@ export default function WalletDetailPage() {
           on the Holdings tab. */}
       {walletAction.length > 0 && (
         <WalletApprovalPanel rows={walletAction} reduce={!!reduce} />
+      )}
+      {governing && (
+        <TeamSetupChecklist
+          walletName={name}
+          memberAddresses={memberAddresses}
+          approvalThreshold={governing.approvalThreshold}
+          timelockSeconds={governing.timelockSeconds}
+        />
       )}
       <WalletTourModal />
       <WalletDetailTabs
@@ -506,7 +525,7 @@ const TabBar = forwardRef<HTMLDivElement, TabBarProps>(function TabBar(
               {typeof it.count === "number" && it.count > 0 && (
                 <span
                   className={
-                    "ml-0.5 inline-flex h-4 min-w-[18px] items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold " +
+                    "ml-0.5 inline-flex h-4 min-w-[18px] items-center justify-center rounded-full px-1 font-mono text-xs font-semibold " +
                     (active
                       ? "bg-accent/15 text-accent"
                       : "border border-border-soft bg-surface-raised text-text-soft")

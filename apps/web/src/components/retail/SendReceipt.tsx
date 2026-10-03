@@ -127,7 +127,7 @@ export function SendReceipt({
             <Check className="h-5 w-5" strokeWidth={2.5} aria-hidden="true" />
           </motion.span>
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               {heading}
             </p>
             <p className="mt-0.5 truncate text-xs text-text-soft">
@@ -214,7 +214,7 @@ function ReceiptRow({ detail }: { detail: ReceiptDetail }) {
   };
   return (
     <div className="clear-receipt-row flex items-center justify-between gap-3 px-2 py-2.5">
-      <dt className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+      <dt className="shrink-0 text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
         {detail.label}
       </dt>
       <dd className="flex min-w-0 items-center gap-2">

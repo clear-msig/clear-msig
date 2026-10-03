@@ -39,7 +39,7 @@ export function LedgerConnectRow() {
         <button
           type="button"
           onClick={() => ledger.disconnect()}
-          className="rounded-full px-2.5 py-1 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-soft transition-colors duration-200 hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          className="rounded-full px-2.5 py-1 font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft transition-colors duration-200 hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
         >
           Disconnect
         </button>
@@ -67,12 +67,12 @@ export function LedgerConnectRow() {
             <span className="text-[13px] font-medium text-text-strong">
               Ledger detected
             </span>
-            <span className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <span className="font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft">
               Sign with your hardware wallet
             </span>
           </span>
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-bold text-text-on-accent shadow-[0_0_18px_rgba(204,255,0,0.35)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-xs font-bold text-text-on-accent shadow-[0_0_18px_rgba(204,255,0,0.35)]">
           {ledger.connecting ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
@@ -92,7 +92,7 @@ export function LedgerConnectRow() {
         type="button"
         onClick={handleClick}
         disabled={ledger.connecting}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border-strong bg-glass-soft px-4 py-2.5 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-soft backdrop-blur-md transition-[color,background-color,border-color] duration-200 hover:border-accent/50 hover:bg-accent/[0.08] hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border-strong bg-glass-soft px-4 py-2.5 font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft backdrop-blur-md transition-[color,background-color,border-color] duration-200 hover:border-accent/50 hover:bg-accent/[0.08] hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {ledger.connecting ? (
           <>

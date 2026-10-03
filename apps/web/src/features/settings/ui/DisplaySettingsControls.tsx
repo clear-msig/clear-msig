@@ -191,7 +191,7 @@ function ThemeSettingRow() {
           )}
         </span>
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Appearance
           </p>
           <p className="mt-1 font-display text-lg leading-tight text-text-strong">
@@ -318,7 +318,7 @@ function ThemeTile({
       </div>
       <span
         className={clsx(
-          "inline-flex items-center justify-center gap-1.5 text-[11px] font-medium",
+          "inline-flex items-center justify-center gap-1.5 text-xs font-medium",
           active
             ? "text-text-strong"
             : "text-text-soft group-hover:text-text-strong",

@@ -37,7 +37,7 @@ export function SendErrorBanner({
           onToggle={(event) => setExpanded((event.target as HTMLDetailsElement).open)}
         >
           <summary className="cursor-pointer text-text-soft hover:text-text-strong">Details</summary>
-          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-text-soft">
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-black/30 p-3 font-mono text-xs leading-relaxed text-text-soft">
             {error.stderr.trim()}
           </pre>
         </details>

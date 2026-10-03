@@ -46,6 +46,7 @@ import { useToast } from "@/components/ui/Toast";
 import { saveWalletAppearance } from "@/lib/retail/walletAppearance";
 import { isValidSolanaAddress, shortAddress } from "@/lib/retail/contacts";
 import { getProTreasuryRuntime } from "@/lib/pro/treasury";
+import { savePendingTeammates } from "@/lib/retail/setupChecklist";
 import { saveSelectedProductSurface } from "@/lib/productSession";
 import { UnsupportedSignerBanner } from "@/components/retail/UnsupportedSignerBanner";
 import {
@@ -186,11 +187,14 @@ function NewWalletContent() {
       const identity = setupIdentity.capture();
       if (!me) throw new Error("Connect your wallet first.");
       const walletSlug = toOnChainName(slug(cleanName), me);
-      const initialMembers = Array.from(
-        new Set([me, ...(importMode ? importedSigners : [])]),
-      );
-      const threshold =
-        initialMembers.length > 1 ? Math.min(2, initialMembers.length) : 1;
+      // The setup proposal can only be approved by its creator, so every
+      // wallet starts as creator-only with a 1-of-1 rule. Teammates, a
+      // higher threshold and a delay are added afterwards through the
+      // setup checklist. Imported signers are remembered for that step
+      // rather than silently dropped.
+      const initialMembers = [me];
+      const threshold = 1;
+      if (importMode) savePendingTeammates(walletSlug, importedSigners);
 
       assertNewWalletSetupSupported(
         initialMembers,
@@ -414,7 +418,7 @@ function NewWalletContent() {
       {purpose === "secure" && (
         <section className="flex flex-col gap-4">
           <div className="rounded-card border border-border-soft bg-surface-raised p-5 sm:p-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft">
               Trusted devices
             </p>
             <p className="mt-1 text-xs text-text-soft">
@@ -516,7 +520,7 @@ function NewWalletContent() {
         <section className="flex flex-col gap-5 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-6">
           {!lockedProduct ? (
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft">
                 Wallet purpose
               </p>
               <div
@@ -565,10 +569,10 @@ function NewWalletContent() {
                 key={step}
                 className="flex items-center gap-2 rounded-soft border border-border-soft bg-canvas px-3 py-2"
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 font-numerals text-[11px] font-semibold text-accent">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 font-numerals text-xs font-semibold text-accent">
                   {step}
                 </span>
-                <span className="truncate text-[11px] font-medium text-text-soft">
+                <span className="truncate text-xs font-medium text-text-soft">
                   {label}
                 </span>
               </li>
@@ -578,7 +582,7 @@ function NewWalletContent() {
           {showShapePicker ? (
             <div className="flex flex-col gap-3">
               <div>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft">
                   Pick a starter wallet
                 </span>
                 <p className="mt-1 text-xs text-text-soft">
@@ -621,7 +625,7 @@ function NewWalletContent() {
                         </div>
                         <span
                           className={clsx(
-                            "shrink-0 rounded-full border px-2 py-0.5 font-numerals text-[10px] font-semibold tabular-nums",
+                            "shrink-0 rounded-full border px-2 py-0.5 font-numerals text-xs font-semibold tabular-nums",
                             selected
                               ? "border-accent/30 bg-accent/10 text-accent"
                               : "border-border-soft bg-surface-raised text-text-soft",
@@ -664,7 +668,10 @@ function NewWalletContent() {
                     Import signers
                   </p>
                   <p className="mt-1 text-xs text-text-soft">
-                    {proRuntime.importSources.join(" / ")}
+                    Paste addresses exported from {proRuntime.importSources.join(" / ")}.
+                    The wallet is created with you as the only approver; each
+                    teammate is then added with its own approval, so nothing
+                    changes until your team signs.
                   </p>
                 </div>
               </div>
@@ -678,14 +685,13 @@ function NewWalletContent() {
                 className="mt-3 min-h-28 w-full resize-y rounded-soft border border-border-soft bg-surface-raised px-3 py-2 font-mono text-xs leading-relaxed text-text-strong outline-none placeholder:text-text-soft/60 focus:border-accent/50"
               />
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-numerals text-[11px] tabular-nums text-text-soft">
-                  {importedSigners.length + 1} signer
-                  {importedSigners.length === 0 ? "" : "s"}
+                <span className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-numerals text-xs tabular-nums text-text-soft">
+                  {importedSigners.length} to add after creation
                 </span>
                 {importedSigners.slice(0, 3).map((address) => (
                   <span
                     key={address}
-                    className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-mono text-[10px] text-text-soft"
+                    className="rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 font-mono text-xs text-text-soft"
                   >
                     {shortAddress(address)}
                   </span>
@@ -698,7 +704,7 @@ function NewWalletContent() {
           <div className="flex flex-col gap-2">
             <label
               htmlFor="new-wallet-name"
-              className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft"
+              className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft"
             >
               Name your wallet
             </label>
@@ -781,7 +787,7 @@ function NewWalletContent() {
           </button>
 
           {isBrokenSigner && (
-            <p className="text-center text-[11px] uppercase tracking-[0.2em] text-text-soft/80">
+            <p className="text-center text-xs uppercase tracking-[0.2em] text-text-soft/80">
               This account is on the legacy embedded signer path. Recreate the
               embedded wallet or use a hardware wallet.
             </p>

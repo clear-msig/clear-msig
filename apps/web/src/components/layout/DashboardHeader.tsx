@@ -211,7 +211,7 @@ function HeaderNotificationsButton() {
           aria-hidden="true"
           className={clsx(
             "absolute -right-1 -top-1 inline-flex h-4 min-w-[1rem] items-center justify-center",
-            "rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-text-on-accent",
+            "rounded-full bg-accent px-1 text-xs font-semibold leading-none text-text-on-accent",
             "ring-2 ring-canvas",
           )}
         >
@@ -346,8 +346,8 @@ function HeaderWalletPill() {
           <Usb className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
         </span>
         <span className="flex min-w-0 flex-col items-start leading-none">
-          <span className="font-mono text-[11px] text-text-strong">{short}</span>
-          <span className="mt-1 max-w-[6.5rem] truncate text-[10px] font-medium text-text-muted">
+          <span className="font-mono text-xs text-text-strong">{short}</span>
+          <span className="mt-1 max-w-[6.5rem] truncate text-xs font-medium text-text-muted">
             {balanceLabel}
           </span>
         </span>
@@ -382,7 +382,7 @@ function HeaderWalletPill() {
                 <p className="text-xs font-semibold text-text-strong">
                   Connected wallet
                 </p>
-                <p className="truncate font-mono text-[11px] text-text-muted">
+                <p className="truncate font-mono text-xs text-text-muted">
                   {address}
                 </p>
               </div>
@@ -391,7 +391,7 @@ function HeaderWalletPill() {
 
           <div className="grid grid-cols-2 gap-px bg-border-soft">
             <div className="bg-surface-elevated px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase text-text-muted">
+              <p className="text-xs font-semibold uppercase text-text-muted">
                 Balance
               </p>
               <p className="mt-1 text-sm font-semibold text-text-strong">
@@ -399,7 +399,7 @@ function HeaderWalletPill() {
               </p>
             </div>
             <div className="bg-surface-elevated px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase text-text-muted">
+              <p className="text-xs font-semibold uppercase text-text-muted">
                 Signer
               </p>
               <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-text-strong">

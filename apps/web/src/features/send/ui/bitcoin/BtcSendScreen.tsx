@@ -113,7 +113,7 @@ export function BtcSendScreen({
           <div className="flex items-center gap-3">
             {btcMeta ? <ChainBadge chain={btcMeta} size="md" /> : null}
             <div className="flex flex-col gap-0.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                 Send
               </p>
               <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong sm:text-3xl md:block">

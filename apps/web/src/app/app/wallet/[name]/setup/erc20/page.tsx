@@ -331,7 +331,7 @@ export default function SetupErc20Page() {
               </div>
             )}
             <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               ERC-20 setup
             </p>
             <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">

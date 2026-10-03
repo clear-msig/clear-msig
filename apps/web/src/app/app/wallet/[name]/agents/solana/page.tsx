@@ -147,7 +147,7 @@ export default function SolanaDelegationPage() {
         </Link>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Solana Delegation · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -161,7 +161,7 @@ export default function SolanaDelegationPage() {
           </div>
           <span
             className={clsx(
-              "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              "rounded-full border px-2.5 py-1 text-xs font-medium",
               summary?.status === "ready"
                 ? "border-accent/30 bg-accent/[0.08] text-accent"
                 : summary?.status === "blocked"
@@ -319,7 +319,7 @@ export default function SolanaDelegationPage() {
               to a Solana authority account.
             </p>
           </div>
-          <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+          <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-medium text-text-soft">
             {delegation ? statusLabel(delegation.status) : "Not started"}
           </span>
         </div>
@@ -334,7 +334,7 @@ export default function SolanaDelegationPage() {
             <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-text-soft" aria-hidden="true" />
             <div className="min-w-0">
               <p className="text-xs font-semibold text-text-strong">Safety receipt</p>
-              <p className="mt-1 break-words font-mono text-[11px] leading-relaxed text-text-soft">
+              <p className="mt-1 break-words font-mono text-xs leading-relaxed text-text-soft">
                 signer={delegation?.agentSignerPubkey || "not-set"} ·
                 safety={delegation?.policyHash || policy.policyHash || "missing"} ·
                 status={delegation ? delegation.status : "not_started"}
@@ -422,7 +422,7 @@ function StepRow({
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-canvas px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-soft">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>
       <p className="mt-1 break-words text-xs font-semibold text-text-strong">

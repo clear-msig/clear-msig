@@ -112,7 +112,7 @@ function ConnectPage() {
             {/* Left - brand argument */}
             <motion.section {...fadeIn(0)} className="flex flex-col">
               <div className="flex items-center">
-                <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-text-soft">
+                <span className="font-mono-tech text-xs uppercase tracking-[0.32em] text-text-soft">
                   Shared wallets · signed by you
                 </span>
               </div>
@@ -253,7 +253,7 @@ function ConnectPage() {
         <footer className="relative z-10 flex items-center justify-center gap-4 border-t border-border-soft px-6 py-6 sm:px-10">
           <Link
             href="/privacy"
-            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-soft transition-colors duration-200 hover:text-accent"
+            className="font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft transition-colors duration-200 hover:text-accent"
           >
             How privacy works
           </Link>
@@ -262,7 +262,7 @@ function ConnectPage() {
           </span>
           <Link
             href="/"
-            className="font-mono-tech text-[10px] uppercase tracking-[0.24em] text-text-soft transition-colors duration-200 hover:text-accent"
+            className="font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft transition-colors duration-200 hover:text-accent"
           >
             What is Clear?
           </Link>
@@ -336,13 +336,13 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     if (kind === "wallet") {
       return (
         <>
-          <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-text-soft">
+          <p className="font-mono-tech text-xs uppercase tracking-[0.28em] text-text-soft">
             Family
           </p>
           <p className="mt-1 text-2xl font-light tracking-tight text-text-strong">
             $4,820
           </p>
-          <p className="mt-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="mt-1 font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft">
             Balance · 4 members
           </p>
         </>
@@ -352,7 +352,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
       return (
         <>
           <div className="flex items-center">
-            <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-accent">
+            <p className="font-mono-tech text-xs uppercase tracking-[0.28em] text-accent">
               Approved
             </p>
           </div>
@@ -363,7 +363,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
             <span className="h-1.5 w-6 rounded-full bg-accent" />
             <span className="h-1.5 w-6 rounded-full bg-accent" />
             <span className="h-1.5 w-6 rounded-full bg-border-soft" />
-            <span className="ml-1 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-text-soft">
+            <span className="ml-1 font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft">
               2/3
             </span>
           </div>
@@ -372,7 +372,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
     }
     return (
       <>
-        <p className="font-mono-tech text-[9px] uppercase tracking-[0.28em] text-text-soft">
+        <p className="font-mono-tech text-xs uppercase tracking-[0.28em] text-text-soft">
           Members
         </p>
         <div className="mt-2 flex -space-x-2">
@@ -388,7 +388,7 @@ function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
             />
           ))}
         </div>
-        <p className="mt-2 font-mono-tech text-[9px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="mt-2 font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft">
           You + 3 friends
         </p>
       </>

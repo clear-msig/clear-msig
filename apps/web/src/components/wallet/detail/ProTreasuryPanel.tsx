@@ -149,7 +149,7 @@ function ProOperationsPanel({
       <div className="rounded-card border border-accent/25 bg-surface-raised p-4 shadow-card-rest sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-accent">
               Pro command center · {runtime.environmentLabel}
             </p>
             <h2 className="mt-1 font-display text-xl leading-tight text-text-strong">
@@ -365,7 +365,7 @@ function ProAuditCard({
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-[10px] font-semibold uppercase tracking-[0.26em] text-text-soft">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.26em] text-text-soft">
           Audit
         </h3>
         <span className="font-numerals text-xs tabular-nums text-text-soft">
@@ -377,10 +377,10 @@ function ProAuditCard({
         <p className="mt-1 text-xs leading-relaxed text-text-soft">
           {receiptCopy}
         </p>
-        <p className="mt-2 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft/70">
+        <p className="mt-2 truncate font-mono text-xs uppercase tracking-[0.18em] text-text-soft/70">
           CSV · {csvColumns.join(", ")}
         </p>
-        <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft/70">
+        <p className="mt-1 truncate font-mono text-xs uppercase tracking-[0.18em] text-text-soft/70">
           Finance · {accountingTargets.join(" / ")}
         </p>
       </div>
@@ -474,7 +474,7 @@ function BudgetStripe({ name }: { name: string }) {
       }
     >
       <div className="flex items-baseline justify-between gap-3">
-        <p className={"text-[11px] font-semibold uppercase tracking-[0.24em] text-" + tone}>
+        <p className={"text-xs font-semibold uppercase tracking-[0.24em] text-" + tone}>
           {over
             ? "Over weekly limit"
             : hasWalletCap
@@ -532,7 +532,7 @@ function BudgetStripe({ name }: { name: string }) {
             const chainOver = chainPct >= 1;
             return (
               <li key={c.ticker}>
-                <div className="flex items-baseline justify-between gap-2 text-[11px] text-text-soft">
+                <div className="flex items-baseline justify-between gap-2 text-xs text-text-soft">
                   <span className="font-medium text-text-strong">{c.ticker}</span>
                   <span className={chainOver ? "text-danger" : ""}>
                     {formatUsd(c.spentUsd)} of {formatUsd(chainCap)}

@@ -253,7 +253,7 @@ function ToastItem({
       )}
 
       {showDetails && entry.details && (
-        <pre id={detailsId} className={`max-h-40 overflow-auto rounded-soft p-2 text-[11px] font-mono leading-snug ${secondaryText} ${entry.kind === "error" ? "bg-black/20" : "bg-canvas"}`}>
+        <pre id={detailsId} className={`max-h-40 overflow-auto rounded-soft p-2 text-xs font-mono leading-snug ${secondaryText} ${entry.kind === "error" ? "bg-black/20" : "bg-canvas"}`}>
           {entry.details}
         </pre>
       )}

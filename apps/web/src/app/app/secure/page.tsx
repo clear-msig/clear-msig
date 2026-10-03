@@ -115,7 +115,7 @@ export default function SecurePage() {
               className="text-center lg:col-span-7 lg:text-left"
             >
               <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
-                <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
+                <span className="font-mono text-xs uppercase tracking-[0.28em] text-text-soft">
                   Recovery
                 </span>
               </span>
@@ -215,7 +215,7 @@ function VaultsHero({ vaults, loading, onRefresh, fadeIn }: VaultsHeroProps) {
       >
         <div className="min-w-0">
           <span className="inline-flex items-center rounded-full border border-border-soft bg-surface-raised px-3 py-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-text-soft">
+            <span className="font-mono text-xs uppercase tracking-[0.28em] text-text-soft">
               Recovery
             </span>
           </span>
@@ -382,7 +382,7 @@ function VaultMockup() {
       >
         {/* ── Header ───────────────────────────────────────────── */}
         <header className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6">
-          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <span className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Vault · live preview
           </span>
           {/* Threshold pill - the count remounts on change so the
@@ -392,7 +392,7 @@ function VaultMockup() {
             initial={{ scale: 0.7, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", damping: 14, stiffness: 360 }}
-            className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2 py-0.5 font-numerals text-[11px] font-semibold tabular-nums text-accent"
+            className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2 py-0.5 font-numerals text-xs font-semibold tabular-nums text-accent"
           >
             {signedCount}/{VAULT_SHARES.length}
           </motion.span>
@@ -457,7 +457,7 @@ function VaultMockup() {
 
           {/* Threshold progress bar */}
           <div className="mt-5">
-            <div className="flex items-baseline justify-between text-[10px] uppercase tracking-[0.18em] text-text-soft">
+            <div className="flex items-baseline justify-between text-xs uppercase tracking-[0.18em] text-text-soft">
               <span className="font-mono">Threshold</span>
               <span className="font-numerals tabular-nums text-text-strong">
                 {VAULT_THRESHOLD} of {VAULT_SHARES.length}
@@ -474,7 +474,7 @@ function VaultMockup() {
           </div>
 
           {/* Share holders */}
-          <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+          <p className="mt-6 font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
             Share holders
           </p>
           <ul className="mt-3 divide-y divide-border-soft overflow-hidden rounded-xl border border-border-soft">
@@ -546,7 +546,7 @@ function VaultMockup() {
                     <span className="text-[13px] font-semibold text-text-strong">
                       {s.name}
                     </span>
-                    <span className="text-[11px] text-text-soft">
+                    <span className="text-xs text-text-soft">
                       {s.kind}
                     </span>
                   </motion.span>
@@ -560,7 +560,7 @@ function VaultMockup() {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.2 }}
-                          className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-soft"
+                          className="font-mono text-xs uppercase tracking-[0.16em] text-text-soft"
                         >
                           waiting
                         </motion.span>
@@ -572,7 +572,7 @@ function VaultMockup() {
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: -4 }}
                           transition={{ duration: 0.25 }}
-                          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-accent"
+                          className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.16em] text-accent"
                         >
                           signing
                           <span className="inline-flex items-center gap-0.5">
@@ -589,7 +589,7 @@ function VaultMockup() {
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.25 }}
-                          className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent"
+                          className="font-mono text-xs uppercase tracking-[0.16em] text-accent"
                         >
                           signed
                         </motion.span>
@@ -620,7 +620,7 @@ function VaultMockup() {
                   <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-text-on-accent">
                     <Check className="h-2.5 w-2.5" strokeWidth={3.4} />
                   </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
+                  <span className="font-mono text-xs uppercase tracking-[0.2em] text-accent">
                     Recovery ready
                   </span>
                 </motion.div>
@@ -638,7 +638,7 @@ function ConnectCallout() {
     <section className="rounded-card border border-border-soft bg-surface-raised shadow-card-rest">
       <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-8 sm:p-8">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
             Sign in to continue
           </p>
           <h2 className="mt-2 font-display text-display-xs leading-tight tracking-[-0.02em] text-text-strong">
@@ -659,7 +659,7 @@ function ConnectCallout() {
 function VaultListSkeleton() {
   return (
     <section>
-      <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+      <p className="mb-3 font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
         Reading vaults…
       </p>
       <ul className="flex flex-col gap-2">
@@ -798,7 +798,7 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
               dedicated subline. More disciplined than running both
               into one comma-separated string. */}
           <div className="flex min-w-0 flex-1 flex-col leading-tight">
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+            <span className="font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
               Vault
             </span>
             <span className="mt-1 flex items-center gap-2 truncate">
@@ -807,7 +807,7 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
               </span>
               {pendingCount > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent ring-1 ring-accent/30"
+                  className="inline-flex items-center gap-1 rounded-full bg-accent/[0.08] px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-accent ring-1 ring-accent/30"
                   title={`${pendingCount} proposal${pendingCount === 1 ? "" : "s"} need${pendingCount === 1 ? "s" : ""} action`}
                 >
                   <span className="font-numerals tabular-nums">
@@ -828,7 +828,7 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
               <span className="text-text-soft">/</span>
               {memberCount}
             </span>
-            <span className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-soft">
+            <span className="mt-1 text-xs uppercase tracking-[0.16em] text-text-soft">
               {balanceSol != null ? (
                 <>
                   <span className="font-numerals tabular-nums normal-case tracking-normal text-text-strong">
@@ -847,7 +847,7 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
                 smallestPerWhole={1_000_000_000n}
                 ticker="SOL"
                 variant="plain"
-                className="mt-0.5 text-[10px] tabular-nums text-text-soft"
+                className="mt-0.5 text-xs tabular-nums text-text-soft"
               />
             )}
           </div>
@@ -861,7 +861,7 @@ function VaultCard({ vault }: { vault: DecodedRecovery }) {
         {/* Mobile-only meta row. Desktop carries the same data via
             the meta cluster above; on mobile we want it inline so
             the row stays compact. */}
-        <p className="mt-3 text-[11px] text-text-soft sm:hidden">
+        <p className="mt-3 text-xs text-text-soft sm:hidden">
           <span className="font-numerals tabular-nums text-text-strong">
             {account.threshold}
           </span>

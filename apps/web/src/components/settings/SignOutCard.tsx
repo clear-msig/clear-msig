@@ -76,7 +76,7 @@ export function SignOutCard() {
               Sign out
             </span>
             {short ? (
-              <span className="font-mono text-[11px] text-text-soft">
+              <span className="font-mono text-xs text-text-soft">
                 {short}
               </span>
             ) : null}

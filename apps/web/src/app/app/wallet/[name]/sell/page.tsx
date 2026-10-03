@@ -571,7 +571,7 @@ function ComposeForm({
   return (
     <div className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
       <div className="flex flex-col gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           Chain
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -597,7 +597,7 @@ function ComposeForm({
                 <ChainBadge chain={chain} size="md" />
                 <span className="text-xs font-medium">{chain.ticker}</span>
                 {!ready && (
-                  <span className="text-[10px] text-text-soft">not bound</span>
+                  <span className="text-xs text-text-soft">not bound</span>
                 )}
               </button>
             );
@@ -608,7 +608,7 @@ function ComposeForm({
       <div className="flex flex-col gap-2">
         <label
           htmlFor="asset-amount"
-          className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
+          className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft"
         >
           Amount {selectedTicker ? `(${selectedTicker})` : ""}
         </label>
@@ -628,7 +628,7 @@ function ComposeForm({
       <div className="flex flex-col gap-2">
         <label
           htmlFor="bank-select"
-          className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
+          className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft"
         >
           Bank
         </label>
@@ -654,7 +654,7 @@ function ComposeForm({
       <div className="flex flex-col gap-2">
         <label
           htmlFor="account-number"
-          className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
+          className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft"
         >
           Account number
         </label>
@@ -669,13 +669,13 @@ function ComposeForm({
           className="w-full rounded-soft border border-border-soft bg-canvas/50 py-3 px-3 font-mono text-sm text-text-strong placeholder:text-text-soft focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
         {resolving && (
-          <p className="flex items-center gap-1.5 text-[11px] text-text-soft">
+          <p className="flex items-center gap-1.5 text-xs text-text-soft">
             <Loader2 className="h-3 w-3 animate-spin" />
             Resolving account…
           </p>
         )}
         {resolvedName && (
-          <p className="flex items-center gap-1.5 text-[11px] text-success">
+          <p className="flex items-center gap-1.5 text-xs text-success">
             <Check className="h-3 w-3" />
             {resolvedName}
           </p>
@@ -697,7 +697,7 @@ function ComposeForm({
       </Button>
 
       {selectedChainName && (
-        <p className="text-center text-[11px] text-text-soft">
+        <p className="text-center text-xs text-text-soft">
           Withdrawing from {selectedChainName}.
         </p>
       )}
@@ -740,7 +740,7 @@ function AwaitingSendCard({
       </div>
 
       <div className="rounded-soft border border-border-soft bg-canvas/50 p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           Treasury address
         </p>
         <div className="mt-2 flex items-center gap-2">
@@ -793,7 +793,7 @@ function AwaitingSendCard({
       <div className="flex flex-col gap-2 border-t border-border-soft pt-4">
         <label
           htmlFor="tx-hash"
-          className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft"
+          className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft"
         >
           Transaction hash
         </label>

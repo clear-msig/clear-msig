@@ -208,7 +208,7 @@ export function BrandSelect({
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate">{o.label}</span>
                     {o.description ? (
-                      <span className="mt-0.5 truncate font-mono text-[10px] text-text-soft">
+                      <span className="mt-0.5 truncate font-mono text-xs text-text-soft">
                         {o.description}
                       </span>
                     ) : null}

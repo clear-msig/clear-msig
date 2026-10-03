@@ -55,7 +55,7 @@ export function BackendPersistencePanel({
               {summary}
             </p>
             {synced ? (
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-text-soft">
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-soft">
                 <span className="rounded-full border border-border-soft px-2 py-1">
                   {status.agents} traders
                 </span>
@@ -74,7 +74,7 @@ export function BackendPersistencePanel({
         </div>
         <span
           className={clsx(
-            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            "rounded-full border px-2.5 py-1 text-xs font-medium",
             synced
               ? "border-accent/30 bg-accent/[0.08] text-accent"
               : "border-warning/30 bg-warning/[0.08] text-warning",
@@ -139,7 +139,7 @@ export function BetaReadinessPanel({
               </h2>
               <span
                 className={clsx(
-                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  "rounded-full border px-2 py-0.5 text-xs font-medium",
                   ready
                     ? "border-accent/30 bg-accent/[0.08] text-accent"
                     : blocked
@@ -186,7 +186,7 @@ export function BetaReadinessPanel({
               {check.href ? (
                 <Link
                   href={check.href}
-                  className="text-[11px] font-medium text-accent hover:text-accent-hover"
+                  className="text-xs font-medium text-accent hover:text-accent-hover"
                 >
                   Open
                 </Link>
@@ -241,7 +241,7 @@ export function MarketReadinessPanel({
               </h2>
               <span
                 className={clsx(
-                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  "rounded-full border px-2 py-0.5 text-xs font-medium",
                   readiness.status === "ready"
                     ? "border-accent/30 bg-accent/[0.08] text-accent"
                     : readiness.status === "blocked"
@@ -271,7 +271,7 @@ export function MarketReadinessPanel({
               </p>
               <span
                 className={clsx(
-                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  "rounded-full border px-2 py-0.5 text-xs font-medium",
                   phase.status === "ready"
                     ? "border-accent/30 bg-accent/[0.08] text-accent"
                     : phase.status === "blocked"
@@ -306,13 +306,13 @@ export function MarketReadinessPanel({
                 <p className="text-xs font-semibold text-text-strong">
                   {check.label}
                 </p>
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-muted">
+                <span className="text-xs font-medium uppercase tracking-[0.12em] text-text-muted">
                   {check.category}
                 </span>
                 {check.href ? (
                   <Link
                     href={check.href}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-hover"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
                   >
                     Open
                     <ArrowRight className="h-3 w-3" aria-hidden="true" />

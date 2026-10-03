@@ -191,7 +191,7 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
             </p>
           )}
           {attempts >= 3 && (
-            <p className="text-[11px] text-text-soft">
+            <p className="text-xs text-text-soft">
               Forgot your PIN? Reset by clearing this site&apos;s data in
               your browser. You&apos;ll need to reconnect your wallet
               after.
@@ -199,7 +199,7 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
           )}
         </form>
       </div>
-      <div className="mt-6 inline-flex items-center gap-1.5 text-[11px] text-text-soft">
+      <div className="mt-6 inline-flex items-center gap-1.5 text-xs text-text-soft">
         <BrandMark size={14} />
         <span>Clear · saved on this device only</span>
       </div>

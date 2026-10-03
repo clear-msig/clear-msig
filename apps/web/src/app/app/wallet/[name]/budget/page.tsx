@@ -235,7 +235,7 @@ export default function BudgetPage() {
             <WalletIcon className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
           </span>
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Protection limits · {display}
             </p>
             <h1 className="mt-1.5 truncate font-display text-2xl leading-[1.05] tracking-[-0.02em] text-text-strong sm:text-display-sm">
@@ -410,7 +410,7 @@ function PolicyCard({
 }) {
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
         {title}
       </p>
       <p className="mt-1 text-xs text-text-soft">{hint}</p>
@@ -445,7 +445,7 @@ function ChainCapRow({
         <ChainBadge chain={meta} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-strong">{meta.name}</p>
-          <p className="text-[11px] text-text-soft">{meta.description}</p>
+          <p className="text-xs text-text-soft">{meta.description}</p>
         </div>
       </div>
       <div className="mt-3 flex items-baseline gap-2">
@@ -490,7 +490,7 @@ function ChainCapRow({
           small
         />
         {wholeEquivalent && (
-          <span className="ml-1 text-[11px] text-text-soft">
+          <span className="ml-1 text-xs text-text-soft">
             {wholeEquivalent}
           </span>
         )}
@@ -517,7 +517,7 @@ function QuickChip({
       className={
         "rounded-full border font-medium transition-colors duration-base ease-out-soft " +
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-        (small ? "px-2.5 py-0.5 text-[11px] " : "px-3 py-1 text-xs ") +
+        (small ? "px-2.5 py-0.5 text-xs " : "px-3 py-1 text-xs ") +
         (active
           ? "border-accent bg-accent/10 text-accent"
           : "border-border-soft bg-canvas text-text-soft hover:text-text-strong")
@@ -557,7 +557,7 @@ function CurrentUsageCard({
   return (
     <div className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
         This week
       </p>
       <div className="mt-2 flex items-baseline justify-between gap-3">
@@ -585,7 +585,7 @@ function CurrentUsageCard({
             if (chainCap === null) return null;
             return (
               <li key={c.ticker}>
-                <div className="flex items-baseline justify-between gap-2 text-[11px] text-text-soft">
+                <div className="flex items-baseline justify-between gap-2 text-xs text-text-soft">
                   <span className="font-medium text-text-strong">{c.ticker}</span>
                   <span>
                     {formatUsd(c.spentUsd)} of {formatUsd(chainCap)}

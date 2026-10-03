@@ -94,7 +94,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
       <header className="overflow-hidden rounded-card border border-accent/25 bg-[#050706] p-4 shadow-card-rest sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-1">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Agent vault · {display}
             </p>
             <h1 className="font-display text-display-xs leading-tight text-text-strong md:text-display-sm">
@@ -104,7 +104,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
           <Link
             href="/privacy"
             className={clsx(
-              "inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent/[0.06] px-2.5 py-1 text-[11px] font-medium text-accent",
+              "inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent/[0.06] px-2.5 py-1 text-xs font-medium text-accent",
               "transition-colors duration-base ease-out-soft hover:border-accent/50",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
             )}
@@ -403,7 +403,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
                 />
               ) : (
                 <section className="flex flex-col gap-3">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                     Your traders
                   </h2>
                   <ul className="grid gap-3 md:grid-cols-2">
@@ -426,7 +426,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
               )}
 
               <section id="decision-journal" className="flex scroll-mt-24 flex-col gap-3">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                   Decision journal
                 </h2>
                 {proposals.length > 0 ? (
@@ -471,7 +471,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
 
               {sessions.length > 0 ? (
                 <section className="flex flex-col gap-3">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                     Practice budgets
                   </h2>
                   <ul className="grid gap-3 md:grid-cols-2">
@@ -506,7 +506,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
           {executions.length > 0 ? (
             <section className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                   Trades
                 </h2>
                 {openExecutions > 0 ? (
@@ -514,7 +514,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
                     type="button"
                     disabled={pendingAction}
                     onClick={closeAllOpenPaperTrades}
-                    className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-rose-500/30 px-2 py-1 text-[11px] font-medium text-rose-300 transition-colors hover:bg-rose-500/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-rose-500/30 px-2 py-1 text-xs font-medium text-rose-300 transition-colors hover:bg-rose-500/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <X className="h-3 w-3" aria-hidden="true" />
                     Close all open

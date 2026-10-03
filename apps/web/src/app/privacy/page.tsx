@@ -69,7 +69,7 @@ export default function PrivacyPage() {
           className="border-b border-white/[0.08] pb-12 sm:pb-16"
         >
           <div className="flex items-center">
-            <span className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/60">
+            <span className="font-mono-tech text-xs uppercase tracking-[0.32em] text-white/60">
               Privacy · current visibility and limits
             </span>
           </div>
@@ -89,7 +89,7 @@ export default function PrivacyPage() {
 
         {/* ─── Visibility split ───────────────────────────── */}
         <motion.section {...fadeIn(0.05)} className="mt-12 sm:mt-16">
-          <p className="font-mono-tech text-[10px] uppercase tracking-[0.32em] text-white/50">
+          <p className="font-mono-tech text-xs uppercase tracking-[0.32em] text-white/50">
             Visibility · what is and isn&rsquo;t public
           </p>
           <div className="mt-5 grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
@@ -124,7 +124,7 @@ export default function PrivacyPage() {
               </div>
             </div>
             <div className="p-6 sm:p-8">
-              <p className="font-mono-tech text-[10px] uppercase tracking-[0.28em] text-[#ccff00]">
+              <p className="font-mono-tech text-xs uppercase tracking-[0.28em] text-[#ccff00]">
                 Planned protection
               </p>
               <h2 className="mt-3 font-display text-2xl leading-tight tracking-[-0.01em] text-white sm:text-3xl">
@@ -136,7 +136,7 @@ export default function PrivacyPage() {
                 guarantee of this deployment. Current supported Solana checks
                 enforce readable policy and approval data.
               </p>
-              <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.03] px-3 py-1 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60">
+              <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.03] px-3 py-1 font-mono-tech text-xs uppercase tracking-[0.24em] text-white/60">
                 <span className="text-white">Encrypt</span> · pre-alpha interface
               </p>
             </div>
@@ -156,7 +156,7 @@ export default function PrivacyPage() {
           <div className="flex items-center">
             <span
               className={
-                "font-mono-tech text-[10px] uppercase tracking-[0.28em] " +
+                "font-mono-tech text-xs uppercase tracking-[0.28em] " +
                 (status.live ? "text-[#ccff00]" : "text-white/60")
               }
             >
@@ -169,7 +169,7 @@ export default function PrivacyPage() {
               : "This preview uses a local pass-through for policy inputs. It does not encrypt policy data or provide private on-chain enforcement."}
           </p>
           {ctCount !== null && ctCount > 0 && (
-            <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.03] px-3 py-1 font-mono-tech text-[10px] uppercase tracking-[0.24em] text-white/60">
+            <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.03] px-3 py-1 font-mono-tech text-xs uppercase tracking-[0.24em] text-white/60">
               <span className="font-numerals text-white">{ctCount}</span>{" "}
               local policy record{ctCount === 1 ? "" : "s"} · not proof of encryption
             </p>

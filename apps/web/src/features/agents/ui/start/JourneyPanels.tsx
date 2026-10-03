@@ -58,7 +58,7 @@ export function BetaJourneyPanel({
             Launch checklist
           </p>
         </div>
-        <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-[11px] font-medium text-accent">
+        <span className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-xs font-medium text-accent">
           {venue === "hyperliquid_testnet" ? "Connected practice" : "Built-in practice"}
         </span>
       </div>
@@ -78,7 +78,7 @@ export function BetaJourneyPanel({
               <div className="flex items-center gap-2">
                 <span
                   className={clsx(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold",
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
                     item.done
                       ? "border-accent/30 bg-accent/10 text-accent"
                       : "border-border-soft text-text-muted",
@@ -94,7 +94,7 @@ export function BetaJourneyPanel({
                   {item.label}
                 </p>
               </div>
-              <p className="mt-1 break-words text-[11px] leading-relaxed text-text-soft">
+              <p className="mt-1 break-words text-xs leading-relaxed text-text-soft">
                 {item.detail}
               </p>
             </div>
@@ -124,7 +124,7 @@ export function PrimaryLaunchActionPanel({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-soft">
+          <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-soft">
             {state.modeLabel}
           </p>
           <h2 className="mt-1 text-sm font-semibold text-text-strong">
@@ -133,7 +133,7 @@ export function PrimaryLaunchActionPanel({
         </div>
         <span
           className={clsx(
-            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            "rounded-full border px-2.5 py-1 text-xs font-medium",
             state.statusTone === "ready"
               ? "border-accent/30 bg-accent/[0.08] text-accent"
               : state.statusTone === "blocked"
@@ -196,7 +196,7 @@ export function LaunchStepRow({
       <div className="min-w-0 flex-1 basis-48">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs font-semibold text-text-strong">{step.label}</p>
-          <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
+          <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-xs font-medium text-text-soft">
             {ownerLabel(step.owner)}
           </span>
           <details className="group relative">

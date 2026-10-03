@@ -34,7 +34,7 @@ export function DoneStage({
             <ResultIcon className="h-5 w-5" strokeWidth={2.5} />
           </span>
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               {copy.heading}
             </p>
             <p className="mt-0.5 truncate text-xs text-text-soft">
@@ -86,7 +86,7 @@ export function DoneStage({
                       {f.message}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-warning">
+                  <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.16em] text-warning">
                     Failed
                   </span>
                 </li>

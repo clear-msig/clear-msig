@@ -49,14 +49,14 @@ export function AgentCard({
             </p>
             <span
               className={clsx(
-                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium capitalize",
                 statusTone,
               )}
             >
               {agent.status}
             </span>
             {published ? (
-              <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/[0.08] px-1.5 py-0.5 text-[10px] font-medium text-accent">
+              <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/[0.08] px-1.5 py-0.5 text-xs font-medium text-accent">
                 Published
               </span>
             ) : null}
@@ -76,16 +76,16 @@ export function AgentCard({
             </details>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-[11px] font-medium text-text-soft">
+            <span className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-xs font-medium text-text-soft">
               <Trophy className="h-3 w-3" aria-hidden="true" />
               {rank > 0 ? `Rank #${rank}` : "Unranked"}
             </span>
-            <span className="inline-flex items-center rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-[11px] font-medium text-text-soft">
+            <span className="inline-flex items-center rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-xs font-medium text-text-soft">
               Safety score {leaderboard?.score ?? 50}
             </span>
             <span
               className={clsx(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
                 inboxSummary?.count
                   ? "border-warning/30 bg-warning/[0.08] text-warning"
                   : "border-border-soft bg-canvas text-text-soft",
@@ -97,7 +97,7 @@ export function AgentCard({
                 : `${inboxSummary?.count ?? 0} new`}
             </span>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
             <ScoreStat label="Profit/loss" value={formatSignedUsd(scorecard?.realizedPnlUsd ?? "0")} />
             <ScoreStat label="Trades" value={String(scorecard?.executed ?? 0)} />
             <ScoreStat label="Stopped" value={String(scorecard?.ruleViolations ?? 0)} />
@@ -110,7 +110,7 @@ export function AgentCard({
             <div className="mt-3 border-t border-border-soft pt-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-[11px] font-semibold text-text-strong">
+                  <p className="text-xs font-semibold text-text-strong">
                     Recommended budget
                   </p>
                   <p className="mt-1 line-clamp-1 text-xs text-text-soft">
@@ -119,7 +119,7 @@ export function AgentCard({
                 </div>
                 <span
                   className={clsx(
-                    "rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize",
+                    "rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
                     allocation.action === "demote"
                       ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
                       : allocation.action === "promote"
@@ -131,7 +131,7 @@ export function AgentCard({
                 </span>
               </div>
               {allocation.nextTier && allocation.nextTierGaps.length > 0 ? (
-                <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-text-soft">
+                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-text-soft">
                   Next level: {allocation.nextTier.label} needs{" "}
                   {allocation.nextTierGaps.slice(0, 2).join(" and ")}.
                 </p>
@@ -139,7 +139,7 @@ export function AgentCard({
               {agent.status === "active" ? (
                 <Link
                   href={`/app/wallet/${walletEncoded}/agents/sessions/new?agent=${encodeURIComponent(agent.id)}&allocationTier=${allocation.tier.id}`}
-                  className="mt-2 inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+                  className="mt-2 inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
                 >
                   <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
                   Review budget
@@ -151,7 +151,7 @@ export function AgentCard({
             <div className="mt-3 rounded-soft border border-border-soft bg-canvas px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-[11px] font-semibold text-text-strong">
+                  <p className="text-xs font-semibold text-text-strong">
                     Public profile
                   </p>
                   <p className="mt-0.5 text-xs text-text-soft">
@@ -166,7 +166,7 @@ export function AgentCard({
                       ? `/agents/${walletEncoded}/${encodeURIComponent(agent.publishing.slug)}`
                       : `/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}#publishing`
                   }
-                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
+                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-xs font-medium text-text-strong transition-colors hover:border-accent/60 hover:text-accent"
                 >
                   {agent.publishing.moderation?.status === "approved" ? "Open profile" : "Review"}
                   <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -209,7 +209,7 @@ export function AgentCard({
             <Link
               href={`/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}`}
               className={clsx(
-                "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
+                "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-xs font-medium text-text-strong",
                 "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
               )}
@@ -220,7 +220,7 @@ export function AgentCard({
             <Link
               href={`/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}#publishing`}
               className={clsx(
-                "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
+                "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-xs font-medium text-text-strong",
                 "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
               )}
@@ -232,7 +232,7 @@ export function AgentCard({
               <Link
                 href={`/app/wallet/${walletEncoded}/agents/start?agent=${encodeURIComponent(agent.id)}`}
                 className={clsx(
-                  "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
+                  "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-xs font-medium text-text-strong",
                   "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                 )}
@@ -244,7 +244,7 @@ export function AgentCard({
               <Link
                 href={`/app/wallet/${walletEncoded}/agents/${encodeURIComponent(agent.id)}/connection`}
                 className={clsx(
-                  "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-[11px] font-medium text-text-strong",
+                  "inline-flex min-h-8 items-center justify-center gap-1 rounded-soft border border-border-soft px-2 py-1 text-xs font-medium text-text-strong",
                   "transition-colors duration-base ease-out-soft hover:border-accent/60 hover:text-accent",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
                 )}
@@ -262,7 +262,7 @@ export function AgentCard({
 export function ScoreStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-canvas px-2 py-1.5">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
       <p className="mt-0.5 truncate font-medium text-text-strong">{value}</p>
@@ -309,7 +309,7 @@ export function ProposalCard({
             </p>
             <span
               className={clsx(
-                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium capitalize",
                 lifecycleToneClass(lifecycle.tone),
               )}
             >
@@ -336,7 +336,7 @@ export function ProposalCard({
           ) : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="text-[11px] font-medium text-text-soft">
+          <span className="text-xs font-medium text-text-soft">
             Confidence {proposal.confidence}%
           </span>
           <ProposalActions

@@ -7,7 +7,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 type WalletAvatarSize = "xs" | "sm" | "md" | "lg";
 
 const sizeClass: Record<WalletAvatarSize, string> = {
-  xs: "h-6 w-6 text-[10px]",
+  xs: "h-6 w-6 text-xs",
   sm: "h-9 w-9 text-[12px]",
   md: "h-10 w-10 text-[13px]",
   lg: "h-14 w-14 text-xl sm:h-16 sm:w-16 sm:text-2xl",

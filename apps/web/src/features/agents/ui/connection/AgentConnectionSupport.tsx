@@ -21,7 +21,7 @@ export function InboxSignalRow({
             <p className="text-sm font-semibold text-text-strong">
               {item.payload.market} · {item.payload.side}
             </p>
-            <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
+            <span className="rounded-full border border-border-soft px-1.5 py-0.5 text-xs font-medium text-text-soft">
               {item.payload.venue}
             </span>
             <RiskBadge preview={preview} />
@@ -57,7 +57,7 @@ export function InboxSignalRow({
 export function RiskBadge({ preview }: { preview?: AgentPolicyEvaluation }) {
   if (!preview) {
     return (
-      <span className="rounded-full border border-border-soft bg-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
+      <span className="rounded-full border border-border-soft bg-surface-raised px-1.5 py-0.5 text-xs font-medium text-text-soft">
         Checking
       </span>
     );
@@ -69,7 +69,7 @@ export function RiskBadge({ preview }: { preview?: AgentPolicyEvaluation }) {
         ? "border-accent/30 bg-accent/[0.08] text-accent"
         : "border-warning/30 bg-warning/[0.08] text-warning";
   return (
-    <span className={clsx("rounded-full border px-1.5 py-0.5 text-[10px] font-medium", tone)}>
+    <span className={clsx("rounded-full border px-1.5 py-0.5 text-xs font-medium", tone)}>
       {preview.decision === "blocked"
         ? "Stopped"
         : preview.decision === "allowed"

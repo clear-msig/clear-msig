@@ -407,7 +407,7 @@ function MiniList({ title, items, empty }: { title: string; items: string[]; emp
 function SmallMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft bg-canvas px-3 py-2">
-      <p className="text-[11px] font-medium text-text-soft">{label}</p>
+      <p className="text-xs font-medium text-text-soft">{label}</p>
       <p className="mt-0.5 break-words font-mono text-sm font-semibold text-text-strong">
         {value}
       </p>
@@ -417,7 +417,7 @@ function SmallMetric({ label, value }: { label: string; value: string }) {
 
 function Badge({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex rounded-full border border-border-soft bg-canvas px-2 py-1 text-[11px] font-medium capitalize text-text-soft">
+    <span className="inline-flex rounded-full border border-border-soft bg-canvas px-2 py-1 text-xs font-medium capitalize text-text-soft">
       {children}
     </span>
   );
@@ -435,7 +435,7 @@ function RegistryStatusBadge({
         ? "border-warning/30 bg-warning/[0.08] text-warning"
         : "border-danger/30 bg-danger/[0.08] text-danger";
   return (
-    <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${tone}`}>
+    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${tone}`}>
       {creatorRegistryStatusLabel(status)}
     </span>
   );

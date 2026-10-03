@@ -59,7 +59,7 @@ export function NextStepCard({
       className="clear-receipt-card rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5"
     >
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
-      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
         What&rsquo;s next
       </p>
       <h3 className="mt-2 font-display text-base font-semibold text-text-strong">

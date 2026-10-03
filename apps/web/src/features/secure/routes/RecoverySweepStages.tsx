@@ -194,7 +194,7 @@ export function ComposeStage(props: ComposeStageProps) {
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor="sweep-asset"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
+            className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft"
           >
             Asset
           </label>
@@ -226,13 +226,13 @@ export function ComposeStage(props: ComposeStageProps) {
             })}
           </select>
           {props.holdingsLoading && (
-            <p className="text-[10px] text-text-soft">
+            <p className="text-xs text-text-soft">
               Reading token balances…
             </p>
           )}
           {!props.holdingsLoading &&
             (props.holdings == null || props.holdings.length === 0) && (
-              <p className="text-[10px] text-text-soft">
+              <p className="text-xs text-text-soft">
                 No tokens detected yet. Only SOL.
               </p>
             )}
@@ -241,7 +241,7 @@ export function ComposeStage(props: ComposeStageProps) {
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor="sweep-destination"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
+            className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft"
           >
             Destination address
           </label>
@@ -258,10 +258,10 @@ export function ComposeStage(props: ComposeStageProps) {
             className="rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-sm text-text-strong placeholder:text-text-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           />
           {props.destinationError && (
-            <p className="text-[11px] text-warning">{props.destinationError}</p>
+            <p className="text-xs text-warning">{props.destinationError}</p>
           )}
           {isSpl && (
-            <p className="text-[10px] text-text-soft">
+            <p className="text-xs text-text-soft">
               Sends to the recipient&rsquo;s wallet. We derive their{" "}
               {props.assetSymbol} ATA and create it on the fly if needed.
             </p>
@@ -272,12 +272,12 @@ export function ComposeStage(props: ComposeStageProps) {
           <div className="flex items-end justify-between gap-2">
             <label
               htmlFor="sweep-amount"
-              className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft"
+              className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft"
             >
               Amount ({props.assetSymbol})
             </label>
             {!isSpl && props.balanceLamports != null && (
-              <span className="font-numerals text-[10px] tabular-nums text-text-soft">
+              <span className="font-numerals text-xs tabular-nums text-text-soft">
                 Balance: {formatLamportsToSol(props.balanceLamports)} SOL
                 <UsdHint
                   amount={props.balanceLamports}
@@ -287,7 +287,7 @@ export function ComposeStage(props: ComposeStageProps) {
               </span>
             )}
             {isSpl && props.selectedHolding && (
-              <span className="font-numerals text-[10px] tabular-nums text-text-soft">
+              <span className="font-numerals text-xs tabular-nums text-text-soft">
                 Balance:{" "}
                 {formatTokenAmount(
                   props.selectedHolding.amount,
@@ -324,7 +324,7 @@ export function ComposeStage(props: ComposeStageProps) {
                 isSpl ? !props.selectedHolding : props.balanceLamports == null
               }
               className={
-                "shrink-0 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft " +
+                "shrink-0 rounded-soft border border-border-soft bg-canvas px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-soft " +
                 "transition-[border-color,color] duration-base ease-out-soft hover:border-accent hover:text-accent " +
                 "disabled:cursor-not-allowed disabled:opacity-50 " +
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -339,15 +339,15 @@ export function ComposeStage(props: ComposeStageProps) {
             </button>
           </div>
           {props.amountError && (
-            <p className="text-[11px] text-warning">{props.amountError}</p>
+            <p className="text-xs text-warning">{props.amountError}</p>
           )}
         </div>
 
         <div className="rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
             From
           </p>
-          <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
+          <p className="mt-1 break-all font-mono text-xs text-text-strong">
             {props.dwalletPubkey ?? "Vault backup needed"}
           </p>
         </div>
@@ -457,7 +457,7 @@ export function ReviewStage(props: ReviewStageProps) {
           has no passkey members, wallet is the only option. */}
       {showPicker && (
         <section className="mx-auto w-full max-w-md flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
             Authorise as
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -477,7 +477,7 @@ export function ReviewStage(props: ReviewStageProps) {
         </section>
       )}
       {!showPicker && props.authMode === "passkey" && (
-        <p className="mx-auto max-w-md text-center text-[11px] text-text-soft">
+        <p className="mx-auto max-w-md text-center text-xs text-text-soft">
           Connected wallet isn&rsquo;t on this vault&rsquo;s roster. Sweeping
           via enrolled passkey.
         </p>
@@ -528,7 +528,7 @@ function AuthOption({
       >
         {label}
       </span>
-      <span className="text-[11px] text-text-soft">{detail}</span>
+      <span className="text-xs text-text-soft">{detail}</span>
     </button>
   );
 }
@@ -639,7 +639,7 @@ export function RunningStage({
               ) : null}
               Approve as Wallet
               {!collect.walletEnabled && (
-                <span className="font-mono text-[10px] text-text-soft">
+                <span className="font-mono text-xs text-text-soft">
                   (not on roster)
                 </span>
               )}
@@ -663,7 +663,7 @@ export function RunningStage({
             </button>
           </div>
           {collect.error && (
-            <p className="max-w-md text-center text-[11px] text-warning">
+            <p className="max-w-md text-center text-xs text-warning">
               {collect.error}
             </p>
           )}
@@ -809,10 +809,10 @@ function ExplorerRow({
         }
       >
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
             {label}
           </span>
-          <span className="truncate font-mono text-[11px] text-text-strong">
+          <span className="truncate font-mono text-xs text-text-strong">
             {sig}
           </span>
         </div>

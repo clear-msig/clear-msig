@@ -145,7 +145,7 @@ export function ComposeStage({
         <div className="flex items-center gap-3">
           {ethMeta ? <ChainBadge chain={ethMeta} size="md" /> : null}
           <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
               Send
             </p>
             <h1 className="hidden font-display text-2xl font-semibold leading-tight text-text-strong md:block">
@@ -218,7 +218,7 @@ export function ComposeStage({
                     ),
                   );
                 }}
-                className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
+                className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
               >
                 Use max
               </button>

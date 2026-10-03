@@ -106,7 +106,7 @@ export function MobileWalletSwitchModal({
             <div className="flex-1 overflow-y-auto px-4 pb-8 pt-4">
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-text-soft">
+                  <p className="font-mono text-xs font-semibold uppercase tracking-[0.28em] text-text-soft">
                     Your wallets
                   </p>
                   <p className="mt-1 text-sm text-text-soft">
@@ -188,7 +188,7 @@ function MobileWalletSwitchRow({
         </span>
       </span>
       {pendingCount > 0 ? (
-        <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-text-on-accent">
+        <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-text-on-accent">
           {pendingCount}
         </span>
       ) : null}

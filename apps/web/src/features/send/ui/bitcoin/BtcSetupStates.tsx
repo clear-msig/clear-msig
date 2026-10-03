@@ -77,13 +77,13 @@ export function NeedsSetup({
     >
       {address && (
         <div className="rounded-soft border border-border-soft bg-canvas p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
             Bitcoin address
           </p>
-          <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
+          <p className="mt-1 break-all font-mono text-xs text-text-strong">
             {address}
           </p>
-          <p className="mt-2 font-numerals text-[11px] tabular-nums text-text-soft">
+          <p className="mt-2 font-numerals text-xs tabular-nums text-text-soft">
             Balance:{" "}
             {balanceLoading ? (
               "checking..."

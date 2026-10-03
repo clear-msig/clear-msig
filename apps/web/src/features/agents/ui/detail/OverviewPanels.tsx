@@ -32,7 +32,7 @@ export function Panel({
 export function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-card bg-surface-raised p-3 shadow-card-rest">
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-text-soft">
         {label}
       </p>
       <p className="mt-1 truncate text-sm font-semibold text-text-strong">{value}</p>
@@ -112,7 +112,7 @@ export function ReadinessPanel({
               </Badge>
             </div>
             <details className="group mt-1">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-text-soft transition-colors hover:text-accent">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent">
                 Why
                 <ArrowRight
                   className="h-3 w-3 transition-transform group-open:rotate-90"

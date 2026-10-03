@@ -68,7 +68,7 @@ export function StatCard({
     >
       <div className="flex items-center gap-1.5 text-text-soft sm:gap-2">
         <Icon className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-        <span className="text-[11px] font-semibold uppercase tracking-[0.2em]">
+        <span className="text-xs font-semibold uppercase tracking-[0.2em]">
           {label}
         </span>
       </div>
@@ -85,7 +85,7 @@ export function StatCard({
             {value}
           </span>
           {unit && (
-            <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-text-soft">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-text-soft">
               {unit}
             </span>
           )}
@@ -105,7 +105,7 @@ export function StatCard({
 export function MembershipsErrorCard({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="rounded-card border border-warning/30 bg-warning/[0.06] p-6 shadow-card-rest">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warning">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-warning">
         Couldn&rsquo;t load your wallets
       </p>
       <p className="mt-2 text-sm text-text-strong">
@@ -193,7 +193,7 @@ export function ProductEmptyState({
             <Icon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.22em] text-text-soft">
               {product.shortName}
             </p>
             <h2 className="mt-1 font-display text-lg font-semibold text-text-strong sm:text-xl">
@@ -253,7 +253,7 @@ export function RecentActivitySection({ rows, loading, reduce }: RecentActivityP
         <Link
           href="/app/activity"
           className={
-            "inline-flex items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-[11px] font-medium text-text-soft " +
+            "inline-flex items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-2.5 py-1 text-xs font-medium text-text-soft " +
             "transition-[border-color,color,transform] duration-base ease-out-soft " +
             "hover:-translate-y-0.5 hover:text-accent " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
@@ -349,7 +349,7 @@ function ActivityRow({ group }: { group: RecentActivityGroup }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+    <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
       {children}
     </h2>
   );
@@ -433,7 +433,7 @@ export function WatchedWalletsSection({
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="text-[11px] font-medium text-text-soft hover:text-accent"
+          className="text-xs font-medium text-text-soft hover:text-accent"
         >
           {showForm ? "Cancel" : "+ Watch another"}
         </button>
@@ -441,7 +441,7 @@ export function WatchedWalletsSection({
 
       {showForm && (
         <div className="mt-2 flex flex-col gap-2 rounded-card border border-border-soft bg-surface-raised p-3 shadow-card-rest">
-          <p className="text-[11px] text-text-soft">
+          <p className="text-xs text-text-soft">
             Paste a wallet name (with the <code>#XXXXXX</code> suffix it
             shows in the URL). Watch lets you see balances + activity
             without sign rights.
@@ -481,7 +481,7 @@ export function WatchedWalletsSection({
             </button>
           </form>
           {err && (
-            <p className="text-[11px] text-warning" role="alert">
+            <p className="text-xs text-warning" role="alert">
               {err}
             </p>
           )}
@@ -519,12 +519,12 @@ export function WatchedWalletsSection({
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-text-strong">
                           {display || "Wallet"}
-                          <span className="ml-1.5 text-[10px] font-normal uppercase tracking-wide text-text-soft">
+                          <span className="ml-1.5 text-xs font-normal uppercase tracking-wide text-text-soft">
                             View only
                           </span>
                         </p>
                         {pending > 0 && (
-                          <p className="mt-0.5 text-[11px] text-warning">
+                          <p className="mt-0.5 text-xs text-warning">
                             {pending} active request
                             {pending === 1 ? "" : "s"}
                           </p>
@@ -534,7 +534,7 @@ export function WatchedWalletsSection({
                     <button
                       type="button"
                       onClick={() => removeWatchedWallet(m.wallet_name ?? "")}
-                      className="shrink-0 rounded-soft px-2 py-1 text-[11px] text-text-soft transition-colors hover:text-warning"
+                      className="shrink-0 rounded-soft px-2 py-1 text-xs text-text-soft transition-colors hover:text-warning"
                       aria-label={`Stop watching ${display}`}
                     >
                       Stop

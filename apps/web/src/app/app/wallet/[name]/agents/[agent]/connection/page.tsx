@@ -564,7 +564,7 @@ export default function AgentConnectionPage() {
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Connect Trader · {display}
             </p>
             <h1 className="mt-1 font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -575,7 +575,7 @@ export default function AgentConnectionPage() {
               ClearSig checks every idea against your rules before anything happens.
             </p>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft">
             <Lock className="h-3 w-3" aria-hidden="true" />
             {encrypt.live ? "Privacy on" : "Privacy ready"}
           </span>
@@ -651,7 +651,7 @@ export default function AgentConnectionPage() {
             </p>
             <span
               className={clsx(
-                "mt-3 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                "mt-3 inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
                 registered
                   ? "border-accent/30 bg-accent/[0.08] text-accent"
                   : "border-warning/30 bg-warning/[0.08] text-warning",
@@ -659,7 +659,7 @@ export default function AgentConnectionPage() {
             >
               {registered ? "Ready for ideas" : "Getting ready"}
             </span>
-            <span className="ml-2 mt-3 inline-flex rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-[11px] font-medium text-text-soft">
+            <span className="ml-2 mt-3 inline-flex rounded-full border border-border-soft bg-surface-raised px-2 py-0.5 text-xs font-medium text-text-soft">
               {storageMode === "redis" ? "Ideas are saved" : "Saved on this device"}
             </span>
           </div>

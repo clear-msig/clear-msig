@@ -194,14 +194,14 @@ function SendAttempts({
                     type="button"
                     onClick={() => setExpanded(isOpen ? null : row.id)}
                     aria-expanded={isOpen}
-                    className="min-h-11 shrink-0 rounded-full border border-border-soft bg-canvas px-3 text-[11px] font-medium text-text-strong transition-colors hover:border-warning/50 hover:text-warning"
+                    className="min-h-11 shrink-0 rounded-full border border-border-soft bg-canvas px-3 text-xs font-medium text-text-strong transition-colors hover:border-warning/50 hover:text-warning"
                   >
                     {isOpen ? "Hide details" : "Show details"}
                   </button>
                 ) : null}
               </div>
               {row.status === "failed" && isOpen && row.errorStderr ? (
-                <pre className="mt-2 max-h-48 overflow-auto rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-[11px] leading-relaxed text-text-soft">
+                <pre className="mt-2 max-h-48 overflow-auto rounded-soft border border-border-soft bg-canvas px-3 py-2 font-mono text-xs leading-relaxed text-text-soft">
                   {row.errorStderr}
                 </pre>
               ) : null}
@@ -335,10 +335,10 @@ function ProposalActivity({
             strokeWidth={2.5}
             aria-hidden="true"
           />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             Requests
           </span>
-          <span className="font-numerals text-[10px] tabular-nums text-text-soft">
+          <span className="font-numerals text-xs tabular-nums text-text-soft">
             {incomplete ? "Incomplete" : allRows.length}
           </span>
         </button>
@@ -347,7 +347,7 @@ function ProposalActivity({
             {allRows.length > rows.length ? (
               <Link
                 href={`/app/wallet/${encodeURIComponent(walletName)}/activity`}
-                className="inline-flex min-h-11 items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-3 text-[11px] font-medium text-text-soft transition-[border-color,color] hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="inline-flex min-h-11 items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-3 text-xs font-medium text-text-soft transition-[border-color,color] hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 See all
                 <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -459,7 +459,7 @@ function ExternalAction({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-border-soft bg-canvas px-3 text-[11px] font-medium text-text-strong transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-border-soft bg-canvas px-3 text-xs font-medium text-text-strong transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {children}
     </a>

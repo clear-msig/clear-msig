@@ -491,7 +491,7 @@ function WebhooksSettingRow() {
               "focus:border-accent focus:shadow-accent-rest"
             }
           />
-          <p className="text-[11px] text-text-soft">
+          <p className="text-xs text-text-soft">
             Receivers verify the <code className="font-mono">X-Clear-Signature</code>{" "}
             header by recomputing HMAC-SHA256 over the raw body using this secret.
             Leave empty to skip signing.

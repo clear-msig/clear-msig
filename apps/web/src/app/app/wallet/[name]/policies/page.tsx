@@ -95,7 +95,7 @@ export default function PoliciesPage() {
           <Link
             href={`/app/wallet/${encodeURIComponent(name)}/policy`}
             className={clsx(
-              "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
+              "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft",
               "transition-colors duration-base ease-out-soft hover:text-accent",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
             )}
@@ -105,7 +105,7 @@ export default function PoliciesPage() {
           <Link
             href="/privacy"
             className={clsx(
-              "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft",
+              "inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft",
               "transition-colors duration-base ease-out-soft hover:text-accent",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
             )}
@@ -203,13 +203,13 @@ function PolicyCard({
               {rule.name}
             </p>
             {!rule.enabled && (
-              <span className="inline-flex items-center rounded-full border border-border-soft bg-canvas px-1.5 py-0.5 text-[10px] font-medium text-text-soft">
+              <span className="inline-flex items-center rounded-full border border-border-soft bg-canvas px-1.5 py-0.5 text-xs font-medium text-text-soft">
                 Paused
               </span>
             )}
             <span
               className={
-                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium " +
+                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium " +
                 (rule.action === "deny"
                   ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-600"
                   : rule.action === "allow"
@@ -227,7 +227,7 @@ function PolicyCard({
             {summaries.map((s, i) => (
               <li
                 key={i}
-                className="inline-flex items-center rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-[11px] font-medium text-text-soft"
+                className="inline-flex items-center rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-xs font-medium text-text-soft"
               >
                 {s}
               </li>
@@ -238,7 +238,7 @@ function PolicyCard({
           <Link
             href={`/app/wallet/${encodeURIComponent(walletName)}/policies/${rule.id}`}
             className={
-              "inline-flex min-h-tap items-center justify-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-2 text-[11px] font-medium text-text-soft " +
+              "inline-flex min-h-tap items-center justify-center gap-1 rounded-full border border-border-soft bg-canvas px-3 py-2 text-xs font-medium text-text-soft " +
               "transition-[border-color,color,transform] duration-base ease-out-soft " +
               "hover:-translate-y-0.5 hover:text-accent"
             }

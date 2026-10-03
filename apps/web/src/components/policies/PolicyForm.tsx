@@ -184,7 +184,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
             . Extra conditions on top of the wallet&rsquo;s basic protection.
           </p>
         </div>
-        <p className="inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-[11px] font-medium text-text-soft">
+        <p className="inline-flex items-center gap-1.5 rounded-full border border-border-soft px-2.5 py-1 text-xs font-medium text-text-soft">
           <Lock className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
           {status.live ? "Encryption active" : "Encryption-ready · pre-alpha"}
         </p>
@@ -229,7 +229,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
               onChange={(e) => setPriority(parseInt(e.target.value, 10) || 0)}
               className={inputClass}
             />
-            <p className="mt-1 text-[10px] text-text-soft">
+            <p className="mt-1 text-xs text-text-soft">
               Higher fires first. First match wins.
             </p>
           </Field>
@@ -257,7 +257,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
         className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
       >
         <header className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
             Conditions
           </p>
           <ConditionMenu onAdd={(k) => setConditions([...conditions, blankCondition(k)])} />
@@ -274,7 +274,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
                 className="rounded-soft border border-border-soft bg-canvas p-3"
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
                     {labelForKind(c.kind)}
                   </p>
                   <button
@@ -308,7 +308,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
         transition={{ duration: 0.2, delay: 0.1 }}
         className="flex flex-col gap-3 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           Action when conditions match
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -336,7 +336,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
                 <p className="text-xs font-medium text-text-strong">
                   {actionTitle(a)}
                 </p>
-                <p className="mt-1 text-[10px] leading-snug text-text-soft">
+                <p className="mt-1 text-xs leading-snug text-text-soft">
                   {actionHint(a)}
                 </p>
               </button>
@@ -356,7 +356,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
                 textareaClass + " font-mono text-xs"
               }
             />
-            <p className="mt-1 text-[10px] text-text-soft">
+            <p className="mt-1 text-xs text-text-soft">
               Routed through Encrypt when configured. Pre-alpha is not
               production confidentiality.
             </p>
@@ -375,7 +375,7 @@ export function PolicyForm({ mode, initial, initialExtraApproversText = "" }: Fo
               }
               className={inputClass}
             />
-            <p className="mt-1 text-[10px] text-text-soft">
+            <p className="mt-1 text-xs text-text-soft">
               Stacked on top of the on-chain intent&rsquo;s timelock.
             </p>
           </Field>
@@ -562,7 +562,7 @@ function RecipientEditor({
           }
           className={textareaClass + " font-mono text-xs"}
         />
-        <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-text-soft">
+        <span className="mt-1 inline-flex items-center gap-1 text-xs text-text-soft">
           <Lock className="h-3 w-3" aria-hidden="true" />
           Routed through Encrypt on save; on-chain privacy still depends on the program rollout.
         </span>
@@ -703,7 +703,7 @@ function TimeWindowEditor({
               type="button"
               onClick={() => toggleDay(i)}
               className={
-                "rounded-full border px-2.5 py-0.5 text-[11px] font-medium " +
+                "rounded-full border px-2.5 py-0.5 text-xs font-medium " +
                 (on
                   ? "border-accent bg-accent/[0.08] text-accent"
                   : "border-border-soft bg-surface-raised text-text-soft")
@@ -714,7 +714,7 @@ function TimeWindowEditor({
           );
         })}
       </div>
-      <p className="text-[10px] text-text-soft">
+      <p className="text-xs text-text-soft">
         Empty days means every day. Clear signs this device&rsquo;s timezone
         offset and the program checks the allowed hours before execution.
       </p>

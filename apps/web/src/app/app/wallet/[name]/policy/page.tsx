@@ -127,7 +127,7 @@ export default function PolicyPage() {
             <WalletIcon className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={1.75} />
           </span>
           <div className="flex min-w-0 flex-col">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Protection / {display}
             </p>
             <h1 className="mt-1 truncate font-display text-xl leading-tight text-text-strong sm:text-display-xs">
@@ -141,7 +141,7 @@ export default function PolicyPage() {
             : "Choose who can approve, how much can move, and when a send needs extra care."}
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-0">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas/70 px-3 py-1.5 text-[11px] font-medium text-text-soft">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas/70 px-3 py-1.5 text-xs font-medium text-text-soft">
             <ShieldCheck className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
             Read before signing
           </span>
@@ -249,11 +249,11 @@ function PeopleCard({
                 <p className="text-sm font-medium text-text-strong">
                   Signer {index + 1}
                 </p>
-                <p className="truncate font-mono text-[11px] text-text-soft">
+                <p className="truncate font-mono text-xs text-text-soft">
                   {shortAddress(address)}
                 </p>
               </div>
-              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                 Can approve
               </span>
             </li>
@@ -642,7 +642,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
                   }
                 >
                   <span>+ {c.name}</span>
-                  <span className="font-mono text-[10px] text-text-soft">
+                  <span className="font-mono text-xs text-text-soft">
                     {shortAddress(c.address)}
                   </span>
                 </button>
@@ -698,7 +698,7 @@ function AllowlistCard({ walletName }: { walletName: string }) {
                       <p className="text-sm font-medium text-text-strong">
                         {contact.name}
                       </p>
-                      <p className="truncate font-mono text-[11px] text-text-soft">
+                      <p className="truncate font-mono text-xs text-text-soft">
                         {shortAddress(addr)}
                       </p>
                     </>
@@ -849,7 +849,7 @@ function TimeWindowCard({ walletName }: { walletName: string }) {
             <HourPicker label="Start" value={draft.startHour} onChange={setStart} />
             <HourPicker label="End" value={draft.endHour} onChange={setEnd} />
           </div>
-          <p className="mt-2 text-[11px] text-text-soft">
+          <p className="mt-2 text-xs text-text-soft">
             Times are in your device&apos;s local time.
             {draft.startHour > draft.endHour
               ? " The window crosses midnight (e.g. 10pm to 6am)."

@@ -56,15 +56,15 @@ export function IdentityCard() {
       {/* Header strip - eyebrow on the left, live status pill on
           the right. Mirrors the Vault summary card on /app/secure/new. */}
       <header className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6">
-        <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <span className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Your wallet
         </span>
         {address ? (
-          <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">
+          <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.18em] text-accent">
             Connected
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-canvas px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
             Disconnected
           </span>
         )}
@@ -78,7 +78,7 @@ export function IdentityCard() {
             <div className="flex items-start gap-4">
               <MemberAvatar address={address} size="lg" />
               <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-soft">
+                <span className="font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
                   {kindLabel} · Solana devnet
                 </span>
                 <p className="mt-1 font-display text-base font-semibold tracking-[-0.01em] text-text-strong">
@@ -104,7 +104,7 @@ export function IdentityCard() {
               </span>
               <span
                 className={clsx(
-                  "flex shrink-0 items-center gap-1 font-mono text-[10px] uppercase tracking-[0.18em]",
+                  "flex shrink-0 items-center gap-1 font-mono text-xs uppercase tracking-[0.18em]",
                   "transition-colors duration-base ease-out-soft",
                   copied
                     ? "text-accent"

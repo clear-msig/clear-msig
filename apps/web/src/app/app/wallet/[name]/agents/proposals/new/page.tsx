@@ -239,7 +239,7 @@ export default function NewAgentProposalPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header className="flex flex-col gap-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+        <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
           Decision Journal · {display}
         </p>
         <h1 className="font-display text-lg leading-tight text-text-strong md:text-display-xs">
@@ -388,7 +388,7 @@ export default function NewAgentProposalPage() {
           {preview ? <DecisionPreview preview={preview} /> : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-4">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-soft">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text-soft">
               <Lock className="h-3 w-3" aria-hidden="true" />
               {encrypt.live ? "Privacy on" : "Privacy ready"}
             </span>

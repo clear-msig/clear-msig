@@ -113,7 +113,7 @@ function SolanaRpcSettingRow() {
         </div>
         <span
           className={
-            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] " +
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-xs uppercase tracking-[0.18em] " +
             (isUsingOverride
               ? "border-accent/40 bg-accent/10 text-accent"
               : "border-border-soft bg-canvas text-text-soft")
@@ -124,12 +124,12 @@ function SolanaRpcSettingRow() {
       </div>
 
       {/* Active URL - one-line truncated, full URL behind tooltip. */}
-      <p className="mt-3 inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-soft">
+      <p className="mt-3 inline-flex max-w-full items-center gap-1.5 text-xs text-text-soft">
         <span className="truncate font-mono text-text-strong" title={effectiveUrl}>
           {effectiveUrl}
         </span>
         <InfoTip label="Show full RPC URL" title="Active Solana RPC" width="md" size="xs">
-          <span className="block break-all font-mono text-[11px] text-text-strong">
+          <span className="block break-all font-mono text-xs text-text-strong">
             {effectiveUrl}
           </span>
         </InfoTip>
@@ -269,16 +269,16 @@ function LedgerAccountSettingRow() {
           </p>
         </div>
       </div>
-      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
         {sessionActive
           ? `Active session: account ${sessionIndex ?? savedIndex}`
           : `Will use account ${savedIndex}`}
       </p>
-      <p className="mt-1 break-all font-mono text-[11px] text-text-strong">
+      <p className="mt-1 break-all font-mono text-xs text-text-strong">
         {ledgerDerivationPath(sessionIndex ?? savedIndex)}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-soft">
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-text-soft">
           Account
         </span>
         <BrandSelect
@@ -389,7 +389,7 @@ function EvmRpcSettingRow() {
         </div>
         <span
           className={
-            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] " +
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-xs uppercase tracking-[0.18em] " +
             (isUsingOverride
               ? "border-accent/40 bg-accent/10 text-accent"
               : "border-border-soft bg-canvas text-text-soft")
@@ -400,12 +400,12 @@ function EvmRpcSettingRow() {
       </div>
 
       {/* Active URL - one-line truncated, full URL behind tooltip. */}
-      <p className="mt-3 inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-soft">
+      <p className="mt-3 inline-flex max-w-full items-center gap-1.5 text-xs text-text-soft">
         <span className="truncate font-mono text-text-strong" title={effectiveUrl}>
           {effectiveUrl}
         </span>
         <InfoTip label="Show full RPC URL" title="Active EVM RPC" width="md" size="xs">
-          <span className="block break-all font-mono text-[11px] text-text-strong">
+          <span className="block break-all font-mono text-xs text-text-strong">
             {effectiveUrl}
           </span>
         </InfoTip>

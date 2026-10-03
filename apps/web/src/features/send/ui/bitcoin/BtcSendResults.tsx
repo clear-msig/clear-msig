@@ -35,10 +35,10 @@ export function BitcoinSetupPendingCard({
           <p className="mt-1">{body}</p>
           {proposal ? (
             <details className="mt-2">
-              <summary className="cursor-pointer text-[11px] text-text-soft hover:text-text-strong">
+              <summary className="cursor-pointer text-xs text-text-soft hover:text-text-strong">
                 Details
               </summary>
-              <p className="mt-1 font-mono text-[11px] text-text-soft">
+              <p className="mt-1 font-mono text-xs text-text-soft">
                 {shortHash(proposal)}
               </p>
             </details>

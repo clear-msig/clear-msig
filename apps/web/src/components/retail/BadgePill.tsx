@@ -26,7 +26,7 @@ export const BadgePill = forwardRef<HTMLButtonElement, BadgePillProps>(
     // visual difference is the type+padding ladder; the hit area
     // is the same so a thumb can land on either reliably.
     const sizeClasses =
-      size === "sm" ? "px-3 py-2 text-[11px]" : "px-4 py-2 text-[11px]";
+      size === "sm" ? "px-3 py-2 text-xs" : "px-4 py-2 text-xs";
     return (
       <button
         ref={ref}

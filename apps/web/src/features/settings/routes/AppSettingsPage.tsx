@@ -337,7 +337,7 @@ function Group({
       data-section-anchor={id || undefined}
     >
       <div className="flex flex-col gap-0.5">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           {label}
         </h2>
         {description ? (

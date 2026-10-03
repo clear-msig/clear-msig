@@ -49,7 +49,7 @@ export function RecentRecipientsChips({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+      <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
         <History className="h-3 w-3" aria-hidden="true" />
         Recent
       </p>
@@ -99,7 +99,7 @@ function RecipientRow({
           <span className="truncate text-sm font-medium text-text-strong">
             {display}
           </span>
-          <span className="truncate text-[11px] text-text-soft">
+          <span className="truncate text-xs text-text-soft">
             {showShortBeneath && (
               <>
                 {shortenAddress(recipient.address, isEvm)}
@@ -120,7 +120,7 @@ function RecipientRow({
               {recipient.amountDisplay}
             </span>
             {recipient.ticker && (
-              <span className="block font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
+              <span className="block font-display text-xs font-semibold uppercase tracking-[0.18em] text-text-soft">
                 {recipient.ticker}
               </span>
             )}

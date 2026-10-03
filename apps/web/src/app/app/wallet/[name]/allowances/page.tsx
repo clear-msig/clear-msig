@@ -269,7 +269,7 @@ export default function AllowancesPage() {
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
           <WalletIcon className="h-6 w-6" strokeWidth={1.75} />
         </div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
           Spending limits
         </p>
         <h1 className="hidden md:block mt-2 font-display text-display-sm leading-[1.05] text-text-strong text-balance">
@@ -280,7 +280,7 @@ export default function AllowancesPage() {
             ? "Set program-enforced SOL limits for each team member. Sends above a member's remaining allowance are rejected on chain."
             : "Set program-enforced SOL limits for each person. Sends above a person's remaining allowance are rejected on chain."}
         </p>
-        <p className="mt-3 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] text-text-soft">
+        <p className="mt-3 inline-flex items-center gap-1 rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs text-text-soft">
           View-only members are not listed.
         </p>
       </motion.section>
@@ -309,7 +309,7 @@ export default function AllowancesPage() {
                   </p>
                 </div>
                 {draft.stored && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                     {pendingMember === m.address ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (

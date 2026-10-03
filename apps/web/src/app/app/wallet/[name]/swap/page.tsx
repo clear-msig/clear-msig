@@ -154,7 +154,7 @@ export default function WalletSwapPage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Wallet
         </Link>
-        <span className="hidden rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-[11px] font-semibold text-accent sm:inline-flex">
+        <span className="hidden rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent sm:inline-flex">
           Testnet MVP
         </span>
       </header>
@@ -165,7 +165,7 @@ export default function WalletSwapPage() {
             <Repeat2 className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-soft">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">
               Private swap starts public
             </p>
             <h1 className="mt-1 font-display text-2xl font-semibold text-text-strong sm:text-3xl">
@@ -316,7 +316,7 @@ function AssetSelectButton({
     >
       <ChainBadge chain={meta.chain} size="sm" />
       <span className="min-w-0 flex-1 overflow-hidden">
-        <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-text-soft">
+        <span className="block font-mono text-xs uppercase tracking-[0.18em] text-text-soft">
           {label}
         </span>
         <span className="block truncate text-sm font-semibold text-text-strong">

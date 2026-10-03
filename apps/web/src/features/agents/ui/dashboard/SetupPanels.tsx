@@ -47,7 +47,7 @@ export function DeskStatus({
             : "border-white/10 bg-white/[0.03]",
       )}
     >
-      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-soft">
+      <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-soft">
         {label}
       </p>
       <p
@@ -123,11 +123,11 @@ export function GettingStartedPanel({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-text-strong">{step.label}</p>
-                <p className="mt-0.5 truncate text-[11px] text-text-soft">
+                <p className="mt-0.5 truncate text-xs text-text-soft">
                   {step.done ? "Done" : current ? step.description : "Waiting"}
                 </p>
               </div>
-              <span className="text-[11px] font-medium text-text-soft">
+              <span className="text-xs font-medium text-text-soft">
                 {step.done ? "Done" : current ? "Next" : ""}
               </span>
             </li>
@@ -227,7 +227,7 @@ export function ReadinessPanel({
           </div>
           <p className="mt-2 text-xs text-text-soft">{summary}</p>
         </div>
-        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-medium text-text-soft">
           {setup} to finish · {blocked} stopped
         </span>
       </div>
@@ -275,7 +275,7 @@ export function ScoutPanel({
             </div>
           </div>
         </div>
-        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-medium text-text-soft">
           Scout · Analyze · Gate
         </span>
       </div>
@@ -318,7 +318,7 @@ export function MarketIntelligencePanel({
             </div>
           </div>
         </div>
-        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-[11px] font-medium text-text-soft">
+        <span className="rounded-full border border-border-soft bg-canvas px-2.5 py-1 text-xs font-medium text-text-soft">
           Price · Funding · News · Macro
         </span>
       </div>
@@ -339,7 +339,7 @@ export function MarketIntelligencePanel({
               </div>
               <span
                 className={clsx(
-                  "rounded-full border px-2 py-1 text-[10px] font-medium",
+                  "rounded-full border px-2 py-1 text-xs font-medium",
                   snapshot.freshnessWarnings.length > 0
                     ? "border-warning/30 bg-warning/[0.08] text-warning"
                     : "border-accent/30 bg-accent/[0.08] text-accent",
@@ -372,7 +372,7 @@ export function MarketIntelligencePanel({
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={clsx(
-                        "rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                        "rounded-full border px-1.5 py-0.5 text-xs font-medium capitalize",
                         item.source === "coverage-gap"
                           ? "border-warning/30 bg-warning/[0.08] text-warning"
                           : item.impact === "bullish"
@@ -384,11 +384,11 @@ export function MarketIntelligencePanel({
                     >
                       {item.kind.replace("_", " ")}
                     </span>
-                    <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-text-strong">
+                    <p className="min-w-0 flex-1 truncate text-xs font-semibold text-text-strong">
                       {item.label}
                     </p>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-text-soft">
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-soft">
                     {item.summary}
                   </p>
                 </div>
@@ -476,7 +476,7 @@ export function ScoutStatusPill({ status }: { status: AgentScoutReport["status"]
   return (
     <span
       className={clsx(
-        "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        "rounded-full border px-2 py-0.5 text-xs font-medium",
         status === "ready" && "border-accent/30 bg-accent/[0.08] text-accent",
         status === "needs_approval" && "border-warning/30 bg-warning/[0.08] text-warning",
         status === "blocked" && "border-rose-500/30 bg-rose-500/[0.08] text-rose-300",
@@ -490,10 +490,10 @@ export function ScoutStatusPill({ status }: { status: AgentScoutReport["status"]
 export function ScoutMiniMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
-      <p className="mt-0.5 truncate text-[11px] font-semibold text-text-strong">
+      <p className="mt-0.5 truncate text-xs font-semibold text-text-strong">
         {value}
       </p>
     </div>
@@ -502,10 +502,10 @@ export function ScoutMiniMetric({ label, value }: { label: string; value: string
 export function ScoutMiniReason({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-soft border border-border-soft bg-surface-raised px-2 py-1.5">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-soft">
         {label}
       </p>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-text-strong">
+      <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-text-strong">
         {value}
       </p>
     </div>
