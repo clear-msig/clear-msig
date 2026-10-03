@@ -9,21 +9,19 @@ export type ResolvedSolanaRecipient =
   | { kind: "resolving"; name: string }
   | { kind: "unknown" };
 
-// Cosmetic formatter for the typed SOL amount - locale-grouped with
-// up to four decimals (matches Solana's catalog `displayDecimals`).
+// Group decimal text without a float conversion or rounding signed units.
 export function formatAmount(raw: string): string {
-  const n = parseFloat(raw);
-  if (isNaN(n) || n <= 0) return "0";
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  });
+  if (!/^\d*(?:\.\d{0,9})?$/.test(raw) || !/[1-9]/.test(raw)) return "0";
+  const [whole = "", fraction = ""] = raw.split(".");
+  const grouped = (whole.replace(/^0+(?=\d)/, "") || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const exactFraction = fraction.replace(/0+$/, "");
+  return grouped + (exactFraction ? `.${exactFraction}` : "");
 }
 
 // Lamports (bigint) → SOL string, byte-accurate. Used for wallet
 // balance display and for the Max button (which needs to round-trip
 // through the amount input). 1 SOL = 1e9 lamports.
-export function formatLamports(lamports: bigint, displayDecimals = 4): string {
+export function formatLamports(lamports: bigint, displayDecimals = 9): string {
   if (lamports === 0n) return "0";
   const negative = lamports < 0n;
   const abs = negative ? -lamports : lamports;

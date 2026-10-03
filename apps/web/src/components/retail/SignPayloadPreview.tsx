@@ -109,7 +109,7 @@ export function SignPayloadPreview({
               </dt>
               <dd
                 className={
-                  "break-words text-sm leading-snug " +
+                  "break-words [overflow-wrap:anywhere] text-sm leading-snug " +
                   (d.emphasis === "mono"
                     ? "font-mono text-xs text-text-strong"
                     : d.emphasis === "amount"
@@ -125,7 +125,7 @@ export function SignPayloadPreview({
       )}
 
       {warning && (
-        <p className="mt-3 rounded-soft bg-warning/10 px-2.5 py-1.5 text-[11px] leading-snug text-text-strong">
+        <p className="mt-3 whitespace-pre-line rounded-soft bg-warning/10 px-2.5 py-1.5 text-[11px] leading-snug text-text-strong">
           <span className="font-medium text-warning">Heads up.</span> {warning}
         </p>
       )}

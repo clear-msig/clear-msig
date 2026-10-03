@@ -114,7 +114,6 @@ export default function ZcashSendPage() {
   const wallet = useWallet();
   const setupIdentity = useRequestIdentity();
   const { connection } = useConnection();
-  const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
   const walletDisplay = toDisplayName(name);
@@ -261,6 +260,7 @@ export default function ZcashSendPage() {
   const policyDenied =
     policyEvaluation?.matched && policyEvaluation.action === "deny";
 
+  const { signDescriptor, signTypedDescriptor } = useSignWithWallet({ scope: JSON.stringify([name, recipient, amount, note, zcashIntent, zcashBinding, selectedUtxo], (key, value) => key === "activeProposalCount" ? undefined : typeof value === "bigint" ? value.toString() : value) });
   const setup = useMutation({
     mutationFn: async () => {
       const identity = setupIdentity.capture();
@@ -513,7 +513,9 @@ export default function ZcashSendPage() {
           expiry: formatUnixSigningExpiry(envelope.expiresAt),
           actor_pubkey: proposerPk.toBase58(),
         });
+        attempt.assertCurrent();
         const signed = await signTypedDescriptor(dry, {
+            assertCurrent: attempt.assertCurrent,
           preferSigner: proposerPk,
           expectedTyped: {
             envelopeHash: summary.envelopeHash,
@@ -571,13 +573,13 @@ export default function ZcashSendPage() {
           attempt.assertCurrent();
           const approveSigned = await signTypedDescriptor(
             approveDry,
-            inlineApprovalOptions(
+            { ...inlineApprovalOptions(
               dry,
               approveDry,
               summary,
               proposal,
               approverPk,
-            ),
+            ), assertCurrent: attempt.assertCurrent },
           );
           attempt.assertCurrent();
           await backendApi.submit.approveTypedProposal(name, proposal, {
@@ -633,13 +635,13 @@ export default function ZcashSendPage() {
               attempt.assertCurrent();
               const extraSigned = await signTypedDescriptor(
                 extraDry,
-                inlineApprovalOptions(
+                { ...inlineApprovalOptions(
                   dry,
                   extraDry,
                   summary,
                   proposal,
                   extraSigner,
-                ),
+                ), assertCurrent: attempt.assertCurrent },
               );
               attempt.assertCurrent();
               await backendApi.submit.approveTypedProposal(name, proposal, {

@@ -20,7 +20,6 @@ export function useStartTradingController() {
   const params = useParams<{ name: string }>();
   const search = useSearchParams();
   const toast = useToast();
-  const { canSign, signLocalClearText } = useSignWithWallet();
   const [pending, startTransition] = useTransition();
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
   const display = toDisplayName(name);
@@ -34,6 +33,7 @@ export function useStartTradingController() {
   const [decryptedPolicy, setDecryptedPolicy] = useState<AgentVaultPolicy | null>(null);
   const [agentId, setAgentId] = useState(requestedAgent);
   const [venue, setVenue] = useState<TradingLaunchVenue>(requestedVenue);
+  const { canSign, signLocalClearText } = useSignWithWallet({ scope: JSON.stringify([name, agentId, venue]) });
   const [readiness, setReadiness] = useState<AgentTradingReadiness | null>(null);
   const [inbox, setInbox] = useState<AgentInboxSummary | null>(null);
   const [outside, setOutside] = useState<AgentVenueReadiness | null>(null);

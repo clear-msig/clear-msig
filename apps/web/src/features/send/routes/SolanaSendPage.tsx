@@ -17,6 +17,7 @@ import { SolanaSigningReview } from "@/features/send/ui/solana/SolanaSigningRevi
 // yet) - a price feed plugs in here when the network is live.
 
 import { subscribeSendPolicyChanges } from "@/features/send/infrastructure/solanaPolicyReview";
+import { parseBatchAmountToLamports } from "@/features/send/domain/batch";
 import { requestAccountKey } from "@/lib/clearsign/requestIdentity";
 import { useSendRecovery } from "@/features/send/infrastructure/useSendRecovery";
 import { SavedSendRecovery } from "@/features/send/ui/SavedSendRecovery";
@@ -108,7 +109,7 @@ function SendPage() {
   const reduce = usePrefersReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signTypedDescriptor } = useSignWithWallet();
+  const { signTypedDescriptor } = useSignWithWallet({ reviewHandledBySolanaSend: true });
   const toast = useToast();
   const queryClient = useQueryClient();
   const contacts = useContacts();
@@ -265,10 +266,9 @@ function SendPage() {
   ]);
 
   const numericAmount = parseFloat(amount);
-  const amountValid = !isNaN(numericAmount) && numericAmount > 0;
-  const amountLamports = amountValid
-    ? BigInt(Math.round(numericAmount * 1_000_000_000))
-    : 0n;
+  const parsedLamports = parseBatchAmountToLamports(amount);
+  const amountValid = parsedLamports !== null;
+  const amountLamports = parsedLamports ?? 0n;
 
   // Live SOL balance of the wallet's vault PDA - that's the account
   // SOL transfers actually come out of (programs/clear-wallet/src/

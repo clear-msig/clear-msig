@@ -481,9 +481,21 @@ describe("batch send cancellation after a consequential call", () => {
     });
     expect(listBatches()).toHaveLength(1);
   });
+  it("keeps cancellation available to the pending signing review", async () => {
+    const actions = hook();
+    mocks.sign.mockImplementationOnce(async (_dry, options) => {
+      expect(() => options.assertCurrent()).not.toThrow();
+      actions.cancel();
+      options.assertCurrent();
+      throw new Error("Cancelled review must never reach this point");
+    });
+    await expect(actions.sendBatch(args())).resolves.toMatchObject({ outcome: "cancelled" });
+    expect(mocks.submitCreate).not.toHaveBeenCalled();
+  });
   it("passes trusted signing fields through unchanged", async () => {
     await hook().sendBatch(args());
     expect(mocks.sign).toHaveBeenCalledWith(dry, {
+      assertCurrent: expect.any(Function),
       preferSigner: signer,
       expectedTyped: {
         envelopeHash: summary.envelopeHash,

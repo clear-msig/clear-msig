@@ -11,6 +11,7 @@ import type {
 import { useRecurringSchedulesController } from "./useRecurringSchedulesController";
 
 const mocks = vi.hoisted(() => ({
+  generation: 0,
   journal: [] as ProSchedule[],
   review: vi.fn(),
   schedule: vi.fn(),
@@ -30,6 +31,20 @@ const mocks = vi.hoisted(() => ({
 }));
 const address = new PublicKey(new Uint8Array(32).fill(1));
 const proposalAddress = new PublicKey(new Uint8Array(32).fill(2)).toBase58();
+// Identity boundary is synthetic; the production controller and recovery transitions are real.
+vi.mock("@/lib/hooks/useRequestIdentity", () => ({
+  useRequestIdentity: () => ({
+    capture: () => {
+      const generation = mocks.generation;
+      return {
+        assertCurrent: () => {
+          if (generation !== mocks.generation)
+            throw new Error("Identity changed");
+        },
+      };
+    },
+  }),
+}));
 vi.mock("@/lib/wallet", () => ({
   useConnection: () => ({ connection: { rpcEndpoint: "fixture" } }),
   useWallet: () => ({ pickSigner: () => address }),
@@ -180,6 +195,7 @@ function pending(status: 1 | 2 = 2): PendingRecurringExecution {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.generation = 0;
   mocks.rows = [];
   mocks.journal = [];
   mocks.review.mockResolvedValue({
@@ -346,4 +362,84 @@ describe("recurring evidence and durable recovery", () => {
       expect(mocks.executeSol).not.toHaveBeenCalled();
     },
   );
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+describe("recurring identity boundary (synthetic invalidation)", () => {
+  it("does not submit a signature returned after identity invalidation", async () => {
+    const signed = deferred<{ signature: string }>();
+    mocks.sign.mockReturnValue(signed.promise);
+    const operation = controller().revoke(row());
+    await vi.waitFor(() => expect(mocks.sign).toHaveBeenCalledOnce());
+    mocks.generation++;
+    signed.resolve({ signature: "late" });
+    await expect(operation).rejects.toThrow("Identity changed");
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.executeSol).not.toHaveBeenCalled();
+    expect(mocks.journal).toEqual([]);
+  });
+  it("does not open a wallet popup when preparation outlives its identity", async () => {
+    const prepared = deferred<Record<string, unknown>>();
+    mocks.prepare.mockReturnValue(prepared.promise);
+    const operation = controller().revoke(row());
+    await vi.waitFor(() => expect(mocks.prepare).toHaveBeenCalledOnce());
+    mocks.generation++;
+    prepared.resolve({ expiry: "2030-01-01", intent_index: 3 });
+    await expect(operation).rejects.toThrow("Identity changed");
+    expect(mocks.sign).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("preserves accepted creation after invalidation without executing it", async () => {
+    const created = deferred<{ proposal: string }>();
+    mocks.create.mockReturnValue(created.promise);
+    const operation = controller().revoke(row());
+    await vi.waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+    expect(mocks.journal[0].pendingExecution?.phase).toBe("creating");
+    mocks.generation++;
+    created.resolve({ proposal: proposalAddress });
+    await expect(operation).rejects.toThrow("Identity changed");
+    expect(mocks.journal[0].pendingExecution?.phase).toBe("created");
+    expect(mocks.executeSol).not.toHaveBeenCalled();
+  });
+  it("stops execution when canonical re-read outlives the identity", async () => {
+    const read = deferred<unknown>();
+    mocks.review.mockReturnValue(read.promise);
+    const operation = controller().retry({
+      ...row(),
+      pendingExecution: pending(),
+    });
+    await vi.waitFor(() => expect(mocks.review).toHaveBeenCalledOnce());
+    mocks.generation++;
+    read.resolve({
+      status: 1,
+      envelopeHash: "envelope",
+      payloadHash: "payload",
+      binding: { actionKind: 15 },
+      sections: [{ title: "DETAILS", text: "Schedule: schedule-1" }],
+    });
+    await expect(operation).rejects.toThrow("Identity changed");
+    expect(mocks.executeSol).not.toHaveBeenCalled();
+  });
+  it("retains known execution signature after identity changes during POST", async () => {
+    const response = deferred<unknown>();
+    mocks.executeSol.mockReturnValue(response.promise);
+    const operation = controller().retry({
+      ...row(),
+      pendingExecution: pending(),
+    });
+    await vi.waitFor(() => expect(mocks.executeSol).toHaveBeenCalledOnce());
+    mocks.generation++;
+    response.resolve({ proposal: proposalAddress, txid });
+    await expect(operation).rejects.toThrow("Identity changed");
+    expect(mocks.journal[0].pendingExecution).toMatchObject({
+      phase: "attempted",
+      txid,
+    });
+  });
 });

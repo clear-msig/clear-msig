@@ -260,6 +260,7 @@ export function useBatchSend() {
           assertNotCancelled();
           showStep("Signing batch");
           const signed = await signTypedDescriptor(dry, {
+            assertCurrent: assertNotCancelled,
             preferSigner: proposerPk,
             expectedTyped: {
               envelopeHash: summary.envelopeHash,
@@ -327,13 +328,13 @@ export function useBatchSend() {
               showStep("Signing batch approval");
               const approveSigned = await signTypedDescriptor(
                 approveDry,
-                inlineApprovalOptions(
+                { ...inlineApprovalOptions(
                   dry,
                   approveDry,
                   summary,
                   proposalPda,
                   approverPk,
-                ),
+                ), assertCurrent: assertNotCancelled },
               );
               assertNotCancelled();
               await backendApi.submit.approveTypedProposal(

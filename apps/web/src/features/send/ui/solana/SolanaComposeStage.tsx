@@ -1,5 +1,7 @@
 "use client";
 
+import { acceptsDecimalInput } from "@/features/send/domain/decimalInput";
+
 import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowRight, Loader2, Users } from "lucide-react";
@@ -157,15 +159,11 @@ export function ComposeStage({
           ticker="SOL"
           value={amount}
           onChange={(e) => {
-            const raw = e.target.value.replace(/[^\d.]/g, "");
-            const [wholeRaw = "", frac] = raw.split(".");
-            const whole = wholeRaw.slice(0, 12);
-            const next =
-              frac === undefined ? whole : `${whole}.${frac.slice(0, 4)}`;
-            setAmount(next);
+            const value = e.target.value;
+            if (acceptsDecimalInput(value, 9, 12)) setAmount(value);
           }}
           autoFocus
-          maxLength={20}
+          maxLength={22}
           action={
             typeof vaultBalanceLamports === "bigint" &&
             vaultBalanceLamports > 0n ? (
@@ -177,7 +175,7 @@ export function ComposeStage({
                     vaultBalanceLamports > feeReserveLamports
                       ? vaultBalanceLamports - feeReserveLamports
                       : 0n;
-                  setAmount(formatLamports(max, 4));
+                  setAmount(formatLamports(max, 9));
                 }}
                 className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
               >

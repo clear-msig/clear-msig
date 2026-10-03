@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PublicKey } from "@solana/web3.js";
 const fixtures = vi.hoisted(() => ({
   queryIndex: 0,
+  historyState: "idle" as "idle" | "empty" | "error",
   proposalError: false,
   contextError: false,
   missing: false,
@@ -36,7 +37,10 @@ vi.mock("@/lib/wallet", () => ({
 }));
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useQuery: () => ({
+  useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => queryKey[0] === "proposal-vote-history" ? {
+    isLoading: false, isFetching: false, isError: fixtures.historyState === "error", refetch: vi.fn(),
+    data: fixtures.historyState === "empty" ? { rows: [], scannedTransactions: 0, unavailableTransactions: 0, failedTransactions: 0, innerVoteInstructions: 0, stoppedAtLimit: false, scanError: false, chainIdentity: "synthetic-genesis" } : undefined,
+  } : ({
     isLoading: false,
     isFetching: false,
     isError: fixtures.proposalError || fixtures.contextError,
@@ -54,6 +58,7 @@ vi.mock("@tanstack/react-query", () => ({
             approvalBitmap: fixtures.approvals,
             cancellationBitmap: fixtures.cancellations,
             proposedAt: 1780000000n,
+            approvedAt: fixtures.approvals >= 3 ? 1780000100n : 0n,
           },
           wallet: { name: "Fixture wallet" },
           intent: {
@@ -107,6 +112,7 @@ function render() {
 }
 beforeEach(() =>
   Object.assign(fixtures, {
+    historyState: "idle",
     queryIndex: 0,
     proposalError: false,
     contextError: false,
@@ -121,6 +127,23 @@ beforeEach(() =>
   }),
 );
 describe("production proposal detail with synthetic account and provider boundaries", () => {
+  it("loads vote evidence on request and labels aggregate threshold time accurately", () => {
+    fixtures.approvals = 3;
+    const html = render();
+    expect(html).toContain("Load vote evidence");
+    expect(html).toContain("Current approver state");
+    expect(html).toContain("not an individual signer’s timestamp");
+  });
+  it("shows bounded empty vote history without asserting no votes", () => {
+    fixtures.historyState = "empty";
+    expect(render()).toContain("Current votes may still exist");
+  });
+  it("shows unavailable history without hiding proposal controls", () => {
+    fixtures.historyState = "error";
+    const html = render();
+    expect(html).toContain("Vote history could not be read");
+    expect(html).toContain(">Approve</button>");
+  });
   it("describes exact-request voting rather than claiming to enable protection", () => {
     const html = render();
     expect(html).toContain("records your approval vote");

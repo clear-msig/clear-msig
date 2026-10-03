@@ -149,7 +149,6 @@ function SendEthPage() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -377,6 +376,7 @@ function SendEthPage() {
       EVM_RPC_URL,
     ]),
   );
+  const { signTypedDescriptor } = useSignWithWallet({ scope: JSON.stringify([walletName, amount, recipient, effectiveRecipient, note, ethIntent, ethBinding, policyEvaluation], (key, value) => key === "activeProposalCount" ? undefined : typeof value === "bigint" ? value.toString() : value) });
   const submit = useMutation({
     mutationFn: async () => {
       const attempt = recovery.begin();
@@ -489,7 +489,9 @@ function SendEthPage() {
 
         // 3. Sign on Solana. Proves to the program that this user is
         //    a proposer + counts as their approval.
+        attempt.assertCurrent();
         const signed = await signTypedDescriptor(dry, {
+            assertCurrent: attempt.assertCurrent,
           preferSigner: proposerPk,
           expectedTyped: {
             envelopeHash: summary.envelopeHash,
@@ -553,13 +555,13 @@ function SendEthPage() {
           attempt.assertCurrent();
           const approveSigned = await signTypedDescriptor(
             approveDry,
-            inlineApprovalOptions(
+            { ...inlineApprovalOptions(
               dry,
               approveDry,
               summary,
               proposal,
               approverPk,
-            ),
+            ), assertCurrent: attempt.assertCurrent },
           );
           attempt.assertCurrent();
           await backendApi.submit.approveTypedProposal(walletName, proposal, {
@@ -614,13 +616,13 @@ function SendEthPage() {
               attempt.assertCurrent();
               const extraSigned = await signTypedDescriptor(
                 extraDry,
-                inlineApprovalOptions(
+                { ...inlineApprovalOptions(
                   dry,
                   extraDry,
                   summary,
                   proposal,
                   extraSigner,
-                ),
+                ), assertCurrent: attempt.assertCurrent },
               );
               attempt.assertCurrent();
               await backendApi.submit.approveTypedProposal(

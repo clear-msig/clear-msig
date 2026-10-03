@@ -1,5 +1,7 @@
 "use client";
 
+import { acceptsDecimalInput } from "@/features/send/domain/decimalInput";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, List as ListIcon, Loader2, ShieldAlert } from "lucide-react";
@@ -100,7 +102,7 @@ export function ComposeStage({
     walletEthAddress
       ? {
           label: "From address",
-          value: shortEvmAddress(walletEthAddress),
+          value: walletEthAddress,
           emphasis: "mono",
         }
       : { label: "From address", value: "spinning up" },
@@ -114,14 +116,14 @@ export function ComposeStage({
     });
     previewDetails.push({
       label: "Token contract",
-      value: shortEvmAddress(tokenContract),
+      value: tokenContract,
       emphasis: "mono",
     });
   }
   if (recipientValid) {
     previewDetails.push({
       label: "Recipient",
-      value: shortEvmAddress(recipient),
+      value: recipient,
       emphasis: "mono",
     });
   }
@@ -196,13 +198,8 @@ export function ComposeStage({
           ticker={symbol}
           value={amount}
           onChange={(e) => {
-            const stripped = e.target.value.replace(/[^\d.]/g, "");
-            const [whole = "", frac] = stripped.split(".");
-            const next =
-              frac === undefined
-                ? whole.slice(0, 24)
-                : `${whole.slice(0, 24)}.${frac.slice(0, decimals)}`;
-            setAmount(next);
+            const value = e.target.value;
+            if (acceptsDecimalInput(value, decimals, 24)) setAmount(value);
           }}
           placeholder="0"
           disabled={!metadata}
@@ -234,7 +231,7 @@ export function ComposeStage({
                 {balanceLoading
                   ? "..."
                   : typeof walletBalance === "bigint" && metadata
-                    ? tokenAmountToString(walletBalance, metadata.decimals, 6)
+                    ? tokenAmountToString(walletBalance, metadata.decimals, metadata.decimals)
                     : "-"}
               </span>
               <span> {metadata?.symbol ?? symbol}</span>
@@ -260,9 +257,9 @@ export function ComposeStage({
             insufficientBalance && walletBalance !== null && metadata ? (
               <>
                 <span className="font-medium">Insufficient balance.</span> You
-                have {tokenAmountToString(walletBalance, metadata.decimals, 6)}{" "}
+                have {tokenAmountToString(walletBalance, metadata.decimals, metadata.decimals)}{" "}
                 {metadata.symbol} - need{" "}
-                {tokenAmountToString(amountBase, metadata.decimals, 6)}.
+                {tokenAmountToString(amountBase, metadata.decimals, metadata.decimals)}.
               </>
             ) : null
           }

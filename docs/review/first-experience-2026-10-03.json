@@ -1,0 +1,61 @@
+{
+  "method": "Local Next production build, Chromium, fresh context per sample, external network blocked, reduced motion, no CPU/network throttling; locator-observed times include automation overhead; not a comprehension study.",
+  "rows": [
+    {
+      "width": 390,
+      "height": 844,
+      "run": 1,
+      "heroVisibleMs": 424,
+      "demoVisibleMs": 496,
+      "demoClickToUpdatedMs": 53,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "run": 2,
+      "heroVisibleMs": 377,
+      "demoVisibleMs": 449,
+      "demoClickToUpdatedMs": 65,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "run": 3,
+      "heroVisibleMs": 321,
+      "demoVisibleMs": 390,
+      "demoClickToUpdatedMs": 54,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "run": 1,
+      "heroVisibleMs": 450,
+      "demoVisibleMs": 527,
+      "demoClickToUpdatedMs": 57,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "run": 2,
+      "heroVisibleMs": 420,
+      "demoVisibleMs": 514,
+      "demoClickToUpdatedMs": 55,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "run": 3,
+      "heroVisibleMs": 432,
+      "demoVisibleMs": 528,
+      "demoClickToUpdatedMs": 57,
+      "overflow": false
+    }
+  ],
+  "configuration": "Test-only Dynamic environment placeholder and https://backend.invalid; no real provider/account configuration. External browser requests aborted.",
+  "scope": "Desktop Chromium with emulated viewport dimensions, warm local server, cold browser context; not physical-device, deployed-network or human-comprehension performance."
+}

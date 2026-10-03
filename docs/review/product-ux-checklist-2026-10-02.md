@@ -122,3 +122,7 @@ otherwise passing final verification run). Lint, typecheck, intent, metadata and
 architecture checks, production compile and unchanged bundle gates passed.
 Runtime maxima remain 998.8/999 KiB standard, 1123.8/1124 external and
 990.7/991 legacy Turnkey. Rust/SBF source and colors are unchanged.
+
+The subsequent signing-family, exact-precision, mobile and signer-evidence work
+is recorded in [the 3 October completion review](signing-flow-completion-2026-10-03.md).
+Earlier gaps and test counts above describe their stated historical checkpoint.

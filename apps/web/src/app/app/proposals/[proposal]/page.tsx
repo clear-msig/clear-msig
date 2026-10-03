@@ -18,6 +18,8 @@
 // inspection) are intentionally not rendered here.
 
 import { useMemo, useState } from "react";
+import { ProposalVoteHistory } from "@/components/proposals/ProposalVoteHistory";
+import { formatTimestamp } from "@/lib/msig/datetime";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -400,12 +402,15 @@ function Loaded({
       />
 
       <ApproversBreakdown
+        thresholdReachedAt={proposal.approvedAt}
         approvers={intent.approvers}
         approvalBitmap={proposal.approvalBitmap}
         cancellationBitmap={proposal.cancellationBitmap}
         myAddress={myAddress}
         contactByAddress={contactByAddress}
       />
+
+      <ProposalVoteHistory key={proposalPda} proposalAddress={proposalPda} />
 
       {/* Actions: only while Active */}
       {isActive && isApprover && !alreadyApproved && (
@@ -723,12 +728,14 @@ function PrintProposalButton() {
 // can see at a glance who's already approved and who's blocking.
 // Each row shows avatar + name + an Approved / Waiting pill.
 function ApproversBreakdown({
+  thresholdReachedAt,
   approvers,
   approvalBitmap,
   cancellationBitmap,
   myAddress,
   contactByAddress,
 }: {
+  thresholdReachedAt: bigint;
   approvers: string[];
   approvalBitmap: number;
   cancellationBitmap: number;
@@ -739,8 +746,10 @@ function ApproversBreakdown({
   return (
     <section className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest">
       <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-text-soft">
-        Approvers
+        Current approver state
       </h2>
+      <p className="mt-2 text-sm text-text-soft">Current on-chain vote state, not a complete historical log. An opposite vote can replace an earlier vote.</p>
+      {thresholdReachedAt > 0n && <p className="mt-2 text-sm text-text-soft">Approval threshold reached: {formatTimestamp(thresholdReachedAt)} UTC. This aggregate timestamp is not an individual signer’s timestamp.</p>}
       <ul className="mt-3 flex flex-col gap-2">
         {approvers.map((address, i) => {
           const approved = (approvalBitmap & (1 << i)) !== 0;

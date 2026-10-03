@@ -63,17 +63,7 @@ describe("versioned venue-limit commitments (not execution authority)", () => {
     expect(validated.maxNotionalUsdRaw).toBe("250000000");
     expect(Object.isFrozen(validated.allowedMarkets)).toBe(true);
   });
-  it.each([
-    "dailyLossWindow",
-    "dailyLossTimeZone",
-    "lossBasis",
-    "lossAggregation",
-    "cooldownStart",
-    "executionMode",
-    "requireTakeProfit",
-    "dailyLossCapUsdRaw",
-    "approvalThreshold",
-  ])("rejects missing %s rather than authorizing a default", (field) => {
+  it.each(Object.keys(fixture()))("rejects missing %s rather than authorizing a default", (field) => {
     const input = { ...fixture() } as Record<string, unknown>;
     delete input[field];
     expect(() => validateVenueLimitsManifest(input)).toThrow("missing");

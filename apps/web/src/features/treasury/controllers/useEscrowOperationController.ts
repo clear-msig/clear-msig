@@ -1,3 +1,4 @@
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Connection } from "@solana/web3.js";
 import type { ProEscrowProject } from "@/lib/pro/escrow";
@@ -26,6 +27,22 @@ export function useEscrowOperationController({
   onUpdate: (projectId: string, patch: Partial<ProEscrowProject>) => void;
 }) {
   const toast = useToast();
+  const identity = useRequestIdentity();
+  const scope = JSON.stringify([walletName, project.id]);
+  const lifetime = useRef({ scope, generation: 0 });
+  if (lifetime.current.scope !== scope)
+    lifetime.current = { scope, generation: lifetime.current.generation + 1 };
+  const captureIdentity = () => {
+    const captured = identity.capture();
+    const generation = lifetime.current.generation;
+    return () => {
+      captured.assertCurrent();
+      if (generation !== lifetime.current.generation)
+        throw new Error(
+          "Escrow project changed. Review the saved request before continuing.",
+        );
+    };
+  };
   const [submitting, setSubmitting] = useState(false);
   const operationKey = escrowOperationKey(
     walletName,
@@ -105,8 +122,31 @@ export function useEscrowOperationController({
         : "Escrow execution verified on Solana",
     );
   };
+  const executeSaved = async (
+    record: EscrowOperation,
+    assertCurrent = captureIdentity(),
+  ) => {
+    assertCurrent();
+    const result = await executeSavedEscrow(record, {
+      read: async (saved) => {
+        assertCurrent();
+        const evidence = await readEscrowEvidence(connection, saved);
+        assertCurrent();
+        return evidence;
+      },
+      submit: (saved) => {
+        assertCurrent();
+        return submitEscrowExecution(saved);
+      },
+      // Save accepted or uncertain evidence even when navigation occurs during POST.
+      save: saveOperation,
+    });
+    assertCurrent();
+    return result;
+  };
   const resumeOperation = async (execute: boolean) => {
     if (inFlight.current || !operation) return;
+    const assertCurrent = captureIdentity();
     inFlight.current = true;
     setSubmitting(true);
     setRecoveryError(null);
@@ -117,14 +157,11 @@ export function useEscrowOperationController({
           "Saved request details are missing. Review proposal history before proceeding.",
         );
       if (execute) {
-        const result = await executeSavedEscrow(saved, {
-          read: (record) => readEscrowEvidence(connection, record),
-          submit: submitEscrowExecution,
-          save: saveOperation,
-        });
+        const result = await executeSaved(saved, assertCurrent);
         applyConfirmed(result);
       } else {
         const evidence = await readEscrowEvidence(connection, saved);
+        assertCurrent();
         const updated: EscrowOperation = {
           ...saved,
           phase:
@@ -164,11 +201,7 @@ export function useEscrowOperationController({
     applyConfirmed,
     resumeOperation,
     loadSaved,
-    executeSaved: (record: EscrowOperation) =>
-      executeSavedEscrow(record, {
-        read: (saved) => readEscrowEvidence(connection, saved),
-        submit: submitEscrowExecution,
-        save: saveOperation,
-      }),
+    executeSaved,
+    captureIdentity,
   };
 }

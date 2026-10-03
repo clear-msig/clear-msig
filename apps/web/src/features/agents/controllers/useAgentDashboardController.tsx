@@ -2,7 +2,7 @@
 
 import { useToast } from "@/components/ui/Toast";
 import { useAgentDashboardActions } from "@/features/agents/controllers/useAgentDashboardActions";
-import { type AgentAllocationRecommendation, type AgentAuditEvent, type AgentBetaReadiness, type AgentExecutionRecord, type AgentLeaderboardEntry, type AgentMarketDataSnapshot, type AgentMarketIntelligenceSnapshot, type AgentMarketReadiness, type AgentProfile, type AgentScorecard, type AgentScoutReport, type AgentSessionGrant, type AgentTradeProposal, type AgentTradingReadiness, type AgentVaultPolicy, buildAgentAutomaticExitDecisions, buildAgentBetaReadiness, buildAgentMarketReadiness, buildAgentScoutReports, buildAgentTradingReadiness, hasAgentComplianceAcknowledgement, isAgentSessionCurrent, recommendAgentAllocation } from "@/features/agents/domain/runtime";
+import { type AgentAllocationRecommendation, type AgentAuditEvent, type AgentBetaReadiness, type AgentExecutionRecord, type AgentLeaderboardEntry, type AgentMarketDataSnapshot, type AgentMarketIntelligenceSnapshot, type AgentMarketReadiness, type AgentProfile, type AgentScorecard, type AgentScoutReport, type AgentSessionGrant, type AgentTradeProposal, type AgentTradingReadiness, type AgentVaultPolicy, buildAgentAutomaticExitDecisions, buildAgentScoutReports, buildAgentTradingReadiness, hasAgentComplianceAcknowledgement, isAgentSessionCurrent, recommendAgentAllocation } from "@/features/agents/domain/runtime";
 import { type AgentInboxSummary, loadAgentInboxSummary } from "@/features/agents/infrastructure/inboxClient";
 import { type AgentKillSwitchHandoff, loadAgentBackendState } from "@/features/agents/infrastructure/stateClient";
 import { type AgentVenueReadiness, loadAgentVenueReadinessForAgents, startAgentVenueReadinessPolling } from "@/features/agents/infrastructure/executionClient";
@@ -57,6 +57,17 @@ export function useAgentDashboardController() {
   const display = toDisplayName(name);
   const encrypt = encryptStatus();
   const showDeveloperSurfaces = search.get("debug") === "1";
+  const [developerReports, setDeveloperReports] = useState<typeof import("@/features/agents/domain/developerReadiness") | null>(null);
+  useEffect(() => {
+    if (!showDeveloperSurfaces) return;
+    let active = true;
+    void import("@/features/agents/domain/developerReadiness").then((reports) => {
+      if (active) setDeveloperReports(reports);
+    }).catch(() => {
+      if (active) toast.error("Developer readiness reports could not load. Reload to retry.");
+    });
+    return () => { active = false; };
+  }, [showDeveloperSurfaces, toast]);
   const approveTypedAgentClearSign = useAgentTypedClearSignApproval(name);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [policy, setPolicy] = useState<AgentVaultPolicy | null>(null);
@@ -395,7 +406,7 @@ export function useAgentDashboardController() {
     );
   }, [agents, leaderboard, policy, scorecards, sessions]);
   const betaReadiness = useMemo<AgentBetaReadiness | null>(() => {
-    if (!policy) return null;
+    if (!policy || !developerReports || !showDeveloperSurfaces) return null;
     const openMarkets = Array.from(
       new Set(
         openExecutionRecords
@@ -407,7 +418,7 @@ export function useAgentDashboardController() {
       liveVenueReadiness?.state === "ready" &&
       liveVenueReadiness.executorProbe?.state === "ready" &&
       liveVenueReadiness.accountProbe?.state === "funded";
-    return buildAgentBetaReadiness({
+    return developerReports.buildAgentBetaReadiness({
       agents,
       policy,
       sessions,
@@ -435,6 +446,8 @@ export function useAgentDashboardController() {
       walletHref: `/app/wallet/${encoded}`,
     });
   }, [
+    developerReports,
+    showDeveloperSurfaces,
     agents,
     backendStatus.state,
     backendStatus.storage,
@@ -450,7 +463,7 @@ export function useAgentDashboardController() {
     sessions,
   ]);
   const marketReadiness = useMemo<AgentMarketReadiness | null>(() => {
-    if (!policy) return null;
+    if (!policy || !developerReports || !showDeveloperSurfaces) return null;
     const openMarkets = Array.from(
       new Set(
         openExecutionRecords
@@ -466,7 +479,7 @@ export function useAgentDashboardController() {
     const intelligence = Object.values(intelligenceByMarket);
     const approvals = listAgentOwnerApprovals(name);
     const connections = listAgentConnectionKits(name);
-    return buildAgentMarketReadiness({
+    return developerReports.buildAgentMarketReadiness({
       agents,
       policy,
       sessions,
@@ -532,6 +545,8 @@ export function useAgentDashboardController() {
       walletHref: `/app/wallet/${encoded}`,
     });
   }, [
+    developerReports,
+    showDeveloperSurfaces,
     agents,
     backendStatus.state,
     backendStatus.storage,

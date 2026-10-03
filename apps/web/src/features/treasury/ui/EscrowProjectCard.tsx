@@ -90,7 +90,9 @@ export function EscrowProjectCard({
     amount: "",
     tokenAccount: "",
   });
-  const [prepared, setPrepared] = useState<PreparedEscrowAction | null>(null);
+  const [prepared, setPrepared] = useState<
+    (PreparedEscrowAction & { assertCurrent: () => void }) | null
+  >(null);
   const [preparing, setPreparing] = useState<"release" | "return" | null>(null);
   const {
     operation,
@@ -106,6 +108,7 @@ export function EscrowProjectCard({
     resumeOperation,
     loadSaved,
     executeSaved,
+    captureIdentity,
   } = useEscrowOperationController({
     walletName,
     project,
@@ -115,13 +118,17 @@ export function EscrowProjectCard({
   });
 
   const walletQuery = useQuery({
-    queryKey: ["wallet", walletName],
+    queryKey: ["wallet", walletName, connection.rpcEndpoint],
     queryFn: () => fetchWalletByName(connection, walletName),
     enabled: walletName.length > 0,
     staleTime: 30_000,
   });
   const intentsQuery = useQuery({
-    queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
+    queryKey: [
+      "wallet-intents",
+      walletQuery.data?.pda.toBase58() ?? null,
+      connection.rpcEndpoint,
+    ],
     queryFn: async () => {
       if (!walletQuery.data) return [];
       return listIntents(
@@ -186,6 +193,7 @@ export function EscrowProjectCard({
       toast.error("Nothing to return yet");
       return;
     }
+    const assertCurrent = captureIdentity();
     setPreparing("return");
     try {
       let rows = returnRows;
@@ -221,6 +229,7 @@ export function EscrowProjectCard({
           // The backend may not be redeployed yet. Keep the existing local preview
           // path alive, but prefer backend-owned math whenever it is available.
         }
+      assertCurrent();
       const { summary, dry } = await prepareTypedAction(
         buildProEscrowReturnEnvelope({
           walletName,
@@ -228,12 +237,15 @@ export function EscrowProjectCard({
           rows,
         }),
       );
+      assertCurrent();
       void recordProEscrowUnwindPrepared({
         walletName,
         project: signingProject,
         rows,
       });
+      assertCurrent();
       setPrepared({
+        assertCurrent,
         title: "Return funds",
         summary,
         dry,
@@ -252,6 +264,7 @@ export function EscrowProjectCard({
 
   const prepareRelease = async (milestone: ProEscrowMilestone) => {
     if (blocked) return;
+    const assertCurrent = captureIdentity();
     setPreparing("release");
     try {
       let signingProject = project;
@@ -279,6 +292,7 @@ export function EscrowProjectCard({
           // See prepareReturn: backend preview is preferred, local flow remains
           // available for local/dev deployments that have not caught up.
         }
+      assertCurrent();
       const { summary, dry } = await prepareTypedAction(
         buildProEscrowReleaseEnvelope({
           walletName,
@@ -286,7 +300,9 @@ export function EscrowProjectCard({
           milestone: signingMilestone,
         }),
       );
+      assertCurrent();
       setPrepared({
+        assertCurrent,
         title: "Release milestone",
         summary,
         dry,
@@ -331,7 +347,9 @@ export function EscrowProjectCard({
         throw new Error(
           "An existing escrow request needs review before creating another.",
         );
+      prepared.assertCurrent();
       const signed = await signTypedDescriptor(prepared.dry, {
+            assertCurrent: prepared.assertCurrent,
         preferSigner: proposerPk,
         expectedTyped: {
           envelopeHash: prepared.summary.envelopeHash,
@@ -339,6 +357,7 @@ export function EscrowProjectCard({
           signableText: prepared.summary.signableText,
         },
       });
+      prepared.assertCurrent();
       const proposalAddress = reviewedCreationProposalAddress(
         prepared.dry,
         prepared.summary,
@@ -373,7 +392,9 @@ export function EscrowProjectCard({
       );
       const accepted: EscrowOperation = { ...record, phase: "created" };
       saveOperation(accepted);
-      const result = await executeSaved(accepted);
+      prepared.assertCurrent();
+      const result = await executeSaved(accepted, prepared.assertCurrent);
+      prepared.assertCurrent();
       applyConfirmed(result);
     } catch (err) {
       const fe = friendlyError(err, "generic");

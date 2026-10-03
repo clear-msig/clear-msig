@@ -1,16 +1,20 @@
 "use client";
 
+import { lazy, Suspense } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Bot, BrainCircuit, ChevronDown, CircleDollarSign, ClipboardList, KeyRound, Lock, MessageSquare, Play, Send, ShieldCheck, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { useAgentDashboardController } from "@/features/agents/controllers/useAgentDashboardController";
-import { DeskStatus, FeatureAccessPanel, GettingStartedPanel, MarketIntelligencePanel, ReadinessPanel, ScoutPanel } from "@/features/agents/ui/dashboard/SetupPanels";
+import { DeskStatus, GettingStartedPanel, MarketIntelligencePanel, ReadinessPanel, ScoutPanel } from "@/features/agents/ui/dashboard/SetupPanels";
 import { AgentNotificationsPanel, EmptyAgents, KillSwitchPanel, LiveVenuePanel } from "@/features/agents/ui/dashboard/OperationsPanels";
-import { BackendPersistencePanel, BetaReadinessPanel, MarketReadinessPanel, OpenTradeMonitor } from "@/features/agents/ui/dashboard/ReadinessPanels";
+import { OpenTradeMonitor } from "@/features/agents/ui/dashboard/ReadinessPanels";
 import { AgentCard, ProposalCard } from "@/features/agents/ui/dashboard/AgentCards";
 import { AuditEventRow, SessionCard } from "@/features/agents/ui/dashboard/MetaPanels";
 import { ExecutionCard } from "@/features/agents/ui/dashboard/ProposalPanels";
+
+const FeatureAccessPanel = lazy(() => import("./DeveloperFeaturePanel"));
+const DeveloperReadinessPanels = lazy(() => import("./DeveloperReadinessPanels"));
 
 const agentPrimaryActionClass = clsx(
   "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-text-on-accent shadow-accent-rest sm:flex-none",
@@ -375,7 +379,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
               </section>
 
               {showDeveloperSurfaces ? (
-                <>
+                <Suspense fallback={<p role="status">Loading developer tools…</p>}>
                   <FeatureAccessPanel
                     walletEncoded={encoded}
                     agents={agents}
@@ -385,10 +389,8 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
                     onStartDemo={startBetaDemo}
                     pending={pendingAction}
                   />
-                  <BackendPersistencePanel status={backendStatus} />
-                  {betaReadiness ? <BetaReadinessPanel readiness={betaReadiness} /> : null}
-                  {marketReadiness ? <MarketReadinessPanel readiness={marketReadiness} /> : null}
-                </>
+                    <DeveloperReadinessPanels status={backendStatus} beta={betaReadiness} market={marketReadiness} />
+                </Suspense>
               ) : null}
 
               {agents.length === 0 ? (

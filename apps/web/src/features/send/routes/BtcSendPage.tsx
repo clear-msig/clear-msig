@@ -140,7 +140,6 @@ function BitcoinSendPage() {
   const wallet = useWallet();
   const setupIdentity = useRequestIdentity();
   const { connection } = useConnection();
-  const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -285,6 +284,7 @@ function BitcoinSendPage() {
   const changeSats = sendSelection?.changeSats ?? null;
 
   // ── Mutations: setup intent (one-time), then send ─────────────────
+  const { signDescriptor, signTypedDescriptor } = useSignWithWallet({ scope: JSON.stringify([name, destination, amountBtc, note, btcIntent, btcBinding, selectedUtxo], (key, value) => key === "activeProposalCount" ? undefined : typeof value === "bigint" ? value.toString() : value) });
   const setupIntent = useMutation({
     mutationFn: () =>
       setupBitcoin({
@@ -469,7 +469,9 @@ function BitcoinSendPage() {
           expiry: formatUnixSigningExpiry(envelope.expiresAt),
           actor_pubkey: proposerPk.toBase58(),
         });
+        attempt.assertCurrent();
         const signed = await signTypedDescriptor(dry, {
+            assertCurrent: attempt.assertCurrent,
           preferSigner: proposerPk,
           expectedTyped: {
             envelopeHash: summary.envelopeHash,
@@ -525,13 +527,13 @@ function BitcoinSendPage() {
           attempt.assertCurrent();
           const approveSigned = await signTypedDescriptor(
             approveDry,
-            inlineApprovalOptions(
+            { ...inlineApprovalOptions(
               dry,
               approveDry,
               summary,
               proposal,
               approverPk,
-            ),
+            ), assertCurrent: attempt.assertCurrent },
           );
           attempt.assertCurrent();
           await backendApi.submit.approveTypedProposal(name, proposal, {
@@ -580,13 +582,13 @@ function BitcoinSendPage() {
               attempt.assertCurrent();
               const extraSigned = await signTypedDescriptor(
                 extraDry,
-                inlineApprovalOptions(
+                { ...inlineApprovalOptions(
                   dry,
                   extraDry,
                   summary,
                   proposal,
                   extraSigner,
-                ),
+                ), assertCurrent: attempt.assertCurrent },
               );
               attempt.assertCurrent();
               await backendApi.submit.approveTypedProposal(name, proposal, {

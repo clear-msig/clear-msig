@@ -1,5 +1,7 @@
 "use client";
 
+import { acceptsDecimalInput } from "@/features/send/domain/decimalInput";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Send } from "lucide-react";
@@ -11,7 +13,6 @@ import { SendReceipt, type ReceiptDetail } from "@/components/retail/SendReceipt
 import { SignPayloadPreview, type SignPayloadDetail } from "@/components/retail/SignPayloadPreview";
 import { UsdHint } from "@/components/retail/UsdHint";
 import { formatSats } from "@/lib/chain/btc";
-import { shortEvmAddress } from "@/lib/chain/eth";
 import { ZCASH_SEND_FEE_RESERVE_ZATS, validateZcashDestination } from "@/lib/chain/zcash";
 import { chainByKind } from "@/lib/retail/chains";
 import { SEND_NOTE_LABEL, SEND_NOTE_MAX_LENGTH, SEND_NOTE_PLACEHOLDER } from "@/lib/sendFields";
@@ -123,7 +124,7 @@ export function ZcashCompose({
           : "Immediately after approval",
     },
     walletAddress
-      ? { label: "From address", value: shortEvmAddress(walletAddress), emphasis: "mono" }
+      ? { label: "From address", value: walletAddress, emphasis: "mono" }
       : { label: "From address", value: "spinning up" },
   ];
   if (recipientValid) {
@@ -164,7 +165,7 @@ export function ZcashCompose({
             id="zec-amount"
             ticker="ZEC"
             value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
+            onChange={(e) => { if (acceptsDecimalInput(e.target.value, 8, 12)) setAmount(e.target.value); }}
             footer={
               <>
                 <span>Wallet has </span>

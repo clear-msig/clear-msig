@@ -146,7 +146,6 @@ function SendErc20Page() {
   const reduce = useReducedMotion();
   const wallet = useWallet();
   const { connection } = useConnection();
-  const { signTypedDescriptor } = useSignWithWallet();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -325,6 +324,7 @@ function SendErc20Page() {
       appConfig.preAlpha.destinationRpcUrl,
     ]),
   );
+  const { signTypedDescriptor } = useSignWithWallet({ scope: JSON.stringify([walletName, amount, tokenContract, recipient, note, erc20Intent, ethBinding, meta, policyEvaluation], (key, value) => key === "activeProposalCount" ? undefined : typeof value === "bigint" ? value.toString() : value) });
   const submit = useMutation({
     mutationFn: async () => {
       const attempt = recovery.begin();
@@ -428,7 +428,9 @@ function SendErc20Page() {
           actor_pubkey: proposerPk.toBase58(),
         });
 
+        attempt.assertCurrent();
         const signed = await signTypedDescriptor(dry, {
+            assertCurrent: attempt.assertCurrent,
           preferSigner: proposerPk,
           expectedTyped: {
             envelopeHash: summary.envelopeHash,
@@ -488,13 +490,13 @@ function SendErc20Page() {
           attempt.assertCurrent();
           const approveSigned = await signTypedDescriptor(
             approveDry,
-            inlineApprovalOptions(
+            { ...inlineApprovalOptions(
               dry,
               approveDry,
               summary,
               proposal,
               approverPk,
-            ),
+            ), assertCurrent: attempt.assertCurrent },
           );
           attempt.assertCurrent();
           await backendApi.submit.approveTypedProposal(walletName, proposal, {
@@ -550,13 +552,13 @@ function SendErc20Page() {
               attempt.assertCurrent();
               const extraSigned = await signTypedDescriptor(
                 extraDry,
-                inlineApprovalOptions(
+                { ...inlineApprovalOptions(
                   dry,
                   extraDry,
                   summary,
                   proposal,
                   extraSigner,
-                ),
+                ), assertCurrent: attempt.assertCurrent },
               );
               attempt.assertCurrent();
               await backendApi.submit.approveTypedProposal(

@@ -101,25 +101,25 @@ export function buildSendPreviewWarning(args: {
 }): string | undefined {
   const { resolved, pendingUsd, budgetUsage } = args;
 
-  // Policy breach warnings take priority over recipient warnings;
-  // they're more consequential.
+  // Keep every relevant risk visible; approval does not override protection.
+  const warnings: string[] = [];
   const sol = budgetUsage.perChain.find((c) => c.ticker === "SOL");
   if (sol && sol.cap !== null && sol.spentUsd + pendingUsd > sol.cap) {
     const over = sol.spentUsd + pendingUsd - sol.cap;
-    return `This send pushes Solana ${formatUsd(over)} over its ${formatUsd(sol.cap)} weekly cap. Friends still need to approve; the cap is a guide today.`;
+    warnings.push(`This send pushes Solana ${formatUsd(over)} over its ${formatUsd(sol.cap)} weekly cap. Approval does not override active wallet protection.`);
   }
   const cap = budgetUsage.budget?.weeklyUsd ?? null;
   if (cap !== null && cap > 0 && budgetUsage.spentUsd + pendingUsd > cap) {
     const over = budgetUsage.spentUsd + pendingUsd - cap;
-    return `This send pushes ${budgetUsage.budget ? toDisplayName(budgetUsage.budget.walletName) : "the wallet"} ${formatUsd(over)} over its ${formatUsd(cap)} weekly cap.`;
+    warnings.push(`This send pushes ${budgetUsage.budget ? toDisplayName(budgetUsage.budget.walletName) : "the wallet"} ${formatUsd(over)} over its ${formatUsd(cap)} weekly cap.`);
   }
   if (budgetUsage.velocityHit) {
-    return `You have already sent ${budgetUsage.sendsLast24h} times in the last 24 hours, at the per-day limit. This send would go above it.`;
+    warnings.push(`You have already sent ${budgetUsage.sendsLast24h} times in the last 24 hours, at the per-day limit. This send would go above it.`);
   }
 
-  // Recipient warning - last priority.
+  // Recipient risk remains visible alongside policy risks.
   if (resolved.kind === "address") {
-    return "You are sending to a raw address (no contact match). Money sent to the wrong address cannot be reversed.";
+    warnings.push("You are sending to a raw address (no contact match). Money sent to the wrong address cannot be reversed.");
   }
-  return undefined;
+  return warnings.length ? warnings.join("\n\n") : undefined;
 }

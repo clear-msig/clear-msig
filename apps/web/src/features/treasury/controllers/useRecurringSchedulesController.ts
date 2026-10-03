@@ -1,5 +1,6 @@
 "use client";
 
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -50,6 +51,10 @@ import { executeRecurringOperation } from "@/features/treasury/infrastructure/ex
 export function useRecurringSchedulesController(walletName: string) {
   const { connection } = useConnection();
   const wallet = useWallet();
+  const requestIdentity = useRequestIdentity();
+  const route = useRef({ walletName, generation: 0 });
+  if (route.current.walletName !== walletName)
+    route.current = { walletName, generation: route.current.generation + 1 };
   const { signTypedDescriptor } = useSignWithWallet();
   const schedules = useProSchedules(walletName);
   const [journal, setJournal] = useState<ProSchedule[]>([]);
@@ -83,12 +88,16 @@ export function useRecurringSchedulesController(walletName: string) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const inFlight = useRef(false);
   const walletQuery = useQuery({
-    queryKey: ["wallet", walletName],
+    queryKey: ["wallet", walletName, connection.rpcEndpoint],
     queryFn: () => fetchWalletByName(connection, walletName),
     enabled: !!walletName,
   });
   const intentsQuery = useQuery({
-    queryKey: ["wallet-intents", walletQuery.data?.pda.toBase58() ?? null],
+    queryKey: [
+      "wallet-intents",
+      walletQuery.data?.pda.toBase58() ?? null,
+      connection.rpcEndpoint,
+    ],
     queryFn: () =>
       walletQuery.data
         ? listIntents(
@@ -112,6 +121,7 @@ export function useRecurringSchedulesController(walletName: string) {
   const statesQuery = useQuery({
     queryKey: [
       "recurring-states",
+      connection.rpcEndpoint,
       walletQuery.data?.pda.toBase58(),
       rows.map((row) => row.id).join(","),
     ],
@@ -138,21 +148,35 @@ export function useRecurringSchedulesController(walletName: string) {
 
   async function runExclusive<T>(
     id: string,
-    action: () => Promise<T>,
+    action: (assertCurrent: () => void) => Promise<T>,
   ): Promise<T> {
     if (inFlight.current)
       throw new Error("Another schedule action is still running.");
+    const identity = requestIdentity.capture();
+    const generation = route.current.generation;
+    const assertCurrent = () => {
+      identity.assertCurrent();
+      if (route.current.generation !== generation)
+        throw new Error(
+          "Treasury changed. Review the existing request before continuing.",
+        );
+    };
     inFlight.current = true;
     setBusyId(id);
     try {
-      return await action();
+      const result = await action(assertCurrent);
+      assertCurrent();
+      return result;
     } finally {
       inFlight.current = false;
       setBusyId(null);
     }
   }
 
-  async function verifiedOperation(row: ProSchedule) {
+  async function verifiedOperation(
+    row: ProSchedule,
+    assertCurrent: () => void,
+  ) {
     const pending = requireRecurringExecution(row);
     if (!pending.envelopeHash || !pending.payloadHash)
       throw new Error(
@@ -163,6 +187,7 @@ export function useRecurringSchedulesController(walletName: string) {
       pending.proposalAddress,
       walletName,
     );
+    assertCurrent();
     if (
       review.envelopeHash !== pending.envelopeHash ||
       review.payloadHash !== pending.payloadHash ||
@@ -190,7 +215,7 @@ export function useRecurringSchedulesController(walletName: string) {
     return false;
   }
 
-  async function configure(draft: RecurringDraft) {
+  async function configure(draft: RecurringDraft, assertCurrent: () => void) {
     if (
       readRecurringJournal(walletName, connection.rpcEndpoint).some(
         (row) => row.pendingExecution?.phase === "creating",
@@ -213,6 +238,7 @@ export function useRecurringSchedulesController(walletName: string) {
             walletData.pda,
           )
         : null;
+    assertCurrent();
     const row: ProSchedule = {
       id: scheduleId,
       name: draft.name.trim(),
@@ -234,10 +260,14 @@ export function useRecurringSchedulesController(walletName: string) {
       recipientOwner: tokenAccounts?.recipientOwner,
       policyVersion: draft.asset === "USDC" ? "CSP2" : undefined,
     };
-    await proposeAndExecute(row, 1);
+    await proposeAndExecute(row, 1, assertCurrent);
   }
 
-  async function proposeAndExecute(row: ProSchedule, status: 1 | 2) {
+  async function proposeAndExecute(
+    row: ProSchedule,
+    status: 1 | 2,
+    assertCurrent: () => void,
+  ) {
     if (
       row.pendingExecution &&
       !recurringExecutionApplied(
@@ -331,12 +361,14 @@ export function useRecurringSchedulesController(walletName: string) {
               walletName,
               0,
             );
+      assertCurrent();
       const summary = await prepareClearSignV4Action(envelope, {
         intentIndex: selectedIntent.intentIndex,
         actorPubkey: proposer.toBase58(),
         policyBytesHex: policy?.hex,
         deviceProfile: clearSignProfileForSigner(wallet, proposer),
       });
+      assertCurrent();
       const dry = await backendApi.prepare.createTypedProposal(walletName, {
         intent_index: selectedIntent.intentIndex,
         action_kind: summary.actionKindCode,
@@ -351,7 +383,9 @@ export function useRecurringSchedulesController(walletName: string) {
         expiry: formatUnixSigningExpiry(envelope.expiresAt),
         actor_pubkey: proposer.toBase58(),
       });
+      assertCurrent();
       const signed = await signTypedDescriptor(dry, {
+            assertCurrent: assertCurrent,
         preferSigner: proposer,
         expectedTyped: {
           envelopeHash: summary.envelopeHash,
@@ -359,6 +393,7 @@ export function useRecurringSchedulesController(walletName: string) {
           signableText: summary.signableText,
         },
       });
+      assertCurrent();
       const proposalAddress = reviewedCreationProposalAddress(dry, summary);
       const persisted: ProSchedule = {
         ...row,
@@ -389,6 +424,7 @@ export function useRecurringSchedulesController(walletName: string) {
         intentAddress: intent.pda.toBase58(),
         updatedAt: Date.now(),
       };
+      assertCurrent();
       persist(persisted);
       const created = await backendApi.submit.createTypedProposal(walletName, {
         ...signed,
@@ -409,23 +445,25 @@ export function useRecurringSchedulesController(walletName: string) {
         pendingExecution: { ...persisted.pendingExecution!, phase: "created" },
       };
       persist(accepted);
-      await retry(accepted);
+      assertCurrent();
+      await retry(accepted, assertCurrent);
     }
   }
 
-  async function retry(input: ProSchedule) {
+  async function retry(input: ProSchedule, assertCurrent: () => void) {
     const row = savedRow(input);
     if (row.pendingPayment) {
-      await verifyPayment(row);
+      await verifyPayment(row, assertCurrent);
       return;
     }
     const pending = requireRecurringExecution(row);
-    if (await verifiedOperation(row)) return;
+    if (await verifiedOperation(row, assertCurrent)) return;
     const review = await readCanonicalProposalReview(
       connection,
       pending.proposalAddress,
       walletName,
     );
+    assertCurrent();
     if (pending.phase === "attempted")
       throw new Error(
         "Execution outcome is still unconfirmed. No repeat transaction was sent; refresh this existing request later.",
@@ -439,6 +477,7 @@ export function useRecurringSchedulesController(walletName: string) {
       ...row,
       pendingExecution: { ...pending, phase: "attempted" },
     };
+    assertCurrent();
     persist(attempted);
     const response = await executeRecurringOperation(walletName, pending);
     const txid = solanaSubmissionTxid(response, {
@@ -449,7 +488,8 @@ export function useRecurringSchedulesController(walletName: string) {
       ...attempted,
       pendingExecution: { ...attempted.pendingExecution!, txid },
     });
-    if (!(await verifiedOperation(attempted)))
+    assertCurrent();
+    if (!(await verifiedOperation(attempted, assertCurrent)))
       throw new Error(
         "Schedule execution submitted; finalized verification remains pending. Refresh the existing request, not a new one.",
       );
@@ -468,7 +508,7 @@ export function useRecurringSchedulesController(walletName: string) {
       state.destinationToken,
       state.intervalSeconds,
     ]);
-  async function verifyPayment(row: ProSchedule) {
+  async function verifyPayment(row: ProSchedule, assertCurrent: () => void) {
     if (!row.pendingPayment || !walletQuery.data)
       throw new Error("Payment recovery details are missing.");
     const state = await fetchRecurringSchedule(
@@ -476,6 +516,7 @@ export function useRecurringSchedulesController(walletName: string) {
       walletQuery.data.pda,
       row.id,
     );
+    assertCurrent();
     const pending = row.pendingPayment;
     if (
       !state ||
@@ -491,10 +532,10 @@ export function useRecurringSchedulesController(walletName: string) {
     await statesQuery.refetch();
   }
 
-  async function pay(input: ProSchedule) {
+  async function pay(input: ProSchedule, assertCurrent: () => void) {
     const row = savedRow(input);
     if (row.pendingPayment) {
-      await verifyPayment(row);
+      await verifyPayment(row, assertCurrent);
       return;
     }
     if (!walletQuery.data) throw new Error("Treasury is still loading.");
@@ -503,6 +544,7 @@ export function useRecurringSchedulesController(walletName: string) {
       walletQuery.data.pda,
       row.id,
     );
+    assertCurrent();
     if (!state || state.status !== "active")
       throw new Error("This schedule is not active onchain.");
     if (
@@ -525,6 +567,7 @@ export function useRecurringSchedulesController(walletName: string) {
           fingerprint: paymentFingerprint(state),
         },
       };
+      assertCurrent();
       persist(attempted);
       let response: Record<string, unknown>;
       if (state.asset === "USDC") {
@@ -570,7 +613,8 @@ export function useRecurringSchedulesController(walletName: string) {
         ...attempted,
         pendingPayment: { ...attempted.pendingPayment!, txid },
       });
-      await verifyPayment(attempted);
+      assertCurrent();
+      await verifyPayment(attempted, assertCurrent);
     }
   }
 
@@ -586,11 +630,12 @@ export function useRecurringSchedulesController(walletName: string) {
       statesQuery.error,
     busyId,
     configure: (draft: RecurringDraft) =>
-      runExclusive("new", () => configure(draft)),
-    retry: (row: ProSchedule) => runExclusive(row.id, () => retry(row)),
-    pay: (row: ProSchedule) => runExclusive(row.id, () => pay(row)),
+      runExclusive("new", (check) => configure(draft, check)),
+    retry: (row: ProSchedule) =>
+      runExclusive(row.id, (check) => retry(row, check)),
+    pay: (row: ProSchedule) => runExclusive(row.id, (check) => pay(row, check)),
     revoke: (row: ProSchedule) =>
-      runExclusive(row.id, () => proposeAndExecute(row, 2)),
+      runExclusive(row.id, (check) => proposeAndExecute(row, 2, check)),
     remove: (id: string) => {
       const saved = readRecurringJournal(
         walletName,

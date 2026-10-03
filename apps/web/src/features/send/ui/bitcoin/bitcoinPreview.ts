@@ -31,7 +31,7 @@ export function buildBtcPreviewDetails(args: {
   if (destination) {
     details.push({
       label: "Recipient address",
-      value: shortBtcAddress(destination),
+      value: destination,
       emphasis: "mono",
     });
   }

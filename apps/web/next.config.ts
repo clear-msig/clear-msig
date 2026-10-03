@@ -162,11 +162,12 @@ const nextConfig = {
   webpack: (
     config: {
       cache?: unknown;
+      optimization?: { splitChunks?: false | { cacheGroups?: Record<string, unknown> } };
       resolve?: { alias?: Record<string, string> };
       externals?: unknown[];
       plugins?: Array<{ apply(compiler: WebpackCompiler): void }>;
     },
-    context: { isServer: boolean; nextRuntime?: string },
+    context: { isServer: boolean; nextRuntime?: string; dev?: boolean },
   ) => {
     if (!context.isServer) {
       // Yup imports five public Lodash helpers as CommonJS while Formik
@@ -181,6 +182,23 @@ const nextConfig = {
             resolve(process.cwd(), `node_modules/lodash-es/${name}.js`),
           ]),
         ),
+      };
+    }
+    const splitChunks = config.optimization?.splitChunks;
+    if (!context.isServer && !context.dev && splitChunks) {
+      // Keep the complete public-suffix parser/data, but cache it separately
+      // from the large wallet SDK chunk. No aliases, pruning or API changes.
+      // Immediate-runtime bundle checks still count this required dependency.
+      splitChunks.cacheGroups = {
+        ...splitChunks.cacheGroups,
+        publicSuffix: {
+          test: /[\\/]node_modules[\\/]tldts(?:-core)?[\\/]/,
+          name: "public-suffix",
+          chunks: "all",
+          enforce: true,
+          priority: 50,
+          reuseExistingChunk: true,
+        },
       };
     }
     config.externals = [

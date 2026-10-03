@@ -197,6 +197,7 @@ export async function completeTypedGovernance(
     });
     input.requestIdentity.assertCurrent();
     const signed = await input.signTypedDescriptor(dry, {
+            assertCurrent: input.requestIdentity.assertCurrent,
       preferSigner: input.proposerPk,
       expectedTyped: {
         envelopeHash: summary.envelopeHash,
@@ -249,7 +250,7 @@ export async function completeTypedGovernance(
         input.requestIdentity.assertCurrent();
         const approveSigned = await input.signTypedDescriptor(
           approveDry,
-          inlineApprovalOptions(dry, approveDry, summary, proposal, approverPk),
+          { ...inlineApprovalOptions(dry, approveDry, summary, proposal, approverPk), assertCurrent: input.requestIdentity.assertCurrent },
         );
         input.requestIdentity.assertCurrent();
         await backendApi.submit.approveTypedProposal(

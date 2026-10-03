@@ -57,7 +57,7 @@ export function useProposalWorkflow(
 ) {
   const { connection } = useConnection();
   const wallet = useWallet();
-  const { signDescriptor, signTypedDescriptor } = useSignWithWallet();
+  const { signDescriptor, signTypedDescriptor } = useSignWithWallet({ scope: JSON.stringify([walletName, selectedProposal]) });
   const identity = [
     connection.rpcEndpoint,
     wallet.sessionSubject,
@@ -210,6 +210,7 @@ export function useProposalWorkflow(
           );
         assertIdentity();
         const signed = await signTypedDescriptor(dry, {
+            assertCurrent: assertIdentity,
           preferSigner: signerPk,
           expectedTyped: {
             envelopeHash: review.envelopeHash,
@@ -322,6 +323,7 @@ export function useProposalWorkflow(
           bindCancellationDescriptor(context, dry, actorPubkey);
           await checkCurrent();
           const signed = await signTypedDescriptor(dry, {
+            assertCurrent: assertIdentity,
             preferSigner: signerPk,
           });
           await checkCurrent();

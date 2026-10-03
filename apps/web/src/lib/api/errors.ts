@@ -18,7 +18,7 @@
 // the body short, action-oriented, and never blame the user.
 
 import { BackendApiError, BackendTimeoutError } from "@/lib/api/client";
-import { WalletSignError } from "@/lib/hooks/useSignWithWallet";
+import { WalletSignError } from "@/lib/wallet/signingError";
 import { PolicyViolationError } from "@/lib/retail/policyEvaluation";
 
 export interface FriendlyError {

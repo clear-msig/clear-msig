@@ -10,27 +10,23 @@
 // signMessage" errors consistent, and gives us a single place to add
 // analytics / telemetry later.
 
+import { WalletSignError, ensureDescriptorFresh } from "@/lib/wallet/signingError";
+import { affectsSigningReview } from "@/lib/clearsign/reviewEvents";
+import { usePathname } from "next/navigation";
+import { withSigningLock } from "@/lib/clearsign/signingLock";
+import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
 import { useWallet, useConnection } from "@/lib/wallet";
-import { useCallback } from "react";
-import nacl from "tweetnacl";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { PublicKey } from "@solana/web3.js";
 import {
   fromHex,
   toHex,
-  rebuildAndVerifyMessage,
-  MessageVerificationError,
 } from "@/lib/msig";
 import { messageFlavorForSigner } from "@/lib/hooks/signFlavor";
-import { LedgerError } from "@/lib/wallet/ledger";
-import {
-  TypedClearSignMessageVerificationError,
-  verifiedTypedClearSignMessageBytes,
-  type ExpectedTypedClearSignMessage,
-} from "@/lib/clearsign/typedMessage";
+import type { ExpectedTypedClearSignMessage } from "@/lib/clearsign/typedMessage";
 import type { DryRunDescriptor, TypedDryRunDescriptor } from "@/lib/api/types";
 import type { MessageFlavor } from "@/lib/msig/offchain";
 import {
-  WalletSignatureTimeoutError,
   withWalletSignatureTimeout,
 } from "@/lib/wallet/signing";
 
@@ -43,6 +39,8 @@ export interface SignOptions {
   preferSigner?: PublicKey | null;
   /** Browser-rebuilt transaction binding required for typed proposal creation. */
   expectedTyped?: ExpectedTypedClearSignMessage;
+  /** Preserve caller cancellation/context guards throughout review and handoff. */
+  assertCurrent?: () => void;
 }
 
 export interface SignedPayload {
@@ -65,40 +63,7 @@ export interface SignedPayload {
   signed_message_hex?: string;
 }
 
-export class WalletSignError extends Error {
-  code:
-    | "not_connected"
-    | "no_sign_message"
-    | "rejected"
-    | "ledger_app_closed"
-    | "ledger_device_locked"
-    | "ledger_blind_signing_required"
-    | "ledger_transport"
-    | "ledger_unsupported"
-    | "unknown"
-    | "message_mismatch"
-    | "stale_request"
-    | "wallet_signed_wrong_bytes"
-    | "timeout";
-  /// Set when `code === "message_mismatch"` - the bytes the backend
-  /// asked us to sign did not match the bytes the frontend rebuilt
-  /// from chain state. Includes both for debugging.
-  expectedHex?: string;
-  gotHex?: string;
-  constructor(
-    code: WalletSignError["code"],
-    message: string,
-    extras?: { expectedHex?: string; gotHex?: string },
-  ) {
-    super(message);
-    this.name = "WalletSignError";
-    this.code = code;
-    if (extras) {
-      this.expectedHex = extras.expectedHex;
-      this.gotHex = extras.gotHex;
-    }
-  }
-}
+export { WalletSignError } from "@/lib/wallet/signingError";
 
 /// Returns a stable `signBytes(messageBytes)` callback that resolves
 /// with `{signer_pubkey, signature}` or throws a typed `WalletSignError`.
@@ -108,7 +73,43 @@ export class WalletSignError extends Error {
 /// locally from on-chain state and verifies them against
 /// `descriptor.message_hex` before invoking the wallet. See
 /// `rebuildAndVerifyMessage` and SECURITY.md surface A.
-export function useSignWithWallet() {
+export function useSignWithWallet(config?: { reviewHandledBySolanaSend?: boolean; scope?: string }) {
+  const identity = useRequestIdentity();
+  const [, refreshRevision] = useReducer((value: number) => value + 1, 0);
+  const pathname = usePathname();
+  const signerWallet = useWallet();
+  const scope = JSON.stringify([config?.scope, pathname, signerWallet.connected, signerWallet.dynamicPublicKey?.toBase58(), signerWallet.ledgerPublicKey?.toBase58(), signerWallet.isLedger]);
+  const lifetime = useRef({ revision: 0, scope });
+  if (lifetime.current.scope !== scope) {
+    lifetime.current.scope = scope; lifetime.current.revision += 1;
+  }
+  const revision = lifetime.current.revision;
+  useEffect(() => {
+    const invalidate = (event: Event) => { if (affectsSigningReview(event)) { lifetime.current.revision += 1; refreshRevision(); } };
+    const events = ["input", "storage", "clear:policies-changed", "clear:spending-budget-changed", "clear:personal-policy-changed"];
+    for (const event of events) window.addEventListener(event, invalidate, true);
+    return () => { for (const event of events) window.removeEventListener(event, invalidate, true); };
+  }, []);
+  const captureReview = useCallback((assertOperation?: () => void) => {
+    if (!signerWallet.connected || !signerWallet.publicKey)
+      throw new WalletSignError("not_connected", "Connect a wallet before reviewing a signing request.");
+    const request = identity.capture();
+    return () => {
+      request.assertCurrent();
+      assertOperation?.();
+      if (revision !== lifetime.current.revision)
+        throw new Error("Form or policy changed. Prepare and review the request again.");
+    };
+  }, [identity, revision, signerWallet.connected, signerWallet.publicKey]);
+  const reviewMessage = useCallback(async (document: string, signer: string, label: string, expiry?: number, assertOperation?: () => void) => {
+    const assertCurrent = captureReview(assertOperation);
+    assertCurrent();
+    const { requestPreparedSigningReview } = await import("@/lib/clearsign/preparedSigningReview");
+    assertCurrent();
+    await requestPreparedSigningReview({ document, signer, label, expiry, assertCurrent });
+    assertCurrent();
+    return assertCurrent;
+  }, [captureReview]);
   const { signMessage, publicKey, connected, isLedger, ledgerPublicKey } =
     useWallet();
   const { connection } = useConnection();
@@ -136,6 +137,7 @@ export function useSignWithWallet() {
       // backend's submit hands the on-chain program a sig + pubkey
       // pair that fails verify.
       const effectiveSigner = options?.preferSigner ?? publicKey;
+      options?.assertCurrent?.();
       let sig: Uint8Array;
       try {
         sig = await withWalletSignatureTimeout(
@@ -146,6 +148,7 @@ export function useSignWithWallet() {
         // errors. Treating everything as "rejected" was telling
         // users they cancelled when their Ledger had closed the
         // Solana app or the cable came loose.
+        const { classifySignError } = await import("@/lib/wallet/classifySigningError");
         throw classifySignError(err);
       }
       // Local ed25519 verify. Some embedded-wallet implementations
@@ -154,6 +157,9 @@ export function useSignWithWallet() {
       // different byte sequence than what we asked for. Catching
       // that here means the user gets a clean error in the browser
       // instead of a 502 from the CLI's verifier.
+      // Signature verification is required, but its implementation need not
+      // download on every authenticated page before anyone signs.
+      const { default: nacl } = await import("tweetnacl");
       if (
         !nacl.sign.detached.verify(messageBytes, sig, effectiveSigner.toBytes())
       ) {
@@ -170,6 +176,7 @@ export function useSignWithWallet() {
           `Wallet returned an unexpected signature length (${sig.length}, want 64)`,
         );
       }
+      options?.assertCurrent?.();
       return {
         signer_pubkey: effectiveSigner.toBase58(),
         signature: toHex(sig),
@@ -184,28 +191,13 @@ export function useSignWithWallet() {
       options: SignOptions | undefined,
       flavor: MessageFlavor,
     ): Promise<SignedPayload> => {
-      if (["proposal_approve", "approve"].includes(descriptor.action))
-        throw new WalletSignError(
-          "message_mismatch",
-          "Legacy approval has no complete canonical review. Open the request to inspect its blocked state.",
-        );
-      let bytes: Uint8Array;
-      try {
-        bytes = await rebuildAndVerifyMessage(descriptor, connection, flavor);
-      } catch (err) {
-        if (err instanceof MessageVerificationError) {
-          throw new WalletSignError("message_mismatch", err.message, {
-            expectedHex: err.expected,
-            gotHex: err.got,
-          });
-        }
-        throw err;
-      }
-      const signed = await signBytes(bytes, options);
-      ensureDescriptorFresh(descriptor);
-      return { ...signed, message_flavor: flavor };
+      const assertCurrent = captureReview(options?.assertCurrent);
+      assertCurrent();
+      const { signPreparedLegacy } = await import("@/lib/clearsign/preparedSigning");
+      assertCurrent();
+      return signPreparedLegacy({ descriptor, options, flavor, connection, signBytes, reviewMessage, publicKey });
     },
-    [connection, signBytes],
+    [connection, signBytes, reviewMessage, publicKey, captureReview],
   );
 
   /// Rebuild the signable bytes from chain state, verify they match
@@ -221,7 +213,9 @@ export function useSignWithWallet() {
     async (
       descriptor: DryRunDescriptor,
       options?: SignOptions,
-    ): Promise<SignedPayload> => {
+    ): Promise<SignedPayload> => withSigningLock(async () => {
+      descriptor = Object.freeze({ ...descriptor });
+      options = options ? { ...options } : undefined;
       ensureDescriptorFresh(descriptor);
       const flavor = messageFlavorForSigner({
         preferSigner: options?.preferSigner,
@@ -249,7 +243,7 @@ export function useSignWithWallet() {
         }
         throw err;
       }
-    },
+    }),
     [isLedger, ledgerPublicKey, signDescriptorWithFlavor],
   );
 
@@ -263,7 +257,8 @@ export function useSignWithWallet() {
     async (
       clearText: string,
       options?: SignOptions,
-    ): Promise<SignedPayload> => {
+    ): Promise<SignedPayload> => withSigningLock(async () => {
+      options = options ? { ...options } : undefined;
       const text = clearText.trim();
       if (text.length < 8) {
         throw new WalletSignError(
@@ -284,9 +279,12 @@ export function useSignWithWallet() {
           "Refusing to sign an opaque hex payload. Rebuild a readable local message first.",
         );
       }
-      return signBytes(new TextEncoder().encode(text), options);
-    },
-    [signBytes],
+      const assertCurrent = await reviewMessage(text, (options?.preferSigner ?? publicKey)?.toBase58() ?? "", "Local-only permission", undefined, options?.assertCurrent);
+      const signed = await signBytes(new TextEncoder().encode(text), options);
+      assertCurrent();
+      return signed;
+    }),
+    [signBytes, reviewMessage, publicKey],
   );
 
   return {
@@ -301,110 +299,14 @@ export function useSignWithWallet() {
     descriptor: TypedDryRunDescriptor,
     options?: SignOptions,
   ): Promise<SignedPayload> {
-    ensureDescriptorFresh(descriptor);
-    if (
-      ["proposal_typed_create", "proposal_typed_approve", "approve"].includes(
-        descriptor.action,
-      ) &&
-      !options?.expectedTyped
-    ) {
-      throw new WalletSignError(
-        "message_mismatch",
-        "Typed proposal signing requires the transaction details rebuilt in this browser.",
-      );
-    }
-    let bytes: Uint8Array;
-    try {
-      bytes = verifiedTypedClearSignMessageBytes(
-        descriptor,
-        options?.expectedTyped,
-      );
-    } catch (err) {
-      if (err instanceof TypedClearSignMessageVerificationError) {
-        throw new WalletSignError("message_mismatch", err.message);
-      }
-      throw err;
-    }
-    if (bytes.length === 0) {
-      throw new WalletSignError(
-        "message_mismatch",
-        "This signing request was not prepared correctly. Try again.",
-      );
-    }
-    const signed = await signBytes(bytes, options);
-    if (signed.signer_pubkey !== descriptor.signer_pubkey) {
-      throw new WalletSignError(
-        "message_mismatch",
-        "The wallet that signed does not match the signer named in this approval document.",
-      );
-    }
-    ensureDescriptorFresh(descriptor);
-    return {
-      ...signed,
-      message_flavor: descriptor.message_flavor,
-      signed_message_hex: descriptor.message_hex,
-    };
+    return withSigningLock(async () => {
+    options = options ? { ...options, expectedTyped: options.expectedTyped ? { ...options.expectedTyped } : undefined } : undefined;
+    descriptor = Object.freeze({ ...descriptor });
+    const assertCurrent = captureReview(options?.assertCurrent);
+    assertCurrent();
+    const { signPreparedTyped } = await import("@/lib/clearsign/preparedSigning");
+    assertCurrent();
+    return signPreparedTyped({ descriptor, options, connection, signBytes, reviewMessage, captureReview, config });
+    });
   }
-}
-
-function ensureDescriptorFresh(descriptor: { expiry: number }) {
-  const secondsLeft = descriptor.expiry - Math.floor(Date.now() / 1000);
-  if (secondsLeft <= 15) {
-    throw new WalletSignError(
-      "stale_request",
-      "This signing request has expired or is too close to expiry. Refresh and try again.",
-    );
-  }
-}
-
-/// Translate any throwable from the underlying wallet/device into a
-/// typed `WalletSignError`. Real user rejections get `rejected`; the
-/// device-state cases (Ledger Solana app closed, cable lost) keep
-/// their own codes so `friendlyError` can show "open the Solana app"
-/// instead of "you cancelled".
-function classifySignError(err: unknown): WalletSignError {
-  if (err instanceof WalletSignatureTimeoutError) {
-    return new WalletSignError(
-      "timeout",
-      "Your wallet did not open the signing request. Return to the app and try again, or reconnect the wallet.",
-    );
-  }
-  if (err instanceof LedgerError) {
-    switch (err.code) {
-      case "rejected":
-        return new WalletSignError("rejected", err.message);
-      case "app_closed":
-        return new WalletSignError("ledger_app_closed", err.message);
-      case "device_locked":
-        return new WalletSignError("ledger_device_locked", err.message);
-      case "blind_signing_required":
-        return new WalletSignError(
-          "ledger_blind_signing_required",
-          err.message,
-        );
-      case "transport_lost":
-      case "no_device":
-        return new WalletSignError("ledger_transport", err.message);
-      case "unsupported":
-        return new WalletSignError("ledger_unsupported", err.message);
-      default:
-        return new WalletSignError("unknown", err.message);
-    }
-  }
-  if (err instanceof Error) {
-    const m = err.message.toLowerCase();
-    if (
-      m.includes("user rejected") ||
-      m.includes("user declined") ||
-      m.includes("user denied") ||
-      m.includes("rejected by the user") ||
-      m.includes("rejected the request") ||
-      m.includes("cancelled by user") ||
-      m.includes("approval denied")
-    ) {
-      return new WalletSignError("rejected", err.message);
-    }
-    return new WalletSignError("unknown", err.message);
-  }
-  return new WalletSignError("unknown", "Wallet returned an unknown error");
 }

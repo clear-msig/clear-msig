@@ -1,3 +1,4 @@
+import { LedgerError } from "./ledgerError";
 // Ledger Solana signer over WebHID.
 //
 // This is the path that earns the "clear signing" claim: when the
@@ -90,24 +91,7 @@ export function ledgerDerivationPath(accountIndex: number): string {
   return `44'/501'/${Math.floor(accountIndex)}'`;
 }
 
-export type LedgerErrorCode =
-  | "unsupported"
-  | "no_device"
-  | "app_closed"
-  | "device_locked"
-  | "blind_signing_required"
-  | "rejected"
-  | "transport_lost"
-  | "unknown";
-
-export class LedgerError extends Error {
-  code: LedgerErrorCode;
-  constructor(code: LedgerErrorCode, message: string) {
-    super(message);
-    this.name = "LedgerError";
-    this.code = code;
-  }
-}
+export { LedgerError, type LedgerErrorCode } from "./ledgerError";
 
 export interface LedgerSession {
   /// Raw 32-byte ed25519 pubkey from the device.

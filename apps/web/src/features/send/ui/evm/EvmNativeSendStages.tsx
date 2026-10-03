@@ -1,5 +1,7 @@
 "use client";
 
+import { acceptsDecimalInput } from "@/features/send/domain/decimalInput";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, List as ListIcon, Loader2, Send, ShieldAlert } from "lucide-react";
@@ -121,12 +123,12 @@ export function ComposeStage({
     },
     {
       label: "Gas reserve",
-      value: `${weiToEth(gasReserveWei)} ${ticker} reserved`,
+      value: `${weiToEth(gasReserveWei, 18)} ${ticker} reserved`,
     },
     walletEthAddress
       ? {
           label: "From address",
-          value: shortEvmAddress(walletEthAddress),
+          value: walletEthAddress,
           emphasis: "mono",
         }
       : { label: "From address", value: "spinning up" },
@@ -134,7 +136,7 @@ export function ComposeStage({
   if (recipientValid && effectiveRecipient) {
     previewDetails.push({
       label: "Recipient",
-      value: shortEvmAddress(effectiveRecipient),
+      value: effectiveRecipient,
       emphasis: "mono",
     });
     if (ensName) {
@@ -213,16 +215,11 @@ export function ComposeStage({
             ticker={ticker}
             value={amount}
             onChange={(e) => {
-              const stripped = e.target.value.replace(/[^\d.]/g, "");
-              const [whole = "", frac] = stripped.split(".");
-              const next =
-                frac === undefined
-                  ? whole.slice(0, 12)
-                  : `${whole.slice(0, 12)}.${frac.slice(0, 18)}`;
-              setAmount(next);
+            const value = e.target.value;
+            if (acceptsDecimalInput(value, 18, 12)) setAmount(value);
             }}
             autoFocus
-            maxLength={20}
+            maxLength={31}
             action={
               typeof walletBalanceWei === "bigint" &&
               walletBalanceWei > 0n ? (
@@ -234,7 +231,7 @@ export function ComposeStage({
                       walletBalanceWei > gasReserveWei
                         ? walletBalanceWei - gasReserveWei
                         : 0n;
-                    setAmount(weiToEth(max, 12));
+                    setAmount(weiToEth(max, 18));
                   }}
                   className="rounded-full border border-accent/30 bg-accent/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition-colors duration-base ease-out-soft hover:bg-accent/15"
                 >
@@ -249,7 +246,7 @@ export function ComposeStage({
                   {balanceLoading
                     ? "..."
                     : typeof walletBalanceWei === "bigint"
-                      ? weiToEth(walletBalanceWei)
+                      ? weiToEth(walletBalanceWei, 18)
                       : "-"}
                 </span>
                 <span> {ticker}</span>
@@ -272,14 +269,14 @@ export function ComposeStage({
               insufficientBalance && walletBalanceWei !== null ? (
                 <>
                   <span className="font-medium">Insufficient balance.</span>{" "}
-                  You have {weiToEth(walletBalanceWei)} {ticker}
+                  You have {weiToEth(walletBalanceWei, 18)} {ticker}
                   <UsdHint
                     amount={walletBalanceWei}
                     smallestPerWhole={1_000_000_000_000_000_000n}
                     ticker={ticker}
                   />
-                  {" "}, need at least {weiToEth(amountWei + gasReserveWei)}{" "}
-                  {ticker} including ~{weiToEth(gasReserveWei)} for gas.
+                  {" "}, need at least {weiToEth(amountWei + gasReserveWei, 18)}{" "}
+                  {ticker} including ~{weiToEth(gasReserveWei, 18)} for gas.
                 </>
               ) : null
             }
@@ -335,7 +332,7 @@ export function ComposeStage({
                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
                 Resolved {ensName} ·{" "}
                 <span className="font-mono text-text-soft">
-                  {shortEvmAddress(effectiveRecipient)}
+                  {effectiveRecipient}
                 </span>
               </span>
             )}
