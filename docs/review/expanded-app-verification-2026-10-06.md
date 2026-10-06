@@ -50,3 +50,22 @@ Native Library `libfile_47e1522fb3f881919b8d7f83b61f7d53`, version 0; file ID `f
 SHA-256: `50c8351bbca48fc716fe67d4f9f1bd84670e86a3ffac5fee21b6c8d57d79de61`.
 
 This is a supplemental expanded board; earlier family boards remain available. It labels synthetic data, top-of-page crops and untested external integrations.
+
+## Redis-enabled verification follow-up
+
+The six skips in the normal build were all in the pre-existing `src/lib/agents/__tests__/serverVenueRedis.integration.test.ts` suite, guarded by `describe.skipIf(!bin || !cli)`. The normal build did not set `CLEARSIG_TEST_REDIS_BIN` and `CLEARSIG_TEST_REDIS_CLI`. No test skip or test-code change was introduced by this UI follow-up; this test file is unchanged from `36407ee9`.
+
+The existing local Redis 7.2.11 binaries under `/workspace/scratch/clearsig-redis/source/src/` were supplied through those two variables and the **entire `npm test` command passed: 244/244 test files, 1,922/1,922 tests, zero skipped; 27/27 script tests, zero skipped**. Log: `/workspace/scratch/app-expanded/final-tests-with-redis.log`. Application source remained at `ea802d7554c66804736abe86a6cd3f21c0b19d07`; no checks were weakened. The suite creates its own temporary append-only Redis instance on an ephemeral loopback port and cleans it up; it never uses the application's database.
+
+The six real-service cases verify:
+
+1. Atomic venue/API-account isolation, including cross-role collisions.
+2. One concurrent delivery claim and permanent commitment/account binding.
+3. Only pre-handoff reservation release; stale-lease rejection.
+4. Database restart without automatic resubmission, followed by idempotent reconciliation.
+5. Delivery-record isolation and prevention of cross-deployment account reuse.
+6. Atomic single-use native settlement evidence, restart durability and forged-claim rejection.
+
+The executor recovered and commands, compilation and Chromium completed normally. `compiled-complete.log` contains 170 completions and no FAILED lines from one full combined matrix invocation against the compiled fixture on `127.0.0.1:3107` (`next start`, not the restarting development server). `compiled-pass/route-results.json` contains 170 unique route/width pairs with no recorded script/page errors or horizontal overflow; SHA-256 `a09aaffa1ff862601f0247f6180eb8ae0fca4a403764d2a992eb1f970696a5be`. All 170 captures are present. Earlier unsuccessful exploratory runs remain separate. Matrix captures use the existing dark theme at 390/1440; modal/onboarding checks and board additionally include both light and dark. No CSS palette file changed in this follow-up.
+
+Publication remains held for independent visual review. The screenshot Library item and checksum above are unchanged.
