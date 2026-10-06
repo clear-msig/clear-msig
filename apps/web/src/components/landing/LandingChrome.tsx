@@ -28,7 +28,7 @@ export function LandingNav({
       <header className="fixed inset-x-0 top-0 z-40 border-b border-border-soft bg-canvas/95 backdrop-blur-md">
         <nav
           aria-label="Main navigation"
-          className="mx-auto flex h-[72px] max-w-[1280px] items-center justify-between gap-5 px-5 sm:h-[100px] sm:px-10"
+          className="mx-auto flex h-[72px] max-w-[1280px] items-center justify-between gap-5 px-5 sm:h-[80px] sm:px-12"
         >
           <Link
             href="/"
@@ -70,7 +70,7 @@ export function LandingNav({
           </div>
         </nav>
       </header>
-      <div aria-hidden="true" className="h-[72px] sm:h-[100px]" />
+      <div aria-hidden="true" className="h-[72px] sm:h-[80px]" />
     </>
   );
 }

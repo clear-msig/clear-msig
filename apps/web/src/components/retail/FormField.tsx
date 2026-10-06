@@ -49,7 +49,7 @@ export const FIELD_CLASS = cn(
   fieldFocus,
   fieldDisabled,
   fieldPlaceholder,
-  "min-h-tap px-3 py-2.5",
+  "min-h-12 px-3.5 py-3",
 );
 
 export const TEXTAREA_CLASS = cn(
@@ -82,7 +82,7 @@ export function FormField({
   const descriptionId = error || hint ? `${id}-description` : undefined;
   return (
     <FieldContext.Provider value={{ labelId, descriptionId, invalid: !!error }}>
-    <Shell className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+    <Shell className={cn("flex min-w-0 flex-col gap-2", className)}>
       <span id={labelId} className="text-xs font-medium text-text-soft">{label}</span>
       {children}
       {error ? (

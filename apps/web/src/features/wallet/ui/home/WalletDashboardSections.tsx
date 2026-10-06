@@ -61,13 +61,13 @@ export function StatCard({
   return (
     <div
       className={clsx(
-        "rounded-card border bg-surface-raised p-3 shadow-card-rest sm:p-4",
+        "min-w-0 rounded-card border bg-surface-raised p-4 shadow-card-rest sm:p-6",
         "transition-[border-color,box-shadow] duration-base ease-out-soft",
         accent ? "border-accent/40" : "border-border-soft",
       )}
     >
-      <div className="flex items-center gap-1.5 text-text-soft sm:gap-2">
-        <Icon className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+      <div className="flex items-start gap-2 text-text-soft">
+        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
         <span className="text-xs font-semibold uppercase tracking-[0.2em]">
           {label}
         </span>

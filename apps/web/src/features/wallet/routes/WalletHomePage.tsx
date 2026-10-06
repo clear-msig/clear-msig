@@ -261,7 +261,7 @@ function WalletDashboardContent() {
   const showWatched = !hasError && displaySurface === null;
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="wallet-dashboard flex flex-col gap-6 sm:gap-8">
       <UnsupportedSignerBanner />
 
       {/* Compact hero - left-aligned title + dynamic summary line.
@@ -384,10 +384,10 @@ function Hero({
       className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3"
     >
       <div className="min-w-0">
-        <h1 className="hidden font-display text-display-xs leading-tight text-text-strong md:block">
+        <h1 className="font-display text-3xl font-medium leading-tight tracking-tight text-text-strong md:text-4xl">
           {title}
         </h1>
-        <p className="text-xs text-text-soft sm:text-sm">{summary}</p>
+        <p className="mt-3 text-sm leading-relaxed text-text-soft">{summary}</p>
       </div>
     </motion.div>
   );
@@ -685,7 +685,7 @@ function BalanceHeroCard({
   return (
     <section
       className={clsx(
-        "relative min-h-[10.75rem] overflow-hidden rounded-card border p-4 shadow-card-rest md:min-h-0 md:p-5",
+        "wallet-overview relative min-h-[10.75rem] overflow-hidden rounded-card border p-6 shadow-card-rest md:min-h-0 md:p-8",
         selectedSurface
           ? surfaceHeroTone(selectedSurface)
           : "border-border-soft bg-surface-raised",
@@ -693,7 +693,7 @@ function BalanceHeroCard({
     >
       {/* Foreground content. relative + z-10 keeps it above both
           decoration layers. */}
-      <div className="relative z-10 grid gap-4 md:gap-3 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center lg:gap-5">
+      <div className="relative z-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center lg:gap-8">
         <div className="min-w-0">
         {/* Brand row - small visible mark + label */}
         <div className="flex items-center justify-between gap-2">
@@ -732,7 +732,7 @@ function BalanceHeroCard({
                 <button
                   type="button"
                   onClick={onOpenWalletSwitcher}
-                  className="inline-flex h-8 items-center justify-center rounded-full bg-accent px-3 text-xs font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-3 text-xs font-semibold text-text-on-accent shadow-accent-rest transition-[background-color,transform,box-shadow] duration-base ease-out-soft hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                 >
                   Switch
                 </button>
@@ -743,7 +743,7 @@ function BalanceHeroCard({
                   onClick={toggle}
                   aria-label={hidden ? "Show balances" : "Hide balances"}
                   title={hidden ? "Show balances" : "Hide balances"}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border-soft bg-canvas/60 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border-soft bg-canvas/60 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised"
                 >
                   {hidden ? (
                     <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
@@ -760,7 +760,7 @@ function BalanceHeroCard({
               onClick={toggle}
               aria-label={hidden ? "Show balances" : "Hide balances"}
               title={hidden ? "Show balances" : "Hide balances"}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-soft bg-canvas/70 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:hidden"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border-soft bg-canvas/70 text-text-soft transition-colors hover:border-accent/50 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:hidden"
             >
               {hidden ? (
                 <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
@@ -787,8 +787,8 @@ function BalanceHeroCard({
           <Shimmer className="mt-2 h-10 w-40 rounded md:mt-5 md:h-12 md:w-52" />
         ) : (
           <>
-            <p className={clsx("mt-2 flex items-baseline gap-2 transition-[filter] duration-base md:mt-5", hiddenClass)}>
-              <span className="font-numerals text-[2.15rem] font-semibold leading-none text-text-strong tabular-nums md:text-4xl">
+            <p className={clsx("mt-5 flex flex-wrap items-baseline gap-2 transition-[filter] duration-base md:mt-7", hiddenClass)}>
+              <span className="min-w-0 break-all font-numerals text-[2.15rem] font-medium leading-tight text-text-strong tabular-nums md:text-5xl">
                 {headline}
               </span>
               {!hasPortfolioTotal ? (

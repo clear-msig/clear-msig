@@ -146,7 +146,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
           className="app-content-stage relative z-10 flex-1 px-4 sm:px-5 md:overflow-y-auto md:overscroll-contain md:px-8 lg:px-10 xl:px-12"
           style={{ scrollbarGutter: "stable" }}
         >
-          <div className="mx-auto flex w-full max-w-[76rem] flex-col gap-4 pb-32 pt-16 sm:pb-16 md:pb-12 md:pt-8">
+          <div className="workspace-body mx-auto flex w-full max-w-[76rem] flex-col gap-5 pb-32 pt-20 sm:pb-20 md:gap-6 md:pb-16 md:pt-10">
             <PhishingWarningBanner />
             <PreAlphaBanner />
             <section className="relative z-20 min-w-0"><AgentWorkspaceScope>{children}</AgentWorkspaceScope></section>
