@@ -359,7 +359,7 @@ function SecureRecoveryPage() {
               Icon={Fingerprint}
               eyebrow="Action · device"
               title="Add a passkey"
-              body="Enroll a Touch ID, Face ID, or security key on this device. One signature, on-chain in seconds."
+              body="Enroll a Touch ID, Face ID, or security key on this device. Review the required device and wallet confirmations before continuing."
               cta="Enroll"
             />
             <ActionCard

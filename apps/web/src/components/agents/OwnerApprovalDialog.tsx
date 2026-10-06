@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ShieldCheck, X } from "lucide-react";
 import type { AgentOwnerApprovalInput } from "@/lib/agents/client";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
@@ -24,7 +25,18 @@ export function OwnerApprovalDialog({
   onApprove,
 }: OwnerApprovalDialogProps) {
   const dialogRef = useRef<HTMLElement>(null);
-  const open = request !== null;
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => setPortalTarget(document.body), []);
+  const open = request !== null && portalTarget !== null;
+  // Only the app shell becomes inert. Provider-owned overlays outside the shell
+  // keep their own lifecycle and can still present a wallet confirmation.
+  useEffect(() => {
+    if (!open) return;
+    const shells = Array.from(document.querySelectorAll<HTMLElement>(".app-experience"));
+    const previous = shells.map((shell) => shell.inert);
+    shells.forEach((shell) => { shell.inert = true; });
+    return () => shells.forEach((shell, index) => { shell.inert = previous[index]; });
+  }, [open]);
   useBodyScrollLock(open);
   useFocusTrap(dialogRef, open);
 
@@ -37,9 +49,9 @@ export function OwnerApprovalDialog({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [busy, onCancel, open]);
 
-  if (!request) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
+  if (!request || !portalTarget) return null;
+  return createPortal(
+    <div data-owner-approval-overlay className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 px-4 py-6">
       <section
         ref={dialogRef}
         role="dialog"
@@ -115,6 +127,7 @@ export function OwnerApprovalDialog({
           </button>
         </div>
       </section>
-    </div>
+    </div>,
+    portalTarget,
   );
 }

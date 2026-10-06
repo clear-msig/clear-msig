@@ -52,6 +52,7 @@ export function BottomNav() {
   const leftItems = PRIMARY_NAV_ITEMS.slice(0, 2);
   const rightItems = PRIMARY_NAV_ITEMS.slice(2);
   const createHref = "/app/wallet/new";
+  const creatingWallet = currentPathname === createHref;
   const activeWalletSlug = activeWalletSlugFromPathname(currentPathname);
   if (activeWalletSlug) {
     return (
@@ -83,7 +84,7 @@ export function BottomNav() {
       {/* Centered FAB - primary "+" CTA. Raised above the bar with a
           ring-canvas halo for the cutout effect; brand accent shadow
           anchors it to the palette. */}
-      <Link
+      {!creatingWallet && <Link
         href={createHref}
         aria-label="Create a new wallet"
         className={clsx(
@@ -106,7 +107,7 @@ export function BottomNav() {
           strokeWidth={2.5}
           aria-hidden="true"
         />
-      </Link>
+      </Link>}
 
       <ul className="flex items-stretch">
         {leftItems.map((item) => (
@@ -120,7 +121,7 @@ export function BottomNav() {
         {/* Spacer reserves room for the FAB so tab widths don't
             jostle. Width = FAB outer diameter (56px + 12px ring) +
             breathing room. */}
-        <li aria-hidden="true" className="w-20 shrink-0" />
+        {!creatingWallet && <li aria-hidden="true" className="w-20 shrink-0" />}
         {rightItems.map((item) => (
           <NavTab
             key={item.href}

@@ -404,7 +404,11 @@ export default function HyperliquidSetupPage() {
               ))
             ) : (
               <div className="rounded-card bg-canvas p-5 text-sm text-text-soft">
-                No Hyperliquid testnet positions are open right now.
+                {checking
+                  ? "Checking Hyperliquid testnet positions…"
+                  : accountSnapshot
+                    ? "No Hyperliquid testnet positions are open right now."
+                    : "Positions unavailable. Check the connection before relying on this account view."}
               </div>
             )}
           </div>
@@ -434,14 +438,16 @@ export default function HyperliquidSetupPage() {
                   : "border-warning/30 bg-warning/[0.08] text-warning",
               )}
             >
-              {executor?.state === "ready" ? "Connected" : "Checking"}
+              {checking ? "Checking" : executor?.state === "ready" ? "Connected" : "Not ready"}
             </span>
           </div>
           <div className="mt-4 rounded-soft border border-border-soft bg-canvas p-3">
             <p className="text-xs font-semibold text-text-strong">
               {executor?.state === "ready"
                 ? "Ready for protected testnet trades"
-                : "Waiting for server-side verification"}
+                : checking
+                  ? "Waiting for server-side verification"
+                  : "Protected trading is unavailable. Check the connection for verified readiness."}
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">

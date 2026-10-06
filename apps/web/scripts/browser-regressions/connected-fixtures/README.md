@@ -33,3 +33,29 @@ narrow/dark checks. These are representative cases, not every route permutation.
 
 For a focused matrix retry, set `CLEARSIG_REVIEW_FAMILY` (for example `send`)
 and a separate output directory so the original failure evidence is preserved.
+
+## Expanded route review
+
+Use `node scripts/browser-regressions/prepareExpandedReview.cjs /tmp/clearsig-expanded-review`
+to create a separate expanded copy. Start Next there on port 3106 with the same
+all-zero test-only environment ID. This variant replaces the server public
+registry read boundary as well as client reads, so actual public-profile builders
+and views can render without a live RPC or registry. `ExpandedProvider` preserves
+the selected fixture scenario through real redirects.
+
+Run `expandedRoutes.cjs` with Playwright available. It seeds synthetic scoped
+agent/profile and policy-authoring storage, and visits the 85 entries from the
+implementation map at 390/1440 in the existing dark theme. Set
+`CLEARSIG_REVIEW_OUTPUT` and `CLEARSIG_REVIEW_URL` for custom locations.
+`REVIEW_IDS=r65,r66,r67 REVIEW_STATE=setup` exercises the not-yet-configured setup
+forms rather than their already-configured redirects. `modalAndOnboarding.cjs`
+and `signingClearance.cjs` check whole-shell modal isolation and scroll-end action
+clearance in both themes, including a reduced-height viewport. The latter is a
+viewport simulation, not a real mobile keyboard/device test.
+
+Synthetic descriptors are for display only; they are not validated canonical
+execution plans. Signing, account/device creation and financial submissions stay
+blocked. The seed's default program ID is a local scope namespace, not evidence
+of deployment identity. Do not enable live requests to make the fixtures pass.
+
+For compiled expanded review, build and start the isolated copy with `NEXT_PUBLIC_BACKEND_API_URL=http://127.0.0.1:9` and the test-only Dynamic environment ID. The browser blocks API/external requests. A missing production configuration screen is a failed review, never a rendered app pass. Use `next build` then `next start` to avoid development-server memory restarts truncating chunks during a long route sweep.

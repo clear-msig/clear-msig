@@ -23,7 +23,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Crown, Loader2, Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { fetchWalletByName } from "@/lib/chain/wallets";
 import { listIntents } from "@/lib/chain/intents";
-import { deriveRole, listWatchers, ROLE_HINT, ROLE_LABEL, type Role } from "@/lib/retail/roles";
+import {
+  deriveRole,
+  listWatchers,
+  ROLE_HINT,
+  ROLE_LABEL,
+  type Role,
+} from "@/lib/retail/roles";
 import { useContacts } from "@/lib/hooks/useContacts";
 import { BadgePill } from "@/components/retail/BadgePill";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
@@ -213,7 +219,6 @@ export default function MembersPage() {
           </ul>
         )}
       </section>
-
     </motion.div>
   );
 }
@@ -258,9 +263,7 @@ function MemberRow({
   // exists, otherwise the avatar-initial fallback. Showing "You ·
   // Sarah" as a hybrid would just add clutter - self always reads
   // as "You".
-  const displayName = isYou
-    ? "You"
-    : contactName ?? `Member ${initials}`;
+  const displayName = isYou ? "You" : (contactName ?? `Member ${initials}`);
   const hasNickname = !isYou && !!contactName;
   const subtitle = isCreator
     ? role === "full"
@@ -321,7 +324,9 @@ function MemberRow({
         newRole: next,
       });
       if (result.kind === "awaiting_approvals") {
-        toast.success("Role change proposed and waiting for the remaining approvals");
+        toast.success(
+          "Role change proposed and waiting for the remaining approvals",
+        );
       } else {
         const verb =
           next === "watcher"
@@ -367,9 +372,12 @@ function MemberRow({
       transition={{ duration: 0.3, delay, ease: [0.22, 1, 0.36, 1] }}
       className="px-4 py-3.5 transition-colors duration-base ease-out-soft hover:bg-canvas/40"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <MemberAvatar address={address} size="md" />
-        <div className="min-w-0 flex-1">
+        <div
+          data-member-identity
+          className="min-w-0 flex-1 basis-[calc(100%-3rem)] sm:basis-auto"
+        >
           <p className="flex items-center gap-1.5 truncate text-sm font-medium text-text-strong">
             <span className="truncate">{displayName}</span>
             {isCreator && (
@@ -377,70 +385,85 @@ function MemberRow({
                 className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-accent"
                 title="Created this wallet - can't be removed"
               >
-                <Crown className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
+                <Crown
+                  className="h-3 w-3"
+                  strokeWidth={2.25}
+                  aria-hidden="true"
+                />
                 Creator
               </span>
             )}
           </p>
           <p className="mt-0.5 text-xs text-text-soft">{subtitle}</p>
         </div>
-        <RoleChip role={role} />
-        {canRename && !editingNickname && !editingRole && !confirmingRemove && (
-          <button
-            type="button"
-            onClick={() => {
-              setNicknameDraft(contactName ?? "");
-              setEditingNickname(true);
-            }}
-            disabled={busy}
-            aria-label={
-              hasNickname
-                ? `Rename ${displayName}`
-                : `Give a nickname to ${displayName}`
-            }
-            title={hasNickname ? "Rename" : "Give a nickname"}
-            className={
-              "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
-              "hover:bg-canvas hover:text-text-strong " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-              "disabled:cursor-not-allowed disabled:opacity-40"
-            }
-          >
-            <Tag className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
-        {canEditRole && !editingRole && !confirmingRemove && !editingNickname && (
-          <button
-            type="button"
-            onClick={() => setEditingRole(true)}
-            disabled={busy}
-            aria-label={`Change role for ${displayName}`}
-            className={
-              "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
-              "hover:bg-canvas hover:text-text-strong " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-              "disabled:cursor-not-allowed disabled:opacity-40"
-            }
-          >
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
-        {canRemove && !confirmingRemove && !editingRole && !editingNickname && (
-          <button
-            type="button"
-            onClick={() => setConfirmingRemove(true)}
-            disabled={busy}
-            aria-label={`Remove ${displayName}`}
-            className={
-              "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
-              "hover:bg-canvas hover:text-danger " +
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
-              "disabled:cursor-not-allowed disabled:opacity-40"
-            }
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+          <RoleChip role={role} />
+          {canRename &&
+            !editingNickname &&
+            !editingRole &&
+            !confirmingRemove && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNicknameDraft(contactName ?? "");
+                  setEditingNickname(true);
+                }}
+                disabled={busy}
+                aria-label={
+                  hasNickname
+                    ? `Rename ${displayName}`
+                    : `Give a nickname to ${displayName}`
+                }
+                title={hasNickname ? "Rename" : "Give a nickname"}
+                className={
+                  "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
+                  "hover:bg-canvas hover:text-text-strong " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+                  "disabled:cursor-not-allowed disabled:opacity-40"
+                }
+              >
+                <Tag className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
+          {canEditRole &&
+            !editingRole &&
+            !confirmingRemove &&
+            !editingNickname && (
+              <button
+                type="button"
+                onClick={() => setEditingRole(true)}
+                disabled={busy}
+                aria-label={`Change role for ${displayName}`}
+                className={
+                  "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
+                  "hover:bg-canvas hover:text-text-strong " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+                  "disabled:cursor-not-allowed disabled:opacity-40"
+                }
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
+          {canRemove &&
+            !confirmingRemove &&
+            !editingRole &&
+            !editingNickname && (
+              <button
+                type="button"
+                onClick={() => setConfirmingRemove(true)}
+                disabled={busy}
+                aria-label={`Remove ${displayName}`}
+                className={
+                  "inline-flex h-tap w-tap items-center justify-center rounded-soft text-text-soft transition-colors duration-base ease-out-soft " +
+                  "hover:bg-canvas hover:text-danger " +
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised " +
+                  "disabled:cursor-not-allowed disabled:opacity-40"
+                }
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
+        </div>
       </div>
       {editingNickname && (
         <div className="mt-3 rounded-soft border border-border-soft bg-canvas p-3">
@@ -568,7 +591,10 @@ function MemberRow({
             >
               {remove.isPending ? (
                 <>
-                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                  <Loader2
+                    className="h-3 w-3 animate-spin"
+                    aria-hidden="true"
+                  />
                   Removing…
                 </>
               ) : (

@@ -1,5 +1,7 @@
 # App consistency inventory — 6 October 2026
 
+**Continuation:** [Expanded verification](expanded-app-verification-2026-10-06.md) supersedes the earlier representative-only coverage and isolated send retry below. Final coverage is 170/170 compiled route cases (85 entries, including 10 redirects), six setup variants, and the documented interaction/clearance checks. Six bounded source fixes retain existing palettes. Publication remains held.
+
 Published baseline: `d751d94d1fd268084eaf164a1f2858a0622c8a25`. Further publication is held pending app-wide review.
 
 85 page entry points, including aliases and redirects; these are not 85 verified independent screens.

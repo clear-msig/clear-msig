@@ -23,6 +23,7 @@ import { toDisplayName } from "@/lib/retail/walletNames";
 export default function AgentAdminPage() {
   const params = useParams<{ name: string }>();
   const search = useSearchParams();
+  const debug = search.get("debug") === "1";
   const name = useMemo(() => decodeParam(params?.name), [params?.name]);
   const encoded = encodeURIComponent(name);
   const display = toDisplayName(name);
@@ -46,7 +47,7 @@ export default function AgentAdminPage() {
   useEffect(() => {
     let cancelled = false;
     const firstAgent = agents[0];
-    if (!firstAgent) {
+    if (!debug || !firstAgent) {
       setVenue(null);
       return;
     }
@@ -55,11 +56,13 @@ export default function AgentAdminPage() {
       agentId: firstAgent.id,
     }).then((next) => {
       if (!cancelled) setVenue(next);
+    }).catch(() => {
+      if (!cancelled) setVenue(null);
     });
     return () => {
       cancelled = true;
     };
-  }, [agents, name]);
+  }, [agents, debug, name]);
 
   const policy = getAgentVaultPolicy(name);
   const sessions = listAgentSessions(name);
@@ -173,7 +176,7 @@ export default function AgentAdminPage() {
     walletHref: `/app/wallet/${encoded}`,
   });
 
-  if (search.get("debug") !== "1") {
+  if (!debug) {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
         <Link
