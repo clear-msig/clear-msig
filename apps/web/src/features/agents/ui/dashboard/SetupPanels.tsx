@@ -53,7 +53,7 @@ export function DeskStatus({
       <p
         className={clsx(
           "mt-1 font-numerals text-sm font-semibold tabular-nums",
-          tone === "warn" ? "text-warning" : tone === "accent" ? "text-accent" : "text-text-strong",
+          tone === "warn" ? "text-text-strong" : tone === "accent" ? "text-accent" : "text-text-strong",
         )}
       >
         {value}

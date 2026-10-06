@@ -183,11 +183,11 @@ function sentenceCase(s: string): string {
 export function statusTextColor(s: ProposalStatusLike): string {
   switch (s) {
     case ProposalStatus.Active:
-      return "text-warning";
+      return "text-text-strong";
     case ProposalStatus.Approved:
       return "text-accent";
     case ProposalStatus.Executed:
-      return "text-success";
+      return "text-text-strong";
     case ProposalStatus.Cancelled:
       return "text-text-soft";
     default:
@@ -201,11 +201,11 @@ export function statusTextColor(s: ProposalStatusLike): string {
 export function statusChipClasses(s: ProposalStatusLike): string {
   switch (s) {
     case ProposalStatus.Active:
-      return "border-warning/30 bg-warning/10 text-warning";
+      return "border-warning/30 bg-warning/10 text-text-strong";
     case ProposalStatus.Approved:
       return "border-accent/30 bg-accent/10 text-accent";
     case ProposalStatus.Executed:
-      return "border-success/30 bg-success/10 text-success";
+      return "border-success/30 bg-success/10 text-text-strong";
     case ProposalStatus.Cancelled:
       return "border-border-soft bg-canvas text-text-soft";
     default:

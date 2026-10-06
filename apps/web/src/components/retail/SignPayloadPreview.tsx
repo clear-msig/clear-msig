@@ -126,7 +126,7 @@ export function SignPayloadPreview({
 
       {warning && (
         <p className="mt-3 whitespace-pre-line rounded-soft bg-warning/10 px-2.5 py-1.5 text-xs leading-snug text-text-strong">
-          <span className="font-medium text-warning">Heads up.</span> {warning}
+          <span className="font-semibold text-text-strong">Heads up.</span> {warning}
         </p>
       )}
 

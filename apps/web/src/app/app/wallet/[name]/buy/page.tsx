@@ -29,7 +29,7 @@ import { useWalletChains, chainAddress } from "@/lib/hooks/useWalletChains";
 import { useRampIntent } from "@/lib/hooks/useRampIntent";
 import { rampApi, RampApiError } from "@/lib/ramp/client";
 import { rampTargetForChainKind, wholeToMinor } from "@/lib/ramp/chains";
-import { CHAIN_CATALOG, chainByKind } from "@/lib/retail/chains";
+import { chainByKind } from "@/lib/retail/chains";
 import type { ChainBindingResponse } from "@/lib/api/types";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { friendlyError } from "@/lib/api/errors";
@@ -37,7 +37,7 @@ import { syncNotificationEvents } from "@/lib/notifications/client";
 import { Button } from "@/components/retail/Button";
 import { RampStatusNotice } from "@/components/ramp/RampStatusNotice";
 import { BrandLoader } from "@/components/retail/BrandLoader";
-import { ChainBadge } from "@/components/retail/ChainBadge";
+import { RampChainPicker } from "@/components/ramp/RampChainPicker";
 import { useToast } from "@/components/ui/Toast";
 import type {
   CreateRampIntentRequest,
@@ -428,41 +428,8 @@ function ComposeForm({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-card border border-border-soft bg-surface-raised p-4 shadow-card-rest sm:p-5">
-      <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
-          Chain
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {CHAIN_CATALOG.filter((c) => c.kind !== 4).map((chain) => {
-            const binding = bindings.find((b) => b.chain_kind === chain.kind);
-            const ready = binding && chainAddress(binding) !== null;
-            const selected = selectedKind === chain.kind;
-            return (
-              <button
-                key={chain.kind}
-                type="button"
-                disabled={!ready || disabled}
-                onClick={() => onPickChain(chain.kind)}
-                className={
-                  "flex flex-col items-center gap-2 rounded-soft border p-2.5 text-center transition sm:p-3 " +
-                  (selected
-                    ? "border-accent bg-accent/5 text-accent"
-                    : ready
-                      ? "border-border-soft bg-canvas/50 text-text-strong hover:border-border-strong"
-                      : "border-dashed border-border-soft text-text-soft opacity-50")
-                }
-              >
-                <ChainBadge chain={chain} size="md" />
-                <span className="text-xs font-medium">{chain.ticker}</span>
-                {!ready && (
-                  <span className="text-xs text-text-soft">not bound</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+    <div className="flex flex-col gap-6 rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest sm:p-8">
+      <RampChainPicker bindings={bindings} selectedKind={selectedKind} disabled={disabled} onPickChain={onPickChain} />
 
       <div className="flex flex-col gap-2">
         <label
@@ -496,8 +463,8 @@ function ComposeForm({
         <div className="rounded-soft border border-border-soft bg-canvas/50 p-3 text-xs text-text-soft">
           Receiving to{" "}
           <strong className="text-text-strong">{selectedChainName}</strong> at{" "}
-          <span className="font-mono text-text-strong">
-            {destinationWallet.slice(0, 8)}…{destinationWallet.slice(-6)}
+          <span className="mt-2 block break-all font-mono leading-relaxed text-text-strong">
+            {destinationWallet}
           </span>
         </div>
       )}

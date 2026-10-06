@@ -4,7 +4,70 @@ Published baseline: `d751d94d1fd268084eaf164a1f2858a0622c8a25`. Further publicat
 
 85 page entry points, including aliases and redirects; these are not 85 verified independent screens.
 
-## Initial evidence (published baseline)
+## Current connected-component review
+
+This section supersedes the historical signed-out gaps below. All **12 families**
+have representative desktop/mobile app-owned renders; no entire family remains
+unrendered. This is not a claim that every one of the 85 route entries or all state
+permutations was exercised. The per-route implementation map is in
+`app-route-implementation-map-2026-10-06.md`.
+
+| Family (entry count) | Actual representative routes | Rendered / exercised states |
+|---|---|---|
+| Landing and selection (2) | `/`, `/choose` | Six widths; demo/reset, pause/resume, chooser/back; reduced motion and no-JS visibility |
+| Public products (8) | `/personal`, `/agent`, `/secure` | Signed-out product pages at 390/1440; shared ProductSurfaceLanding |
+| Public information (3) | `/security`, `/privacy`, `/changelog` | Signed-out content at 390/1440 |
+| Authentication/onboarding (3) | `/connect`, `/app/wallet/new` | Signed-out app-owned handoff; connected create-wallet form; no creation |
+| Wallet/shell (9) | `/app/wallet`, `/app/wallet/operations` | Funded synthetic wallet; empty/loading/error dashboard; switch dialog/Escape |
+| Send/batch (9) | `/app/wallet/operations/send`, isolated review fixture | Actual SOL compose, address warning, real signing-review hook/document; focus/cancel/reopen/confirm at fixture boundary |
+| Payments/exchange (3) | `/app/wallet/operations/buy`, `/sell` | Exact amount/full destination, checkout error; bank loading/empty/error/retry; invalid continuation disabled |
+| Governance/treasury (14) | `/app/proposals/[proposal]`, `/app/wallet/operations/recurring`, `/members` | Synthetic canonical proposal, unavailable/loading review, recurring and members; real owner-dialog focus/Escape/cancel |
+| Recovery (7) | `/app/secure`, `/app/secure/new` | Empty vault list; actual preset→confirmation; no create/device action |
+| Agents (17) | `/app/wallet/operations/agents` | Real scoped dashboard/setup and unavailable external capability; Advanced disclosure; no execution |
+| Settings/account (5) | `/app/settings`, `/app/account`, `/app/contacts` | Settings and theme, real app-lock form opening; contact add/cancel; no saved credentials |
+| Activity/inbox (5) | `/app/activity`, `/app/notifications` | Synthetic history, empty history and inbox |
+
+Connected fixtures replace only provider/read boundaries in an isolated source
+copy. Real routes, shell, controllers and components render. Unmapped reads and
+signing reject; browser external requests, API submissions, WebSockets and device
+enrollment are blocked. Mock data is not evidence of chain authority. Current
+public-route captures explicitly use signed-out fixture identity.
+
+The first board pixel inspection caught an older public-product skeleton and an
+invalid synthetic agent chain identity. Those are fixture/evidence failures, not
+completed screen review. The current fixture uses a canonical-format synthetic
+identity and waits for the real dashboard's Advanced control. Payment checkout
+and bank-read errors have separate captures and explicit error assertions.
+
+Local changes after `ca485437`: shared compact network picker, full receiving
+address before checkout, honest bank error/empty/retry states, disabled payout
+continuation without a returned bank, and existing high-contrast status tokens.
+Original palette and signing/authorization guards remain. No delays or reveals
+were added to critical transaction details.
+
+The full local production build passed **244 suites / 1,922 tests**, **27 script
+tests**, lint/type checks, compilation and unchanged bundle gates (external
+1123.6/1124 kB; legacy Turnkey 979.6/991 kB). Fixture scripts are independently
+validated. Rust/SBF source was not changed or unnecessarily rerun.
+
+### Remaining coverage boundaries
+
+App-owned routes not individually rendered are explicitly listed as source-only
+in the implementation map. They include chain-specific/batch send variants,
+recovery import/enrollment/sweep/threshold details, agent subroutes, allowance/
+budget/escrow/policy editors, chain setup and swap. Representative family coverage
+does not convert those entries into visual passes. Their shared component imports and
+entry wiring are source-mapped; exhaustive per-route/state testing remains
+additional coverage, not an external-credentials blocker.
+
+External pixels: SDK-hosted sign-in/MFA/profile, wallet signing confirmation,
+OS passkey and hardware dialogs, hosted Paystack/Korapay checkout. Those require
+authorized configured providers/devices and were not fabricated or tested live.
+No live wallet, financial request, account provisioning or deployment occurred.
+Publication remains held for independent review, including any requested wider
+route coverage and the separate published dependency-security failure.
+
+## Historical initial evidence (published baseline)
 
 Landing and chooser were rendered at six widths. WalletHero, RequestOverview and SignPayloadPreview were rendered in a synthetic fixture at those widths. Its approval pending/rejection/retry/cancel/history controls are synthetic. These checks do not cover authenticated route composition, provider popups or every app family.
 
@@ -115,7 +178,7 @@ Shared workspace padding, FormField sizing and review-surface spacing propagate 
 | `/send` | Send and batch | `apps/web/src/app/send/page.tsx` |
 | `/welcome` | Authentication and onboarding | `apps/web/src/app/welcome/page.tsx` |
 
-## Known inconsistencies to resolve locally
+## Historical findings before connected-fixture review
 
 - Public product pages still use a denser split hero and 20/32/40 px gutters, versus the refreshed landing rhythm.
 - Several app-family headings remain hidden on mobile, while home now presents a visible heading. Need check shell title duplication before normalizing.
@@ -123,7 +186,7 @@ Shared workspace padding, FormField sizing and review-surface spacing propagate 
 - Loading skeletons, dialogs and recovery/agent stages require their own narrow-screen review; no new delayed reveal should hide risk, address, amount, threshold or recovery information.
 - Real authentication, connected dashboard, provider dialogs, recovery devices and transactions remain configuration/live-test gates, not proven by fixtures.
 
-## Local follow-up completed; not published
+## Historical first follow-up; not published
 
 - One hydration-safe reduced-motion hook now serves 52 existing consumers. Server and first client output is visible/still; browser preference is applied after hydration. This fixes invisible initial content and conditional decorative DOM mismatches without hiding signing information.
 - Notification permission and WebHID capability detection now defer until after hydration, eliminating two independently reproduced Settings mismatches.
@@ -142,3 +205,37 @@ Native unpublished review board: `libfile_c66bb7775a6c8191929032fc3b895754`, ver
 ## Published baseline terminal checks
 
 `d751d94d1fd268084eaf164a1f2858a0622c8a25` was already pushed before the hold arrived. CI run `37495508332` succeeded. Vercel deployment `9Fui7qGQvzLp4qtkoxGBfQ8BMiG5` succeeded. Security run `37495508518` failed its frontend dependency audit (23 findings: 14 moderate, 9 high; production gate identified http-cache-semantics and source-map-js). CodeQL, tracked-secret scan and Rust dependency policy passed; dependency review was skipped on push. No history rewrite or subsequent publication.
+
+## Final evidence and review board
+
+Native Library board: **`libfile_26059a49295c8191932d3631ea7da63d`**, version **0**,
+`clearsig-all-family-review-2026-10-06.png` (2,861,522 bytes).
+SHA-256: `20e4df70298a3dff3f06b448fe2e65ecec7f70417755d1448e476cf145e49b45`.
+It contains 12 desktop/mobile family pairs plus signing review, checkout error,
+bank error and owner-dialog pairs. Actual screenshots, not design mockups.
+
+Final browser evidence in `/workspace/scratch/app-wide-review/`:
+
+- `matrix-results.json`: 52 connected route/state cases; 51 clean. Mobile send
+  recorded two `Invalid or unexpected token` browser script errors during the
+  development-server run. Cause was not established; this failed run is retained.
+- `send-recheck/matrix-results.json`: both 390/1440 send cases passed with an
+  explicit visible review-region assertion; clean captures replace the failed
+  screenshot on the board. This is a targeted successful rerun, not a claim the
+  original 52-case command exited successfully.
+- `interaction-results.json`: 16 flows passed (eight at each width), including
+  explicit checkout-error toast, bank retry, recovery confirmation, account form,
+  wallet switch, signing review, owner focus containment and mocked auth handoff.
+- `public-final-results.json`: 12 signed-out public cases passed (six routes at
+  both widths), checking exact route, real heading, page errors and overflow.
+- `narrow-dark-results.json`: 12 cases passed, six routes at 320/light and
+  390/dark; agent dashboard readiness asserted. These replace the earlier agent
+  scope-gate screenshots. Payment target sizing and proposal status contrast pass.
+- Prior landing/chooser evidence remains applicable: six widths and reduced-motion,
+  no-JS visibility, demo/repeat and navigation checks. The landing source was not
+  changed by the payment/fixture follow-up.
+
+The fixture preparer was validated in a fresh isolated directory, including
+PostCSS config copying and dirty-source metadata. Focused lint and source diff
+whitespace checks passed. Tests do not prove hosted auth, actual signing,
+settlement or all individual chain-specific screens. Publication is still held.
