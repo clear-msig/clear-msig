@@ -15,7 +15,8 @@
 //   • Security group: App lock + Sign-in security.
 //   • Sign out at the foot - destructive leaf, separate from groups.
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import dynamic from "next/dynamic";
 import { IdentityCard } from "@/components/settings/IdentityCard";
 import { AppLockRow } from "@/components/settings/AppLockRow";

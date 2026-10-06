@@ -14,7 +14,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Plus } from "lucide-react";
 import { backendApi } from "@/lib/api/endpoints";

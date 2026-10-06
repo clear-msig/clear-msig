@@ -28,7 +28,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { CheckCircle2, Info, X, ExternalLink, AlertTriangle } from "lucide-react";
 
 type ToastKind = "success" | "error" | "info";

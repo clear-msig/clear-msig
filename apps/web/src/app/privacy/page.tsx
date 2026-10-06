@@ -10,7 +10,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { ArrowRight, Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 import {
   LandingAtmospherics,

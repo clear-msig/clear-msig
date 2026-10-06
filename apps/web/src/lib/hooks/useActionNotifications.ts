@@ -74,9 +74,8 @@ export function useActionNotifications(): UseActionNotificationsResult {
     refetchOnWindowFocus: true,
   });
 
-  const [permission, setPermission] = useState<PermissionState>(() =>
-    detectPermission(),
-  );
+  // Keep the server and first client render identical; detect in the effect.
+  const [permission, setPermission] = useState<PermissionState>("unsupported");
   const [lastFiredAt, setLastFiredAt] = useState<number | null>(null);
   const membershipRows = memberships.data;
 

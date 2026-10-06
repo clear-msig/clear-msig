@@ -15,7 +15,7 @@
 // same trick with their rotating-pixel loader). Compositor-only so
 // it stays inside the 70fps budget even on a busy page.
 
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 
 interface BrandLoaderProps {
   variant?: "ring" | "dot";

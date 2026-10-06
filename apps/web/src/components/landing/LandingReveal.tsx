@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 
 /** Progressive enhancement: content is visible in SSR, without JS, and when
  * reduced motion is enabled. Only offscreen landing storytelling is deferred. */

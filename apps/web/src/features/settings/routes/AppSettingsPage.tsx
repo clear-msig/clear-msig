@@ -14,7 +14,8 @@
 import { SettingsNav } from "@/features/settings/ui/SettingsNav";
 import clsx from "clsx";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import {
   ArrowRight,
   Download,

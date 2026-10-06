@@ -44,7 +44,7 @@ export function DeskStatus({
           ? "border-accent/25 bg-accent/[0.06]"
           : tone === "warn"
             ? "border-warning/30 bg-warning/[0.06]"
-            : "border-white/10 bg-white/[0.03]",
+            : "border-border-soft bg-canvas",
       )}
     >
       <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-soft">
@@ -91,7 +91,7 @@ export function GettingStartedPanel({
         </Link>
       </div>
 
-      <ol className="mt-4 grid gap-2">
+      <ol className="mt-6 grid min-w-0 gap-3">
         {steps.map((step, index) => {
           const current = index === currentStep && !step.done;
           const StepIcon = step.Icon;
@@ -99,7 +99,7 @@ export function GettingStartedPanel({
             <li
               key={step.id}
               className={clsx(
-                "flex items-center gap-3 rounded-soft border px-3 py-2.5",
+                "flex min-w-0 items-center gap-3 rounded-soft border px-3 py-3",
                 current
                   ? "border-accent/40 bg-accent/[0.06]"
                   : "border-border-soft bg-canvas",
@@ -123,7 +123,7 @@ export function GettingStartedPanel({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-text-strong">{step.label}</p>
-                <p className="mt-0.5 truncate text-xs text-text-soft">
+                <p className="mt-1 break-words text-xs leading-relaxed text-text-soft">
                   {step.done ? "Done" : current ? step.description : "Waiting"}
                 </p>
               </div>
@@ -231,7 +231,7 @@ export function ReadinessPanel({
           {setup} to finish · {blocked} stopped
         </span>
       </div>
-      <div className="mt-4 grid gap-2">
+      <div className="mt-6 grid min-w-0 gap-3">
         {topItems.map((item) => {
           const agent = agents.find((entry) => entry.id === item.agentId);
           return (

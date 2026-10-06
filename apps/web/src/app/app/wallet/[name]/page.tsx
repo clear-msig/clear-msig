@@ -21,7 +21,7 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,

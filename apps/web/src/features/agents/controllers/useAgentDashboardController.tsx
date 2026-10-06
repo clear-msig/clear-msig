@@ -13,7 +13,7 @@ import { buildAgentNotifications, markAgentNotificationSeen, markAllAgentNotific
 import { useAgentTypedClearSignApproval } from "@/features/agents/infrastructure/typedApprovalClient";
 import { encryptStatus } from "@/lib/encrypt/client";
 import { toDisplayName } from "@/lib/retail/walletNames";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { Bot, Clock, type LucideIcon, Play, ShieldCheck } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";

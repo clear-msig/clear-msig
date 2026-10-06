@@ -91,7 +91,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className="relative flex flex-col gap-6"
     >
-      <header className="overflow-hidden rounded-card border border-accent/25 bg-[#050706] p-4 shadow-card-rest sm:p-5">
+      <header className="overflow-hidden rounded-card border border-accent/25 bg-surface-raised p-6 shadow-card-rest sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-1">
             <p className="font-mono text-xs uppercase tracking-[0.24em] text-text-soft">

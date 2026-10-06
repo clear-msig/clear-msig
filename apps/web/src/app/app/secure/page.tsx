@@ -25,7 +25,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useInView } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,

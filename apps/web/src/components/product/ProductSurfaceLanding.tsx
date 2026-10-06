@@ -54,7 +54,7 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
 
   return (
     <ProductShell>
-      <section className="relative z-10 mx-auto grid min-h-[calc(100vh-96px)] w-full max-w-6xl gap-8 px-5 pb-14 pt-10 sm:px-8 lg:grid-cols-[minmax(0,1fr)_390px] lg:px-10">
+      <section className="relative z-10 mx-auto grid min-h-[calc(100vh-96px)] w-full max-w-[1184px] gap-16 px-6 py-16 sm:px-12 lg:grid-cols-[minmax(0,1fr)_390px] lg:gap-24 lg:py-24">
         <div className="flex flex-col justify-center">
           <p className="flex flex-wrap items-center gap-2 font-mono-tech text-xs uppercase tracking-[0.28em] text-[#ccff00]">
             <span>{surface.host}</span>
@@ -64,10 +64,10 @@ export function ProductSurfaceLanding({ id }: { id: ProductSurfaceId }) {
               </span>
             ) : null}
           </p>
-          <h1 className="landing-section-heading mt-5 max-w-4xl text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[0.9] text-white">
+          <h1 className="landing-section-heading mt-5 max-w-4xl text-[clamp(2.4rem,7vw,5.8rem)] font-medium leading-[1.02] text-white">
             {surface.headline}
           </h1>
-          <p className="mt-5 max-w-xl text-base leading-snug text-white/62 sm:text-lg">
+          <p className="mt-8 max-w-xl text-base leading-relaxed text-white/62 sm:text-lg">
             {surface.summary}
           </p>
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/76">
@@ -175,7 +175,7 @@ function ProductShell({
       </div>
       <LandingNav cta={cta} />
       {children}
-      <footer className="relative z-10 mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] px-5 py-7 text-xs text-white/45 sm:px-8 lg:px-10">
+      <footer className="relative z-10 mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] px-6 py-10 text-xs text-white/45 sm:px-12">
         <Link
           href="/"
           className="flex items-center gap-2 transition-colors hover:text-white"

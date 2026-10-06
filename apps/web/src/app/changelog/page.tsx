@@ -12,7 +12,8 @@
 // through, not just reading.
 
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { ArrowLeft, Sparkles } from "lucide-react";
 
 interface Entry {

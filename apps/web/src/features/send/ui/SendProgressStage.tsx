@@ -18,7 +18,7 @@ export function SendProgressStage({
         <BrandLoader size={32} label={loaderLabel} />
       </div>
       <p className="mt-5 text-base text-text-strong">{primary}</p>
-      <p className="mt-1 text-xs text-text-soft">{hint}</p>
+      <p className="mt-3 max-w-md text-sm leading-relaxed text-text-soft">{hint}</p>
     </section>
   );
 }

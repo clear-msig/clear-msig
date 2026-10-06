@@ -26,7 +26,8 @@ import { SecureRecoveryNotice, useSecureOperation } from "@/features/secure/infr
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@/lib/wallet";
 import { useQueryClient } from "@tanstack/react-query";

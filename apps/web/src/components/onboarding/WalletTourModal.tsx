@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { ArrowRight, Check, Sparkles, X } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { useFocusTrap } from "@/lib/hooks/useFocusTrap";

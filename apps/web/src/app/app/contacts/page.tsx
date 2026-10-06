@@ -21,7 +21,8 @@
 
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { Plus, Search, Trash2, UserPlus, Users } from "lucide-react";
 import { useContacts } from "@/lib/hooks/useContacts";
 import {
@@ -116,7 +117,7 @@ export default function ContactsPage() {
         // the top of an otherwise blank screen. min-h is sized to
         // the mobile available area (viewport minus floating header
         // pill + BottomNav). Desktop reverts to natural flow.
-        <div className="flex min-h-[calc(100dvh-12rem)] flex-col justify-center md:min-h-0 md:block">
+        <div className="flex flex-col py-8 md:py-12">
           <EmptyState onAdd={() => setAdding(true)} />
         </div>
       ) : noMatch ? (

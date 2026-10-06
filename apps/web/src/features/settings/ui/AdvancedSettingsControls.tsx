@@ -207,8 +207,10 @@ function LedgerAccountSettingRow() {
   const [index, setIndex] = useState<number>(0);
   const [savedIndex, setSavedIndex] = useState<number>(0);
   const [busy, setBusy] = useState(false);
+  const [supportsHid, setSupportsHid] = useState(false);
 
   useEffect(() => {
+    setSupportsHid("hid" in navigator);
     const v = getLedgerAccountIndex();
     setIndex(v);
     setSavedIndex(v);
@@ -217,7 +219,7 @@ function LedgerAccountSettingRow() {
   // Hide the row entirely on browsers without WebHID. The user
   // can't connect a Ledger here, so the picker would just be
   // confusing chrome.
-  if (typeof navigator !== "undefined" && !("hid" in navigator)) {
+  if (!supportsHid) {
     return null;
   }
 

@@ -18,7 +18,8 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
 import {
   LandingAtmospherics,

@@ -44,12 +44,12 @@ export function PageEyebrow({
       <span aria-hidden="true" className="block h-px w-10 bg-accent" />
       <p
         className={
-          "mt-2 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft"
+          "mt-3 text-xs font-semibold uppercase tracking-[0.24em] text-text-soft"
         }
       >
         {label}
       </p>
-      <div className="mt-2">{children}</div>
+      <div className="mt-4">{children}</div>
     </header>
   );
 }
