@@ -1529,3 +1529,10 @@
 /* Clip horizontal artwork without creating a body scroll container: the story
    stage and header must stick to the viewport on this route only. */
 :global(body):has(.page) { overflow-x: clip; }
+
+/* The complete menu keeps all destinations available on narrow phones. */
+@media(max-width:380px){
+  .header>nav{display:none}
+  .brand{flex-shrink:0;white-space:nowrap}
+  .headerAction{white-space:nowrap}
+}

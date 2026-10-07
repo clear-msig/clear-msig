@@ -8,7 +8,7 @@ sculptural ClearSig identity, auth and financial behavior are preserved.
 
 | Requested mechanism | Implementation | Current verification |
 | --- | --- | --- |
-| Connected staged story | Native scroll through request, rules and owners, with a bounded sticky workspace at ≥1000×800; shorter desktops use normal flow | Forward/reverse chapter traversal and sticky position passed; normal-flow mobile/tablet/reduced-motion/no-JS fallbacks passed |
+| Connected staged story | Native scroll through request, rules and owners, with a bounded sticky workspace at ≥1000×720; shorter desktops use normal flow | Forward/reverse chapter traversal and sticky position passed; normal-flow mobile/tablet/reduced-motion/no-JS fallbacks passed |
 | Evolving shared scene | The same 5 SOL request is transformed and layered with policy and owner surfaces; explicit local 12 SOL block and second-approval/reset examples | Scroll does not approve. Policy failure disables approval; restore/reset/repeated actions passed. CSS perspective/transforms, not a claimed WebGL engine |
 | Progress, chapter jumps and skip | Persistent labelled navigation on every width, current chapter, progress bar and skip-to-products | Direct jumps, reverse progress, deep links, refresh and skip passed, including 320px |
 | Expanded navigation | Native modal dialog, grouped real destinations, keyboard loop, Escape, restored focus, background scroll lock and history handling | Desktop/mobile keyboard, Back/Forward and chapter selection passed; axe menu scans passed |
@@ -21,8 +21,8 @@ review artifact, not production deployment proof.
 
 ## Verification
 
-- Eight Chromium configurations passed on the final production build (seven
-  in the main run, then the no-JavaScript case after correcting test polling): 1440×900 and 1280×720 desktop,
+- Eleven Chromium configurations passed in the final production matrix: 1440×900,
+  1280×720, 1180×757 and 1000×720 pinned desktop; 1180×650 normal-flow desktop,
   390×844 and 320×740 mobile, 768×1024 tablet, desktop/mobile reduced motion,
   and desktop JavaScript disabled.
 - No page errors or horizontal overflow in the matrix.
@@ -33,8 +33,11 @@ review artifact, not production deployment proof.
   metadata, architecture and signing registry checks passed.
 - Final production build and unchanged bundle gate passed: external-wallet profile
   1123.5/1124 kB; legacy Turnkey 979.4/991 kB. No limits were relaxed.
-- Parent visual critique of the final evidence package remains pending. No publication yet.
-- A direct production-browser recording covers forward/reverse traversal, skip,
+- Parent visual review passed the five-item evidence package. The subsequent
+  laptop-height/header refinement has production runtime proof in the updated
+  package; publication is authorized after the final checks.
+- A direct production-browser recording at the original 1180×757 comparison
+  viewport covers forward/reverse traversal, skip,
   grouped menu, keyboard movement and Escape. It is sampled capture evidence,
   not a frame-rate benchmark. Supporting screenshots show resources/footer and
   mobile controls. Links and disclosure content were checked separately from pixels.
@@ -61,3 +64,12 @@ changes are included. Previously known security-CI dependency findings remain
 outside this landing scope; a frontend build does not clear them. External
 product routes may require configured providers; link correctness is not a
 claim that authenticated production flows were tested.
+
+## Final responsive refinement
+
+The review found the 800px pinning cutoff excluded a normal 1180×757 laptop.
+Compact scene spacing now keeps every panel above the HUD at 1180×757,
+1280×720 and the 1000×720 lower bound. Below 720px height or 1000px width,
+and with reduced motion/no JavaScript, the normal-flow story remains available.
+At 320px the redundant header Products link moves into the full menu, preserving
+the complete wordmark, Menu and Sign in without overlap. No colors changed.

@@ -25,7 +25,7 @@ export function ApprovalStory() {
   useEffect(() => { setReady(true); }, []);
   useEffect(() => {
     if (!ready || restoredHash.current) return;
-    const expected = matchMedia("(min-width: 1000px) and (min-height: 800px)").matches && !reduced;
+    const expected = matchMedia("(min-width: 1000px) and (min-height: 720px)").matches && !reduced;
     if (enhanced !== expected) return;
     let cancelled = false;
     void document.fonts.ready.then(() => {
@@ -41,7 +41,7 @@ export function ApprovalStory() {
   useEffect(() => {
     const element = root.current;
     if (!element) return;
-    const media = matchMedia("(min-width: 1000px) and (min-height: 800px)");
+    const media = matchMedia("(min-width: 1000px) and (min-height: 720px)");
     const configure = () => setEnhanced(media.matches && !reduced);
     configure();
     media.addEventListener("change", configure);
