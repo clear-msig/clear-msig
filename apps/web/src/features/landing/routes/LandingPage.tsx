@@ -13,8 +13,7 @@ import { ClearCMark } from "@/components/landing/ClearCMark";
 import { LandingReveal } from "@/components/landing/LandingReveal";
 import s from "./LandingPage.module.css";
 import { ChainMarquee } from "../ui/home/ChainMarquee";
-import { ApprovalFolio } from "../ui/ApprovalFolio";
-import { QuorumScene } from "../ui/QuorumScene";
+import { SignatureStage } from "../ui/SignatureStage";
 import { LandingSectionNav } from "../ui/LandingSectionNav";
 
 export default function HomePage() {
@@ -44,73 +43,42 @@ export default function HomePage() {
           className={`${s.hero} ${s.cinematicHero}`}
           aria-labelledby="hero-title"
         >
-          <div className={s.heroCopy}>
-            <p className={s.eyebrow}>YOUR MONEY. YOUR PEOPLE. YOUR RULES.</p>
-            <h1 id="hero-title">
-              Every approval.
-              <br />
-              <em>Crystal clear.</em>
-            </h1>
-            <p className={s.intro}>
-              Move together. Know exactly what you’re signing.
-              <br className={s.desktopBreak} /> Shared wallets with clarity at
-              every step.
-            </p>
-            <div className={s.actions}>
-              <Link className={s.primary} href="/choose">
-                Explore ClearSig <ArrowRight size={19} aria-hidden="true" />
+          <div className={s.stageTopline}>
+            <span>01 / SHARED CONTROL</span>
+            <span>Devnet preview · Test funds only</span>
+          </div>
+          <SignatureStage />
+          <h1 id="hero-title">
+            <span>Sign intents.</span> <span>Not hex.</span>
+          </h1>
+          <div className={s.stagePrinciples} aria-label="ClearSig principles">
+            <span>YOUR INTENT</span>
+            <span>YOUR RULES</span>
+            <span>YOUR PEOPLE</span>
+          </div>
+          <div className={s.stageFooter}>
+            <div className={s.stageActions}>
+              <Link className={s.stagePrimary} href="/choose">
+                Explore ClearSig <ArrowRight size={16} aria-hidden="true" />
               </Link>
-              <a className={s.secondary} href="#approval">
-                See an approval <ArrowDown size={16} aria-hidden="true" />
+              <a href="#approval">
+                See an approval <ArrowDown size={14} aria-hidden="true" />
               </a>
             </div>
-            <p className={s.preview}>
-              <span aria-hidden="true" /> Devnet preview · Test funds only
-            </p>
-          </div>
-          <QuorumScene />
-          <div className={s.heroFoot}>
-            <p>
-              Sign intents. <em>Not hex.</em>
-            </p>
-            <a href="#how-it-works">
-              Clarity, from the first step{" "}
-              <ArrowDown size={15} aria-hidden="true" />
-            </a>
-            <span>BUILT FOR SHARED CONTROL</span>
+            <p>Shared wallets. Readable approvals.</p>
           </div>
         </section>
         <LandingSectionNav />
-        <ChainMarquee />
-        <section className={s.editorial} aria-labelledby="control-title">
-          <LandingReveal>
-            <div className={s.editorialCopy}>
-              <p className={s.eyebrow}>01 / BUILT AROUND YOUR PEOPLE</p>
-              <h2 id="control-title">
-                A shared wallet.
-                <br />
-                <span>A clear decision.</span>
-              </h2>
-              <p>
-                The action, the rules, the people. Bring them into one readable
-                request, so every owner knows what their approval means.
-              </p>
-              <a className={s.secondary} href="#approval">
-                Follow a request <ArrowDown size={16} aria-hidden="true" />
-              </a>
-            </div>
-          </LandingReveal>
-          <LandingReveal>
-            <ApprovalFolio />
-          </LandingReveal>
-        </section>
+        <div className={s.chapterDivider}>
+          <span>FROM INTENT TO APPROVAL</span>
+        </div>
         <LandingReveal>
           <div className={s.demoHeading}>
-            <p className={s.eyebrow}>LESS GUESSWORK. MORE CONTEXT.</p>
+            <p className={s.eyebrow}>01 / UNDERSTAND THE REQUEST</p>
             <h2>
-              Know what happens.
+              Every approval.
               <br />
-              <span>Before it happens.</span>
+              <span>Crystal clear.</span>
             </h2>
             <p>
               A closer look at a request. Clear details, visible rules and an
@@ -233,6 +201,9 @@ export default function HomePage() {
             </div>
           </section>
         </LandingReveal>
+        <div className={s.chapterDivider}>
+          <span>THE DECISION PATH</span>
+        </div>
         <section
           id="how-it-works"
           className={s.chapters}
@@ -320,6 +291,10 @@ export default function HomePage() {
             </LandingReveal>
           </div>
         </section>
+        <ChainMarquee />
+        <div className={s.chapterDivider}>
+          <span>FIND YOUR STARTING POINT</span>
+        </div>
         <section
           id="products"
           className={s.products}
