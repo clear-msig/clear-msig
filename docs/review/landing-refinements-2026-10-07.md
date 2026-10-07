@@ -117,3 +117,26 @@ cache was moved aside after stopping an orphaned preview child process. This ver
 flow, not authenticated product flows. No live wallet connects, signatures,
 transactions or provider credentials are involved. No Rust/SBF tests or
 separate dependency-remediation work were run for this frontend-only change.
+
+## Bounded mobile resources polish
+
+Below 651px, the resource note now stacks its text beneath the original 100px
+owl, with the 44px dismiss target in the upper-right grid cell. Tablet/desktop
+stay side by side. The label remains one line and the sentence is two lines at
+320, 390 and 768px; measured copy widths are 272, 342 and 430px respectively.
+
+After this CSS-only change, production build (including lint/types), unchanged
+bundle gates, `git diff --check`, targeted 320/390/768 browser checks and 320px
+no-JavaScript checks passed. Three new axe WCAG 2 A/AA + 2.1 AA scans found zero
+violations. Checks covered original owl size, full-width phone copy, 44px control
+clearance, keyboard dismissal/focus restoration, no overflow and no page errors.
+The previous full aggregate and 18 interaction scenarios remain documented above;
+they were not unnecessarily repeated for this layout-only polish.
+
+Motion is whole-image only: desktop Sigi begins perched beside the C, then shares
+its scroll progress for up to 16px translation, 10% scaling down, and fading.
+There is no separate peek-in, blink, eye, wing or pointing animation. Mobile and
+reduced-motion Sigi remain static in their respective layouts.
+
+The same Library PDF is updated with narrow resource captures, and
+`ClearSig-Sigi-welcome-desktop-mobile.png` provides a compact welcome comparison.
