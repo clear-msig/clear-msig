@@ -128,6 +128,16 @@ beforeEach(() =>
   votePending: false,
   }),
 );
+it("puts the verified action before sharing and explorer controls", () => {
+  const html = render();
+  const action = html.indexOf("Canonical fixture review");
+  expect(action).toBeGreaterThan(-1);
+  expect(action).toBeLessThan(html.indexOf("Copy link to share"));
+  expect(action).toBeLessThan(html.indexOf("View on Solana Explorer"));
+  expect(html).toContain("Request account");
+  expect(html).toContain("Print / save PDF");
+});
+
 describe("production proposal detail with synthetic account and provider boundaries", () => {
   it("loads vote evidence on request and labels aggregate threshold time accurately", () => {
     fixtures.approvals = 3;

@@ -149,8 +149,8 @@
   color: var(--clear-text-soft, #a3a3a3);
 }
 @media (max-width: 520px) {
-  .lead, .to { padding-left: 16px; padding-right: 16px; }
+  .lead, .to { padding: 12px 16px; }
   .rows { padding-left: 16px; padding-right: 16px; }
-  .row { grid-template-columns: 1fr; }
+  .row { grid-template-columns: 5.5rem minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; }
   .note { padding-left: 16px; padding-right: 16px; }
 }

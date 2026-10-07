@@ -346,7 +346,7 @@ function Loaded({
     <motion.div
       {...motionProps}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]"
+      className="grid min-w-0 items-start gap-3 sm:gap-6 lg:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]"
     >
       {/* Compact left-aligned hero. Back navigation lives in the
           global DashboardHeader; the wallet name is shown inline as
@@ -361,8 +361,27 @@ function Loaded({
         collected={approvalsCollected}
         threshold={approvalThreshold}
         members={approverCount}
-        proposalAddress={proposalPda}
-      >
+      />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-6">
+      <CanonicalActionReview
+        review={
+          workflow.reviewQuery.isError ? undefined : workflow.reviewQuery.data
+        }
+        error={workflow.reviewQuery.error?.message}
+        loading={workflow.reviewQuery.isFetching}
+        summaryContext={summaryContext}
+        onRefresh={() => {
+          void workflow.reviewQuery.refetch();
+        }}
+      />
+
+      <section aria-label="Request links and records" className="min-w-0">
+        <p className="text-xs text-text-soft">
+          Request account
+          <code className="mt-1 block break-all leading-relaxed text-text-strong">{proposalPda}</code>
+        </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2 print:hidden">
           <ShareProposalButton />
           <PrintProposalButton />
@@ -394,21 +413,7 @@ function Loaded({
             Printed from Clear · pre-alpha · Solana devnet
           </p>
         </div>
-      </RequestOverview>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-6">
-      <CanonicalActionReview
-        review={
-          workflow.reviewQuery.isError ? undefined : workflow.reviewQuery.data
-        }
-        error={workflow.reviewQuery.error?.message}
-        loading={workflow.reviewQuery.isFetching}
-        summaryContext={summaryContext}
-        onRefresh={() => {
-          void workflow.reviewQuery.refetch();
-        }}
-      />
+      </section>
 
       {workflow.executionAttempt && (
         <ExecutionRecoveryNotice

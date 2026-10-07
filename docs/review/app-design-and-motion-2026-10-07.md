@@ -44,3 +44,17 @@ Updated landing board and real desktop/mobile scroll recordings are in `/workspa
 - Live provider/authentication, hardware/passkey prompts, financial submissions, canonical chain state, settlement evidence and venue execution require their existing configurations/capabilities and authorized integration tests. No financial or account operation was performed.
 - Prior main's security workflow reported 23 frontend dependency advisories (14 moderate, 9 high). This visual-only pass makes no dependency remediation or fresh security-audit claim.
 - Current external-wallet budget has only about 0.5 kB headroom. The existing provider-size constraint is unchanged; do not interpret a passing ratchet as completion of the smaller long-term targets.
+
+## Independent review follow-up
+
+The reviewer identified that mobile proposal metadata/share controls preceded the transaction facts. Request account and copy/print/explorer controls now follow the canonical review; no facts, warnings, or signing handlers were removed. The mobile overview uses less vertical space, and summary rows keep labels beside values. At 390×844, the entire deadline row ends at approximately 770px, above navigation beginning at 787px. At 320×600, all essential facts and controls remain reachable by native scrolling.
+
+The agent header previously counted active traders, whereas the setup checklist counted a selected trader. A selected paused trader consequently read both Needed and Done. The header is now explicitly Trader selection and uses the checklist's selection state. No trading readiness, authorization, or execution semantics changed.
+
+Onboarding's existing bottom padding makes the full create button and cancel link reachable; the original board was an initial viewport, not a scroll-end capture. The cancel link now has a 44px touch target and visible keyboard focus. New 390×500 scroll-end evidence shows both controls above navigation.
+
+Follow-up validation: 39 focused tests pass (including verified-review-before-share regression), lint and TypeScript pass, final production compile and unchanged bundle gates pass. Fifteen focused browser cases at 320/390/768/1440 plus one signing-control clearance/cancel case pass. Earlier broad 1,947-test and 255-route runs predate these bounded refinements and are not claimed rerun. No root Rust/on-chain changes.
+
+Supplemental current board: Library `libfile_245cd6a3ab2c8191a5478c0a7ff3f33e`, v0, file `file_00000000f29c81f5a9659347aa856943`. Shows mobile/tablet proposal, selected paused trader, onboarding scroll end, blocked review, real owner dialog and expanded signing component, with synthetic/local labels. The earlier six-family board remains historical evidence before these refinements.
+
+Exact-base auth diagnosis is in `public-auth-base-comparison-2026-10-07.md`: both ae1b817b and local 7761f04e reproduce the same loading-only public route state with identical dummy configuration and external requests blocked. Provider code is byte-for-byte unchanged. No authentication redesign was performed. A further supported motion upload retry again failed before upload with `hosted apps tools/list request failed: network`; existing motion Library versions are still v0 and updated local files are retained.

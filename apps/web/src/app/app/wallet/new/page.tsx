@@ -799,7 +799,7 @@ function NewWalletContent() {
           the page CTA is always the obvious next step. */}
       <Link
         href="/app"
-        className="self-center text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong"
+        className="inline-flex min-h-tap scroll-mb-24 items-center self-center px-3 text-xs text-text-soft transition-colors duration-base ease-out-soft hover:text-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         Cancel and go back
       </Link>

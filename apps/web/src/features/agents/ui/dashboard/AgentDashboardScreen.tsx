@@ -29,7 +29,6 @@ const agentToolClass = clsx(
 
 export function AgentDashboardScreen({ controller }: { controller: ReturnType<typeof useAgentDashboardController> }) {
   const {
-    activeAgents,
     agentNotificationSummary,
     agents,
     allocationRecommendations,
@@ -85,6 +84,8 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
     submitVenueProposal,
     unreadAgentNotifications,
   } = controller;
+  const traderChosen = gettingStartedSteps.some((step) => step.id === "trader" && step.done);
+
   return (
     <motion.div
       {...motionProps}
@@ -114,7 +115,7 @@ export function AgentDashboardScreen({ controller }: { controller: ReturnType<ty
           </Link>
         </div>
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <DeskStatus label="Trader" value={activeAgents ? "Chosen" : "Needed"} tone={activeAgents ? "accent" : "warn"} />
+          <DeskStatus label="Trader selection" value={traderChosen ? "Chosen" : "Needed"} tone={traderChosen ? "accent" : "warn"} />
           <DeskStatus label="Mode" value="Practice" tone="soft" />
           <DeskStatus
             label="Safety"

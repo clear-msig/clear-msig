@@ -239,3 +239,12 @@
   opacity: 0.6;
   cursor: wait;
 }
+
+/* Keep mobile request context brief so the action itself arrives first. */
+@media (max-width: 640px) {
+  .overview { padding: 12px 0; }
+  .overview .top { margin-bottom: 12px; }
+  .overview .kicker { margin-bottom: 8px; }
+  .overview .subtitle { margin: 8px 0 12px; }
+  .overview .progress { padding: 12px 0; gap: 12px; }
+}

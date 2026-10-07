@@ -23,12 +23,12 @@ export function RequestOverview({
   collected: number;
   threshold: number;
   members: number;
-  proposalAddress: string;
+  proposalAddress?: string;
   children?: ReactNode;
 }) {
   const remaining = Math.max(0, threshold - collected);
   return (
-    <section className={s.surface} aria-label="Request overview">
+    <section className={`${s.surface} ${s.overview}`} aria-label="Request overview">
       <div className={s.top}>
         <Link className={s.breadcrumb} href={walletHref}>
           <ArrowLeft size={16} aria-hidden="true" />
@@ -64,9 +64,11 @@ export function RequestOverview({
           </p>
         </div>
       </div>
-      <p className={s.address}>
-        Request account<code>{proposalAddress}</code>
-      </p>
+      {proposalAddress ? (
+        <p className={s.address}>
+          Request account<code>{proposalAddress}</code>
+        </p>
+      ) : null}
       {children}
     </section>
   );
