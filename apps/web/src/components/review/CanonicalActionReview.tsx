@@ -1,15 +1,22 @@
 import type { CanonicalProposalReview } from "@/lib/clearsign/proposalReview";
 import s from "./ReviewSurface.module.css";
+import {
+  ApprovalSummary,
+  type ApprovalSummaryContext,
+} from "./ApprovalSummary";
 export function CanonicalActionReview({
   review,
   error,
   loading,
   onRefresh,
+  summaryContext,
 }: {
   review?: CanonicalProposalReview;
   error?: string;
   loading: boolean;
   onRefresh: () => void;
+  /** When supplied, a plain-language summary is shown above the exact document. */
+  summaryContext?: ApprovalSummaryContext;
 }) {
   return (
     <section className={s.surface} aria-label="Canonical action review">
@@ -21,6 +28,9 @@ export function CanonicalActionReview({
       ) : review ? (
         <>
           <h2 className={s.heading}>{review.headline}</h2>
+          {summaryContext ? (
+            <ApprovalSummary review={review} context={summaryContext} />
+          ) : null}
           <p className={s.subtitle}>
             Exact v4 document bound to this request’s on-chain envelope.
             Required: {review.threshold} of {review.binding.approvers.length}{" "}

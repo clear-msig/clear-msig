@@ -60,6 +60,10 @@ import { friendlyIntentLabel, friendlyStatus } from "@/lib/retail/labels";
 import { toDisplayName } from "@/lib/retail/walletNames";
 import { relativeTime } from "@/lib/util/relativeTime";
 import { useContacts } from "@/lib/hooks/useContacts";
+import { recentRecipients } from "@/lib/retail/txLog";
+import { CLEAR_WALLET_PROGRAM_ID } from "@/lib/chain/client";
+import { findVaultAddress } from "@/lib/msig";
+import type { ApprovalSummaryContext } from "@/components/review/ApprovalSummary";
 import { appConfig } from "@/lib/config";
 import { MemberAvatar } from "@/components/retail/MemberAvatar";
 import { avatarInitials } from "@/lib/retail/avatar";
@@ -193,6 +197,35 @@ function Loaded({
     for (const c of contacts) map.set(c.address, c.name);
     return map;
   }, [contacts]);
+
+  // Vault balance for the before -> after line. Read-only and optional:
+  // when the RPC read fails the summary simply omits that row.
+  const { connection } = useConnection();
+  const vaultBalance = useQuery({
+    queryKey: ["review-vault-balance", intent.wallet, connection.rpcEndpoint],
+    queryFn: async () => {
+      const [vault] = findVaultAddress(
+        new PublicKey(intent.wallet),
+        CLEAR_WALLET_PROGRAM_ID,
+      );
+      return BigInt(await connection.getBalance(vault, "confirmed"));
+    },
+    staleTime: 15_000,
+    retry: 1,
+  });
+  const summaryContext = useMemo<ApprovalSummaryContext>(
+    () => ({
+      contacts: contacts.map((c) => ({ name: c.name, address: c.address })),
+      recentRecipients: recentRecipients(walletName, 0, 50).map(
+        (r) => r.address,
+      ),
+      vaultLamports: vaultBalance.data ?? null,
+      nowMs: Date.now(),
+    }),
+    // nowMs is read when the review (re)renders with fresh data.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contacts, walletName, vaultBalance.data, proposal.status],
+  );
 
   const proposerLabel = proposerName(
     proposal.proposer,
@@ -371,6 +404,7 @@ function Loaded({
         }
         error={workflow.reviewQuery.error?.message}
         loading={workflow.reviewQuery.isFetching}
+        summaryContext={summaryContext}
         onRefresh={() => {
           void workflow.reviewQuery.refetch();
         }}
