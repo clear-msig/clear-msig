@@ -1568,3 +1568,57 @@
   .productList > div:nth-child(2) .productScene { order: 0; }
   .productCopy { gap: 16px; padding: 20px 0 8px; }
 }
+
+/* Idle movement is nested inside the scroll transform, independent of Sigi/UI. */
+.signatureTurn {
+  transform-origin: 600px 275px;
+  animation: signatureTurn 18s ease-in-out infinite paused;
+}
+.orbitParticle {
+  offset-path: ellipse(390px 114px at 600px 285px);
+  offset-distance: 42%;
+  offset-rotate: 0deg;
+  animation: signatureOrbit 20s linear -8.4s infinite paused;
+}
+.orbitCompanion { animation-delay: -18.4s; }
+.orbitOuter {
+  offset-path: ellipse(320px 206px at 600px 285px);
+  animation-duration: 28s;
+  animation-delay: -5.6s;
+  animation-direction: reverse;
+}
+.signatureStage[data-motion="running"] .signatureTurn,
+.signatureStage[data-motion="running"] .orbitParticle { animation-play-state: running; }
+@keyframes signatureTurn {
+  0%, 100% { transform: rotate(-9deg) scaleX(0.92) skewY(-3deg); }
+  50% { transform: rotate(13deg) scaleX(1.04) skewY(3deg); }
+}
+@keyframes signatureOrbit {
+  from { offset-distance: 0%; }
+  to { offset-distance: 100%; }
+}
+.stageMotionControl {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  bottom: 16px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #0c0c0c;
+  color: var(--muted);
+  font: 10px/1.4 var(--font-mono);
+}
+.stageMotionControl:hover { color: var(--ink); }
+.stageMotionControl[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.stageMotionControl:focus-visible { outline: 2px solid #ccff00; outline-offset: 3px; }
+@media (max-width: 650px) {
+  .stageMotionControl { bottom: 14px; right: 24px; padding: 0 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signatureTurn, .orbitParticle { animation: none; }
+  .signatureTurn { transform: none; }
+  .orbitCompanion { offset-distance: 92%; }
+  .orbitOuter { offset-distance: 20%; }
+}

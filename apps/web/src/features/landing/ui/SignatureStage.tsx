@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useId } from "react";
+import { useEffect, useRef, useId, useState } from "react";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import s from "../routes/LandingPage.module.css";
 
 // An original geometric C with continuous curved bands and authored lighting. No canvas, WebGL,
-// remote assets, continuous animation, or loading gate.
+// remote assets or loading gate. Idle motion transforms this projected illustration,
+// not a live 3D camera or a transaction visualization.
 function project(u: number, v: number) {
   const radius = 164 + 46 * Math.cos(v);
   const x = radius * Math.cos(u);
@@ -54,6 +55,27 @@ export function SignatureStage() {
   const figure = useRef<HTMLElement>(null);
   const materialId = useId().replaceAll(":", "");
   const reducedMotion = useReducedMotion();
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    const target = figure.current;
+    if (!target || reducedMotion) return;
+    let visible = false;
+    const sync = () => {
+      target.dataset.motion = visible && !document.hidden && !paused ? "running" : "paused";
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      sync();
+    });
+    observer.observe(target);
+    document.addEventListener("visibilitychange", sync);
+    sync();
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", sync);
+      delete target.dataset.motion;
+    };
+  }, [paused, reducedMotion]);
   useEffect(() => {
     const target = figure.current;
     if (!target) return;
@@ -200,6 +222,7 @@ export function SignatureStage() {
           </linearGradient>
         </defs>
         <g className={s.signatureCore}>
+          <g className={s.signatureTurn}>
           <g filter={`url(#${materialId}-finish)`}>
             {bands.map((band, i) => (
               <path
@@ -228,10 +251,24 @@ export function SignatureStage() {
             strokeWidth="1.5"
           />
         </g>
-        <g fill="#ccff00">
-          <path d="m222 366 4 4-4 4-4-4ZM943 180l4 4-4 4-4-4ZM763 447l4 4-4 4-4-4Z" />
+        </g>
+        <g className={s.orbitField} fill="#ccff00">
+          <g transform="rotate(-16 600 285)">
+            <path className={s.orbitParticle} d="M0-5 5 0 0 5-5 0Z" />
+            <path className={`${s.orbitParticle} ${s.orbitCompanion}`} d="M0-4 4 0 0 4-4 0Z" />
+          </g>
+          <g transform="rotate(28 600 285)">
+            <path className={`${s.orbitParticle} ${s.orbitOuter}`} d="M0-4 4 0 0 4-4 0Z" />
+          </g>
         </g>
       </svg>
+      {!reducedMotion && (
+        <button type="button" className={s.stageMotionControl}
+          aria-pressed={paused}
+          onClick={() => setPaused((value) => !value)}>
+          Pause motion
+        </button>
+      )}
       <figcaption>
         Illustrative preview. No transaction or signature.
       </figcaption>
