@@ -2,13 +2,15 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import LandingPage from "./LandingPage";
 import { LandingNav } from "@/components/landing/LandingChrome";
 import { ProductChooser } from "@/components/product/ProductChooser";
 
 const read = (path: string) =>
   readFileSync(resolve(process.cwd(), "src", path), "utf8");
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 describe("public navigation and brand surface", () => {
   it("resolves every shared homepage fragment to exactly one rendered target", () => {
     const home = renderToStaticMarkup(createElement(LandingPage));

@@ -1525,3 +1525,7 @@
   padding-inline: 8px;
   background: #0c0c0c;
 }
+
+/* Clip horizontal artwork without creating a body scroll container: the story
+   stage and header must stick to the viewport on this route only. */
+:global(body):has(.page) { overflow-x: clip; }
