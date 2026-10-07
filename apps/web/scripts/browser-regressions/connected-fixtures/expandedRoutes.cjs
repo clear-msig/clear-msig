@@ -165,6 +165,137 @@ const cases = process.env.REVIEW_IDS
                   .waitFor();
                 await p.getByText("Not ready", { exact: true }).waitFor();
               }
+              if (row.id === "r42") {
+                const input = p.getByRole("textbox", {
+                  name: "Wallet-wide weekly spending limit in USD",
+                });
+                await input.fill("5000");
+                const contained = await input.evaluate((node) => {
+                  const box = node.getBoundingClientRect();
+                  const card = node.closest("section").getBoundingClientRect();
+                  const suffix = node.nextElementSibling;
+                  const unit = suffix.getBoundingClientRect();
+                  return (
+                    node.value === "5000" &&
+                    box.width >= 70 &&
+                    box.left >= card.left + 12 &&
+                    box.right <= card.right - 12 &&
+                    unit.left >= box.right + 4 &&
+                    unit.right <= card.right - 12 &&
+                    suffix.textContent === "/ week"
+                  );
+                });
+                if (!contained)
+                  throw new Error(
+                    "Weekly cap input or suffix escapes its card",
+                  );
+              }
+              if (row.id === "r42") {
+                const rows = await p
+                  .locator('input[aria-label$="weekly spending limit in USD"]')
+                  .evaluateAll((inputs) =>
+                    inputs.map((input) => {
+                      const card =
+                        input.closest("li") || input.closest("section");
+                      const bounds = card.getBoundingClientRect();
+                      const field = input.getBoundingClientRect();
+                      const suffix =
+                        input.nextElementSibling.getBoundingClientRect();
+                      return (
+                        field.width >= 70 &&
+                        field.left >= bounds.left + 8 &&
+                        suffix.left >= field.right + 4 &&
+                        suffix.right <= bounds.right - 8 &&
+                        bounds.right <= innerWidth
+                      );
+                    }),
+                  );
+                if (rows.length !== 6 || rows.some((contained) => !contained))
+                  throw new Error(
+                    "A weekly limit control escapes its own card",
+                  );
+              }
+              if (row.id === "r59") {
+                const amount = p.locator("#btc-amount");
+                const destination = p.locator("#btc-destination");
+                const note = p.locator("#btc-note");
+                const review = p.getByRole("region", {
+                  name: "Review transaction",
+                });
+                await review.waitFor();
+                const ordered = await p.evaluate(() => {
+                  const amount = document.querySelector("#btc-amount");
+                  const destination =
+                    document.querySelector("#btc-destination");
+                  const review = document.querySelector(
+                    'section[aria-label="Review transaction"]',
+                  );
+                  const send = [...document.querySelectorAll("button")].find(
+                    (button) => button.textContent.includes("Send request"),
+                  );
+                  return (
+                    !!review &&
+                    !!send &&
+                    !!(
+                      amount.compareDocumentPosition(review) &
+                      Node.DOCUMENT_POSITION_FOLLOWING
+                    ) &&
+                    !!(
+                      destination.compareDocumentPosition(review) &
+                      Node.DOCUMENT_POSITION_FOLLOWING
+                    ) &&
+                    !!(
+                      review.compareDocumentPosition(send) &
+                      Node.DOCUMENT_POSITION_FOLLOWING
+                    ) &&
+                    destination.getBoundingClientRect().bottom <=
+                      review.getBoundingClientRect().top
+                  );
+                });
+                if (!ordered)
+                  throw new Error(
+                    "Bitcoin must order inputs, exact review, then action",
+                  );
+                await amount.fill("0.001");
+                await destination.fill("review-only-invalid-address");
+                await note.fill("Local review only");
+                await amount.fill("0.002");
+                if (
+                  (await amount.inputValue()) !== "0.002" ||
+                  (await destination.inputValue()) !==
+                    "review-only-invalid-address" ||
+                  (await note.inputValue()) !== "Local review only"
+                )
+                  throw new Error(
+                    "Bitcoin edits lost form state: " +
+                      JSON.stringify({
+                        amount: await amount.inputValue(),
+                        destination: await destination.inputValue(),
+                        note: await note.inputValue(),
+                      }),
+                  );
+                if (!(await review.innerText()).includes("Send 0.002 BTC"))
+                  throw new Error(
+                    "Bitcoin review did not reflect edited amount",
+                  );
+                if (
+                  !(await p
+                    .getByRole("button", { name: "Send request", exact: true })
+                    .isDisabled())
+                )
+                  throw new Error(
+                    "Empty UTXO fixture must not authorize sending",
+                  );
+                await amount.fill("");
+                await destination.fill("");
+                await note.fill("");
+                await review
+                  .getByText("Fill in the amount and recipient above", {
+                    exact: true,
+                  })
+                  .waitFor();
+                await p.evaluate(() => window.scrollTo(0, 0));
+              }
               const text = await p.locator("body").innerText();
               const overflow = await p.evaluate(
                 () => document.documentElement.scrollWidth > innerWidth,

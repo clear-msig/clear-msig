@@ -1,5 +1,7 @@
 # Expanded app review — 6 October 2026
 
+Latest continuation: [Budget, Bitcoin and signing-input follow-up](budget-bitcoin-followup-2026-10-07.md), including fresh narrow-width screenshots and four additional regressions. Publication remains held.
+
 Local continuation after `36407ee93e0429cdce2e4ce00be9636628bd31ff`. Publication remains held. Original palettes, trading protections, Paystack and Korapay are preserved. No live financial calls, account creation, wallet signing or credential provisioning took place.
 
 ## Changes

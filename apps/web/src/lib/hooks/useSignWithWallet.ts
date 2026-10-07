@@ -11,7 +11,7 @@
 // analytics / telemetry later.
 
 import { WalletSignError, ensureDescriptorFresh } from "@/lib/wallet/signingError";
-import { affectsSigningReview } from "@/lib/clearsign/reviewEvents";
+import { subscribeSigningReviewInvalidation } from "@/lib/clearsign/reviewEvents";
 import { usePathname } from "next/navigation";
 import { trackProviderSigning, withSigningLock } from "@/lib/clearsign/signingLock";
 import { useRequestIdentity } from "@/lib/hooks/useRequestIdentity";
@@ -85,10 +85,9 @@ export function useSignWithWallet(config?: { reviewHandledBySolanaSend?: boolean
   }
   const revision = lifetime.current.revision;
   useEffect(() => {
-    const invalidate = (event: Event) => { if (affectsSigningReview(event)) { lifetime.current.revision += 1; refreshRevision(); } };
-    const events = ["input", "storage", "clear:policies-changed", "clear:spending-budget-changed", "clear:personal-policy-changed"];
-    for (const event of events) window.addEventListener(event, invalidate, true);
-    return () => { for (const event of events) window.removeEventListener(event, invalidate, true); };
+    return subscribeSigningReviewInvalidation(window, () => {
+      lifetime.current.revision += 1;
+    }, refreshRevision);
   }, []);
   const captureReview = useCallback((assertOperation?: () => void) => {
     if (!signerWallet.connected || !signerWallet.publicKey)

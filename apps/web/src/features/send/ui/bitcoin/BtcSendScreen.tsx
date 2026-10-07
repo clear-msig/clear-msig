@@ -54,13 +54,15 @@ interface BtcSendScreenProps {
   onResetError: () => void;
   onDismissError: () => void;
   policyEvaluation:
-    ComponentProps<typeof PolicyMatchBanner>["evaluation"] | null;
+    | ComponentProps<typeof PolicyMatchBanner>["evaluation"]
+    | null;
   compose: ComposeProps;
   approvalThreshold: number;
   timelockSeconds: number;
   sent: ComponentProps<typeof SentCard>["sent"] | null;
   awaitingApproval:
-    ComponentProps<typeof AwaitingApprovalCard>["request"] | null;
+    | ComponentProps<typeof AwaitingApprovalCard>["request"]
+    | null;
   onSendAnother: () => void;
   onRequestAnother: () => void;
 }
@@ -187,27 +189,31 @@ export function BtcSendScreen({
           />
         )}
         {ready && !sent && !awaitingApproval && (
-          <SignPayloadPreview
-            action={
-              compose.amountBtc.trim() && compose.destination.trim()
-                ? `Send ${compose.amountBtc.trim()} BTC to ${shortBtcAddress(compose.destination.trim())}`
-                : "Fill in the amount and recipient above"
+          <ComposeForm
+            {...compose}
+            review={
+              <SignPayloadPreview
+                action={
+                  compose.amountBtc.trim() && compose.destination.trim()
+                    ? `Send ${compose.amountBtc.trim()} BTC to ${shortBtcAddress(compose.destination.trim())}`
+                    : "Fill in the amount and recipient above"
+                }
+                details={buildBtcPreviewDetails({
+                  walletDisplay,
+                  destination: compose.destination,
+                  amountBtc: compose.amountBtc,
+                  selectedUtxo: compose.selectedUtxo,
+                  effectiveFeeSats: compose.effectiveFeeSats,
+                  changeSats: compose.changeSats,
+                  note: compose.note,
+                  approvalThreshold,
+                  timelockSeconds,
+                })}
+                collapsibleDetails
+              />
             }
-            details={buildBtcPreviewDetails({
-              walletDisplay,
-              destination: compose.destination,
-              amountBtc: compose.amountBtc,
-              selectedUtxo: compose.selectedUtxo,
-              effectiveFeeSats: compose.effectiveFeeSats,
-              changeSats: compose.changeSats,
-              note: compose.note,
-              approvalThreshold,
-              timelockSeconds,
-            })}
-            collapsibleDetails
           />
         )}
-        {ready && !sent && !awaitingApproval && <ComposeForm {...compose} />}
         {sent && (
           <SentCard
             sent={sent}

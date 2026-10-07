@@ -45,7 +45,7 @@
 | `/app/wallet/[name]/agents/start` | Agent workspace | `@/features/agents/routes/StartTradingPage` | r39 · 390/1440 dark · Practice readiness selection |
 | `/app/wallet/[name]/agents/trades` | Agent workspace | `@/components/retail/Button`, `@/components/retail/FormField`, `@/components/ui/Toast` | r40 · 390/1440 dark · Empty trades; no execution |
 | `/app/wallet/[name]/allowances` | Governance and treasury | `@/components/retail/BadgePill`, `@/components/retail/Breadcrumb`, `@/components/retail/StickyTopBar` | r41 · 390/1440 dark · Allowance editor; no signed mutation |
-| `/app/wallet/[name]/budget` | Governance and treasury | `@/components/retail/Button`, `@/components/retail/ChainBadge`, `@/components/ui/Toast` | r42 · 390/1440 dark · Budget/guardrail controls |
+| `/app/wallet/[name]/budget` | Governance and treasury | `@/components/retail/Button`, `@/components/retail/ChainBadge`, `@/components/ui/Toast` | r42 · 390/1440 dark · Budget/guardrail controls; all six weekly inputs and units contained at 320/390/1440 |
 | `/app/wallet/[name]/buy` | Payments and exchange | `@/components/retail/Button`, `@/components/ramp/RampStatusNotice`, `@/components/retail/BrandLoader` | r43 · 390/1440 dark · Buy entry; hosted checkout not invoked |
 | `/app/wallet/[name]/chains/add` | Wallet home, detail and chain setup | `@/components/retail/Button`, `@/components/retail/BrandLoader`, `@/components/retail/ChainBadge` | r44 · 390/1440 dark · Network selection; no binding created |
 | `/app/wallet/[name]/chains` | Wallet home, detail and chain setup | `@/components/retail/ChainBadge`, `@/components/retail/UsdHint` | r45 · 390/1440 dark · Synthetic network bindings/balances |
@@ -62,7 +62,7 @@
 | `/app/wallet/[name]/rules` | Governance and treasury | `@/components/retail/Button`, `@/components/retail/FormField`, `@/components/ui/Toast` | r56 · 390/1440 dark · Rule details |
 | `/app/wallet/[name]/sell` | Payments and exchange | `@/components/retail/Button`, `@/components/ramp/RampStatusNotice`, `@/components/retail/BrandLoader` | r57 · 390/1440 dark · Sell entry; hosted checkout not invoked |
 | `/app/wallet/[name]/send/batch` | Send and batch | `@/features/send/routes/BatchSendPage` | r58 · 390/1440 dark · Batch recipient composer |
-| `/app/wallet/[name]/send/btc` | Send and batch | `@/features/send/routes/BtcSendPage` | r59 · 390/1440 dark · Bitcoin composer; synthetic display params, empty UTXO set |
+| `/app/wallet/[name]/send/btc` | Send and batch | `@/features/send/routes/BtcSendPage` | r59 · 390/1440 dark · Bitcoin inputs → complete review → action; repeated-edit retention verified; synthetic display params, empty UTXO set |
 | `/app/wallet/[name]/send/erc20` | Send and batch | `@/features/send/routes/Erc20SendPage` | r60 · 390/1440 dark · ERC20 composer; no chain submission |
 | `/app/wallet/[name]/send/eth` | Send and batch | `@/features/send/routes/EthSendPage` | r61 · 390/1440 dark · Ethereum composer; no chain submission |
 | `/app/wallet/[name]/send` | Send and batch | `@/features/send/routes/SolanaSendPage` | r62 · 390/1440 dark · SOL composer; no signature |

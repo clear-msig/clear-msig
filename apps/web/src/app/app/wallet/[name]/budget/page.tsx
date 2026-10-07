@@ -274,13 +274,13 @@ export default function BudgetPage() {
             disabled={walletNoLimit}
             maxLength={20}
             className={
-              "flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-display text-2xl text-text-strong outline-none " +
+              "min-w-0 flex-1 rounded-soft border border-border-soft bg-canvas px-3 py-2 font-display text-2xl text-text-strong outline-none " +
               "transition-[border-color,box-shadow] duration-base ease-out-soft " +
               "focus:border-accent focus:shadow-accent-rest " +
               "disabled:cursor-not-allowed disabled:opacity-50"
             }
           />
-          <span className="text-sm text-text-soft">/ week</span>
+          <span className="shrink-0 whitespace-nowrap text-sm text-text-soft">/ week</span>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {QUICK_WALLET_AMOUNTS.map((q) => {
@@ -467,12 +467,12 @@ function ChainCapRow({
           placeholder="No cap"
           maxLength={20}
           className={
-            "flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-1.5 font-numerals text-base text-text-strong tabular-nums outline-none " +
+            "min-w-0 flex-1 rounded-soft border border-border-soft bg-surface-raised px-3 py-1.5 font-numerals text-base text-text-strong tabular-nums outline-none " +
             "transition-[border-color,box-shadow] duration-base ease-out-soft " +
             "focus:border-accent focus:shadow-accent-rest"
           }
         />
-        <span className="text-xs text-text-soft">/ week</span>
+        <span className="shrink-0 whitespace-nowrap text-xs text-text-soft">/ week</span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {QUICK_CHAIN_AMOUNTS.map((q) => (

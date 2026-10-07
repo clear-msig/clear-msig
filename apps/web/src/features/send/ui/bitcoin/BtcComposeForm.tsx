@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Loader2, Send } from "lucide-react";
 import { FormField, TextInput } from "@/components/retail/FormField";
 import { InfoTip } from "@/components/retail/InfoTip";
@@ -40,6 +41,7 @@ export function ComposeForm(props: {
   canSubmit: boolean;
   walletDisplay: string;
   onSend: () => void;
+  review?: ReactNode;
 }) {
   const balanceBtc =
     props.balanceSats !== null ? formatSats(props.balanceSats) : null;
@@ -91,7 +93,10 @@ export function ComposeForm(props: {
                     ? "checking..."
                     : balanceBtc !== null
                       ? balanceBtc
-                      : btcBalanceStatusLabel(props.balanceError, props.network)}
+                      : btcBalanceStatusLabel(
+                          props.balanceError,
+                          props.network,
+                        )}
                 </span>
                 {balanceBtc !== null ? <span> BTC</span> : null}
                 {props.balanceSats !== null && (
@@ -102,7 +107,9 @@ export function ComposeForm(props: {
                   />
                 )}
                 {props.amountError && (
-                  <span className="ml-1.5 text-warning">{props.amountError}</span>
+                  <span className="ml-1.5 text-warning">
+                    {props.amountError}
+                  </span>
                 )}
                 {props.selectedUtxo && props.effectiveFeeSats !== null && (
                   <span className="block pt-1 text-xs">
@@ -165,6 +172,8 @@ export function ComposeForm(props: {
           </FormField>
         </section>
       </div>
+
+      {props.review}
 
       {/* Action footer. Sticky CTA mirrors the other send pages. */}
       <div className="flex flex-col gap-2 pt-1">

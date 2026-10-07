@@ -59,3 +59,5 @@ blocked. The seed's default program ID is a local scope namespace, not evidence
 of deployment identity. Do not enable live requests to make the fixtures pass.
 
 For compiled expanded review, build and start the isolated copy with `NEXT_PUBLIC_BACKEND_API_URL=http://127.0.0.1:9` and the test-only Dynamic environment ID. The browser blocks API/external requests. A missing production configuration screen is a failed review, never a rendered app pass. Use `next build` then `next start` to avoid development-server memory restarts truncating chunks during a long route sweep.
+
+For focused budget/Bitcoin regression coverage, use `REVIEW_IDS=r42,r59 REVIEW_WIDTHS=320,390,1440`. The runner checks each weekly-limit input and suffix against its own card, and verifies Bitcoin input→review→action order, repeated-edit state retention, review updates and the empty-UTXO submission guard. All signing remains blocked.
