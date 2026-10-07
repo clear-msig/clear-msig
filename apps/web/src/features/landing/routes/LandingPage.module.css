@@ -1318,3 +1318,386 @@
     opacity: 1;
   }
 }
+
+/* Cinematic landing: ClearSig palette, lightweight geometry, native scrolling. */
+.header {
+  max-width: 1440px;
+  padding-inline: 56px;
+  border-bottom: 0;
+  background: #0c0c0ce8;
+}
+.header nav {
+  gap: 8px;
+}
+.header nav a,
+.headerAction {
+  border: 1px solid var(--line);
+  border-radius: 18px 4px 18px 4px;
+  padding-inline: 20px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.primary,
+.secondary {
+  border-radius: 16px 3px 16px 3px;
+}
+.cinematicHero {
+  max-width: 1440px;
+  padding: 32px 56px 0;
+  position: relative;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  align-items: center;
+  gap: 0 20px;
+}
+.cinematicHero .heroCopy {
+  display: contents;
+}
+.cinematicHero .eyebrow {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  margin-top: 40px !important;
+}
+.cinematicHero h1 {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  font-size: clamp(68px, 8.8vw, 128px);
+  font-weight: 550;
+  line-height: 0.98;
+  letter-spacing: -0.065em;
+  text-transform: uppercase;
+  padding-top: 32px;
+}
+.cinematicHero h1 em {
+  font-style: normal;
+  font-weight: 550;
+}
+.cinematicHero .intro {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0 0 24px;
+  max-width: 380px;
+  font-size: 18px;
+}
+.cinematicHero .desktopBreak {
+  display: none;
+}
+.cinematicHero .actions {
+  grid-column: 1;
+  grid-row: 3;
+  justify-content: start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cinematicHero .actions .secondary {
+  border-color: transparent;
+  padding-inline: 0;
+}
+.cinematicHero .preview {
+  grid-column: 1;
+  grid-row: 4;
+  justify-content: start;
+  margin-top: 18px;
+  align-self: start;
+}
+.quorumScene {
+  grid-column: 2;
+  grid-row: 1 / 5;
+  margin: 0;
+  min-width: 0;
+}
+.quorumScene svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.quorumScene figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.quorumScene figcaption > span:first-child {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-size: 12px;
+}
+.cinematicHero .heroFoot {
+  grid-column: 1 / -1;
+  grid-row: 6;
+  margin-top: 36px;
+  min-height: 80px;
+  width: 100%;
+}
+.sectionRail {
+  position: fixed;
+  right: 8px;
+  top: 45%;
+  z-index: 30;
+  display: grid;
+}
+.sectionRail a {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+.sectionRail span {
+  display: block;
+  height: 10px;
+  width: 10px;
+  border: 1px solid var(--muted);
+  transform: rotate(45deg);
+}
+.sectionRail a[aria-current="location"] span,
+.sectionRail a:hover span,
+.sectionRail a:focus-visible span {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.editorial {
+  max-width: 1184px;
+  margin: 140px auto 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 64px;
+  align-items: center;
+}
+.editorialCopy h2 {
+  font-size: clamp(36px, 4vw, 58px);
+  line-height: 1.1;
+  letter-spacing: -0.05em;
+  font-weight: 450;
+  margin: 0;
+}
+.editorialCopy h2 span {
+  color: var(--muted);
+}
+.editorialCopy > p:not(.eyebrow) {
+  color: var(--muted);
+  max-width: 420px;
+  margin: 28px 0;
+  font-size: 17px;
+  line-height: 1.8;
+}
+.editorial .folioStage {
+  height: 520px;
+}
+.demoHeading {
+  margin-top: 140px;
+}
+.demoHeading .eyebrow,
+.products .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.demoHeading .eyebrow::after,
+.products .eyebrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.instrument {
+  border-radius: 24px 4px 24px 4px;
+}
+.chapters,
+.products {
+  display: block;
+  padding-top: 144px;
+}
+.chapters > :first-child {
+  position: static;
+}
+.chapterRows {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+  margin-top: 64px;
+}
+.chapter {
+  grid-template-columns: 1fr;
+  height: 100%;
+  gap: 16px;
+}
+.chapter h3 {
+  font-size: 26px;
+}
+.evidence {
+  grid-column: 1;
+  align-self: end;
+}
+.productList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+  margin-top: 64px;
+}
+.productList > div > a {
+  height: 100%;
+  border-bottom: 1px solid var(--line);
+  grid-template-columns: 1fr 24px;
+  gap: 20px;
+}
+.productIndex {
+  grid-column: 1;
+}
+.productList > div > a > div {
+  grid-column: 1 / -1;
+}
+.productState {
+  grid-column: 1 / -1;
+  align-self: end;
+}
+.productList svg {
+  grid-column: 2;
+}
+.closing {
+  padding-block: 112px;
+}
+@media (max-width: 1240px) {
+  .editorial {
+    margin-inline: 48px;
+    gap: 32px;
+  }
+  .sectionRail {
+    display: none;
+  }
+  .quorumScene figcaption {
+    font-size: 10px;
+  }
+  .chapterRows,
+  .productList {
+    gap: 24px;
+  }
+}
+@media (max-width: 760px) {
+  .header {
+    padding-inline: 24px;
+    height: 72px;
+  }
+  .headerAction {
+    padding-inline: 14px;
+  }
+  .cinematicHero {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 40px 24px 0;
+    gap: 0;
+  }
+  .cinematicHero .heroCopy {
+    display: contents;
+  }
+  .cinematicHero .eyebrow {
+    order: 0;
+    margin-top: 0 !important;
+    margin-bottom: 24px !important;
+    font-size: 10px !important;
+    letter-spacing: 0.07em;
+  }
+  .cinematicHero h1 {
+    order: 1;
+    font-size: clamp(36px, 10.6vw, 76px);
+    padding: 0;
+    line-height: 1.05;
+    letter-spacing: -0.055em;
+  }
+  .cinematicHero .intro {
+    order: 2;
+    margin: 24px 0;
+    font-size: 16px;
+    max-width: 390px;
+  }
+  .cinematicHero .actions {
+    align-items: flex-start;
+    order: 3;
+    justify-content: start;
+    gap: 12px 20px;
+  }
+  .cinematicHero .preview {
+    order: 4;
+    margin-top: 18px;
+  }
+  .quorumScene {
+    order: 5;
+    margin: 32px -12px 0;
+  }
+  .quorumScene figcaption {
+    margin-inline: 12px;
+    display: grid;
+    font-size: 11px;
+  }
+  .cinematicHero .heroFoot {
+    order: 6;
+    margin-top: 32px;
+    padding-block: 20px;
+    min-height: 80px;
+  }
+  .cinematicHero .heroFoot > span {
+    display: none;
+  }
+  .cinematicHero .heroFoot a {
+    font-size: 12px;
+  }
+  .editorial {
+    display: block;
+    margin: 80px 24px 0;
+  }
+  .editorial .folio {
+    margin-top: 40px;
+  }
+  .editorial .folioStage {
+    height: 470px;
+  }
+  .demoHeading {
+    margin-top: 80px;
+  }
+  .chapters,
+  .products {
+    padding-top: 88px;
+  }
+  .chapterRows,
+  .productList {
+    display: block;
+    margin-top: 40px;
+  }
+  .chapter {
+    gap: 16px;
+  }
+  .chapter > div > p {
+    max-width: 540px;
+  }
+  .evidence {
+    grid-column: 1;
+  }
+  .productList > div > a {
+    grid-template-columns: 1fr 24px;
+  }
+  .closing {
+    padding-block: 64px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .quorumScene {
+    animation: scene-arrive 600ms ease-out both;
+  }
+  @keyframes scene-arrive {
+    from {
+      transform: translateY(10px);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+}
+@media print {
+  .sectionRail {
+    display: none;
+  }
+}

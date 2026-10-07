@@ -14,6 +14,8 @@ import { LandingReveal } from "@/components/landing/LandingReveal";
 import s from "./LandingPage.module.css";
 import { ChainMarquee } from "../ui/home/ChainMarquee";
 import { ApprovalFolio } from "../ui/ApprovalFolio";
+import { QuorumScene } from "../ui/QuorumScene";
+import { LandingSectionNav } from "../ui/LandingSectionNav";
 
 export default function HomePage() {
   const [reviewed, setReviewed] = useState(false);
@@ -37,7 +39,11 @@ export default function HomePage() {
         </Link>
       </header>
       <main id="landing-content" tabIndex={-1}>
-        <section className={s.hero} aria-labelledby="hero-title">
+        <section
+          id="overview"
+          className={`${s.hero} ${s.cinematicHero}`}
+          aria-labelledby="hero-title"
+        >
           <div className={s.heroCopy}>
             <p className={s.eyebrow}>YOUR MONEY. YOUR PEOPLE. YOUR RULES.</p>
             <h1 id="hero-title">
@@ -62,7 +68,7 @@ export default function HomePage() {
               <span aria-hidden="true" /> Devnet preview · Test funds only
             </p>
           </div>
-          <ApprovalFolio />
+          <QuorumScene />
           <div className={s.heroFoot}>
             <p>
               Sign intents. <em>Not hex.</em>
@@ -74,7 +80,30 @@ export default function HomePage() {
             <span>BUILT FOR SHARED CONTROL</span>
           </div>
         </section>
+        <LandingSectionNav />
         <ChainMarquee />
+        <section className={s.editorial} aria-labelledby="control-title">
+          <LandingReveal>
+            <div className={s.editorialCopy}>
+              <p className={s.eyebrow}>01 / BUILT AROUND YOUR PEOPLE</p>
+              <h2 id="control-title">
+                A shared wallet.
+                <br />
+                <span>A clear decision.</span>
+              </h2>
+              <p>
+                The action, the rules, the people. Bring them into one readable
+                request, so every owner knows what their approval means.
+              </p>
+              <a className={s.secondary} href="#approval">
+                Follow a request <ArrowDown size={16} aria-hidden="true" />
+              </a>
+            </div>
+          </LandingReveal>
+          <LandingReveal>
+            <ApprovalFolio />
+          </LandingReveal>
+        </section>
         <LandingReveal>
           <div className={s.demoHeading}>
             <p className={s.eyebrow}>LESS GUESSWORK. MORE CONTEXT.</p>
