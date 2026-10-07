@@ -5,7 +5,7 @@ import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 
 /** Progressive enhancement: content is visible in SSR, without JS, and when
  * reduced motion is enabled. Only offscreen landing storytelling is deferred. */
-export function LandingReveal({ children }: { children: ReactNode }) {
+export function LandingReveal({ children, className = "" }: { children: ReactNode; className?: string }) {
   const element = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState(false);
   const reduceMotion = useReducedMotion();
@@ -37,7 +37,7 @@ export function LandingReveal({ children }: { children: ReactNode }) {
   return (
     <div
       ref={element}
-      className="landing-reveal"
+      className={className ? `landing-reveal ${className}` : "landing-reveal"}
       data-reveal={pending ? "pending" : "visible"}
       onFocusCapture={() => setPending(false)}
     >

@@ -59,32 +59,71 @@ export function SignatureStage() {
     if (!target) return;
     if (reducedMotion) {
       target.style.setProperty("--stage-progress", "0");
-      return;
+      delete target.dataset.watermark;
+      const section = target.closest("section");
+      if (!section || typeof IntersectionObserver === "undefined") return;
+      // No interpolated movement: the hero stays static, then a stationary,
+      // low-contrast background is used after the hero has left the viewport.
+      const observer = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) delete target.dataset.watermark;
+        else target.dataset.watermark = "static";
+      });
+      observer.observe(section);
+      return () => {
+        observer.disconnect();
+        delete target.dataset.watermark;
+      };
     }
     let frame = 0;
     let lastProgress = "";
-    const update = () => {
-      frame = 0;
+    let geometry: { top: number; left: number; width: number; height: number;
+      sectionTop: number; sectionHeight: number } | undefined;
+    const measure = () => {
       const section = target.closest("section");
       if (!section) return;
-      const rect = section.getBoundingClientRect();
-      const progress = Math.min(1, Math.max(0, -rect.top / rect.height));
+      const box = target.getBoundingClientRect();
+      const parent = section.getBoundingClientRect();
+      geometry = { top: box.top + window.scrollY, left: box.left,
+        width: box.width, height: box.height,
+        sectionTop: parent.top + window.scrollY, sectionHeight: parent.height };
+      lastProgress = "";
+      schedule();
+    };
+    const update = () => {
+      frame = 0;
+      if (!geometry) return;
+      const { top, left, width, height, sectionTop, sectionHeight } = geometry;
+      const raw = Math.min(1, Math.max(0,
+        (window.scrollY - sectionTop) / (sectionHeight * 0.7)));
+      const progress = raw * raw * (3 - 2 * raw);
       const value = progress.toFixed(3);
-      if (value !== lastProgress) {
-        target.style.setProperty("--stage-progress", value);
-        lastProgress = value;
-      }
+      if (value === lastProgress) return;
+      lastProgress = value;
+      const backdropWidth = Math.max(width, Math.min(1100, window.innerWidth * 1.7));
+      const backdropHeight = Math.min(620, window.innerHeight * 0.7);
+      const mix = (from: number, to: number) => from + (to - from) * progress;
+      target.style.setProperty("--stage-progress", value);
+      target.style.setProperty("--stage-opacity", String(Math.max(0.07, (1 - progress) ** 3)));
+      target.style.setProperty("--stage-top", `${mix(top - window.scrollY, (window.innerHeight - backdropHeight) / 2)}px`);
+      target.style.setProperty("--stage-left", `${mix(left, (window.innerWidth - backdropWidth) / 2)}px`);
+      target.style.setProperty("--stage-width", `${mix(width, backdropWidth)}px`);
+      target.style.setProperty("--stage-height", `${mix(height, backdropHeight)}px`);
+      target.dataset.watermark = "true";
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
-    update();
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(target);
     window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule, { passive: true });
+    window.addEventListener("resize", measure, { passive: true });
     return () => {
       window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
       if (frame) cancelAnimationFrame(frame);
+      delete target.dataset.watermark;
     };
   }, [reducedMotion]);
   return (

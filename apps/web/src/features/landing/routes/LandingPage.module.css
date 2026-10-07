@@ -1,4 +1,6 @@
 .page {
+  position: relative;
+  isolation: isolate;
   --ink: #ebebeb;
   --muted: #a3a3a3;
   --accent: #ccff00;
@@ -941,12 +943,12 @@
 }
 .signatureCore {
   transform-origin: 600px 275px;
-  transform: rotate(calc(var(--stage-progress, 0) * 18deg))
-    scale(calc(1 - var(--stage-progress, 0) * 0.12));
+  transform: rotate(calc(var(--stage-progress, 0) * 28deg))
+    scale(calc(1 - var(--stage-progress, 0) * 0.16));
 }
 .orbitField {
   transform-origin: 600px 285px;
-  transform: rotate(calc(var(--stage-progress, 0) * -12deg));
+  transform: rotate(calc(var(--stage-progress, 0) * -20deg));
 }
 .signatureStage figcaption {
   position: absolute;
@@ -1049,7 +1051,7 @@
 .chapterDivider {
   display: flex;
   align-items: center;
-  margin: 110px 0 0;
+  margin: 64px 0 0;
   color: var(--muted);
   font: 11px var(--font-mono);
   text-align: center;
@@ -1068,8 +1070,8 @@
   border-radius: 3px 16px 3px 16px;
 }
 .demoHeading {
-  margin-top: 100px;
-  margin-bottom: 48px;
+  margin-top: 56px;
+  margin-bottom: 40px;
   grid-template-columns: 1.2fr 1fr;
   gap: 24px 64px;
 }
@@ -1096,7 +1098,7 @@
 .chapters,
 .products {
   display: block;
-  padding-top: 100px;
+  padding-top: 64px;
 }
 .chapters > :first-child {
   position: static;
@@ -1128,7 +1130,7 @@
   align-self: end;
 }
 .chapters {
-  padding-bottom: 100px;
+  padding-bottom: 64px;
 }
 .productList {
   display: grid;
@@ -1448,5 +1450,77 @@
   .chapter h3,
   .productList h3 {
     min-height: 2lh;
+  }
+}
+
+/* Chapter rules connect the artwork to the readable request without pinning
+   the page or delaying access to the local demonstration. */
+.chapterReveal {
+  transform: none !important;
+}
+.chapterDivider::before,
+.chapterDivider::after {
+  transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.chapterDivider::before { transform-origin: right center; }
+.chapterDivider::after { transform-origin: left center; }
+.chapterReveal[data-reveal="pending"] .chapterDivider::before,
+.chapterReveal[data-reveal="pending"] .chapterDivider::after {
+  transform: scaleX(0.18);
+}
+@media (min-width: 651px) and (prefers-reduced-motion: no-preference) {
+  .chapterRows > :nth-child(2),
+  .productList > :nth-child(2) { transition-delay: 60ms; }
+  .chapterRows > :nth-child(3),
+  .productList > :nth-child(3) { transition-delay: 120ms; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chapterDivider::before,
+  .chapterDivider::after { transform: none !important; transition: none; }
+}
+@media print {
+  .chapterDivider::before,
+  .chapterDivider::after { transform: none !important; transition: none; }
+}
+
+/* One decorative SVG moves into the page's isolated background. It cannot
+   intercept a control, rise over an overlay, or survive a route unmount. */
+.signatureStage svg { pointer-events: none; }
+.signatureStage[data-watermark="true"] svg {
+  position: fixed;
+  z-index: -1;
+  inset: auto;
+  top: var(--stage-top);
+  left: var(--stage-left);
+  width: var(--stage-width);
+  height: var(--stage-height);
+  opacity: var(--stage-opacity);
+}
+@media (prefers-reduced-motion: reduce) {
+  .signatureStage[data-watermark="true"] svg {
+    position: absolute; z-index: auto; inset: 0;
+    width: 100%; height: 100%; opacity: 1;
+  }
+}
+@media print {
+  .signatureStage[data-watermark="true"] svg {
+    position: absolute; z-index: auto; inset: 0;
+    width: 100%; height: 100%; opacity: 1;
+  }
+}
+
+.signatureStage[data-watermark="static"] svg {
+  position: fixed;
+  z-index: -1;
+  inset: 15vh auto auto 50%;
+  width: min(1100px, 170vw);
+  height: 70vh;
+  transform: translateX(-50%);
+  opacity: 0.07;
+}
+@media print {
+  .signatureStage[data-watermark="static"] svg {
+    position: absolute; z-index: auto; inset: 0;
+    width: 100%; height: 100%; opacity: 1; transform: none;
   }
 }

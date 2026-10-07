@@ -473,10 +473,10 @@ select:focus-visible {
 .landing-reveal {
   opacity: 1;
   transform: none;
-  transition: opacity 500ms ease-out, transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 360ms ease-out, transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.landing-reveal[data-reveal="pending"] { opacity: 0; transform: translateY(16px); }
-.landing-reveal:focus-within { opacity: 1; transform: none; }
+.landing-reveal[data-reveal="pending"] { opacity: 0; transform: translateY(12px); }
+.landing-reveal:focus-within { opacity: 1; transform: none; transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .landing-reveal, .landing-reveal[data-reveal="pending"] {
     opacity: 1; transform: none; transition: none;

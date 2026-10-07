@@ -69,9 +69,11 @@ export default function HomePage() {
           </div>
         </section>
         <LandingSectionNav />
-        <div className={s.chapterDivider}>
-          <span>FROM INTENT TO APPROVAL</span>
-        </div>
+        <LandingReveal className={s.chapterReveal}>
+          <div className={s.chapterDivider}>
+            <span>FROM INTENT TO APPROVAL</span>
+          </div>
+        </LandingReveal>
         <LandingReveal>
           <div className={s.demoHeading}>
             <p className={s.eyebrow}>01 / UNDERSTAND THE REQUEST</p>
@@ -201,9 +203,11 @@ export default function HomePage() {
             </div>
           </section>
         </LandingReveal>
-        <div className={s.chapterDivider}>
-          <span>THE DECISION PATH</span>
-        </div>
+        <LandingReveal className={s.chapterReveal}>
+          <div className={s.chapterDivider}>
+            <span>THE DECISION PATH</span>
+          </div>
+        </LandingReveal>
         <section
           id="how-it-works"
           className={s.chapters}
@@ -292,9 +296,11 @@ export default function HomePage() {
           </div>
         </section>
         <ChainMarquee />
-        <div className={s.chapterDivider}>
-          <span>FIND YOUR STARTING POINT</span>
-        </div>
+        <LandingReveal className={s.chapterReveal}>
+          <div className={s.chapterDivider}>
+            <span>FIND YOUR STARTING POINT</span>
+          </div>
+        </LandingReveal>
         <section
           id="products"
           className={s.products}
