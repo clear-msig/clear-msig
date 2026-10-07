@@ -1577,6 +1577,9 @@
   }
 }
 @media (max-width: 760px) {
+  .sceneLabels {
+    display: none;
+  }
   .header {
     padding-inline: 24px;
     height: 72px;

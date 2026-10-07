@@ -63,6 +63,7 @@ export function QuorumScene() {
           <path d="m557 42 15 15-15 15-15-15Z" fill="#131316" />
         </g>
         <g
+          className={s.sceneLabels}
           fill="#a3a3a3"
           fontFamily="monospace"
           fontSize="12"
@@ -83,7 +84,7 @@ export function QuorumScene() {
         </g>
       </svg>
       <figcaption>
-        <span>QUORUM / 01 OF 02 REQUIRED</span>
+        <span>1 of 2 approvals · 3 owners</span>
         <span>Illustrative preview. No transaction or signature.</span>
       </figcaption>
     </figure>

@@ -35,3 +35,13 @@ Final production build completed successfully. Landing output: 8.79 kB route / 1
 Final **compiled-server browser matrix: 8/8 passed**, covering all the cases above. No recorded page errors or horizontal overflow. Evidence: `/workspace/scratch/quai-study/verification.json`; reusable local runner `/workspace/scratch/quai-study/verify.cjs`; production logs `production-final.log` and `bundles-final.log` in the same directory. Full Rust/app-wide suites were not repeated for this landing-only change.
 
 Review board: Library **`libfile_1e9992748098819192c805a6d23e3245`**, version 0; file `file_000000001dd082468a6f4bcd32eafbd4`. Filename `clearsig-quai-inspired-landing-review.png`, 1920×2755, 926,979 bytes. SHA-256 `86e2271f64b11e74a5a7b49ce0de4d2836c72c3f96540a90cd06bddd6c70aa57`. Library creation and local identity persistence both succeeded. The board was inspected as actual pixels before upload.
+
+## Independent review and mobile polish
+
+The independent reviewer compared the actual board pixels against the reference and reported a strong match, with no severe overlap, clipping or mobile stacking issues. The remaining concern was tiny decorative orbit labels on mobile.
+
+Those labels were already within an `aria-hidden` decorative SVG. They are now hidden at widths up to 760px. The adjacent accessible 12px caption explicitly reads “1 of 2 approvals · 3 owners”; desktop retains the decorative labels. Layout, colors and interactions are unchanged.
+
+After this adjustment: lint, TypeScript, all seven relevant unit tests, production compile and unchanged bundle gates passed again. The complete eight-case compiled-browser matrix passed again, additionally asserting mobile label hiding, desktop label visibility, SVG accessibility exclusion and caption font size >=12px, including no-JavaScript cases. Desktop and mobile pixels were re-inspected. External-wallet 1123.5/1124 kB; legacy Turnkey 979.4/991 kB.
+
+Updated the **same** Library board `libfile_1e9992748098819192c805a6d23e3245` to **version 1**, file `file_00000000fee881f489b80e8804b739d7`, 925,152 bytes. SHA-256 `9473d7ba05eef8e7216cf5001ccecec5839c808973edbc3180a35d02d633c783`. Identity/version metadata persisted locally. Local review server stopped. No push/deploy.
