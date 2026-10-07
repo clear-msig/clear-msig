@@ -172,10 +172,10 @@ const config: Config = {
       },
 
       borderRadius: {
-        // Friendly, banking-app feel - softer than the hard `rounded-md` default.
-        soft: "10px",
-        card: "16px",
-        sheet: "24px",
+        // Precise surfaces shared by the public story and task-focused app.
+        soft: "4px",
+        card: "10px",
+        sheet: "16px",
       },
 
       transitionDuration: {

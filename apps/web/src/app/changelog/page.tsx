@@ -78,7 +78,7 @@ export default function ChangelogPage() {
     ? {}
     : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
   return (
-    <main className="relative min-h-screen bg-canvas px-gutter py-12">
+    <main className="brand-document relative isolate min-h-screen bg-canvas px-gutter py-12">
       <motion.div
         {...motionProps}
         transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}

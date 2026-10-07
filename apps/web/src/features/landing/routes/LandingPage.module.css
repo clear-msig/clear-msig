@@ -858,13 +858,7 @@
   }
 }
 /* A locally hosted, OFL-licensed display face; public landing only. */
-@font-face {
-  font-family: "ClearSig Wide";
-  src: url("/fonts/michroma/Michroma-Regular.woff") format("woff");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
+
 .header {
   position: fixed;
   inset: 14px 26px auto;
@@ -927,6 +921,7 @@
   color: var(--accent);
 }
 .signatureStage {
+  --art-scale: 1;
   position: relative;
   flex: 1;
   min-height: 330px;
@@ -1231,8 +1226,8 @@
     margin-left: 4px;
   }
   .cinematicHero {
-    min-height: 100svh;
-    padding: 96px 24px 32px;
+    min-height: auto;
+    padding: 96px 24px 24px;
   }
   .stageTopline {
     flex-direction: column;
@@ -1291,7 +1286,7 @@
     font-size: 13px;
   }
   .chapterDivider {
-    margin-top: 64px;
+    margin-top: 40px;
     font-size: 11px;
   }
   .chapterDivider > span {
@@ -1435,6 +1430,7 @@
 }
 @media (max-width: 650px) {
   .signatureStage {
+    --art-scale: 1.65;
     min-height: 200px;
     height: 25svh;
     max-height: 230px;
@@ -1523,4 +1519,9 @@
     position: absolute; z-index: auto; inset: 0;
     width: 100%; height: 100%; opacity: 1; transform: none;
   }
+}
+
+.signatureStage figcaption {
+  padding-inline: 8px;
+  background: #0c0c0c;
 }

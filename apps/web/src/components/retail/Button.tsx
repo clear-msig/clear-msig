@@ -47,8 +47,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         type={type ?? "button"}
+        data-control-variant={variant}
         className={cn(
-          "inline-flex select-none items-center justify-center gap-2 rounded-soft font-sans font-medium",
+          "clear-action-control inline-flex select-none items-center justify-center gap-2 rounded-soft font-sans font-medium",
           "transition-[background-color,box-shadow,transform,border-color,color] duration-base ease-out-soft",
           "active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",

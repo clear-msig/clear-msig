@@ -48,7 +48,7 @@ export default async function AgentMarketplacePage({ searchParams }: PageProps) 
     });
 
     return (
-      <main className="min-h-screen bg-canvas text-text-strong">
+      <main className="brand-document relative isolate min-h-screen bg-canvas text-text-strong">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
           <header className="flex flex-wrap items-center justify-between gap-3">
             <Link
@@ -56,7 +56,7 @@ export default async function AgentMarketplacePage({ searchParams }: PageProps) 
               className="inline-flex items-center gap-1.5 text-xs font-medium text-text-soft transition-colors hover:text-accent"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              Clear
+              ClearSig
             </Link>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-surface-raised px-3 py-1 text-xs font-medium text-text-soft">
               <ShieldCheck className="h-3.5 w-3.5 text-accent" aria-hidden="true" />

@@ -10,7 +10,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { LandingNav } from "@/components/landing/LandingChrome";
+import { LandingNav, LandingAtmospherics } from "@/components/landing/LandingChrome";
 import {
   liveProductSurfaces,
   type ProductSurfaceId,
@@ -30,7 +30,8 @@ export function ProductChooser() {
   const products = liveProductSurfaces();
 
   return (
-    <main className="public-brand-surface min-h-screen bg-canvas text-text-strong">
+    <main className="public-brand-surface product-experience relative isolate min-h-screen bg-canvas text-text-strong">
+      <LandingAtmospherics />
       <LandingNav cta={{ href: "/connect", label: "Sign in" }} />
 
       <section className={s.page}>

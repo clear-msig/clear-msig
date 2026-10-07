@@ -562,7 +562,7 @@ function BrandRow({
     >
       <Link
         href="/app/wallet"
-        aria-label="Clear home"
+        aria-label="ClearSig home"
         className={clsx(
           "flex items-center rounded-xl transition-opacity duration-base ease-out-soft hover:opacity-80",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised",
@@ -574,7 +574,7 @@ function BrandRow({
         </div>
         {expanded && (
           <span className="font-display text-base font-semibold tracking-tight text-text-strong">
-            Clear
+            ClearSig
           </span>
         )}
       </Link>

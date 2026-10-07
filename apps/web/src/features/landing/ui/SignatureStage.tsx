@@ -83,8 +83,9 @@ export function SignatureStage() {
       if (!section) return;
       const box = target.getBoundingClientRect();
       const parent = section.getBoundingClientRect();
-      geometry = { top: box.top + window.scrollY, left: box.left,
-        width: box.width, height: box.height,
+      const artScale = Number(getComputedStyle(target).getPropertyValue("--art-scale")) || 1;
+      geometry = { top: box.top + window.scrollY, left: box.left - box.width * (artScale - 1) / 2,
+        width: box.width * artScale, height: box.height,
         sectionTop: parent.top + window.scrollY, sectionHeight: parent.height };
       lastProgress = "";
       schedule();
@@ -103,7 +104,7 @@ export function SignatureStage() {
       const backdropHeight = Math.min(620, window.innerHeight * 0.7);
       const mix = (from: number, to: number) => from + (to - from) * progress;
       target.style.setProperty("--stage-progress", value);
-      target.style.setProperty("--stage-opacity", String(Math.max(0.07, (1 - progress) ** 3)));
+      target.style.setProperty("--stage-opacity", String(Math.max(0.07, (1 - progress) ** 4)));
       target.style.setProperty("--stage-top", `${mix(top - window.scrollY, (window.innerHeight - backdropHeight) / 2)}px`);
       target.style.setProperty("--stage-left", `${mix(left, (window.innerWidth - backdropWidth) / 2)}px`);
       target.style.setProperty("--stage-width", `${mix(width, backdropWidth)}px`);

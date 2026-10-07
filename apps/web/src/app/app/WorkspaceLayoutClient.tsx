@@ -12,7 +12,7 @@
 // reachable via HeaderBar's left-sliding drawer; BottomNav handles
 // primary navigation. DashboardHeader is desktop-only.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import clsx from "clsx";
 import dynamic from "next/dynamic";
 import { useParams, usePathname } from "next/navigation";
@@ -98,6 +98,7 @@ function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
         "app-experience relative bg-canvas font-sans md:flex md:h-screen md:overflow-hidden",
         isWalletHub && "wallet-dot-canvas",
       )}
+      style={{ "--workspace-sidebar-width": expanded ? "256px" : "64px" } as CSSProperties}
     >
       <a
         href="#main-content"

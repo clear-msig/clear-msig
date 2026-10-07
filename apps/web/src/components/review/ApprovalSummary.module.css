@@ -4,7 +4,7 @@
   --bad: #ff7a7a;
   margin: 8px 0 28px;
   border: 1px solid var(--clear-border-strong, #ffffff29);
-  border-radius: 20px;
+  border-radius: 4px 14px 4px 14px;
   background: var(--clear-surface-elevated, #18181d);
   overflow: hidden;
 }

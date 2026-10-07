@@ -74,7 +74,7 @@ export function BottomNav() {
         // 12px rounded top corners - gives the bar a friendly,
         // floating-pill feel and softens the meeting point with
         // page content scrolling beneath.
-        "rounded-t-xl",
+        "rounded-t-none",
         "pb-safe-bottom",
         // Subtle top-edge highlight gives the bar physical presence
         // without a heavy shadow that'd compete with the FAB.
@@ -88,8 +88,8 @@ export function BottomNav() {
         href={createHref}
         aria-label="Create a new wallet"
         className={clsx(
-          "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
-          "flex h-14 w-14 items-center justify-center rounded-full",
+          "clear-action-control app-nav-action absolute left-1/2 -top-4 z-10 -translate-x-1/2",
+          "flex h-12 w-12 items-center justify-center",
           "bg-accent text-text-on-accent",
           // The halo: 6px of canvas-colored ring carves the FAB out
           // of the bar surface and disappears against the page above.
@@ -156,7 +156,7 @@ function WalletScopedBottomNav({
       className={clsx(
         "fixed inset-x-0 bottom-0 z-40 md:hidden",
         "border-t border-border-soft bg-surface-raised",
-        "rounded-t-xl pb-safe-bottom",
+        "rounded-t-none pb-safe-bottom",
         "shadow-[0_-1px_0_0_rgba(255,255,255,0.04)_inset]",
       )}
     >
@@ -164,8 +164,8 @@ function WalletScopedBottomNav({
         href={productHomeHref}
         aria-label="All wallets"
         className={clsx(
-          "absolute left-1/2 -top-7 z-10 -translate-x-1/2",
-          "flex h-14 w-14 items-center justify-center rounded-full",
+          "clear-action-control app-nav-action absolute left-1/2 -top-4 z-10 -translate-x-1/2",
+          "flex h-12 w-12 items-center justify-center",
           "bg-accent text-text-on-accent ring-[6px] ring-canvas shadow-accent-rest",
           "transition-[transform,box-shadow] duration-base ease-out-soft",
           "hover:scale-[1.04] hover:shadow-accent-hover active:scale-95",
