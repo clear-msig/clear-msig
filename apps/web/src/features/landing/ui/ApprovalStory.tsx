@@ -20,6 +20,7 @@ export function ApprovalStory() {
   const [approved, setApproved] = useState(false);
   const reduced = useReducedMotion();
   const [ready, setReady] = useState(false);
+  const [storyActive, setStoryActive] = useState(false);
   const restoredHash = useRef(false);
 
   useEffect(() => { setReady(true); }, []);
@@ -48,6 +49,8 @@ export function ApprovalStory() {
     let frame = 0;
     const update = () => {
       frame = 0;
+      const bounds = element.getBoundingClientRect();
+      setStoryActive(bounds.top <= 112 && bounds.bottom >= window.innerHeight - 16);
       const points = chapters.map(({ id }) => document.getElementById(id)?.getBoundingClientRect().top ?? 0);
       const travel = Math.max(1, points[2] - points[0]);
       const position = Math.min(1, Math.max(0, (112 - points[0]) / travel));
@@ -74,7 +77,7 @@ export function ApprovalStory() {
 
   const changePolicy = () => { setBlocked(!blocked); setApproved(false); };
   return (
-    <section ref={root} id="approval" className={s.story} data-enhanced={enhanced} aria-label="An approval, step by step">
+    <section ref={root} id="approval" className={s.story} data-enhanced={enhanced} data-ready={ready} aria-label="An approval, step by step">
       <div className={s.intro} id="how-it-works">
         <p className={s.eyebrow}>ONE REQUEST / THREE CHECKS</p>
         <h2>Follow the decision.<br /><span>Keep the whole picture.</span></h2>
@@ -97,13 +100,13 @@ export function ApprovalStory() {
             </section>
           ))}
         </div>
-        <div className={s.stage} aria-hidden={!enhanced}>
+        <div className={s.stage} data-story-stage aria-hidden={!enhanced}>
           <div className={s.stageLabel}><span>OPERATIONS / LOCAL DEMONSTRATION</span><span>0{step + 1} — {chapters[step].short}</span></div>
           <ApprovalWorkspace step={step} blocked={blocked} approved={approved} />
           <p className={s.stageNote}>Same request. Visible rules. Explicit owner decisions.</p>
         </div>
       </div>
-      <nav className={s.hud} aria-label="Approval story navigation" style={{ "--progress": `${progress}%` } as CSSProperties}>
+      <nav className={s.hud} hidden={ready && !storyActive} aria-label="Approval story navigation" style={{ "--progress": `${progress}%` } as CSSProperties}>
         <span className={s.hudLabel}>THE APPROVAL</span>
         <div>{chapters.map((chapter, index) => <a key={chapter.id} href={`#${chapter.id}`} aria-current={step === index ? "step" : undefined}><span>0{index + 1}</span>{chapter.short}</a>)}</div>
         <a className={s.skip} href="#products">Skip story <ArrowRight size={14} aria-hidden="true" /></a>
@@ -130,7 +133,7 @@ function ApprovalWorkspace({ step, blocked, approved }: { step: number; blocked:
       <div className={s.meter} role="img" aria-label={blocked ? "12 SOL exceeds the 10 SOL limit" : "5 SOL uses half the 10 SOL limit"}><span style={{ width: blocked ? "100%" : "50%" }} /></div>
       <p>{blocked ? "Stop here. More approvals cannot override this boundary." : "Destination allowed in this example."}</p>
     </div>
-    <div className={s.owners}>
+    <div className={s.owners} data-story-panel="owners">
       <div className={s.panelTitle}><Users size={18} aria-hidden="true" /><span>OWNER DECISIONS</span><span>03</span></div>
       <div className={s.ownerRow}>{["S", "M", "A"].map((owner, i) => <span key={owner} data-approved={!blocked && (i === 0 || (i === 1 && approved))}>{owner}{!blocked && (i === 0 || (i === 1 && approved)) && <Check size={12} aria-label="Demo approved" />}</span>)}<div><strong>{blocked ? "Blocked by policy" : `${approved ? 2 : 1} of 2 approvals`}</strong><small>{blocked ? "Resolve the request first" : approved ? "Threshold met in this demo" : "3 owners · one more needed"}</small></div></div>
       <p>No signature requested. This demonstration cannot execute.</p>

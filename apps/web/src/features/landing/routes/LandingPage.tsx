@@ -6,6 +6,7 @@ import s from "./LandingPage.module.css";
 import { ChainMarquee } from "../ui/home/ChainMarquee";
 import { SignatureStage } from "../ui/SignatureStage";
 import { ApprovalStory } from "../ui/ApprovalStory";
+import { ProductScene } from "../ui/ProductScene";
 import { LandingMenu } from "../ui/LandingMenu";
 import { LandingResources, LandingFooter } from "../ui/LandingResources";
 
@@ -98,13 +99,16 @@ export default function HomePage() {
             ].map((p) => (
               <LandingReveal key={p.n}>
                 <Link href={p.href}>
-                  <span className={s.productIndex}>{p.n}</span>
-                  <div>
+                  <ProductScene scene={p.n} />
+                  <div className={s.productCopy}>
+                    <span className={s.productIndex}>{p.n} / EXPLORE</span>
                     <h3>{p.title}</h3>
                     <p>{p.description}</p>
+                    <span className={s.productState}>{p.state}</span>
+                    <span className={s.productLink}>
+                      Explore {p.title.toLowerCase()} <ArrowRight aria-hidden="true" />
+                    </span>
                   </div>
-                  <span className={s.productState}>{p.state}</span>
-                  <ArrowRight aria-hidden="true" />
                 </Link>
               </LandingReveal>
             ))}
