@@ -20,12 +20,18 @@ creative pass; no push or deployment is authorized or performed.
 - Giant C, dark/lime identity, product URLs, devnet disclosures, recovery
   pre-alpha and gated execution language are preserved. No product behavior,
   signing, policy, auth, dependencies, venues or trading settings changed.
+- Sigi uses the exact verified transparent PNG: a 112px desktop perch beside
+  the C, a 100px static in-flow mobile appearance, optional welcome/tour, and a
+  100px return beside resources. Quiet/dismiss choices persist for the browser
+  session; storage failure cannot gate the landing. Keyboard focus moves to the
+  requested chapter or back to a meaningful heading/CTA when controls disappear.
+  The guide reuses existing explanatory copy and never reacts to approvals.
 - Browser regression now directly checks the original fresh-hero overlap,
   HUD absence at products/resources and after reversing to the hero, plus
   existing menu, keyboard, story controls, deep-link and refresh behavior.
   Stable scene selectors work in both development and production builds.
 
-## Exact scope
+## Exact scope from the verified main baseline
 
 1. `apps/web/src/features/landing/ui/ApprovalStory.tsx`
 2. `apps/web/src/features/landing/ui/ApprovalStory.module.css`
@@ -33,30 +39,39 @@ creative pass; no push or deployment is authorized or performed.
 4. `apps/web/src/features/landing/routes/LandingPage.module.css`
 5. `apps/web/src/features/landing/ui/ProductScene.tsx` (new)
 6. `apps/web/scripts/browser-regressions/landingStory.cjs`
-7. This review record.
+7. `apps/web/src/features/landing/ui/SigiGuide.tsx` (new)
+8. `apps/web/src/features/landing/ui/SigiGuide.module.css` (new)
+9. `apps/web/src/features/landing/ui/SignatureStage.tsx`
+10. `apps/web/src/features/landing/ui/LandingResources.tsx`
+11. `apps/web/public/brand/sigi.png` (new)
+12. `apps/web/scripts/browser-regressions/sigiGuide.cjs` (new)
+13. This review record.
 
-## Sigi blocked — no substitute
+The independent HUD/illustration change is local commit
+`1ea22a0e5bd716e9bca84a53cab8d0580be337dc`. Sigi is a subsequent local commit.
 
-The requested blob is `81d693c5a355d26f50d6a1b681b0178a1ca02ef5`.
-Expected PNG: 53,138 bytes, 217×266, SHA-256
-`e419154b60e0ec64aaa7d7c3c895c5a83d6ca7310b28070579ba819a8da383cf`.
+## Exact Sigi asset recovery
 
-- GitHub `fetch_blob`: `UnicodeDecodeError: 'utf-8' codec can't decode byte
-  0x89 in position 0: invalid start byte`.
-- Supported generic Git-object fetch: `HTTPError: 400: GitHub Fetch only
-  accepts UTF-8 text. (Response: None)`.
-- Local `git cat-file`: object unavailable in this checkout.
-- Local `gh api` for the exact blob: `Forbidden`. No alternate transport was
-  attempted around that denial.
-- The separately authorized Library copy
-  `libfile_39439909140481918d3ed413cfefad65` resolved as
-  `sigi-original-transparent.png`, 53,138 bytes, version 0. The current supported
-  Library transfer helper returned `library file transfer failed: download failed`.
+The original binary blob is `81d693c5a355d26f50d6a1b681b0178a1ca02ef5`.
+The official GitHub `fetch_blob` tool was called for that exact SHA/repository
+and failed with `UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in
+position 0: invalid start byte`. The generic Git read also rejected binary text;
+local `gh api` returned `Forbidden`; the supported Library download failed.
+Those initial failures are resolved by a newly supplied, authorized text blob,
+not by bypassing the shell denial.
 
-No image bytes were retrieved, so the hash and pixels could not be verified.
-No mascot asset, placeholder, regenerated owl or incomplete mascot UI was added.
-Sigi integration remains blocked until the exact file is available through an
-allowed download or local attachment.
+The parent staged the SAME PNG as ASCII base64 in unreferenced blob
+`9999ba12383efccc57edfb028149654dc9ff7814`. Official `fetch_blob` succeeded,
+returning the ASCII text in `structuredContent.content`. It was decoded exactly
+once, with strict base64 validation, then checked before inspecting its pixels:
+
+- 53,138 bytes; 217×266; RGBA PNG; alpha extrema 0–255.
+- SHA-256: `e419154b60e0ec64aaa7d7c3c895c5a83d6ca7310b28070579ba819a8da383cf`.
+- Pixels inspected: the approved near-black owl, sage-rimmed eyes, green feet and
+  beak, and white C belly. No regenerated anatomy, recoloring or image edits.
+- Original bytes copied to `public/brand/sigi.png`; served directly without image
+  optimization. Browser checks verify the served length, hash and dimensions.
+- No branch/ref was changed by asset staging. No push or deployment occurred.
 
 ## Validation
 
@@ -73,9 +88,16 @@ allowed download or local attachment.
 - Production `npm run build:webpack` passed with the existing configuration.
   `npm run check:bundles` passed without changing gates: external-wallet profile
   1123.5/1124 kB; legacy Turnkey 979.4/991 kB.
-- Six production axe WCAG 2 A/AA + 2.1 AA scans passed with zero violations:
-  page and menu at 1180, 390 and 320px. Automated scans do not replace manual
-  assistive-device testing.
+- All six Sigi production scenarios passed: 1180×757, 1000×720, 390×844,
+  320×740, desktop reduced motion and mobile no JavaScript. They check served
+  PNG bytes/hash/dimensions, 100–180px sizing, static mobile/reduced-motion
+  presentation, keyboard tour entry, forward/reverse guide steps, demo control
+  clearance, ending the guide, quiet/dismiss persistence, resource return and
+  focus restoration. The guided owner CTA also clears the HUD without extra
+  scrolling at 1000×720 (bottom 638.77px; HUD top 642px).
+- Nine production axe WCAG 2 A/AA + 2.1 AA scans passed with zero violations:
+  welcome, guided page and menu at 1180, 390 and 320px. Automated scans do not
+  replace manual assistive-device testing.
 - All 12 final production Chromium configurations passed: 1440×900,
   1280×720, 1180×757, 1000×720, 1180×650, 390×844, 320×740, 768×1024,
   desktop/mobile reduced motion, and desktop/320px no JavaScript. Checks cover
@@ -83,8 +105,8 @@ allowed download or local attachment.
   menu focus loop/Escape/history/scroll lock, skip, anchors, refresh, mobile
   control/footer clearance, no overflow and no page errors.
 - Desktop and mobile production captures are collected in
-  `ClearSig-landing-refinements-review.pdf`; the PDF explicitly marks Sigi as
-  blocked. Screenshots, logs and machine-readable results are retained in
+  `ClearSig-landing-refinements-review.pdf`, updated to include the verified Sigi
+  implementation and supersede the earlier blocked-asset report. Screenshots, logs and machine-readable results are retained in
   `/workspace/clearsig-review` outside the source checkout.
 
 The local landing runtime uses a clearly synthetic public Dynamic environment

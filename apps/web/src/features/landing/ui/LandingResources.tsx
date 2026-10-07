@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, Fingerprint, ShieldCheck, Users } from "lucide-react";
+import { SigiReturn } from "./SigiGuide";
 import s from "./LandingResources.module.css";
 
 const repo = "https://github.com/clear-msig/clear-msig";
 export function LandingResources() {
   return <section id="resources" className={s.resources} aria-labelledby="resources-title">
-    <div className={s.heading}><p>UNDERSTAND BEFORE YOU START</p><h2 id="resources-title">The details are<br />part of the product.</h2></div>
+    <div className={s.heading}><p>UNDERSTAND BEFORE YOU START</p><h2 id="resources-title" tabIndex={-1}>The details are<br />part of the product.</h2></div>
+    <SigiReturn />
     <div className={s.explainers}>
       <article><div className={s.diagram} aria-hidden="true"><span>5 SOL</span><ArrowRight /><span>Vault</span><div>AMOUNT · DESTINATION · NETWORK</div></div><h3>A request you can inspect.</h3><p>Read the intended action before the wallet prompt. The exact prepared document remains the thing you sign.</p><a href="#story-request">Walk through an approval <ArrowRight size={16} /></a></article>
       <article><div className={s.diagram} aria-hidden="true"><Fingerprint /><span>Owner</span><span>Owner</span><div>TWO APPROVALS / THREE OWNERS</div></div><h3>Recovery is a separate decision.</h3><p>Explore recovery vaults and threshold decisions. Recovery is pre-alpha; setup and device support have limits.</p><Link href="/secure">Explore recovery <ArrowRight size={16} /></Link></article>

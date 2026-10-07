@@ -57,6 +57,8 @@ export function SignatureStage() {
   useEffect(() => {
     const target = figure.current;
     if (!target) return;
+    const hero = target.closest("section");
+    hero?.style.setProperty("--hero-progress", "0");
     if (reducedMotion) {
       target.style.setProperty("--stage-progress", "0");
       delete target.dataset.watermark;
@@ -72,6 +74,7 @@ export function SignatureStage() {
       return () => {
         observer.disconnect();
         delete target.dataset.watermark;
+        hero?.style.removeProperty("--hero-progress");
       };
     }
     let frame = 0;
@@ -104,6 +107,7 @@ export function SignatureStage() {
       const backdropHeight = Math.min(620, window.innerHeight * 0.7);
       const mix = (from: number, to: number) => from + (to - from) * progress;
       target.style.setProperty("--stage-progress", value);
+      hero?.style.setProperty("--hero-progress", value);
       target.style.setProperty("--stage-opacity", String(Math.max(0.07, (1 - progress) ** 4)));
       target.style.setProperty("--stage-top", `${mix(top - window.scrollY, (window.innerHeight - backdropHeight) / 2)}px`);
       target.style.setProperty("--stage-left", `${mix(left, (window.innerWidth - backdropWidth) / 2)}px`);
@@ -117,6 +121,7 @@ export function SignatureStage() {
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(target);
+    if (hero) observer?.observe(hero);
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", measure, { passive: true });
     return () => {
@@ -125,6 +130,7 @@ export function SignatureStage() {
       observer?.disconnect();
       if (frame) cancelAnimationFrame(frame);
       delete target.dataset.watermark;
+      hero?.style.removeProperty("--hero-progress");
     };
   }, [reducedMotion]);
   return (

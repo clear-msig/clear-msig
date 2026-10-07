@@ -6,12 +6,14 @@ import s from "./LandingPage.module.css";
 import { ChainMarquee } from "../ui/home/ChainMarquee";
 import { SignatureStage } from "../ui/SignatureStage";
 import { ApprovalStory } from "../ui/ApprovalStory";
+import { SigiGuideProvider, SigiWelcome } from "../ui/SigiGuide";
 import { ProductScene } from "../ui/ProductScene";
 import { LandingMenu } from "../ui/LandingMenu";
 import { LandingResources, LandingFooter } from "../ui/LandingResources";
 
 export default function HomePage() {
   return (
+    <SigiGuideProvider>
     <div className={`${s.page} public-brand-surface`}>
       <a href="#landing-content" className={s.skip}>
         Skip to content
@@ -38,7 +40,7 @@ export default function HomePage() {
           </div>
           <div className={s.stageFooter}>
             <div className={s.stageActions}>
-              <Link className={s.stagePrimary} href="/choose">
+              <Link id="explore-clearsig" className={s.stagePrimary} href="/choose">
                 Explore ClearSig <ArrowRight size={16} aria-hidden="true" />
               </Link>
               <a href="#approval">
@@ -47,6 +49,7 @@ export default function HomePage() {
             </div>
             <p>Shared wallets. Readable approvals.</p>
           </div>
+          <SigiWelcome />
         </section>
         <ApprovalStory />
         <ChainMarquee />
@@ -132,5 +135,6 @@ export default function HomePage() {
       </main>
       <LandingFooter />
     </div>
+    </SigiGuideProvider>
   );
 }

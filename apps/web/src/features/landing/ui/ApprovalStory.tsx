@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowDown, ArrowRight, Check, ShieldCheck, Users, X } from "lucide-react";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
+import { SigiStoryTip } from "./SigiGuide";
 import s from "./ApprovalStory.module.css";
 
 const chapters = [
@@ -89,11 +90,11 @@ export function ApprovalStory() {
       <div className={s.timeline}>
         <div className={s.chapters}>
           {chapters.map((chapter, index) => (
-            <section id={chapter.id} className={s.chapter} key={chapter.id} aria-labelledby={`${chapter.id}-title`}>
+            <section id={chapter.id} tabIndex={-1} className={s.chapter} key={chapter.id} aria-labelledby={`${chapter.id}-title`}>
               <p className={s.eyebrow}>0{index + 1} / {chapter.short}</p>
               <h3 id={`${chapter.id}-title`}>{chapter.title}</h3>
               <p>{chapter.copy}</p>
-              <p className={s.detail}>{chapter.detail}</p>
+              <SigiStoryTip step={index}><p className={s.detail}>{chapter.detail}</p></SigiStoryTip>
               {index === 1 && <button className={s.textAction} disabled={!ready} onClick={changePolicy}>{blocked ? "Restore the 5 SOL request" : "Try a request over the limit"} <ArrowRight size={16} aria-hidden="true" /></button>}
               {index === 2 && <button className={s.action} disabled={!ready || blocked} onClick={() => setApproved(!approved)}>{blocked ? "Approval unavailable: policy failed" : approved ? "Reset demo approval" : "Add a demo approval"}<ArrowRight size={16} aria-hidden="true" /></button>}
               <div className={s.flowScene}><ApprovalWorkspace step={index} blocked={blocked} approved={approved} /></div>
