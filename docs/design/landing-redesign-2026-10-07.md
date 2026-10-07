@@ -1,5 +1,13 @@
 # Landing redesign — 7 October 2026
 
+> **Status: reverted the same day.** The owner rejected this page and asked for
+> the three overlapping cards back. The landing route is restored to the
+> previous design (`ApprovalFolio` hero). `DecodeDevice`, `ApprovalLab` and
+> `domain/approvalDocument.ts` remain in the tree, unused, as reusable pieces;
+> delete them if the direction does not return to them. The next direction is a
+> qu.ai-style page, pending reference material (the site is not reachable from
+> the build sandbox).
+
 ## Why
 
 The previous landing told the product's one idea ("sign intents, not hex") in
