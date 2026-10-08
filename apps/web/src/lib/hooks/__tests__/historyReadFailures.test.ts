@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useRecentActivity } from "../useRecentActivity";
 import { useUserIntents } from "../useUserIntents";
+import { fetchOnchainMemberships } from "@/lib/memberships/client";
+vi.mock("@/lib/memberships/client", () => ({ fetchOnchainMemberships: vi.fn(async () => []) }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(),
   useQueries: vi.fn(),
@@ -36,6 +38,23 @@ function run<T>(hook: () => T): T {
 }
 beforeEach(() => vi.resetAllMocks());
 describe("history read failure propagation", () => {
+  it.each([useRecentActivity, useUserIntents])(
+    "reads memberships with the active connection and query cancellation signal",
+    async (hook) => {
+      vi.mocked(useQuery).mockReturnValue(result([]) as never);
+      vi.mocked(useQueries).mockReturnValue([] as never);
+      run(() => hook());
+      const options = vi.mocked(useQuery).mock.calls[0][0] as unknown as {
+        queryFn: (context: { signal: AbortSignal }) => Promise<unknown>;
+      };
+      const signal = new AbortController().signal;
+      await options.queryFn({ signal });
+      expect(fetchOnchainMemberships).toHaveBeenCalledWith("owner", {
+        connection: { rpcEndpoint: "https://rpc.fixture.invalid" }, signal,
+      });
+    },
+  );
+
   it.each([useRecentActivity, useUserIntents])(
     "retains membership failure rather than claiming a complete empty feed",
     async (hook) => {

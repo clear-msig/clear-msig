@@ -37,12 +37,13 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
 
   const memberships = useQuery({
     queryKey: ["my-organizations", address, connection.rpcEndpoint],
-    queryFn: () => fetchOnchainMemberships(address),
+    queryFn: ({ signal }) => fetchOnchainMemberships(address, { connection, signal }),
     enabled,
     staleTime: 30_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: "always" as const,
+    refetchOnReconnect: "always" as const,
   });
 
   const walletQueries = useQueries({
@@ -64,6 +65,9 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
             return { membership: m, account };
           },
           staleTime: 30_000,
+          // A just-cached counter can still predate a teammate’s new request.
+          refetchOnWindowFocus: "always" as const,
+          refetchOnReconnect: "always" as const,
         }))
       : [],
   });
@@ -98,7 +102,8 @@ export function useUserIntents(options: { enabled?: boolean } = {}) {
             // can resolve both the proposal and its approver policy.
             refetchInterval: 30_000,
             refetchIntervalInBackground: true,
-            refetchOnWindowFocus: true,
+            refetchOnWindowFocus: "always" as const,
+            refetchOnReconnect: "always" as const,
           };
         })
       : [],

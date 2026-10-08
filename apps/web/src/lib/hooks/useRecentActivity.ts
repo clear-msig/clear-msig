@@ -74,12 +74,13 @@ export function useRecentActivity(
 
   const memberships = useQuery({
     queryKey: ["my-organizations", address, connection.rpcEndpoint],
-    queryFn: () => fetchOnchainMemberships(address),
+    queryFn: ({ signal }) => fetchOnchainMemberships(address, { connection, signal }),
     enabled,
     staleTime: 30_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: "always" as const,
+    refetchOnReconnect: "always" as const,
   });
 
   // Per-wallet account fetches (cache-shared with the wallet detail
@@ -103,6 +104,9 @@ export function useRecentActivity(
             return { membership: m, account };
           },
           staleTime: 30_000,
+          // A just-cached counter can still predate a teammate’s new request.
+          refetchOnWindowFocus: "always" as const,
+          refetchOnReconnect: "always" as const,
           // A stale wallet high-water mark hides proposals created after mount,
           // even while the proposal-list query itself keeps polling.
           refetchInterval: 30_000,
@@ -146,7 +150,8 @@ export function useRecentActivity(
             // still arrive when a teammate proposes from another device.
             refetchInterval: 30_000,
             refetchIntervalInBackground: true,
-            refetchOnWindowFocus: true,
+            refetchOnWindowFocus: "always" as const,
+            refetchOnReconnect: "always" as const,
           };
         })
       : [],
