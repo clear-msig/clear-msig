@@ -14,6 +14,14 @@ const groups = [
   { name: "Understand", links: [["Security & limitations", "/security"], ["Privacy", "/privacy"], ["Changelog", "/changelog"]] },
 ];
 
+// Native modal focus and overflow locking do not cancel an in-flight smooth scroll.
+function openNavigation(dialog: HTMLDialogElement | null) {
+  if (!dialog || dialog.open) return;
+  const { scrollX: left, scrollY: top } = window;
+  dialog.showModal();
+  window.scrollTo({ left, top, behavior: "instant" });
+}
+
 export function LandingMenu() {
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -25,7 +33,7 @@ export function LandingMenu() {
     setReady(true);
     const onBack = () => {
       if (history.state?.clearSigNavigation) {
-        if (!dialog.current?.open) dialog.current?.showModal();
+        openNavigation(dialog.current);
         setOpen(true);
         return;
       }
@@ -54,7 +62,7 @@ export function LandingMenu() {
   const show = () => {
     if (dialog.current?.open) return;
     history.pushState({ ...history.state, clearSigNavigation: true }, "", location.href);
-    dialog.current?.showModal();
+    openNavigation(dialog.current);
     setOpen(true);
   };
   const close = (destination?: string) => {

@@ -57,6 +57,15 @@ export function SignatureStage() {
   const reducedMotion = useReducedMotion();
   const [paused, setPaused] = useState(false);
   useEffect(() => {
+    const page = figure.current?.closest(".public-brand-surface");
+    page?.toggleAttribute("data-landing-motion-paused", paused);
+    window.dispatchEvent(new Event("clearsig-motion-change"));
+    return () => {
+      page?.removeAttribute("data-landing-motion-paused");
+      window.dispatchEvent(new Event("clearsig-motion-change"));
+    };
+  }, [paused]);
+  useEffect(() => {
     const target = figure.current;
     if (!target || reducedMotion) return;
     let visible = false;

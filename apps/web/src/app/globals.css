@@ -478,35 +478,44 @@ select:focus-visible {
   text-transform: uppercase;
   color: var(--clear-text-soft);
 }
-/* Landing-only enhancement: reserve layout, then reveal each observed block.
-   Pending has no transition, so arming below the fold never plays a fade-out. */
+/* Landing-only spatial reveals preserve layout and reverse below the viewport.
+   Entry is deliberate; the shorter exit clears content as the visitor retreats. */
 .landing-reveal {
+  /* Moving children must not become native scroll anchors. */
+  overflow-anchor: none;
   opacity: 1;
-  transition: opacity 480ms ease-out;
+  transition: opacity 650ms ease-out;
+  transition-delay: calc(var(--reveal-order, 0) * 140ms);
 }
 .landing-reveal > :not([data-reveal-parts]),
 .landing-reveal > [data-reveal-parts] > * {
-  transition: opacity 480ms ease-out, translate 560ms cubic-bezier(0.22, 1, 0.36, 1);
-  transition-delay: 0ms;
+  transition: opacity 650ms ease-out, translate 800ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--reveal-order, 0) * 140ms);
 }
 .landing-reveal > :nth-child(2),
-.landing-reveal > [data-reveal-parts] > :nth-child(2) { transition-delay: 60ms; }
+.landing-reveal > [data-reveal-parts] > :nth-child(2) { transition-delay: calc(var(--reveal-order, 0) * 140ms + 100ms); }
 .landing-reveal > :nth-child(3),
-.landing-reveal > [data-reveal-parts] > :nth-child(3) { transition-delay: 120ms; }
+.landing-reveal > [data-reveal-parts] > :nth-child(3) { transition-delay: calc(var(--reveal-order, 0) * 140ms + 200ms); }
 .landing-reveal > :nth-child(n+4),
-.landing-reveal > [data-reveal-parts] > :nth-child(n+4) { transition-delay: 180ms; }
-.landing-reveal[data-reveal="pending"] { opacity: 0; pointer-events: none; transition: none; }
+.landing-reveal > [data-reveal-parts] > :nth-child(n+4) { transition-delay: calc(var(--reveal-order, 0) * 140ms + 300ms); }
+.landing-reveal[data-reveal="pending"] { opacity: 0; pointer-events: none; transition: opacity 280ms ease-out; transition-delay: 0ms; }
 .landing-reveal[data-reveal="pending"] > :not([data-reveal-parts]),
 .landing-reveal[data-reveal="pending"] > [data-reveal-parts] > * {
-  opacity: 0; translate: 0 14px; transition: none;
+  opacity: 0; translate: 0 64px; transition: opacity 280ms ease-out, translate 380ms ease-out; transition-delay: 0ms;
 }
-.landing-reveal:focus-within,
+.landing-reveal:focus-within { pointer-events: auto; }
+.landing-reveal:has(:focus-visible),
 .landing-reveal[data-reveal="instant"] { opacity: 1; pointer-events: auto; transition: none; }
-.landing-reveal:focus-within > *,
-.landing-reveal:focus-within > [data-reveal-parts] > *,
+.landing-reveal:has(:focus-visible) > *,
+.landing-reveal:has(:focus-visible) > [data-reveal-parts] > *,
 .landing-reveal[data-reveal="instant"] > *,
 .landing-reveal[data-reveal="instant"] > [data-reveal-parts] > * {
   opacity: 1; translate: none; transition: none;
+}
+.public-brand-surface[data-landing-motion-paused] .landing-reveal,
+.public-brand-surface[data-landing-motion-paused] .landing-reveal > *,
+.public-brand-surface[data-landing-motion-paused] .landing-reveal > [data-reveal-parts] > * {
+  opacity: 1; translate: none; transition: none; pointer-events: auto;
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-reveal, .landing-reveal[data-reveal="pending"],
