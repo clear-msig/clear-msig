@@ -56,12 +56,13 @@
   width: 44px;
   height: 44px;
   border: 1px solid var(--clear-border-strong);
-  border-radius: 3px 12px 3px 12px;
+  border-radius: 0;
   color: var(--clear-accent);
 }
 .productName {
+  font-family: "ClearSig Wide", var(--font-sans);
   display: block;
-  font-size: 25px;
+  font-size: 21px;
   font-weight: 500;
   letter-spacing: -0.6px;
 }
@@ -139,7 +140,7 @@
     padding: 28px 0;
   }
   .productName {
-    font-size: 24px;
+    font-size: 20px;
   }
   .productDescription {
     font-size: 14px;

@@ -1,18 +1,6 @@
 "use client";
 
-// Connect - Obsidian & Lime rebuild (2026-05-08).
-//
-// The bridge between landing and /welcome. Lifted out of the landing
-// per the user request: the public landing has no wallet-select button
-// anywhere. CTAs that need a wallet (Get started, dashboard deep links,
-// /welcome, /send) bounce here via `useWalletGate`, which appends a
-// `?next=<original-path>` so we land them back where they meant to go
-// after connecting.
-//
-// Visual layer matches the landing page (.landing-shell, glass cards,
-// lime accents, Space Grotesk + JetBrains Mono typography). Behavior
-// (Dynamic auth, Ledger WebHID, post-connect bridge state) is unchanged
-// from the prior retail version.
+// Shared public presentation; provider hydration and destination handling stay local.
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
@@ -99,7 +87,7 @@ function ConnectPage() {
     // Bleed-to-edge shell - same flat structure as `/` and `/welcome`.
     // Atmospherics live in their own absolute overflow-hidden wrapper
     // so the fixed nav can layer above without being clipped.
-    <div className="public-brand-surface landing-shell relative min-h-screen bg-canvas text-text-strong">
+    <div className="public-brand-surface landing-shell brand-entry relative min-h-screen bg-canvas text-text-strong">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -142,30 +130,14 @@ function ConnectPage() {
                   : "Send and approve from a wallet you share with people you trust. Partners, family, your team. Every move is signed by your own wallet; we never see your keys."}
               </p>
 
-              {/* Floating preview cluster - pure decoration. */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none relative mt-12 hidden h-60 lg:block"
-              >
-                <PreviewCard
-                  className="float-slow absolute left-0 top-0 w-60 rotate-[-4deg]"
-                  kind="wallet"
-                  {...fadeIn(0.18, 16)}
-                />
-                <PreviewCard
-                  className="float-slower absolute left-32 top-16 w-56 rotate-[3deg]"
-                  kind="request"
-                  {...fadeIn(0.26, 16)}
-                />
-                <PreviewCard
-                  className="float-slow absolute left-4 top-36 w-52 rotate-[-2deg]"
-                  kind="members"
-                  {...fadeIn(0.34, 16)}
-                />
+              <div className="entry-document" aria-label="How shared approvals work">
+                <p className="entry-document-label">One shared decision</p>
+                <ol>
+                  <li><span>01</span><div><strong>Request</strong><p>See what you are being asked to sign.</p></div></li>
+                  <li><span>02</span><div><strong>Rules</strong><p>Review the wallet’s approval requirements.</p></div></li>
+                  <li><span>03</span><div><strong>Owners</strong><p>Each person signs with their own wallet.</p></div></li>
+                </ol>
               </div>
-              <p className="mt-4 hidden text-xs text-text-soft lg:block">
-                Illustrative examples. No live wallet data.
-              </p>
             </motion.section>
 
             {/* Right - connect surface */}
@@ -173,20 +145,9 @@ function ConnectPage() {
               {...fadeIn(0.08)}
               className="relative mx-auto w-full max-w-md"
             >
-              <div className="border border-border-soft bg-surface-raised relative overflow-hidden rounded-[2rem] p-7 sm:p-8">
-                {/* Inner lime glow accent */}
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -right-24 -top-24 h-48 w-48 rounded-full opacity-50"
-                  style={{
-                    background:
-                      "radial-gradient(circle at center, rgba(204, 255, 0,0.18) 0%, rgba(204, 255, 0,0) 70%)",
-                    filter: "blur(40px)",
-                  }}
-                />
-
+              <div className="entry-auth-panel relative border border-border-soft bg-surface-raised p-7 sm:p-8">
                 <div className="relative flex flex-col items-center text-center">
-                  <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/30 shadow-[0_0_24px_rgba(204, 255, 0,0.15)]">
+                  <div className="entry-auth-icon mb-5 inline-flex h-14 w-14 items-center justify-center text-accent">
                     <ShieldCheck className="h-7 w-7" strokeWidth={1.75} />
                   </div>
                   <h2 className="landing-section-heading mt-3 text-[clamp(1.75rem,3.5vw,2.5rem)] font-light leading-[1] tracking-[-0.03em] text-text-strong">
@@ -315,96 +276,6 @@ function FastConnectCta({ onClick }: { onClick: () => void }) {
       Continue
       <ArrowRight className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
     </button>
-  );
-}
-
-// ─── Preview cluster cards ─────────────────────────────────────────
-
-interface PreviewCardProps {
-  className: string;
-  kind: "wallet" | "request" | "members";
-  initial?: false | { opacity: number; y: number };
-  animate?: { opacity: number; y: number };
-  transition?: {
-    duration: number;
-    delay?: number;
-    ease?: readonly [number, number, number, number];
-  };
-}
-
-function PreviewCard({ className, kind, ...motionProps }: PreviewCardProps) {
-  const inner = (() => {
-    if (kind === "wallet") {
-      return (
-        <>
-          <p className="font-mono-tech text-xs uppercase tracking-[0.28em] text-text-soft">
-            Family
-          </p>
-          <p className="mt-1 text-2xl font-light tracking-tight text-text-strong">
-            $4,820
-          </p>
-          <p className="mt-1 font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft">
-            Balance · 4 members
-          </p>
-        </>
-      );
-    }
-    if (kind === "request") {
-      return (
-        <>
-          <div className="flex items-center">
-            <p className="font-mono-tech text-xs uppercase tracking-[0.28em] text-accent">
-              Approved
-            </p>
-          </div>
-          <p className="mt-1.5 text-sm font-medium text-text-strong">
-            Send $120 to Sarah
-          </p>
-          <div className="mt-2 flex items-center gap-1">
-            <span className="h-1.5 w-6 rounded-full bg-accent" />
-            <span className="h-1.5 w-6 rounded-full bg-accent" />
-            <span className="h-1.5 w-6 rounded-full bg-border-soft" />
-            <span className="ml-1 font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft">
-              2/3
-            </span>
-          </div>
-        </>
-      );
-    }
-    return (
-      <>
-        <p className="font-mono-tech text-xs uppercase tracking-[0.28em] text-text-soft">
-          Members
-        </p>
-        <div className="mt-2 flex -space-x-2">
-          {[
-            "bg-accent",
-            "bg-accent/70",
-            "bg-border-strong",
-            "bg-[#10b981]",
-          ].map((bg, i) => (
-            <span
-              key={i}
-              className={"h-6 w-6 rounded-full ring-2 ring-canvas " + bg}
-            />
-          ))}
-        </div>
-        <p className="mt-2 font-mono-tech text-xs uppercase tracking-[0.24em] text-text-soft">
-          You + 3 friends
-        </p>
-      </>
-    );
-  })();
-  return (
-    <motion.div
-      {...motionProps}
-      className={
-        "border border-border-soft bg-surface-raised rounded-2xl p-3.5 " +
-        className
-      }
-    >
-      {inner}
-    </motion.div>
   );
 }
 

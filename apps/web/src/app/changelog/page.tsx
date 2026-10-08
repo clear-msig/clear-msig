@@ -76,7 +76,7 @@ export default function ChangelogPage() {
   const reduce = useReducedMotion();
   const motionProps = reduce
     ? {}
-    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
+    : { initial: false as const, animate: { opacity: 1, y: 0 } };
   return (
     <main className="brand-document relative isolate min-h-screen bg-canvas px-gutter py-12">
       <motion.div

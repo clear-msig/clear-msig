@@ -39,7 +39,7 @@ export function ProductWalletSelectionScreen({
   };
 
   return (
-    <div className="landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+    <div className="public-brand-surface landing-shell brand-onboarding relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -49,10 +49,10 @@ export function ProductWalletSelectionScreen({
       <main className="relative mx-auto w-full max-w-[1600px]">
         <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
           <motion.section
-            initial={reduce ? false : { opacity: 0, y: 12 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] as const }}
-            className="w-full max-w-xl rounded-[2rem] border border-border-soft bg-[#101111]/90 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-7"
+            transition={{ duration: reduce ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] as const }}
+            className="onboarding-panel w-full max-w-xl rounded-[2rem] border border-border-soft bg-[#101111]/90 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-7"
           >
             <div className="flex items-start gap-4">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#ccff00] text-black shadow-[0_0_28px_rgba(204,255,0,0.28)]">

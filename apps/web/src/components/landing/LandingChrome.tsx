@@ -25,7 +25,7 @@ export function LandingNav({
 }: LandingNavProps = {}) {
   return (
     <>
-      <header className="brand-navigation fixed inset-x-0 top-0 z-40 border-b border-border-soft bg-canvas/95 backdrop-blur-md">
+      <header className="brand-navigation fixed inset-x-0 top-0 z-40 bg-canvas">
         <nav
           aria-label="Main navigation"
           className="mx-auto flex h-16 max-w-[1920px] items-center justify-between gap-5 px-5 sm:px-7"

@@ -376,7 +376,7 @@ select:focus-visible {
   --obsidian: #0c0c0c;
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.1);
-  --landing-display-font: var(--font-grotesk), var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --landing-display-font: "ClearSig Wide", var(--font-sans), sans-serif;
   --landing-small-font: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-family: var(--landing-small-font);
   letter-spacing: 0;
@@ -980,4 +980,67 @@ select:focus-visible {
   padding-inline: 12px;
   border: 1px solid var(--clear-border-soft);
   border-radius: 3px;
+}
+
+/* Public-to-workspace continuity. These surfaces stay readable before hydration. */
+.brand-navigation { padding-inline: clamp(16px, 3vw, 48px); }
+.brand-navigation nav { padding-inline: 0; border-bottom: 1px solid var(--clear-border-soft); }
+.brand-navigation nav > div > span { font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; }
+:is(.brand-entry, .brand-reference, .brand-onboarding) .italic-skew { transform: none; font-style: normal; }
+:is(.brand-entry, .brand-reference, .brand-onboarding) .landing-section-heading { line-height: 1.2; letter-spacing: -.035em; }
+.brand-entry h1.landing-section-heading { font-size: clamp(30px, 3.6vw, 50px); }
+.brand-entry h2.landing-section-heading { font-size: clamp(23px, 2.2vw, 30px); }
+.entry-auth-panel { border-radius: 0; border-top: 2px solid var(--clear-accent); }
+.entry-auth-icon { border: 1px solid var(--clear-border-strong); clip-path: polygon(0 0, 80% 0, 100% 20%, 100% 100%, 20% 100%, 0 80%); }
+.entry-document { margin-top: 32px; padding: 24px; background: #dce2d6; color: #172018; clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%); }
+.entry-document-label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; padding-bottom: 16px; border-bottom: 1px solid #17201840; }
+.entry-document ol { display: grid; gap: 18px; margin-top: 18px; }
+.entry-document li { display: flex; gap: 18px; }
+.entry-document li > span { font-family: var(--font-mono); font-size: 11px; padding-top: 3px; }
+.entry-document strong { font-size: 14px; font-weight: 600; }
+.entry-document li p { margin-top: 3px; font-size: 12px; line-height: 1.6; }
+:is(.brand-entry, .brand-reference, .product-experience) .neon-cta { border-radius: 0; box-shadow: none; font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
+:is(.brand-entry, .brand-reference, .product-experience) .neon-cta:focus-visible { outline: 2px solid var(--clear-accent); outline-offset: 4px; }
+.brand-reference :is(article, main > section, main > div)[class*="rounded-"] { border-radius: 2px; backdrop-filter: none; box-shadow: none; }
+.brand-onboarding .onboarding-panel { border-radius: 2px; backdrop-filter: none; box-shadow: none; border-top: 2px solid var(--clear-accent); }
+.brand-onboarding .onboarding-panel :is(button, span)[class*="rounded-"] { border-radius: 3px; box-shadow: none; }
+.brand-onboarding h1.landing-section-heading { font-size: clamp(24px, 3vw, 34px); }
+.brand-document li.rounded-card { border-radius: 2px; box-shadow: none; }
+.product-experience :is(.product-choice-card, .product-preview-card) { border-radius: 2px; }
+.app-experience .app-sidebar-shell { background: var(--clear-surface-raised); }
+.app-experience .app-sidebar-shell :is(a, button):focus-visible { outline: 2px solid var(--clear-accent); outline-offset: 2px; }
+@media (max-width: 1023px) {
+  .brand-entry .entry-document { display: none; }
+  .brand-entry main > div { padding-top: 40px; }
+}
+@media (max-width: 359px) {
+  .brand-navigation nav { gap: 8px; }
+  .brand-navigation nav > a { gap: 8px; }
+  .brand-navigation nav > div > span { font-size: 9px; }
+  .brand-entry footer { flex-wrap: wrap; gap: 12px; }
+}
+/* Preserve rectangular hit targets and focus outlines around cut-corner fills. */
+:is(.brand-entry, .brand-reference) .neon-cta,
+.product-experience a.neon-cta {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  border-radius: 0;
+}
+:is(.brand-entry, .brand-reference, .product-experience) .neon-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--clear-accent);
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+:is(.brand-entry, .brand-reference) .neon-cta:hover,
+.product-experience a.neon-cta:hover { background: transparent; }
+:is(.brand-entry, .brand-reference, .product-experience) .neon-cta:hover::before { background: var(--clear-accent-hover); }
+.brand-entry .entry-auth-panel button[class*="rounded-full"] { border-radius: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.brand-entry, .brand-reference, .product-experience) .neon-cta { transition: none; }
+  :is(.brand-entry, .brand-reference, .product-experience) .neon-cta:hover { transform: none; }
 }

@@ -45,7 +45,7 @@ export default function SecurityPage() {
     reduce
       ? {}
       : {
-          initial: { opacity: 0, y: 14 },
+          initial: false as const,
           animate: { opacity: 1, y: 0 },
           transition: {
             duration: 0.5,
@@ -55,7 +55,7 @@ export default function SecurityPage() {
         };
 
   return (
-    <div className="public-brand-surface landing-shell relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
+    <div className="public-brand-surface landing-shell brand-reference relative min-h-screen bg-[#0c0c0c] text-[#ebebeb]">
       <LandingScrollProgress />
       <LandingBackToTop />
 
