@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowDown, ArrowRight, Check, ShieldCheck, Users, X } from "lucide-react";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
+import { LandingReveal } from "@/components/landing/LandingReveal";
 import { SigiStoryTip } from "./SigiGuide";
 import s from "./ApprovalStory.module.css";
 
@@ -79,18 +80,18 @@ export function ApprovalStory() {
   const changePolicy = () => { setBlocked(!blocked); setApproved(false); };
   return (
     <section ref={root} id="approval" className={s.story} data-enhanced={enhanced} data-ready={ready} aria-label="An approval, step by step">
-      <div className={s.intro} id="how-it-works">
+      <LandingReveal className={s.intro} id="how-it-works">
         <p className={s.eyebrow}>ONE REQUEST / THREE CHECKS</p>
         <h2>Follow the decision.<br /><span>Keep the whole picture.</span></h2>
         <p>A local, interactive explanation. Solana devnet example. No signing or transaction.</p>
         <a href="#story-request">Begin the story <ArrowDown size={16} aria-hidden="true" /></a>
-      </div>
+      </LandingReveal>
       <noscript><p>The full story is below. Interactive examples need JavaScript; no wallet or transaction is involved.</p></noscript>
       <p className="sr-only" role="status">{blocked ? "Policy failed. Demo approvals are unavailable." : approved ? "Two demo approvals recorded. No transaction executed." : "Within policy. One demo approval recorded; one more required."}</p>
       <div className={s.timeline}>
         <div className={s.chapters}>
           {chapters.map((chapter, index) => (
-            <section id={chapter.id} tabIndex={-1} className={s.chapter} key={chapter.id} aria-labelledby={`${chapter.id}-title`}>
+            <LandingReveal as="section" id={chapter.id} tabIndex={-1} className={s.chapter} key={chapter.id} aria-labelledby={`${chapter.id}-title`}>
               <p className={s.eyebrow}>0{index + 1} / {chapter.short}</p>
               <h3 id={`${chapter.id}-title`}>{chapter.title}</h3>
               <p>{chapter.copy}</p>
@@ -98,14 +99,14 @@ export function ApprovalStory() {
               {index === 1 && <button className={s.textAction} disabled={!ready} onClick={changePolicy}>{blocked ? "Restore the 5 SOL request" : "Try a request over the limit"} <ArrowRight size={16} aria-hidden="true" /></button>}
               {index === 2 && <button className={s.action} disabled={!ready || blocked} onClick={() => setApproved(!approved)}>{blocked ? "Approval unavailable: policy failed" : approved ? "Reset demo approval" : "Add a demo approval"}<ArrowRight size={16} aria-hidden="true" /></button>}
               <div className={s.flowScene}><ApprovalWorkspace step={index} blocked={blocked} approved={approved} /></div>
-            </section>
+            </LandingReveal>
           ))}
         </div>
-        <div className={s.stage} data-story-stage aria-hidden={!enhanced}>
+        <LandingReveal enabled={enhanced} className={s.stage} data-story-stage aria-hidden={!enhanced}>
           <div className={s.stageLabel}><span>OPERATIONS / LOCAL DEMONSTRATION</span><span>0{step + 1} — {chapters[step].short}</span></div>
           <ApprovalWorkspace step={step} blocked={blocked} approved={approved} />
           <p className={s.stageNote}>Same request. Visible rules. Explicit owner decisions.</p>
-        </div>
+        </LandingReveal>
       </div>
       <nav className={s.hud} hidden={ready && !storyActive} aria-label="Approval story navigation" style={{ "--progress": `${progress}%` } as CSSProperties}>
         <span className={s.hudLabel}>THE APPROVAL</span>

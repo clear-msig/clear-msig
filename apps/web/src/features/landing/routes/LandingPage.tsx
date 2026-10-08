@@ -52,7 +52,7 @@ export default function HomePage() {
           <SigiWelcome />
         </section>
         <ApprovalStory />
-        <ChainMarquee />
+        <LandingReveal><ChainMarquee /></LandingReveal>
         <LandingReveal className={s.chapterReveal}>
           <div className={s.chapterDivider}>
             <span>FIND YOUR STARTING POINT</span>
@@ -64,7 +64,7 @@ export default function HomePage() {
           aria-labelledby="products-title"
         >
           <LandingReveal>
-            <div className={s.sectionHeading}>
+            <div className={s.sectionHeading} data-reveal-parts>
               <p className={s.eyebrow}>ONE CLEAR FOUNDATION</p>
               <h2 id="products-title">
                 Shared control.
@@ -101,7 +101,7 @@ export default function HomePage() {
               },
             ].map((p) => (
               <LandingReveal key={p.n}>
-                <Link href={p.href}>
+                <Link href={p.href} data-reveal-parts>
                   <ProductScene scene={p.n} />
                   <div className={s.productCopy}>
                     <span className={s.productIndex}>{p.n} / EXPLORE</span>
@@ -119,7 +119,7 @@ export default function HomePage() {
         </section>
         <LandingResources />
         <LandingReveal>
-          <section className={s.closing}>
+          <section className={s.closing} data-reveal-parts>
             <ShieldCheck size={26} aria-hidden="true" />
             <h2>Clarity is part of control.</h2>
             <p>

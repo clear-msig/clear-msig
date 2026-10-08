@@ -478,20 +478,51 @@ select:focus-visible {
   text-transform: uppercase;
   color: var(--clear-text-soft);
 }
+/* Landing-only enhancement: reserve layout, then reveal each observed block.
+   Pending has no transition, so arming below the fold never plays a fade-out. */
 .landing-reveal {
   opacity: 1;
-  transform: none;
-  transition: opacity 360ms ease-out, transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 480ms ease-out;
 }
-.landing-reveal[data-reveal="pending"] { opacity: 0; transform: translateY(12px); }
-.landing-reveal:focus-within { opacity: 1; transform: none; transition: none; }
+.landing-reveal > :not([data-reveal-parts]),
+.landing-reveal > [data-reveal-parts] > * {
+  transition: opacity 480ms ease-out, translate 560ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: 0ms;
+}
+.landing-reveal > :nth-child(2),
+.landing-reveal > [data-reveal-parts] > :nth-child(2) { transition-delay: 60ms; }
+.landing-reveal > :nth-child(3),
+.landing-reveal > [data-reveal-parts] > :nth-child(3) { transition-delay: 120ms; }
+.landing-reveal > :nth-child(n+4),
+.landing-reveal > [data-reveal-parts] > :nth-child(n+4) { transition-delay: 180ms; }
+.landing-reveal[data-reveal="pending"] { opacity: 0; pointer-events: none; transition: none; }
+.landing-reveal[data-reveal="pending"] > :not([data-reveal-parts]),
+.landing-reveal[data-reveal="pending"] > [data-reveal-parts] > * {
+  opacity: 0; translate: 0 14px; transition: none;
+}
+.landing-reveal:focus-within,
+.landing-reveal[data-reveal="instant"] { opacity: 1; pointer-events: auto; transition: none; }
+.landing-reveal:focus-within > *,
+.landing-reveal:focus-within > [data-reveal-parts] > *,
+.landing-reveal[data-reveal="instant"] > *,
+.landing-reveal[data-reveal="instant"] > [data-reveal-parts] > * {
+  opacity: 1; translate: none; transition: none;
+}
 @media (prefers-reduced-motion: reduce) {
-  .landing-reveal, .landing-reveal[data-reveal="pending"] {
-    opacity: 1; transform: none; transition: none;
+  .landing-reveal, .landing-reveal[data-reveal="pending"],
+  .landing-reveal > *, .landing-reveal > [data-reveal-parts] > *,
+  .landing-reveal[data-reveal="pending"] > :not([data-reveal-parts]),
+  .landing-reveal[data-reveal="pending"] > [data-reveal-parts] > * {
+    opacity: 1; translate: none; transition: none; pointer-events: auto;
   }
 }
 @media print {
-  .landing-reveal, .landing-reveal[data-reveal="pending"] { opacity: 1; transform: none; }
+  .landing-reveal, .landing-reveal[data-reveal="pending"],
+  .landing-reveal > *, .landing-reveal > [data-reveal-parts] > *,
+  .landing-reveal[data-reveal="pending"] > :not([data-reveal-parts]),
+  .landing-reveal[data-reveal="pending"] > [data-reveal-parts] > * {
+    opacity: 1; translate: none; transition: none;
+  }
 }
 
 /* Hero mockup - flat glass approval card.
