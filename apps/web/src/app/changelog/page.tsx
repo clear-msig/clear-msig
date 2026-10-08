@@ -12,6 +12,7 @@
 // through, not just reading.
 
 import Link from "next/link";
+import { LandingNav } from "@/components/landing/LandingChrome";
 import { motion } from "framer-motion";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { ArrowLeft, Sparkles } from "lucide-react";
@@ -78,59 +79,62 @@ export default function ChangelogPage() {
     ? {}
     : { initial: false as const, animate: { opacity: 1, y: 0 } };
   return (
-    <main className="brand-document relative isolate min-h-screen bg-canvas px-gutter py-12">
-      <motion.div
-        {...motionProps}
-        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        className="mx-auto flex max-w-2xl flex-col gap-6"
-      >
-        <Link
-          href="/app/settings"
-          className="-ml-2 inline-flex w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft hover:text-text-strong"
+    <div className="public-brand-surface min-h-screen bg-canvas text-text-strong">
+      <LandingNav />
+      <main className="brand-document relative isolate bg-canvas px-gutter py-12">
+        <motion.div
+          {...motionProps}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="mx-auto flex max-w-2xl flex-col gap-6"
         >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Settings
-        </Link>
-        <header>
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.24em] text-accent">
-            <Sparkles className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
-            What&rsquo;s new
-          </p>
-          <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong">
-            Changelog
-          </h1>
-          <p className="mt-2 text-sm text-text-soft">
-            The shortlist. Bug fixes and tiny polish aren&rsquo;t here -
-            those are in the git log.
-          </p>
-        </header>
-        <ul className="flex flex-col gap-4">
-          {ENTRIES.map((e, i) => (
-            <li
-              key={`${e.date}-${i}`}
-              className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
-                {e.date}
-              </p>
-              <h2 className="mt-1 font-display text-base font-medium text-text-strong">
-                {e.title}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-text-soft">
-                {e.body}
-              </p>
-              {e.surface && (
-                <Link
-                  href={e.surface}
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
-                >
-                  Try it &rsaquo;
-                </Link>
-              )}
-            </li>
-          ))}
-        </ul>
-      </motion.div>
-    </main>
+          <Link
+            href="/app/settings"
+            className="-ml-2 inline-flex min-h-11 w-fit items-center gap-1.5 rounded-soft px-2 py-1 text-sm text-text-soft hover:text-text-strong"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Settings
+          </Link>
+          <header>
+            <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+              <Sparkles className="h-3 w-3" strokeWidth={2.25} aria-hidden="true" />
+              What&rsquo;s new
+            </p>
+            <h1 className="mt-2 font-display text-display-sm leading-[1.05] text-text-strong">
+              Changelog
+            </h1>
+            <p className="mt-2 text-sm text-text-soft">
+              The shortlist. Bug fixes and tiny polish aren&rsquo;t here -
+              those are in the git log.
+            </p>
+          </header>
+          <ul className="flex flex-col gap-4">
+            {ENTRIES.map((e, i) => (
+              <li
+                key={`${e.date}-${i}`}
+                className="rounded-card border border-border-soft bg-surface-raised p-5 shadow-card-rest"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-text-soft">
+                  {e.date}
+                </p>
+                <h2 className="mt-1 font-display text-base font-medium text-text-strong">
+                  {e.title}
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-text-soft">
+                  {e.body}
+                </p>
+                {e.surface && (
+                  <Link
+                    href={e.surface}
+                    className="mt-3 inline-flex min-h-11 items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+                  >
+                    Try it &rsaquo;
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </motion.div>
+      </main>
+    </div>
   );
 }

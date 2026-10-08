@@ -1,9 +1,17 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import { LandingNav } from "@/components/landing/LandingChrome";
+import { isPublicLoadingPresentation } from "./loadingPresentation";
+
 type ConfigGap = {
   envVar: string;
   why: string;
 };
 
 export function WalletRuntimeLoading() {
+  const pathname = usePathname();
+  if (isPublicLoadingPresentation(pathname)) return <PublicPageLoading />;
   return (
     <main aria-label="Loading wallet" className="min-h-screen bg-canvas md:flex">
       <aside className="hidden w-64 shrink-0 border-r border-border-soft bg-surface-raised md:block">
@@ -26,6 +34,27 @@ export function WalletRuntimeLoading() {
         </div>
       </div>
     </main>
+  );
+}
+
+/** Presentation only: no redirect, authentication or theme preference changes. */
+function PublicPageLoading() {
+  return (
+    <div className="public-brand-surface min-h-screen bg-canvas text-text-strong">
+      <LandingNav cta={null} />
+      <main aria-label="Loading page" aria-busy="true" className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-12 lg:py-24">
+        <p role="status" className="font-mono text-xs uppercase tracking-widest text-text-soft">Loading page…</p>
+        <div aria-hidden="true" className="mt-8 max-w-2xl space-y-6 motion-safe:animate-pulse">
+          <div className="h-10 w-3/4 bg-border-soft" />
+          <div className="h-10 w-1/2 bg-border-soft" />
+          <div className="space-y-3 pt-3">
+            <div className="h-4 w-full bg-border-soft" />
+            <div className="h-4 w-5/6 bg-border-soft" />
+          </div>
+          <div className="h-40 border border-border-soft bg-surface-raised" />
+        </div>
+      </main>
+    </div>
   );
 }
 
