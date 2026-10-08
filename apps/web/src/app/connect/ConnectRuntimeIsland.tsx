@@ -6,6 +6,7 @@ import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import ConnectDynamicProviderTree from "@/features/wallet-runtime/infrastructure/ConnectDynamicProviderTree";
 import { ProductWalletSelectionScreen } from "@/features/onboarding/ui/ProductWalletSelectionScreen";
+import { MembershipDiscoveryStatus } from "@/features/onboarding/ui/MembershipDiscoveryStatus";
 import { LedgerConnectRow } from "@/features/onboarding/ui/LedgerConnectRow";
 import { LandingAtmospherics } from "@/components/landing/LandingChrome";
 import { useWalletGate } from "@/lib/hooks/useWalletGate";
@@ -80,6 +81,7 @@ function ConnectRuntimeContent({
       return (
         <div className="fixed inset-0 z-[100] bg-canvas">
           <ProductWalletSelectionScreen
+            key={gate.discoveryKey}
             selection={gate.productSelection}
             address={wallet.publicKey?.toBase58() ?? null}
             reduce={reduce}
@@ -88,7 +90,12 @@ function ConnectRuntimeContent({
       );
     }
     return (
-      <SignedInWaiting reduce={reduce} destination={destination} />
+      <SignedInWaiting
+        key={gate.discoveryKey}
+        reduce={reduce}
+        destination={destination}
+        discovery={gate.discovery}
+      />
     );
   }
 
@@ -128,9 +135,11 @@ function ConnectRuntimeContent({
 function SignedInWaiting({
   reduce,
   destination,
+  discovery,
 }: {
   reduce: boolean;
   destination: ConnectDestination;
+  discovery: ReturnType<typeof useWalletGate>["discovery"];
 }) {
   const MotionCheck = motion(Check);
   const copy =
@@ -155,12 +164,12 @@ function SignedInWaiting({
             };
 
   return (
-    <div className="public-brand-surface landing-shell fixed inset-0 z-[100] bg-canvas text-text-strong">
+    <div className="public-brand-surface landing-shell brand-entry fixed inset-0 z-[100] overflow-y-auto bg-canvas text-text-strong">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <LandingAtmospherics />
       </div>
       <main className="relative mx-auto w-full max-w-[1600px]">
-        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-10">
           <motion.div
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -176,7 +185,7 @@ function SignedInWaiting({
                 stiffness: 220,
                 delay: 0.05,
               }}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-text-on-accent shadow-[0_0_40px_rgba(204,255,0,0.5)]"
+              className="entry-auth-icon flex h-16 w-16 items-center justify-center text-accent"
             >
               <MotionCheck
                 className="h-8 w-8"
@@ -196,18 +205,25 @@ function SignedInWaiting({
             <h1 className="landing-section-heading mt-3 text-[clamp(2rem,5vw,3rem)] font-light leading-[0.95] tracking-[-0.04em] text-text-strong">
               You&rsquo;re <span className="italic-skew">in</span>.
             </h1>
-            <p className="mt-3 text-base leading-relaxed text-text-soft">
-              {copy.body}
-            </p>
-            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-border-soft bg-glass-soft px-4 py-2 backdrop-blur-md">
-              <Loader2
-                className="h-3.5 w-3.5 animate-spin text-accent"
-                aria-hidden="true"
-              />
-              <span className="font-mono-tech text-xs uppercase tracking-[0.24em] text-text-strong/70">
-                {copy.label}
-              </span>
-            </div>
+            {discovery ? (
+              <MembershipDiscoveryStatus {...discovery} />
+            ) : (
+              <>
+                <p className="mt-3 text-base leading-relaxed text-text-soft">
+                  {copy.body}
+                </p>
+                <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-border-soft bg-glass-soft px-4 py-2 backdrop-blur-md">
+                  <Loader2
+                    className="h-3.5 w-3.5 animate-spin text-accent"
+                    aria-hidden="true"
+                  />
+                  <span className="font-mono-tech text-xs uppercase tracking-[0.24em] text-text-strong/70">
+                    {copy.label}
+                  </span>
+                </div>
+              </>
+            )}
+
           </motion.div>
         </div>
       </main>

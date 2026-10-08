@@ -19,8 +19,8 @@
 // the dashboard's own memberships fetch shares this cache.
 
 import { useEffect, useMemo } from "react";
-import { useWallet } from "@/lib/wallet";
-import { usePathname, useRouter } from "next/navigation";
+import { useConnection, useWallet } from "@/lib/wallet";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchOnchainMemberships } from "@/lib/memberships/client";
 import {
@@ -76,23 +76,21 @@ function isProtected(pathname: string): boolean {
 
 export function useWalletGate() {
   const wallet = useWallet();
+  const { connection } = useConnection();
+  const search = useSearchParams();
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const address = wallet.publicKey?.toBase58() ?? "";
   const explicitNext = useMemo(() => {
     if (pathname !== "/connect") return null;
-    if (typeof window === "undefined") return null;
-    const params = new URLSearchParams(window.location.search);
-    const next = params.get("next");
+    const next = search.get("next");
     return isSafeNext(next) ? next : null;
-  }, [pathname]);
+  }, [pathname, search]);
   const explicitSurface = useMemo(() => {
     if (pathname !== "/connect") return null;
-    if (typeof window === "undefined") return null;
-    const params = new URLSearchParams(window.location.search);
-    const surface = params.get("surface");
+    const surface = search.get("surface");
     return isProductSurfaceId(surface) ? surface : null;
-  }, [pathname]);
+  }, [pathname, search]);
   const explicitNextSurface = useMemo(
     () => productSurfaceFromPath(explicitNext),
     [explicitNext],
@@ -123,22 +121,27 @@ export function useWalletGate() {
   // Only need the memberships count on /connect to pick the post-
   // connect destination. Same queryKey as the dashboard's fetch so
   // react-query reuses the cache once the user lands.
+  const discoveryRequired =
+    address.length > 0 &&
+    pathname === "/connect" &&
+    wallet.connected &&
+    !wallet.connecting &&
+    !wallet.disconnecting &&
+    rememberedProductHref === null &&
+    (explicitNext === null || shouldResolveExplicitProductNext);
   const memberships = useQuery({
-    queryKey: ["my-organizations", address],
-    queryFn: () => fetchOnchainMemberships(address),
-    enabled:
-      address.length > 0 &&
-      pathname === "/connect" &&
-      wallet.connected &&
-      rememberedProductHref === null &&
-      (explicitNext === null || shouldResolveExplicitProductNext),
+    queryKey: ["my-organizations", address, connection.rpcEndpoint],
+    queryFn: ({ signal }) => fetchOnchainMemberships(address, { connection, signal }),
+    enabled: discoveryRequired,
     staleTime: 30_000,
+    retry: false,
+    placeholderData: undefined,
   });
   const productSelection = useMemo(() => {
     if (pathname !== "/connect") return null;
     if (!wallet.connected) return null;
     if (rememberedProductHref) return null;
-    if (memberships.isLoading || memberships.isFetching) return null;
+    if (!discoveryRequired || !memberships.isSuccess || memberships.isFetching) return null;
     if (!connectPreferredSurface) return null;
     const selection = productWalletSelection(
       connectPreferredSurface,
@@ -155,7 +158,8 @@ export function useWalletGate() {
     connectPreferredSurface,
     memberships.data,
     memberships.isFetching,
-    memberships.isLoading,
+    memberships.isSuccess,
+    discoveryRequired,
     pathname,
     rememberedProductHref,
     wallet.connected,
@@ -165,7 +169,8 @@ export function useWalletGate() {
     // autoConnect lands an in-flight connection on first paint. Without
     // this guard the gate sees connected=false and bounces shareable
     // deep links to /connect before the adapter resolves.
-    if (!wallet.connected && (wallet.connecting || wallet.disconnecting)) return;
+    if (wallet.connecting || wallet.disconnecting) return;
+    if (wallet.connected && !address) return;
 
     // Dynamic edge case: the user has logged in via email/social but
     // no Solana wallet has been minted yet (TSS-MPC takes a beat
@@ -200,7 +205,7 @@ export function useWalletGate() {
         }
         // Wait for the memberships query to settle so we don't flash
         // to /welcome before discovering existing wallets.
-        if (memberships.isLoading || memberships.isFetching) return;
+        if (!discoveryRequired || !memberships.isSuccess || memberships.isFetching) return;
         const hasWallets = (memberships.data?.length ?? 0) > 0;
         const pendingSurface =
           explicitSurface ?? explicitNextSurface ?? readPendingProductSurface();
@@ -281,7 +286,8 @@ export function useWalletGate() {
     shouldResolveExplicitProductNext,
     pathname,
     router,
-    memberships.isLoading,
+    discoveryRequired,
+    memberships.isSuccess,
     memberships.isFetching,
     memberships.data,
     rememberedProductHref,
@@ -291,6 +297,16 @@ export function useWalletGate() {
     connected: wallet.connected,
     publicKey: wallet.publicKey?.toBase58() ?? null,
     productSelection,
+    discoveryKey: `${address}:${connection.rpcEndpoint}`,
+    discovery: discoveryRequired
+      ? {
+          error: memberships.isError,
+          retrying: memberships.isFetching,
+          retry: () => {
+            if (!memberships.isFetching) void memberships.refetch();
+          },
+        }
+      : null,
     /// Surfaced from the wallet shim so consumers can render a
     /// "minting your Solana wallet" wait state instead of "taking
     /// you to connect" when Dynamic auth completed but the Solana
@@ -358,7 +374,13 @@ function productDestinationForSurface(
   if (matches.length === 1 && matches[0]?.wallet_name) {
     return productWorkspaceHomeHref(matches[0].wallet_name, walletSurface);
   }
-  if (matches.length === 0) return productSetupHref(surface);
+  if (matches.length === 0) {
+    // Legacy membership responses may omit names. An unknown product is not
+    // evidence that the member needs to create another wallet.
+    return memberships.some((membership) => !membership.wallet_name?.trim())
+      ? "/app"
+      : productSetupHref(surface);
+  }
   return "/app";
 }
 

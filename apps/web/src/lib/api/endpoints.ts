@@ -37,10 +37,12 @@ export const backendApi = {
       execution_mode: string;
       execution_workers: number;
     }>("/health", "GET"),
-  memberships: (address: string) =>
+  memberships: (address: string, options?: { signal?: AbortSignal; timeoutMs?: number }) =>
     apiRequest<Record<string, unknown>>(
       `/memberships?address=${encodeURIComponent(address)}`,
       "GET",
+      undefined,
+      options,
     ),
 
   // Bootstrap ops (no user signature required . on-chain instructions are
