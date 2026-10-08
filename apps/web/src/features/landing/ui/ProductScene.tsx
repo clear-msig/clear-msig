@@ -1,41 +1,39 @@
 import s from "../routes/LandingPage.module.css";
 
-/** Original decorative diagrams. Product readiness is stated in adjacent copy. */
+/** Original diagrams of relationships, not execution or readiness claims. */
 export function ProductScene({ scene }: { scene: string }) {
   return <div className={s.productScene} data-scene={scene} aria-hidden="true">
+    <div className={s.sceneCaption}><span>C / {scene}</span><span>{scene === "01" ? "SHARED CONTEXT" : scene === "02" ? "SEPARATE PIECES" : "DEFINED AUTHORITY"}</span></div>
     <svg viewBox="0 0 520 300" fill="none" focusable="false">
-      <ellipse cx="260" cy="150" rx="222" ry="118" stroke="#333336" strokeDasharray="3 9" />
-      <ellipse cx="260" cy="150" rx="162" ry="82" stroke="#333336" />
       {scene === "01" ? <>
-        <path d="M104 91L260 150L416 91M104 209L260 150L416 209" stroke="#a5b89e" />
-        {[ [104,91], [416,91], [104,209], [416,209] ].map(([x,y]) => <g key={`${x}-${y}`}>
-          <circle cx={x} cy={y} r="25" fill="#131316" stroke="#a5b89e" />
-          <circle cx={x} cy={y-5} r="6" stroke="#a5b89e" />
-          <path d={`M${x-11} ${y+12}q0-13 11-13t11 13`} stroke="#a5b89e" />
-        </g>)}
-        <path d="M213 98H297L313 114V202H229L213 186Z" fill="#19191d" stroke="#ccff00" />
-        <path d="M234 126H286M234 141H274M234 171H260" stroke="#ebebeb" strokeWidth="2" />
-        <circle cx="286" cy="175" r="6" fill="#ccff00" />
+        <ellipse cx="260" cy="152" rx="209" ry="112" stroke="#394337" strokeDasharray="2 9" />
+        <path className={s.sceneConnection} d="M94 85L219 122M426 85L303 122M94 221L219 184M426 221L303 184" stroke="#879b80" />
+        {[[94,85],[426,85],[94,221],[426,221]].map(([x,y],i) => <g key={i}><circle cx={x} cy={y} r="28" fill="#151b15" stroke="#879b80" /><circle cx={x} cy={y-6} r="7" stroke="#b9c9b2" /><path d={`M${x-12} ${y+14}q0-15 12-15t12 15`} stroke="#b9c9b2" /></g>)}
+        <path d="M211 65H293L316 88V235H232L211 214Z" fill="#171e17" stroke="#ccff00" />
+        <path d="M293 65V88H316M233 106H286M233 119H273M233 189H288M233 202H269" stroke="#81917b" />
+        <text x="232" y="164" fill="#ebebeb" fontSize="25" fontFamily="monospace">5 SOL</text>
+        <path d="M260 20V45M260 255V279" stroke="#ccff00" />
       </> : scene === "02" ? <>
-        <path d="M132 95L260 150L388 95M132 205L260 150L388 205" stroke="#a5b89e" strokeDasharray="5 6" />
-        <path d="M260 78L322 102V151C322 190 286 217 260 229C234 217 198 190 198 151V102Z" fill="#19191d" stroke="#a5b89e" />
-        <path d="M260 94V214" stroke="#505054" strokeDasharray="3 6" />
-        <circle cx="260" cy="142" r="17" fill="#131316" stroke="#ccff00" />
-        <path d="M260 160V185M260 177H273" stroke="#ccff00" strokeWidth="3" />
-        {[ [132,95], [388,95], [132,205] ].map(([x,y]) => <g key={`${x}-${y}`}><rect x={x-20} y={y-20} width="40" height="40" rx="5" fill="#131316" stroke="#a5b89e" /><path d={`M${x-7} ${y}h14M${x} ${y-7}v14`} stroke="#a5b89e" /></g>)}
-        <circle cx="388" cy="205" r="20" fill="#131316" stroke="#505054" strokeDasharray="3 4" />
+        <path d="M260 32L363 75V157C363 213 301 254 260 274C219 254 157 213 157 157V75Z" stroke="#586461" strokeDasharray="3 7" />
+        <path className={s.sceneConnection} d="M120 101L198 131M400 101L322 131M120 221L220 190M400 221L300 190" stroke="#a5b8af" strokeDasharray="5 6" />
+        <path d="M251 70L200 92V154C200 185 225 208 251 223V161H226V134H251Z" fill="#1c2925" stroke="#b9cdc3" />
+        <path d="M269 70L320 92V154C320 185 295 208 269 223V161H294V134H269Z" fill="#202b28" stroke="#b9cdc3" />
+        <path d="M251 134H269V161H251Z" fill="#ccff00" />
+        {[[120,101],[400,101],[120,221]].map(([x,y],i)=><g key={i}><path d={`M${x-23} ${y-23}h34l12 12v34h-46Z`} fill="#161e1c" stroke="#b9cdc3"/><path d={`M${x-8} ${y}h16M${x} ${y-8}v16`} stroke="#ccff00" /></g>)}
+        <circle cx="400" cy="221" r="23" stroke="#64736d" strokeDasharray="3 5" />
       </> : <>
-        <rect x="169" y="62" width="216" height="176" rx="14" fill="#131316" stroke="#a5b89e" />
-        <rect x="185" y="78" width="184" height="144" rx="8" stroke="#333336" strokeDasharray="4 5" />
-        <path d="M72 150H228M302 150H440" stroke="#a5b89e" />
-        <path d="M220 143L228 150L220 157M432 143L440 150L432 157" stroke="#a5b89e" />
-        <rect x="55" y="126" width="48" height="48" rx="8" fill="#19191d" stroke="#a5b89e" />
-        <path d="M70 143L77 150L70 157M83 157H91" stroke="#ebebeb" />
-        <path d="M247 114H287L303 130V186H247Z" fill="#19191d" stroke="#ccff00" />
-        <path d="M260 138H288M260 150H281M260 162H288" stroke="#ebebeb" />
-        <path d="M440 132V168M450 132V168" stroke="#ccff00" strokeWidth="3" />
+        <path d="M122 42H390L415 67V257H147L122 232Z" fill="#181c19" stroke="#9bad92" />
+        <path d="M139 59H380L398 77V240H155L139 224Z" stroke="#465240" strokeDasharray="4 7" />
+        <path d="M165 107H368M165 150H368M165 193H368M211 85V214M265 85V214M319 85V214" stroke="#2f382c" />
+        <path className={s.sceneConnection} d="M54 150H182V107H238V193H298V150H364" stroke="#ccff00" strokeWidth="2" />
+        {[[182,107],[238,107],[238,193],[298,193]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r="5" fill="#1d251a" stroke="#ccff00" />)}
+        <path d="M365 129V172M374 129V172" stroke="#ccff00" strokeWidth="3" />
+        <path d="M415 150H471" stroke="#617057" strokeDasharray="4 7" />
+        <rect x="34" y="130" width="40" height="40" rx="2" fill="#171d15" stroke="#9bad92" />
+        <path d="M45 142L52 150L45 158M57 157H64" stroke="#ebebeb" />
+        <text x="166" y="79" fill="#a5b89e" fontSize="10" fontFamily="monospace">PERMISSION BOUNDARY</text>
       </>}
     </svg>
-    <span>{scene === "01" ? "ONE REQUEST · SHARED CONTEXT" : scene === "02" ? "A SEPARATE PATH TO PLAN" : "AUTHORITY HAS A BOUNDARY"}</span>
+    <span>{scene === "01" ? "MANY PERSPECTIVES. ONE DECISION DOCUMENT." : scene === "02" ? "PLAN THE PARTS. UNDERSTAND THE THRESHOLD." : "ACTIVITY INSIDE LIMITS. EXECUTION STILL GATED."}</span>
   </div>;
 }

@@ -73,6 +73,7 @@ export default function HomePage() {
               </h2>
             </div>
           </LandingReveal>
+          <nav className={s.productJumps} aria-label="Product chapters"><a href="#product-01">01 / Teams</a><a href="#product-02">02 / Recovery</a><a href="#product-03">03 / Agents</a></nav>
           <div className={s.productList}>
             {[
               {
@@ -100,7 +101,7 @@ export default function HomePage() {
                 state: "External execution gated",
               },
             ].map((p) => (
-              <LandingReveal key={p.n}>
+              <LandingReveal key={p.n} id={`product-${p.n}`}>
                 <Link href={p.href} data-reveal-parts>
                   <ProductScene scene={p.n} />
                   <div className={s.productCopy}>
@@ -120,6 +121,9 @@ export default function HomePage() {
         <LandingResources />
         <LandingReveal>
           <section className={s.closing} data-reveal-parts>
+            <div className={s.closingWordmark} aria-hidden="true">ClearSig</div>
+            <div className={s.closingContent}>
+            <span className={s.eyebrow}>THE NEXT DECISION IS YOURS</span>
             <ShieldCheck size={26} aria-hidden="true" />
             <h2>Clarity is part of control.</h2>
             <p>
@@ -130,6 +134,8 @@ export default function HomePage() {
               Read the security overview{" "}
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
+            <small>Early devnet preview. Test funds only.</small>
+            </div>
           </section>
         </LandingReveal>
       </main>

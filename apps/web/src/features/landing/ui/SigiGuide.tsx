@@ -45,12 +45,12 @@ export function SigiWelcome() {
   };
   return <aside className={s.welcome} aria-label="Sigi welcome" data-ready={ready}>
     <Owl priority />
-    {mode === "welcome" ? <div className={s.bubble}>
+    {mode === "welcome" ? <details className={s.invitation}><summary>Hi, I’m Sigi.<span>A little guidance? ↗</span></summary><div className={s.bubble}>
       <div className={s.top}><span>MEET SIGI</span><button type="button" disabled={!ready} aria-label="Dismiss Sigi" onClick={() => leaveWelcome("dismissed")}><CloseMark /></button></div>
       <p>Hi, I’m Sigi. Let’s make your next signature make sense.</p>
       <a href="#story-request" onClick={() => choose("tour")}>Show me around <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13 13 3M3 3h10v10" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg></a>
       <button className={s.explore} type="button" disabled={!ready} onClick={() => leaveWelcome("quiet")}>Explore myself</button>
-    </div> : <button className={s.dismiss} type="button" disabled={!ready} aria-label="Dismiss Sigi" onClick={() => leaveWelcome("dismissed")}><CloseMark /></button>}
+    </div></details> : <button className={s.dismiss} type="button" disabled={!ready} aria-label="Dismiss Sigi" onClick={() => leaveWelcome("dismissed")}><CloseMark /></button>}
   </aside>;
 }
 
@@ -80,4 +80,11 @@ export function SigiReturn() {
       document.getElementById("resources-title")?.focus({ preventScroll: true });
     }}><CloseMark /></button>
   </aside>;
+}
+
+/** Optional explanation, only after a visitor changes the local policy example. */
+export function SigiPolicyNote() {
+  const { mode } = useContext(GuideContext);
+  if (mode === "quiet" || mode === "dismissed") return null;
+  return <details className={s.policyNote}><summary>Sigi / Why did this stop?</summary><p>The request is 12 SOL; the example allows 10. Owner approvals do not change that limit. Restore the 5 SOL request to continue the demonstration.</p></details>;
 }

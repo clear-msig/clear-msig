@@ -89,7 +89,11 @@ export function SignatureStage() {
     const target = figure.current;
     if (!target) return;
     const hero = target.closest("section");
-    hero?.style.setProperty("--hero-progress", "0");
+    const artwork = target.querySelector("svg");
+    const core = target.querySelector<SVGGElement>(`[class*="signatureCore"]`);
+    const orbit = target.querySelector<SVGGElement>(`[class*="orbitField"]`);
+    const host = hero?.querySelector<HTMLElement>('[aria-label="Sigi welcome"]');
+    host?.style.setProperty("--hero-progress", "0");
     if (reducedMotion) {
       target.style.setProperty("--stage-progress", "0");
       delete target.dataset.watermark;
@@ -105,7 +109,7 @@ export function SignatureStage() {
       return () => {
         observer.disconnect();
         delete target.dataset.watermark;
-        hero?.style.removeProperty("--hero-progress");
+        host?.style.removeProperty("--hero-progress");
       };
     }
     let frame = 0;
@@ -121,6 +125,10 @@ export function SignatureStage() {
       geometry = { top: box.top + window.scrollY, left: box.left - box.width * (artScale - 1) / 2,
         width: box.width * artScale, height: box.height,
         sectionTop: parent.top + window.scrollY, sectionHeight: parent.height };
+      if (artwork) {
+        artwork.style.width = `${geometry.width}px`;
+        artwork.style.height = `${geometry.height}px`;
+      }
       lastProgress = "";
       schedule();
     };
@@ -137,13 +145,20 @@ export function SignatureStage() {
       const backdropWidth = Math.max(width, Math.min(1100, window.innerWidth * 1.7));
       const backdropHeight = Math.min(620, window.innerHeight * 0.7);
       const mix = (from: number, to: number) => from + (to - from) * progress;
-      target.style.setProperty("--stage-progress", value);
-      hero?.style.setProperty("--hero-progress", value);
-      target.style.setProperty("--stage-opacity", String(Math.max(0.07, (1 - progress) ** 4)));
-      target.style.setProperty("--stage-top", `${mix(top - window.scrollY, (window.innerHeight - backdropHeight) / 2)}px`);
-      target.style.setProperty("--stage-left", `${mix(left, (window.innerWidth - backdropWidth) / 2)}px`);
-      target.style.setProperty("--stage-width", `${mix(width, backdropWidth)}px`);
-      target.style.setProperty("--stage-height", `${mix(height, backdropHeight)}px`);
+      // Transform and opacity are not inherited. Keep per-frame values off
+      // the SVG ancestor so hundreds of gradient stops need no restyling.
+      if (core) core.style.transform = `rotate(${progress * 28}deg) scale(${1 - progress * .16})`;
+      if (orbit) orbit.style.transform = `rotate(${progress * -20}deg)`;
+      host?.style.setProperty("--hero-progress", value);
+      if (artwork) artwork.style.opacity = String(Math.max(0.07, (1 - progress) ** 4));
+      // Preserve the SVG's aspect-fit composition while moving a fixed-size
+      // layer. Changing its width/height each frame repeatedly laid out the art.
+      const nextWidth = mix(width, backdropWidth);
+      const nextHeight = mix(height, backdropHeight);
+      const scale = Math.min(nextWidth / 1200, nextHeight / 560) / Math.min(width / 1200, height / 560);
+      const x = mix(left, (window.innerWidth - backdropWidth) / 2) + (nextWidth - width * scale) / 2;
+      const y = mix(top - window.scrollY, (window.innerHeight - backdropHeight) / 2) + (nextHeight - height * scale) / 2;
+      if (artwork) artwork.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
       target.dataset.watermark = "true";
     };
     const schedule = () => {
@@ -161,7 +176,10 @@ export function SignatureStage() {
       observer?.disconnect();
       if (frame) cancelAnimationFrame(frame);
       delete target.dataset.watermark;
-      hero?.style.removeProperty("--hero-progress");
+      for (const property of ["transform", "opacity", "width", "height"]) artwork?.style.removeProperty(property);
+      core?.style.removeProperty("transform");
+      orbit?.style.removeProperty("transform");
+      host?.style.removeProperty("--hero-progress");
     };
   }, [reducedMotion]);
   return (

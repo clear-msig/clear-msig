@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Fingerprint, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { LandingReveal } from "@/components/landing/LandingReveal";
 import { SigiReturn } from "./SigiGuide";
 import s from "./LandingResources.module.css";
@@ -10,9 +10,16 @@ export function LandingResources() {
     <LandingReveal className={s.heading}><p>UNDERSTAND BEFORE YOU START</p><h2 id="resources-title" tabIndex={-1}>The details are<br />part of the product.</h2></LandingReveal>
     <LandingReveal><SigiReturn /></LandingReveal>
     <div className={s.explainers}>
-      <LandingReveal as="article" order={0}><div className={s.diagram} aria-hidden="true"><span>5 SOL</span><ArrowRight /><span>Vault</span><div>AMOUNT · DESTINATION · NETWORK</div></div><h3>A request you can inspect.</h3><p>Read the intended action before the wallet prompt. The exact prepared document remains the thing you sign.</p><a href="#story-request">Walk through an approval <ArrowRight size={16} /></a></LandingReveal>
-      <LandingReveal as="article" order={1}><div className={s.diagram} aria-hidden="true"><Fingerprint /><span>Owner</span><span>Owner</span><div>TWO APPROVALS / THREE OWNERS</div></div><h3>Recovery is a separate decision.</h3><p>Explore recovery vaults and threshold decisions. Recovery is pre-alpha; setup and device support have limits.</p><Link href="/secure">Explore recovery <ArrowRight size={16} /></Link></LandingReveal>
-      <LandingReveal as="article" order={2}><div className={s.diagram} aria-hidden="true"><Users /><ArrowRight /><ShieldCheck /><div>REQUEST → POLICY → APPROVAL</div></div><h3>Permission is not execution.</h3><p>Agents must stay within signed authority and verified limits. External execution remains gated. A practice result is not a live trade.</p><Link href="/agent">Understand agent boundaries <ArrowRight size={16} /></Link></LandingReveal>
+      {[
+        { n: "01", title: "Product overview", kind: "FIELD GUIDE", file: "docs/product-overview.md", copy: "A map of shared wallets, readable requests and the paths through ClearSig.", motif: "map" },
+        { n: "02", title: "Quickstart & devnet demo", kind: "WORKING NOTES", file: "README.md", copy: "Start with the repository. Explore the setup and devnet demonstration with test funds only.", motif: "steps" },
+        { n: "03", title: "Threat model", kind: "BOUNDARIES", file: "SECURITY.md", copy: "Read the trust assumptions, current limitations and security policy before you experiment.", motif: "boundary" },
+      ].map((doc, i) => <LandingReveal as="article" order={i} key={doc.n}>
+        <a className={s.document} href={`${repo}/blob/main/${doc.file}`} aria-label={`Read ${doc.title.toLowerCase()}`}>
+          <div className={s.cover} data-motif={doc.motif} aria-hidden="true"><span>C / REFERENCE {doc.n}</span><div className={s.coverArt}><i /><i /><i /></div><strong>{doc.title}</strong><small>{doc.kind} <ArrowRight size={18} /></small></div>
+          <h3>{doc.title}</h3><p>{doc.copy}</p><span className={s.readDocument}>Open document <ArrowRight size={16} /></span>
+        </a>
+      </LandingReveal>)}
     </div>
     <LandingReveal className={s.questions}>
       <div><h3>Questions worth asking.</h3><p>Start with the limits, then explore what is available in the preview.</p></div>

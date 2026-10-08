@@ -1486,8 +1486,10 @@
   position: fixed;
   z-index: -1;
   inset: auto;
-  top: var(--stage-top);
-  left: var(--stage-left);
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  transform: var(--stage-transform);
   width: var(--stage-width);
   height: var(--stage-height);
   opacity: var(--stage-opacity);
@@ -1495,13 +1497,13 @@
 @media (prefers-reduced-motion: reduce) {
   .signatureStage[data-watermark="true"] svg {
     position: absolute; z-index: auto; inset: 0;
-    width: 100%; height: 100%; opacity: 1;
+    width: 100%; height: 100%; opacity: 1; transform: none;
   }
 }
 @media print {
   .signatureStage[data-watermark="true"] svg {
     position: absolute; z-index: auto; inset: 0;
-    width: 100%; height: 100%; opacity: 1;
+    width: 100%; height: 100%; opacity: 1; transform: none;
   }
 }
 
@@ -1622,3 +1624,18 @@
   .orbitCompanion { offset-distance: 92%; }
   .orbitOuter { offset-distance: 20%; }
 }
+
+/* Product worlds share a drawing language, with distinct relationships. */
+.productJumps{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px}.productJumps a{display:flex;align-items:center;min-height:44px;padding:0 16px;border:1px solid var(--line);font:11px var(--font-mono);color:#b9c9b2}.productJumps a:hover{border-color:#a5b89e;color:#ebebeb}
+.productList>div{scroll-margin-top:100px}.productScene{border-radius:0;background:radial-gradient(ellipse at center,#202b1d,#101510 80%)}.productScene[data-scene="02"]{background:radial-gradient(ellipse at center,#24342d,#101715 80%)}.productScene[data-scene="03"]{background:linear-gradient(135deg,#20261d,#10140f)}
+.sceneCaption{display:flex;justify-content:space-between;padding:18px 20px 0;color:#a5b89e;font:10px var(--font-mono);letter-spacing:.1em}
+.productScene>span{font-size:9px;color:#b1bca9;letter-spacing:.05em}.productList a:hover .sceneConnection,.productList a:focus-visible .sceneConnection{stroke:#ccff00;stroke-width:2}.productList a:hover .productScene,.productList a:focus-visible .productScene{border-color:#a5b89e}.productList a:hover .productLink,.productList a:focus-visible .productLink{text-decoration:underline;text-underline-offset:6px}
+.productState{font:11px var(--font-mono);color:#b9c9b2}.stagePrimary,.secondary{border-radius:0}
+/* A final frame with one clear invitation, before the usable link index. */
+.closing{position:relative;isolation:isolate;max-width:none;margin:0;padding:104px max(48px,calc((100vw - 1184px)/2)) 150px;min-height:600px;overflow:hidden;text-align:left;border:0;background:radial-gradient(ellipse at 90% 90%,#252e1b,#0c0c0c 65%)}
+.closingWordmark{position:absolute;z-index:-1;bottom:-.25em;left:-.035em;font:clamp(120px,22vw,360px)/1 "ClearSig Wide",sans-serif;letter-spacing:-.09em;white-space:nowrap;color:#394132;opacity:.65;pointer-events:none}
+.closingContent{position:relative;max-width:620px;margin-left:12%;display:grid;justify-items:start;gap:24px}.closingContent>svg{color:#a5b89e}.closing h2{font-size:clamp(34px,4.4vw,64px);margin:0;max-width:600px}.closing p{max-width:480px;margin:0;color:#b5bbaa;font-size:17px}.closingContent>small{font:11px var(--font-mono);color:#a3ad98}.closingContent .secondary{margin:0;border-color:#a5b89e;min-height:48px;color:#ccff00}
+@media(max-width:650px){.sceneCaption{font-size:9px;padding-inline:14px}.productScene>span{font-size:8px}.productJumps a{padding-inline:12px}.closing{padding:72px 24px 120px;min-height:540px}.closingContent{margin:0;gap:22px}.closingWordmark{font-size:30vw;bottom:-.12em}.closingContent .secondary{font-size:13px}}
+/* Scrolling stays native; opaque chrome avoids continuous backdrop sampling. */
+.header{backdrop-filter:none;background:#0c0c0cf5}
+.productScene{clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}

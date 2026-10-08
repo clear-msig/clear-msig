@@ -478,18 +478,19 @@ select:focus-visible {
   text-transform: uppercase;
   color: var(--clear-text-soft);
 }
-/* Landing-only spatial reveals preserve layout and reverse below the viewport.
+/* A single opacity layer keeps entry readable rather than multiplying fades.
+   Landing-only spatial reveals preserve layout and reverse below the viewport.
    Entry is deliberate; the shorter exit clears content as the visitor retreats. */
 .landing-reveal {
   /* Moving children must not become native scroll anchors. */
   overflow-anchor: none;
   opacity: 1;
-  transition: opacity 650ms ease-out;
+  transition: opacity 420ms ease-out;
   transition-delay: calc(var(--reveal-order, 0) * 140ms);
 }
 .landing-reveal > :not([data-reveal-parts]),
 .landing-reveal > [data-reveal-parts] > * {
-  transition: opacity 650ms ease-out, translate 800ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: translate 620ms cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: calc(var(--reveal-order, 0) * 140ms);
 }
 .landing-reveal > :nth-child(2),
@@ -501,7 +502,7 @@ select:focus-visible {
 .landing-reveal[data-reveal="pending"] { opacity: 0; pointer-events: none; transition: opacity 280ms ease-out; transition-delay: 0ms; }
 .landing-reveal[data-reveal="pending"] > :not([data-reveal-parts]),
 .landing-reveal[data-reveal="pending"] > [data-reveal-parts] > * {
-  opacity: 0; translate: 0 64px; transition: opacity 280ms ease-out, translate 380ms ease-out; transition-delay: 0ms;
+  opacity: 1; translate: 0 64px; transition: translate 380ms ease-out; transition-delay: 0ms;
 }
 .landing-reveal:focus-within { pointer-events: auto; }
 .landing-reveal:has(:focus-visible),

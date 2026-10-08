@@ -16,6 +16,10 @@ for(const [width,height,reduced,js]of [[1180,757,false,true],[390,844,false,true
   for(const t of targets){const x=await t.evaluate(state);assert.equal(x.state,'pending','later target waits below viewport');assert.equal(x.opacity,0);}
   if(width>=1000)assert.equal(await p.locator('[data-story-stage]').getAttribute('data-reveal'),'pending','desktop scene arms after enhancement');
   await p.waitForTimeout(1100);assert.equal(await revealOf(p.locator('#resources-title')).getAttribute('data-reveal'),'pending','no load timer reveals resources');
+  // One fade layer: child opacity must not multiply the section's entry fade.
+  await targets[0].evaluate(e=>scrollTo({top:e.getBoundingClientRect().top+scrollY-innerHeight*.5,behavior:'instant'}));await p.waitForTimeout(120);
+  assert.equal(await targets[0].evaluate(e=>getComputedStyle(e.firstElementChild).opacity),'1','entry uses one opacity layer');
+  await p.evaluate(()=>scrollTo({top:0,behavior:'instant'}));await p.waitForTimeout(450);
   // Cross the observation boundary, verifying the layout stays reserved.
   for(const t of targets){
    const before=await t.evaluate(e=>({height:e.offsetHeight,top:e.offsetTop}));

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowDown, ArrowRight, Check, ShieldCheck, Users, X } from "lucide-react";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { LandingReveal } from "@/components/landing/LandingReveal";
-import { SigiStoryTip } from "./SigiGuide";
+import { SigiStoryTip, SigiPolicyNote } from "./SigiGuide";
 import s from "./ApprovalStory.module.css";
 
 const chapters = [
@@ -49,28 +49,49 @@ export function ApprovalStory() {
     configure();
     media.addEventListener("change", configure);
     let frame = 0;
+    const chapterElements = chapters.map(({ id }) => document.getElementById(id));
+    let geometry: { top: number; bottom: number; points: number[] } | undefined;
+    let previousPosition = -1;
+    let previousStep = -1;
+    let previousProgress = -1;
+    let previousActive: boolean | undefined;
+    const measure = () => {
+      const y = window.scrollY;
+      const bounds = element.getBoundingClientRect();
+      geometry = { top: bounds.top + y, bottom: bounds.bottom + y,
+        points: chapterElements.map(chapter => (chapter?.getBoundingClientRect().top ?? 0) + y) };
+      schedule();
+    };
     const update = () => {
       frame = 0;
-      const bounds = element.getBoundingClientRect();
-      setStoryActive(bounds.top <= 112 && bounds.bottom >= window.innerHeight - 16);
-      const points = chapters.map(({ id }) => document.getElementById(id)?.getBoundingClientRect().top ?? 0);
+      if (!geometry) return;
+      const y = window.scrollY;
+      const active = geometry.top - y <= 112 && geometry.bottom - y >= window.innerHeight - 16;
+      if (active !== previousActive) { previousActive = active; setStoryActive(active); }
+      const points = geometry.points.map(top => top - y);
       const travel = Math.max(1, points[2] - points[0]);
       const position = Math.min(1, Math.max(0, (112 - points[0]) / travel));
-      element.style.setProperty("--story-progress", String(position));
-      element.style.setProperty("--rules-progress", String(Math.min(1, position * 2)));
-      element.style.setProperty("--owners-progress", String(Math.max(0, position * 2 - 1)));
-      setProgress(Math.round(position * 100));
-      setStep(points[2] <= 160 ? 2 : points[1] <= 160 ? 1 : 0);
+      if (position !== previousPosition) {
+        previousPosition = position;
+        element.style.setProperty("--story-progress", String(position));
+        element.style.setProperty("--rules-progress", String(Math.min(1, position * 2)));
+        element.style.setProperty("--owners-progress", String(Math.max(0, position * 2 - 1)));
+      }
+      const nextProgress = Math.round(position * 100);
+      const nextStep = points[2] <= 160 ? 2 : points[1] <= 160 ? 1 : 0;
+      if (nextProgress !== previousProgress) { previousProgress = nextProgress; setProgress(nextProgress); }
+      if (nextStep !== previousStep) { previousStep = nextStep; setStep(nextStep); }
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
     window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule, { passive: true });
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+    window.addEventListener("resize", measure, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(element);
-    schedule();
+    if (element.previousElementSibling) observer?.observe(element.previousElementSibling);
+    measure();
     return () => {
       window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("resize", measure);
       media.removeEventListener("change", configure);
       observer?.disconnect();
       cancelAnimationFrame(frame);
@@ -97,6 +118,7 @@ export function ApprovalStory() {
               <p>{chapter.copy}</p>
               <SigiStoryTip step={index}><p className={s.detail}>{chapter.detail}</p></SigiStoryTip>
               {index === 1 && <button className={s.textAction} disabled={!ready} onClick={changePolicy}>{blocked ? "Restore the 5 SOL request" : "Try a request over the limit"} <ArrowRight size={16} aria-hidden="true" /></button>}
+              {index === 1 && blocked && <SigiPolicyNote />}
               {index === 2 && <button className={s.action} disabled={!ready || blocked} onClick={() => setApproved(!approved)}>{blocked ? "Approval unavailable: policy failed" : approved ? "Reset demo approval" : "Add a demo approval"}<ArrowRight size={16} aria-hidden="true" /></button>}
               <div className={s.flowScene}><ApprovalWorkspace step={index} blocked={blocked} approved={approved} /></div>
             </LandingReveal>
@@ -105,7 +127,7 @@ export function ApprovalStory() {
         <LandingReveal enabled={enhanced} className={s.stage} data-story-stage aria-hidden={!enhanced}>
           <div className={s.stageLabel}><span>OPERATIONS / LOCAL DEMONSTRATION</span><span>0{step + 1} — {chapters[step].short}</span></div>
           <ApprovalWorkspace step={step} blocked={blocked} approved={approved} />
-          <p className={s.stageNote}>Same request. Visible rules. Explicit owner decisions.</p>
+          <p className={s.stageNote}>One document. Attached checks. No transaction executed.</p>
         </LandingReveal>
       </div>
       <nav className={s.hud} hidden={ready && !storyActive} aria-label="Approval story navigation" style={{ "--progress": `${progress}%` } as CSSProperties}>
@@ -122,21 +144,21 @@ function ApprovalWorkspace({ step, blocked, approved }: { step: number; blocked:
   return <div className={s.workspace} data-step={step} data-blocked={blocked}>
     <div className={s.sceneMark} aria-hidden="true">C</div>
     <div className={s.receipt}>
-      <div className={s.receiptTop}><span>REQUEST / 001</span><span>Solana devnet</span></div>
+      <div className={s.receiptTop}><span>DECISION DOCUMENT / {blocked ? "002" : "001"}</span><span>Solana devnet</span></div>
       <p className={s.eyebrow}>TRANSFER</p>
       <p className={s.amount}>{blocked ? "12" : "5"}<span>SOL</span></p>
-      <div className={s.destination}><ArrowRight size={20} aria-hidden="true" /><div><span>TO</span><strong>Operations vault</strong><small>Saved destination · illustrative</small></div></div>
-      <div className={s.receiptFoot}><span>One immutable request</span><span>Test funds only</span></div>
+      <div className={s.destination}><ArrowRight size={20} aria-hidden="true" /><div><span>TO</span><strong>Operations vault</strong><small>Destination alias · illustrative, not an address</small></div></div>
+      <div className={s.receiptFoot}><span>REQUEST {blocked ? "002" : "001"} / LOCAL DEMO</span><span>Test funds only</span></div>
     </div>
     <div className={s.rules}>
-      <div className={s.panelTitle}><ShieldCheck size={18} aria-hidden="true" /><span>POLICY CHECK</span><span>02</span></div>
+      <div className={s.panelTitle}><ShieldCheck size={18} aria-hidden="true" /><span>POLICY / REQUEST {blocked ? "002" : "001"}</span><span>02</span></div>
       <p className={s.result}>{blocked ? <X size={17} aria-hidden="true" /> : <Check size={17} aria-hidden="true" />}{blocked ? "Outside the limit" : "Within the limit"}</p>
       <div className={s.limit}><span>Transfer limit</span><strong>{blocked ? "12" : "5"} / 10 SOL</strong></div>
       <div className={s.meter} role="img" aria-label={blocked ? "12 SOL exceeds the 10 SOL limit" : "5 SOL uses half the 10 SOL limit"}><span style={{ width: blocked ? "100%" : "50%" }} /></div>
       <p>{blocked ? "Stop here. More approvals cannot override this boundary." : "Destination allowed in this example."}</p>
     </div>
     <div className={s.owners} data-story-panel="owners">
-      <div className={s.panelTitle}><Users size={18} aria-hidden="true" /><span>OWNER DECISIONS</span><span>03</span></div>
+      <div className={s.panelTitle}><Users size={18} aria-hidden="true" /><span>OWNERS / REQUEST {blocked ? "002" : "001"}</span><span>03</span></div>
       <div className={s.ownerRow}>{["S", "M", "A"].map((owner, i) => <span key={owner} data-approved={!blocked && (i === 0 || (i === 1 && approved))}>{owner}{!blocked && (i === 0 || (i === 1 && approved)) && <Check size={12} aria-label="Demo approved" />}</span>)}<div><strong>{blocked ? "Blocked by policy" : `${approved ? 2 : 1} of 2 approvals`}</strong><small>{blocked ? "Resolve the request first" : approved ? "Threshold met in this demo" : "3 owners · one more needed"}</small></div></div>
       <p>No signature requested. This demonstration cannot execute.</p>
     </div>

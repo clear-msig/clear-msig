@@ -40,3 +40,16 @@
   .return > button { grid-column: 2; grid-row: 1; justify-self: end; margin: 0; }
 }
 @media print { .welcome button, .tip button, .return button { display: none; } }
+
+/* The host offers an invitation; the fuller welcome is the visitor's choice. */
+.welcome{align-items:center;gap:10px;top:156px}.welcome .owl{width:100px}
+.invitation{position:relative;width:210px;align-self:center}
+.invitation>summary{cursor:pointer;list-style:none;font-size:14px;line-height:1.6;padding:12px 16px;border-left:1px solid #a5b89e;background:#0c0c0ce8}
+.invitation>summary::-webkit-details-marker{display:none}
+.invitation>summary span{display:block;font:11px/1.8 var(--font-mono);color:#a5b89e}
+.invitation[open]>summary{border-color:#ccff00}.invitation .bubble{width:100%;margin-top:8px;border-radius:0;box-shadow:none}
+.policyNote{margin-top:16px;border-top:1px solid #505054;color:#b9c9b2;font-size:13px}
+.policyNote summary{cursor:pointer;min-height:44px;padding:12px 0;font:11px/1.7 var(--font-mono)}.policyNote p{color:#c2c2c2;font-size:13px;line-height:1.7}
+@media(min-width:1000px){.invitation .bubble{position:absolute;z-index:4;top:100%;left:0}}
+@media(max-width:999px){.welcome{margin-top:24px;align-items:center}.invitation{flex:1;max-width:260px;min-width:0;width:auto}}
+@media(max-width:999px){.welcome{inset:auto}}

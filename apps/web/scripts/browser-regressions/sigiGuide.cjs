@@ -25,6 +25,7 @@ const settle = async p => { await p.waitForTimeout(800); };
       assert(box.width >= 100 && box.width <= 180, 'approved display size');
       assert.equal(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'no overflow');
       if (width < 1000 || motion === 'reduce') assert.equal(await owl.evaluate(e => getComputedStyle(e).transform), 'none', 'static mascot');
+      await welcome.locator('summary').click();
       if (js) {
         await welcome.getByRole('link', { name: 'Show me around' }).focus();
         await p.keyboard.press('Enter');
@@ -59,6 +60,7 @@ const settle = async p => { await p.waitForTimeout(800); };
         await p.evaluate(() => sessionStorage.clear());
         await p.goto(base, { waitUntil: 'networkidle' });
         await p.locator('[aria-label="Sigi welcome"][data-ready=true]').waitFor();
+        await welcome.locator('summary').click();
         await welcome.getByRole('button', { name: 'Explore myself' }).click();
         assert.equal(await p.getByRole('link', { name: 'Show me around' }).count(), 0);
         assert.equal(await p.locator('#explore-clearsig').evaluate(e => e === document.activeElement), true);
